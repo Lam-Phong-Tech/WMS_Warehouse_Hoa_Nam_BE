@@ -1,25 +1,30 @@
 <?php
 
-namespace Modules\Warehouse\Repositories;
+namespace Modules\Warehouse\Http\Requests;
 
-use App\Repositories\BaseRepository;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Modules\Warehouse\Models\Agency;
-use Modules\Warehouse\Repositories\Contracts\AgencyRepositoryInterface;
 
-class AgencyRepository extends BaseRepository implements AgencyRepositoryInterface
+class UpdateAgencyRequest extends FormRequest
 {
-    protected array $searchable = ['agency_code', 'agency_name'];
+    public function authorize(): bool { return true; }
 
-    protected array $filterable = ['status'];
-
-    protected bool $cacheEnabled = true;
-
-    protected string $cacheDomain = 'warehouse.agency';
-
-    protected string $cacheTtlPolicy = 'master';
-
-    public function __construct(Agency $model)
+    public function rules(): array
     {
-        parent::__construct($model);
+        return [
+            'agency_code' => ['sometimes', 'string', 'max:50', Rule::unique('agencies', 'agency_code')->ignore($this->route('id'), 'agency_id')],
+            'agency_name' => ['sometimes', 'string', 'max:255'],
+            'recipient_type' => ['sometimes', Rule::in(Agency::RECIPIENT_TYPES)],
+            'contact_name' => ['nullable', 'string', 'max:200'],
+            'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
+            'address' => ['nullable', 'string', 'max:500'],
+            'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return ['phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.'];
     }
 }

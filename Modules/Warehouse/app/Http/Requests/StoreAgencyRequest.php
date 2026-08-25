@@ -1,33 +1,22 @@
 <?php
 
-namespace Modules\Warehouse\Http\Requests;
+namespace Modules\Warehouse\Models;
 
-use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
 
-class StoreAgencyRequest extends FormRequest
+class Agency extends Model
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
+    use HasUuids;
 
-    public function rules(): array
-    {
-        return [
-            'agency_code' => ['required', 'string', 'max:50', 'unique:agencies,agency_code'],
-            'agency_name' => ['required', 'string', 'max:255'],
-            'contact_name' => ['nullable', 'string', 'max:200'],
-            'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
-            'address' => ['nullable', 'string', 'max:500'],
-            'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
-        ];
-    }
+    public const RECIPIENT_TYPES = ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'];
 
-    public function messages(): array
-    {
-        return [
-            'phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
-        ];
-    }
+    protected $table = 'agencies';
+    protected $primaryKey = 'agency_id';
+    public $incrementing = false;
+    protected $keyType = 'string';
+
+    protected $fillable = [
+        'agency_code', 'agency_name', 'recipient_type', 'contact_name', 'phone', 'address', 'status',
+    ];
 }

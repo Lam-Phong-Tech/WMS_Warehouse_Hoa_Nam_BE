@@ -4,22 +4,25 @@ namespace Modules\Warehouse\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Modules\Warehouse\Models\Agency;
 
-class UpdateAgencyRequest extends FormRequest
+class StoreAgencyRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize(): bool { return true; }
+
+    protected function prepareForValidation(): void
     {
-        return true;
+        if (! $this->has('recipient_type')) {
+            $this->merge(['recipient_type' => 'AGENCY']);
+        }
     }
 
     public function rules(): array
     {
         return [
-            'agency_code' => [
-                'sometimes', 'string', 'max:50',
-                Rule::unique('agencies', 'agency_code')->ignore($this->route('id'), 'agency_id'),
-            ],
-            'agency_name' => ['sometimes', 'string', 'max:255'],
+            'agency_code' => ['required', 'string', 'max:50', 'unique:agencies,agency_code'],
+            'agency_name' => ['required', 'string', 'max:255'],
+            'recipient_type' => ['required', Rule::in(Agency::RECIPIENT_TYPES)],
             'contact_name' => ['nullable', 'string', 'max:200'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'address' => ['nullable', 'string', 'max:500'],
@@ -29,8 +32,6 @@ class UpdateAgencyRequest extends FormRequest
 
     public function messages(): array
     {
-        return [
-            'phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
-        ];
+        return ['phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.'];
     }
 }

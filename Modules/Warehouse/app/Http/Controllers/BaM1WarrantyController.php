@@ -9,60 +9,39 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Backward-compatible BA M1 warranty adapter.
+ * BA M1 warranty compatibility adapter.
  *
- * New clients send defect_ids[] / defect_codes[] and expected_completion_date.
- * Old clients can keep sending defect_id / defect_code. The legacy primary defect
- * stays in warranty_case.defect_id while the complete set is persisted in
- * warranty_case_defects.
+ * Canonical persistence is owned by CurrentBaselineWarrantyController:
+ * - defect_ids[] is persisted to warranty_case_defects using the schema PK;
+ * - warranty_case.defect_id remains the legacy/primary value;
+ * - estimated_completion_date is the canonical completion-date field.
+ *
+ * This adapter only normalizes legacy aliases and enriches the response. It must
+ * never write a second copy of the bridge because that previously caused a schema
+ * mismatch (is_primary was not a real column and the required bridge UUID was
+ * omitted).
  */
 class BaM1WarrantyController extends CurrentBaselineWarrantyController
 {
     public function storeWarrantyCase(Request $request)
     {
-        $this->validateBaFields($request);
-        $defectIds = $this->resolveRequestedDefectIds($request);
-        $this->mergePrimaryDefect($request, $defectIds);
+        $this->normalizeBaRequest($request);
+        $response = parent::storeWarrantyCase($request);
+        $caseId = (string) data_get($response->getData(true), 'data.warranty_case_id', '');
+        if ($caseId !== '') {
+            $this->augmentResponse($response, $caseId);
+        }
 
-        return DB::transaction(function () use ($request, $defectIds) {
-            $response = parent::storeWarrantyCase($request);
-            $caseId = (string) data_get($response->getData(true), 'data.warranty_case_id', '');
-            if ($caseId !== '') {
-                $this->syncBaFields($caseId, $defectIds, $request);
-                $this->augmentResponse($response, $caseId);
-            }
-
-            return $response;
-        }, 3);
+        return $response;
     }
 
     public function updateWarrantyCase(Request $request, string $id)
     {
-        $this->validateBaFields($request);
-        $hasDefectSet = $request->has('defect_ids') || $request->has('defect_codes');
-        $defectIds = $hasDefectSet ? $this->resolveRequestedDefectIds($request) : null;
-        if ($defectIds !== null) {
-            $this->mergePrimaryDefect($request, $defectIds);
-        }
+        $this->normalizeBaRequest($request);
+        $response = parent::updateWarrantyCase($request, $id);
+        $this->augmentResponse($response, $id);
 
-        // The parent rejects an otherwise-empty PATCH. expected_completion_date is
-        // a real BA field, so use the current condition_status as a no-op legacy
-        // field to let the canonical version/state/audit machinery execute once.
-        if ($request->has('expected_completion_date') && $this->hasOnlyBaFields($request)) {
-            $current = DB::table('warranty_case')->where('warranty_case_id', $id)->first();
-            if ($current === null) {
-                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Warranty case not found.');
-            }
-            $request->merge(['condition_status' => $current->condition_status]);
-        }
-
-        return DB::transaction(function () use ($request, $id, $defectIds) {
-            $response = parent::updateWarrantyCase($request, $id);
-            $this->syncBaFields($id, $defectIds, $request);
-            $this->augmentResponse($response, $id);
-
-            return $response;
-        }, 3);
+        return $response;
     }
 
     public function showWarrantyCase(Request $request, string $id)
@@ -73,103 +52,43 @@ class BaM1WarrantyController extends CurrentBaselineWarrantyController
         return $response;
     }
 
-    private function validateBaFields(Request $request): void
+    private function normalizeBaRequest(Request $request): void
     {
         $request->validate([
             'defect_ids' => ['sometimes', 'array', 'min:1'],
             'defect_ids.*' => ['uuid', 'distinct'],
             'defect_codes' => ['sometimes', 'array', 'min:1'],
             'defect_codes.*' => ['string', 'max:80', 'distinct'],
-            'expected_completion_date' => ['nullable', 'date'],
+            'estimated_completion_date' => ['nullable', 'date', 'after_or_equal:today'],
+            // Compatibility only. All new code must use estimated_completion_date.
+            'expected_completion_date' => ['nullable', 'date', 'after_or_equal:today'],
         ]);
-    }
 
-    /** @return list<string> */
-    private function resolveRequestedDefectIds(Request $request): array
-    {
-        $ids = array_values(array_filter(array_map('strval', (array) $request->input('defect_ids', []))));
-        $codes = array_values(array_filter(array_map(
-            static fn ($value): string => trim((string) $value),
-            (array) $request->input('defect_codes', [])
-        )));
-
-        if ($ids === [] && $codes === []) {
-            $legacyId = trim((string) $request->input('defect_id', ''));
-            $legacyCode = trim((string) $request->input('defect_code', ''));
-            if ($legacyId !== '') {
-                $ids[] = $legacyId;
-            } elseif ($legacyCode !== '') {
-                $codes[] = $legacyCode;
-            } else {
-                return [];
-            }
+        if ($request->has('expected_completion_date') && ! $request->has('estimated_completion_date')) {
+            $request->merge(['estimated_completion_date' => $request->input('expected_completion_date')]);
         }
 
-        if ($codes !== []) {
-            $rows = DB::table('defect_catalogs')
-                ->where('status', 'ACTIVE')
-                ->whereIn('defect_code', $codes)
-                ->get(['defect_id', 'defect_code']);
-            $foundCodes = $rows->pluck('defect_code')->map(fn ($v) => (string) $v)->all();
-            $missing = array_values(array_diff($codes, $foundCodes));
-            if ($missing !== []) {
-                ApiError::abort(422, 'WARRANTY_DEFECT_NOT_FOUND', 'Không tìm thấy một hoặc nhiều bệnh/lỗi ACTIVE.', [
-                    'defect_codes' => $missing,
+        if ($request->has('defect_codes')) {
+            $codes = array_values(array_unique(array_filter(array_map(
+                static fn ($value): string => trim((string) $value),
+                (array) $request->input('defect_codes', [])
+            ))));
+            if ($codes !== []) {
+                $rows = DB::table('defect_catalogs')
+                    ->where('status', 'ACTIVE')
+                    ->whereIn('defect_code', $codes)
+                    ->get(['defect_id', 'defect_code']);
+                $found = $rows->pluck('defect_code')->map(fn ($value): string => (string) $value)->all();
+                $missing = array_values(array_diff($codes, $found));
+                if ($missing !== []) {
+                    ApiError::abort(422, 'WARRANTY_DEFECT_NOT_FOUND', 'Không tìm thấy một hoặc nhiều bệnh/lỗi ACTIVE.', [
+                        'defect_codes' => $missing,
+                    ]);
+                }
+                $request->merge([
+                    'defect_ids' => $rows->pluck('defect_id')->map(fn ($value): string => (string) $value)->values()->all(),
                 ]);
             }
-            foreach ($rows as $row) {
-                $ids[] = (string) $row->defect_id;
-            }
-        }
-
-        $ids = array_values(array_unique($ids));
-        if ($ids !== []) {
-            $existing = DB::table('defect_catalogs')
-                ->where('status', 'ACTIVE')
-                ->whereIn('defect_id', $ids)
-                ->pluck('defect_id')
-                ->map(fn ($v) => (string) $v)
-                ->all();
-            $missing = array_values(array_diff($ids, $existing));
-            if ($missing !== []) {
-                ApiError::abort(422, 'WARRANTY_DEFECT_NOT_FOUND', 'Không tìm thấy một hoặc nhiều bệnh/lỗi ACTIVE.', [
-                    'defect_ids' => $missing,
-                ]);
-            }
-        }
-
-        return $ids;
-    }
-
-    /** @param list<string> $defectIds */
-    private function mergePrimaryDefect(Request $request, array $defectIds): void
-    {
-        if ($defectIds !== []) {
-            $request->merge(['defect_id' => $defectIds[0], 'defect_code' => null]);
-        }
-    }
-
-    /** @param list<string>|null $defectIds */
-    private function syncBaFields(string $caseId, ?array $defectIds, Request $request): void
-    {
-        if ($defectIds !== null && Schema::hasTable('warranty_case_defects')) {
-            DB::table('warranty_case_defects')->where('warranty_case_id', $caseId)->delete();
-            foreach ($defectIds as $index => $defectId) {
-                DB::table('warranty_case_defects')->insert([
-                    'warranty_case_id' => $caseId,
-                    'defect_id' => $defectId,
-                    'is_primary' => $index === 0,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-        }
-
-        if ($request->has('expected_completion_date') && Schema::hasColumn('warranty_case', 'expected_completion_date')) {
-            DB::table('warranty_case')->where('warranty_case_id', $caseId)->update([
-                'expected_completion_date' => $request->input('expected_completion_date'),
-                'updated_at' => now(),
-            ]);
         }
     }
 
@@ -180,20 +99,39 @@ class BaM1WarrantyController extends CurrentBaselineWarrantyController
             return;
         }
 
+        $case = DB::table('warranty_case')->where('warranty_case_id', $caseId)->first();
+        if ($case === null) {
+            return;
+        }
+
         $defects = [];
         if (Schema::hasTable('warranty_case_defects')) {
             $defects = DB::table('warranty_case_defects as wcd')
                 ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
                 ->where('wcd.warranty_case_id', $caseId)
-                ->orderByDesc('wcd.is_primary')
+                ->orderBy('wcd.created_at')
                 ->orderBy('dc.defect_code')
-                ->get(['dc.defect_id', 'dc.defect_code', 'dc.defect_name', 'wcd.is_primary'])
-                ->map(fn (object $row): array => [
+                ->get(['dc.defect_id', 'dc.defect_code', 'dc.defect_name'])
+                ->values()
+                ->map(fn (object $row, int $index): array => [
                     'defect_id' => (string) $row->defect_id,
                     'defect_code' => (string) $row->defect_code,
                     'defect_name' => (string) $row->defect_name,
-                    'is_primary' => (bool) $row->is_primary,
+                    // Computed compatibility flag; it is not persisted in the bridge.
+                    'is_primary' => $index === 0,
                 ])->all();
+        }
+
+        if ($defects === [] && $case->defect_id !== null) {
+            $legacy = DB::table('defect_catalogs')->where('defect_id', $case->defect_id)->first();
+            if ($legacy !== null) {
+                $defects[] = [
+                    'defect_id' => (string) $legacy->defect_id,
+                    'defect_code' => (string) $legacy->defect_code,
+                    'defect_name' => (string) $legacy->defect_name,
+                    'is_primary' => true,
+                ];
+            }
         }
 
         $body['data']['defects'] = $defects;
@@ -201,21 +139,9 @@ class BaM1WarrantyController extends CurrentBaselineWarrantyController
             static fn (array $defect): string => $defect['defect_id'],
             $defects
         ));
-        if (Schema::hasColumn('warranty_case', 'expected_completion_date')) {
-            $body['data']['expected_completion_date'] = DB::table('warranty_case')
-                ->where('warranty_case_id', $caseId)
-                ->value('expected_completion_date');
-        }
-
+        $body['data']['estimated_completion_date'] = $case->estimated_completion_date ?? null;
+        // Read-only compatibility alias for older FE builds.
+        $body['data']['expected_completion_date'] = $case->estimated_completion_date ?? null;
         $response->setData($body);
-    }
-
-    private function hasOnlyBaFields(Request $request): bool
-    {
-        $businessKeys = array_values(array_diff(array_keys($request->all()), [
-            'defect_ids', 'defect_codes', 'expected_completion_date', 'defect_id', 'defect_code',
-        ]));
-
-        return $businessKeys === [];
     }
 }
