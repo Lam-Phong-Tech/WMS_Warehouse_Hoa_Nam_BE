@@ -4,14 +4,16 @@ namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
- * Diagnostic extension of the CURRENT aligned outbound stock service.
+ * Runtime stock service for the current BA baseline.
  *
- * Important: this class must inherit AlignedOutboundStockService, not the older
- * CurrentBaselineStockService directly. That preserves the current PRODUCT
- * outbound semantics (full match, RFID optional, stock changes only at Post
- * Issue) while enriching ITEM_ALREADY_MATCHED with the exact active document.
+ * 2026-08-25 BA alignment:
+ * - inbound quantity is derived from actual scans, never gated by a pre-entered qty_planned;
+ * - unused pre-planned inbound lines are discarded at Post Receipt;
+ * - existing canonical duplicate/candidate guards stay authoritative;
+ * - outbound keeps the aligned reservation diagnostics and planned-quantity semantics.
  */
 class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
 {
@@ -28,9 +30,167 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
             if ($itemId !== null) {
                 $this->assertNoActiveOutboundReservation($documentId, $itemId);
             }
+        } elseif ($documentType === 'receipt') {
+            // BA 2026-08-25: inbound is scan-driven. qty_planned is retained only as
+            // a compatibility/storage column and mirrors the quantity physically
+            // scanned. It is not a user-entered expectation or an over-scan gate.
+            $payload = $this->prepareScanDrivenInboundLine($documentId, $payload);
         }
 
         return parent::scanStockDocument($documentId, $documentType, $payload, $actorId);
+    }
+
+    public function postStockDocument(
+        string $documentId,
+        string $documentType,
+        ?string $actorId,
+        string $idempotencyKey,
+        string $requestHash,
+        array $auditAfterData = []
+    ): array {
+        if ($documentType !== 'receipt') {
+            return parent::postStockDocument(
+                $documentId,
+                $documentType,
+                $actorId,
+                $idempotencyKey,
+                $requestHash,
+                $auditAfterData
+            );
+        }
+
+        return DB::transaction(function () use ($documentId, $documentType, $actorId, $idempotencyKey, $requestHash, $auditAfterData): array {
+            // Historical/legacy drafts may still contain expected lines. They are
+            // not authoritative under the scan-driven baseline. Lines never scanned
+            // have no stock effect and can be removed before posting; scanned lines
+            // are normalized to actual scanned quantity so the canonical posting
+            // engine remains the single stock mutation implementation.
+            $lines = DB::table('stock_document_lines')
+                ->where('stock_document_id', $documentId)
+                ->lockForUpdate()
+                ->get(['id', 'scanned_qty']);
+
+            foreach ($lines as $line) {
+                $actual = (int) $line->scanned_qty;
+                if ($actual <= 0) {
+                    DB::table('stock_document_lines')->where('id', $line->id)->delete();
+                    continue;
+                }
+
+                DB::table('stock_document_lines')->where('id', $line->id)->update([
+                    'qty_planned' => $actual,
+                    'qty_actual' => $actual,
+                    'completion_type' => 'full',
+                    'shortage_reason' => null,
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return parent::postStockDocument(
+                $documentId,
+                $documentType,
+                $actorId,
+                $idempotencyKey,
+                $requestHash,
+                $auditAfterData + ['inbound_quantity_source' => 'ACTUAL_SCAN']
+            );
+        }, 3);
+    }
+
+    /**
+     * Ensure the canonical scanner always sees a line with capacity exactly equal
+     * to the next actual scan. For composite QR the SKU embedded in the code is
+     * authoritative and a line is created automatically when this is the first scan
+     * of that SKU. No expected SKU/quantity entry is required beforehand.
+     */
+    private function prepareScanDrivenInboundLine(string $documentId, array $payload): array
+    {
+        return DB::transaction(function () use ($documentId, $payload): array {
+            $document = DB::table('stock_documents')
+                ->where('id', $documentId)
+                ->where('doc_type', 'receipt')
+                ->lockForUpdate()
+                ->first();
+            if ($document === null) {
+                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiếu nhập.');
+            }
+            if (! in_array((string) $document->status, ['DRAFT', 'SCANNING'], true)) {
+                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được scan.');
+            }
+
+            $quantity = (int) ($payload['quantity'] ?? 0);
+            if ($quantity <= 0) {
+                ApiError::abort(422, 'INVALID_QUANTITY', 'Số lượng scan phải là số nguyên lớn hơn 0.');
+            }
+
+            $line = null;
+            if (! empty($payload['line_id'])) {
+                $line = DB::table('stock_document_lines')
+                    ->where('id', $payload['line_id'])
+                    ->where('stock_document_id', $documentId)
+                    ->lockForUpdate()
+                    ->first();
+                if ($line === null) {
+                    ApiError::abort(404, 'DOCUMENT_LINE_NOT_FOUND', 'Không tìm thấy line trong phiếu nhập.');
+                }
+            } elseif (! empty($payload['code_value'])) {
+                $parsed = app(ProductQrPayloadParser::class)->parse((string) $payload['code_value']);
+                if (! $parsed->isValid()) {
+                    // Keep canonical parser/error semantics in the parent service.
+                    return $payload;
+                }
+
+                $skuId = null;
+                if ($parsed->isComposite()) {
+                    $sku = app(ProductIdentityResolver::class)->requireActiveSkuByCode((string) $parsed->skuCode);
+                    $skuId = (string) $sku->sku_id;
+                } else {
+                    $item = app(ProductIdentityResolver::class)->findItemByUnique((string) $parsed->normalizedCodeValue);
+                    $skuId = $item?->sku_id !== null ? (string) $item->sku_id : null;
+                }
+
+                if ($skuId !== null) {
+                    $line = DB::table('stock_document_lines')
+                        ->where('stock_document_id', $documentId)
+                        ->where('product_id', $skuId)
+                        ->orderBy('line_no')
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($line === null) {
+                        $lineId = (string) Str::uuid();
+                        $lineNo = ((int) DB::table('stock_document_lines')
+                            ->where('stock_document_id', $documentId)
+                            ->max('line_no')) + 1;
+                        DB::table('stock_document_lines')->insert([
+                            'id' => $lineId,
+                            'stock_document_id' => $documentId,
+                            'line_no' => $lineNo,
+                            'product_id' => $skuId,
+                            'qty_planned' => $quantity,
+                            'qty_actual' => 0,
+                            'scanned_qty' => 0,
+                            'completion_type' => 'full',
+                            'shortage_reason' => null,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                        $line = DB::table('stock_document_lines')->where('id', $lineId)->lockForUpdate()->first();
+                    }
+
+                    $payload['line_id'] = (string) $line->id;
+                }
+            }
+
+            if ($line !== null) {
+                DB::table('stock_document_lines')->where('id', $line->id)->update([
+                    'qty_planned' => (int) $line->scanned_qty + $quantity,
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return $payload;
+        }, 3);
     }
 
     private function assertNoActiveOutboundReservation(string $documentId, string $itemId): void
