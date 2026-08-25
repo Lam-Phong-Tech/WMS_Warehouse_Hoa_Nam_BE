@@ -288,7 +288,9 @@ class Wwhn295RuntimeConfigHealthTest extends TestCase
      */
     public function test_nginx_forwards_the_proxy_headers_to_php_fpm(): void
     {
-        $conf = (string) File::get(base_path('docker/nginx/default.conf'));
+        // Cấu hình nginx đã chuyển sang template envsubst (default.conf.template);
+        // pin theo tên file cũ làm test đỏ dù nội dung vẫn đúng hợp đồng.
+        $conf = (string) File::get(base_path('docker/nginx/default.conf.template'));
 
         $this->assertStringContainsString('fastcgi_param HTTP_X_FORWARDED_FOR   $proxy_add_x_forwarded_for;', $conf);
         $this->assertStringContainsString('fastcgi_param HTTP_X_FORWARDED_PROTO $wms_forwarded_proto;', $conf);

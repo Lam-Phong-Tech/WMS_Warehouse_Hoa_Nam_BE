@@ -205,28 +205,49 @@ class WarehouseBusinessDataSeeder extends Seeder
     private function seedProductReceipt(string $skuId): array
     {
         $serials = ['SN-HN-SEED-0001', 'SN-HN-SEED-0002', 'SN-HN-SEED-0003'];
-        $itemIds = [];
-        foreach ($serials as $index => $serial) {
-            $itemId = $this->ensureItemInstance($skuId, $serial);
-            $this->ensureRfid($itemId, 'RFID-HN-SEED-'.sprintf('%04d', $index + 1));
-            $itemIds[] = $itemId;
-        }
 
         [$documentId, $lineId] = $this->createDocument('receipt', self::RECEIPT_PRODUCT_NO, [
-            ['product_id' => $skuId, 'qty_planned' => count($itemIds)],
+            ['product_id' => $skuId, 'qty_planned' => count($serials)],
         ], ['source_name' => 'Nhà máy Hòa Nam']);
 
-        foreach ($itemIds as $itemId) {
+        // GĐ1-REQ-008 + DEC-QR-001: identity đã tồn tại trước bị chặn khỏi inbound
+        // thường, nên seeder phải đi đúng đường nghiệp vụ — scan composite QR tạo
+        // candidate, item_instances được đăng ký tại Post Receipt.
+        $itemIds = $this->scanCandidateSerials($documentId, $lineId, $skuId, $serials);
+
+        foreach ($itemIds as $index => $itemId) {
+            $this->ensureRfid($itemId, 'RFID-HN-SEED-'.sprintf('%04d', $index + 1));
+        }
+
+        return $itemIds;
+    }
+
+    /**
+     * Scan composite QR cho từng serial (candidate) rồi Post Receipt; trả về
+     * item_id đã đăng ký (IN_STOCK) theo đúng thứ tự serial truyền vào.
+     *
+     * @param  list<string>  $serials
+     * @return list<string>
+     */
+    private function scanCandidateSerials(string $documentId, string $lineId, string $skuId, array $serials): array
+    {
+        $skuCode = (string) DB::table('sku')->where('sku_id', $skuId)->value('sku_code');
+        foreach ($serials as $serial) {
             $this->stock->scanStockDocument($documentId, 'receipt', [
                 'line_id' => $lineId,
                 'quantity' => 1,
-                'item_id' => $itemId,
+                'code_value' => "HN1|SKU={$skuCode}|ITEM={$serial}",
             ], $this->actorId);
         }
 
         $this->postDocument($documentId, 'receipt');
 
-        return $itemIds;
+        return array_map(
+            fn (string $serial): string => (string) DB::table('item_instances')
+                ->where('serial_number', $serial)
+                ->value('item_id'),
+            $serials
+        );
     }
 
     /** Phiếu nhập DRAFT — chưa scan, để dev test màn hình soạn/sửa phiếu. */
@@ -453,30 +474,30 @@ class WarehouseBusinessDataSeeder extends Seeder
      */
     private function seedProductReceiptVariant(string $docNo, string $skuId, string $serialPrefix, string $rfidPrefix, int $qty, string $sourceName): array
     {
-        $itemIds = [];
+        $serials = [];
         for ($i = 1; $i <= $qty; $i++) {
-            $itemId = $this->ensureItemInstance($skuId, $serialPrefix.'-'.sprintf('%02d', $i));
-            $this->ensureRfid($itemId, $rfidPrefix.'-'.sprintf('%02d', $i));
-            $itemIds[] = $itemId;
+            $serials[] = $serialPrefix.'-'.sprintf('%02d', $i);
         }
 
         if (DB::table('stock_documents')->where('doc_no', $docNo)->exists()) {
-            return $itemIds;
+            return array_map(
+                fn (string $serial): string => (string) DB::table('item_instances')
+                    ->where('serial_number', $serial)
+                    ->value('item_id'),
+                $serials
+            );
         }
 
         [$documentId, $lineId] = $this->createDocument('receipt', $docNo, [
-            ['product_id' => $skuId, 'qty_planned' => count($itemIds)],
+            ['product_id' => $skuId, 'qty_planned' => count($serials)],
         ], ['source_name' => $sourceName]);
 
-        foreach ($itemIds as $itemId) {
-            $this->stock->scanStockDocument($documentId, 'receipt', [
-                'line_id' => $lineId,
-                'quantity' => 1,
-                'item_id' => $itemId,
-            ], $this->actorId);
-        }
+        // Cùng lý do seedProductReceipt(): candidate composite scan, item sinh tại Post.
+        $itemIds = $this->scanCandidateSerials($documentId, $lineId, $skuId, $serials);
 
-        $this->postDocument($documentId, 'receipt');
+        foreach ($itemIds as $index => $itemId) {
+            $this->ensureRfid($itemId, $rfidPrefix.'-'.sprintf('%02d', $index + 1));
+        }
 
         return $itemIds;
     }
