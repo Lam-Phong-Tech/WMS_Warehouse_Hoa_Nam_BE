@@ -169,6 +169,82 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             ->assertStatus(404);
     }
 
+    /**
+     * WAR-02: video mp4 hợp lệ nhỏ nhất mà getID3 đọc được duration — chỉ ftyp +
+     * moov/mvhd (đủ để quicktime module tính playtime_seconds = duration/time_scale)
+     * + mdat đệm để tránh lỗi "cannot fseek" khi file quá nhỏ.
+     */
+    private function fakeMp4UploadedFile(string $name, int $durationSeconds): UploadedFile
+    {
+        $box = fn (string $type, string $payload): string => pack('N', 8 + strlen($payload)).$type.$payload;
+
+        $mvhdPayload = str_repeat("\x00", 4) // version+flags
+            .str_repeat("\x00", 4) // creation_time
+            .str_repeat("\x00", 4) // modification_time
+            .pack('N', 1000) // time_scale
+            .pack('N', $durationSeconds * 1000) // duration
+            .pack('N', 0x00010000) // rate
+            .pack('n', 0x0100) // volume
+            .str_repeat("\x00", 10) // reserved
+            .str_repeat("\x00", 36) // matrix
+            .str_repeat("\x00", 24) // preview/poster/selection/current time
+            .pack('N', 2); // next_track_id
+
+        $bytes = $box('ftyp', 'isom'.pack('N', 0).'isomiso2mp41')
+            .$box('moov', $box('mvhd', $mvhdPayload))
+            .$box('mdat', str_repeat("\x00", 2048));
+
+        $path = tempnam(sys_get_temp_dir(), 'war02-mp4-');
+        file_put_contents($path, $bytes);
+
+        return new UploadedFile($path, $name, 'video/mp4', null, true);
+    }
+
+    public function test_warranty_video_attachment_upload_duration_and_cap(): void
+    {
+        Storage::fake('local');
+        $headers = $this->authHeaders();
+        $caseId = $this->createTempOnlyCase($headers);
+
+        $upload = $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
+            'file' => $this->fakeMp4UploadedFile('tiep-nhan.mp4', 30),
+        ], $headers);
+        $upload->assertCreated()
+            ->assertJsonPath('data.media_kind', 'VIDEO')
+            ->assertJsonPath('data.duration_seconds', 30)
+            ->assertJsonPath('data.stock_effect', 'NONE');
+
+        // Video >5 phút bị chặn, không lưu ra storage.
+        $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
+            'file' => $this->fakeMp4UploadedFile('qua-dai.mp4', 400),
+        ], $headers)
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'ATTACHMENT_VIDEO_TOO_LONG');
+
+        // Video thứ 2 hợp lệ vẫn được nhận (cap = 2 video/case).
+        $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
+            'file' => $this->fakeMp4UploadedFile('video-2.mp4', 20),
+        ], $headers)->assertCreated();
+
+        // Video thứ 3 vượt cap 2 video/case.
+        $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
+            'file' => $this->fakeMp4UploadedFile('video-3.mp4', 15),
+        ], $headers)
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'ATTACHMENT_LIMIT_EXCEEDED');
+
+        // Video không tính vào cap 10 ảnh: vẫn tải được đủ 10 ảnh sau khi đã có 2 video.
+        for ($i = 0; $i < 10; $i++) {
+            $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
+                'file' => UploadedFile::fake()->image("anh-{$i}.jpg"),
+            ], $headers)->assertCreated();
+        }
+
+        $list = $this->getJson("/api/v1/warranty-cases/{$caseId}/attachments?per_page=100", $headers);
+        $list->assertOk();
+        $this->assertCount(12, $list->json('data'));
+    }
+
     public function test_component_issue_detail_route_and_warranty_case_filter(): void
     {
         $headers = $this->authHeaders();

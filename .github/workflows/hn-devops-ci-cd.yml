@@ -287,6 +287,15 @@ jobs:
             if [ "${RUN_UAT_SEED}" = "true" ]; then
               docker compose exec -T backend php artisan db:seed --force
             fi
+            # Rebuild config/route/event cache against the code+config that
+            # was just deployed. Without this the app re-parses .env and
+            # re-registers every route on every request (measurable overhead
+            # under load); optimize:clear above only ever wiped the cache,
+            # nothing rebuilt it afterwards. Failure here aborts the script
+            # (set -euo pipefail) before the restart below, so a bad cache
+            # build never reaches traffic -- the previous containers keep
+            # serving until this is fixed and re-run.
+            docker compose exec -T backend php artisan optimize
             docker compose restart backend nginx
 
       - name: UAT smoke

@@ -45,6 +45,9 @@ class MiniAppInboundStagingController extends Controller
         'note',
         'items',
     ];
+    // expected_total_qty giữ trong whitelist để không vỡ client cũ còn gửi field
+    // này, nhưng không còn required/validate khớp — nhận đúng số lượng đã quét
+    // thực tế, không cần khai trước ("quét đến đâu nhận đến đấy").
     private const RECORD_ITEM_FIELDS = [
         'raw_code',
         'scan_source',
@@ -94,7 +97,7 @@ class MiniAppInboundStagingController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:200'],
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
-            'expected_total_qty' => ['required', 'integer', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
+            'expected_total_qty' => ['nullable', 'integer', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
             'doc_date' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
@@ -102,13 +105,6 @@ class MiniAppInboundStagingController extends Controller
             'items.*.raw_code' => ['required', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'items.*.scan_source' => ['nullable', 'string', 'in:CAMERA,SCANNER,HARDWARE,MANUAL'],
         ]);
-
-        if (count($validated['items']) !== (int) $validated['expected_total_qty']) {
-            ApiError::abort(422, 'SCAN_COUNT_MISMATCH', 'Số dòng scan local phải đúng bằng số lượng đã nhập trước khi xác nhận.', [
-                'expected_total_qty' => (int) $validated['expected_total_qty'],
-                'scanned_total_qty' => count($validated['items']),
-            ]);
-        }
 
         $this->assertCanonicalWarehouse((string) $validated['dst_warehouse_id']);
 
@@ -181,7 +177,7 @@ class MiniAppInboundStagingController extends Controller
                             'status' => 'DRAFT',
                             'version' => 1,
                             'source' => 'MINI_APP_ATOMIC_RECORD',
-                            'expected_total_qty' => (int) $validated['expected_total_qty'],
+                            'expected_total_qty' => count($validated['items']),
                         ],
                         idempotencyKey: $idempotencyKey,
                     );

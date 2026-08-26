@@ -31,6 +31,16 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
     /** Annex D SCR-WAR-01: images <= 10 files, <= 10MB/file. */
     private const MAX_ACTIVE_ATTACHMENTS = 10;
 
+    private const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+    /** WAR-02: video tách khỏi 10 ảnh, tối đa 2 video ACTIVE mỗi case, <=300MB/file, <=5 phút. */
+    private const MAX_ACTIVE_VIDEOS = 2;
+
+    private const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
+
+    /** Ceiling chung cho validator Laravel; giới hạn thật theo loại được áp dụng thủ công bên dưới. */
+    private const MAX_UPLOAD_KB = 307200;
+
     #[OA\Get(
         path: '/api/v1/warranty-cases/{id}/attachments',
         operationId: 'warranty_attachment_list',
@@ -79,7 +89,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
                     type: 'object',
                     required: ['file'],
                     properties: [
-                        new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Ảnh jpg/jpeg/png/webp, tối đa 10MB (Annex D SCR-WAR-01); tối đa 10 tệp ACTIVE mỗi case.'),
+                        new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Ảnh jpg/jpeg/png/webp <=10MB (Annex D SCR-WAR-01, tối đa 10 tệp ACTIVE mỗi case) HOẶC video mp4/mov/webm <=300MB và <=5 phút (WAR-02, tối đa 2 video ACTIVE mỗi case, đếm riêng khỏi ảnh).'),
                         new OA\Property(property: 'attachment_type', type: 'string', enum: ['INTAKE', 'DIAGNOSTIC', 'RETURN', 'OTHER'], nullable: true, description: 'Mặc định INTAKE.', example: 'INTAKE'),
                     ]
                 )
@@ -97,27 +107,33 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         }
 
         $validated = $request->validate([
-            // Annex D SCR-WAR-01: jpg/png/webp, <=10MB. heic/pdf không thuộc baseline
-            // nên không nhận nữa; validator `mimes:` là lớp đầu, magic-byte check ở dưới.
-            'file' => ['required', 'file', 'max:10240', 'mimes:jpg,jpeg,png,webp'],
+            // Ceiling chung; giới hạn thật (10MB ảnh / 300MB video) áp dụng thủ công sau
+            // khi biết media_kind — 'mimes:' bỏ, vì rule đó không chấp nhận video.
+            'file' => ['required', 'file', 'max:'.self::MAX_UPLOAD_KB],
             'attachment_type' => ['nullable', 'in:'.implode(',', self::ATTACHMENT_TYPES)],
         ]);
 
-        // Annex D SCR-WAR-01: tối đa 10 file đính kèm mỗi case.
-        $activeCount = (int) DB::table('warranty_attachments')
-            ->where('warranty_case_id', $id)
-            ->where('status', 'ACTIVE')
-            ->count();
-        if ($activeCount >= self::MAX_ACTIVE_ATTACHMENTS) {
-            ApiError::abort(422, 'ATTACHMENT_LIMIT_EXCEEDED', 'Mỗi case bảo hành chỉ được giữ tối đa '.self::MAX_ACTIVE_ATTACHMENTS.' tệp đính kèm.');
+        $file = $validated['file'];
+        $mediaKind = WarrantyAttachmentScanner::detectMediaKind($file);
+        if ($mediaKind === null) {
+            ApiError::abort(422, 'ATTACHMENT_CONTENT_TYPE_INVALID', 'Tệp đính kèm chỉ nhận ảnh JPG/PNG/WEBP hoặc video MP4/MOV/WEBM.', [
+                'allowed_image_mime' => array_keys(WarrantyAttachmentScanner::ALLOWED_MIME_EXTENSIONS),
+                'allowed_video_mime' => array_keys(WarrantyAttachmentScanner::ALLOWED_VIDEO_MIME_EXTENSIONS),
+            ]);
         }
 
-        $file = $validated['file'];
+        $durationSeconds = $mediaKind === 'VIDEO'
+            ? $this->validateVideo($id, $file)
+            : $this->validateImage($id, $file);
+
         // §13.8 "malware/content-type check": MIME thật phải khớp allowlist + extension.
-        ['extension' => $extension] = WarrantyAttachmentScanner::assertContentType($file);
+        ['extension' => $extension] = $mediaKind === 'VIDEO'
+            ? WarrantyAttachmentScanner::assertVideoContentType($file)
+            : WarrantyAttachmentScanner::assertContentType($file);
         $scan = WarrantyAttachmentScanner::scanForMalware($file);
 
         $attachmentId = (string) Str::uuid();
+        $storageDisk = $mediaKind === 'VIDEO' ? (string) config('warranty.video_disk', 'local') : self::DISK;
         $storageKey = "warranty-attachments/{$id}/{$attachmentId}.{$extension}";
         $checksum = hash_file('sha256', $file->getRealPath()) ?: null;
 
@@ -132,7 +148,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             ]);
         }
 
-        Storage::disk(self::DISK)->putFileAs("warranty-attachments/{$id}", $file, "{$attachmentId}.{$extension}");
+        Storage::disk($storageDisk)->putFileAs("warranty-attachments/{$id}", $file, "{$attachmentId}.{$extension}");
 
         $now = now();
         $actorId = $this->actorId();
@@ -142,12 +158,15 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             'file_name' => mb_substr((string) $file->getClientOriginalName(), 0, 255),
             'storage_path' => $storageKey,
             'storage_key' => $storageKey,
+            'storage_disk' => $storageDisk,
             'mime_type' => mb_substr((string) $file->getMimeType(), 0, 120),
             'content_type' => mb_substr((string) $file->getMimeType(), 0, 100),
             'file_size' => $file->getSize(),
             'file_size_bytes' => $file->getSize(),
             'checksum' => $checksum,
             'attachment_type' => $validated['attachment_type'] ?? 'INTAKE',
+            'media_kind' => $mediaKind,
+            'duration_seconds' => $durationSeconds,
             'status' => 'ACTIVE',
             'uploaded_at' => $now,
             'uploaded_by' => $actorId,
@@ -167,6 +186,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             afterData: [
                 'warranty_case_id' => $id,
                 'attachment_type' => $validated['attachment_type'] ?? 'INTAKE',
+                'media_kind' => $mediaKind,
                 'file_size_bytes' => $file->getSize(),
                 'checksum' => $checksum,
                 'scan_result' => $scan['result'],
@@ -180,6 +200,57 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             $this->payload($row) + ['scan_result' => $scan['result']],
             'Đã tải lên tệp đính kèm bảo hành; tồn kho chưa thay đổi (stock_effect=NONE).'
         );
+    }
+
+    /** Annex D SCR-WAR-01: <=10 ảnh ACTIVE mỗi case (đếm riêng khỏi video), <=10MB/file. */
+    private function validateImage(string $caseId, $file): ?int
+    {
+        if ($file->getSize() > self::MAX_IMAGE_BYTES) {
+            ApiError::abort(422, 'ATTACHMENT_TOO_LARGE', 'Ảnh đính kèm vượt quá 10MB.');
+        }
+
+        $activeCount = (int) DB::table('warranty_attachments')
+            ->where('warranty_case_id', $caseId)
+            ->where('status', 'ACTIVE')
+            ->where(function ($query): void {
+                $query->whereNull('media_kind')->orWhere('media_kind', '!=', 'VIDEO');
+            })
+            ->count();
+        if ($activeCount >= self::MAX_ACTIVE_ATTACHMENTS) {
+            ApiError::abort(422, 'ATTACHMENT_LIMIT_EXCEEDED', 'Mỗi case bảo hành chỉ được giữ tối đa '.self::MAX_ACTIVE_ATTACHMENTS.' ảnh đính kèm.');
+        }
+
+        return null;
+    }
+
+    /** WAR-02: <=2 video ACTIVE mỗi case, <=300MB/file, <=5 phút — đo bằng getID3. */
+    private function validateVideo(string $caseId, $file): int
+    {
+        if ($file->getSize() > self::MAX_VIDEO_BYTES) {
+            ApiError::abort(422, 'ATTACHMENT_TOO_LARGE', 'Video đính kèm vượt quá 300MB.');
+        }
+
+        $activeVideoCount = (int) DB::table('warranty_attachments')
+            ->where('warranty_case_id', $caseId)
+            ->where('status', 'ACTIVE')
+            ->where('media_kind', 'VIDEO')
+            ->count();
+        if ($activeVideoCount >= self::MAX_ACTIVE_VIDEOS) {
+            ApiError::abort(422, 'ATTACHMENT_LIMIT_EXCEEDED', 'Mỗi case bảo hành chỉ được giữ tối đa '.self::MAX_ACTIVE_VIDEOS.' video đính kèm.');
+        }
+
+        $durationSeconds = WarrantyAttachmentScanner::probeVideoDurationSeconds($file);
+        if ($durationSeconds === null) {
+            ApiError::abort(422, 'ATTACHMENT_CONTENT_TYPE_INVALID', 'Không đọc được thời lượng video; tệp có thể hỏng hoặc không đúng định dạng.');
+        }
+        if ($durationSeconds > WarrantyAttachmentScanner::MAX_VIDEO_DURATION_SECONDS) {
+            ApiError::abort(422, 'ATTACHMENT_VIDEO_TOO_LONG', 'Video đính kèm vượt quá 5 phút.', [
+                'duration_seconds' => $durationSeconds,
+                'max_duration_seconds' => WarrantyAttachmentScanner::MAX_VIDEO_DURATION_SECONDS,
+            ]);
+        }
+
+        return $durationSeconds;
     }
 
     /**
@@ -252,7 +323,8 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
     {
         $row = $this->requireAttachment($attachmentId);
         $path = (string) ($row->storage_key ?? $row->storage_path);
-        if ($path === '' || ! Storage::disk(self::DISK)->exists($path)) {
+        $disk = (string) ($row->storage_disk ?? self::DISK);
+        if ($path === '' || ! Storage::disk($disk)->exists($path)) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy tệp đính kèm trên storage.');
         }
 
@@ -264,7 +336,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             requestId: $request->attributes->get('request_id'),
         );
 
-        return Storage::disk(self::DISK)->download($path, (string) $row->file_name);
+        return Storage::disk($disk)->download($path, (string) $row->file_name);
     }
 
     #[OA\Delete(
@@ -342,6 +414,8 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             'file_size_bytes' => (int) ($row->file_size_bytes ?? $row->file_size ?? 0),
             'checksum' => $row->checksum ?? null,
             'attachment_type' => (string) ($row->attachment_type ?? 'OTHER'),
+            'media_kind' => (string) ($row->media_kind ?? 'IMAGE'),
+            'duration_seconds' => isset($row->duration_seconds) ? (int) $row->duration_seconds : null,
             'status' => (string) ($row->status ?? 'ACTIVE'),
             'uploaded_at' => $row->uploaded_at ?? $row->created_at,
             'uploaded_by' => $row->uploaded_by ?? $row->created_by,

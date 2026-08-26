@@ -15,4 +15,11 @@ return [
     'attachment_scan_command' => env('WARRANTY_ATTACHMENT_SCAN_COMMAND', ''),
 
     'attachment_scan_timeout' => (float) env('WARRANTY_ATTACHMENT_SCAN_TIMEOUT', 30),
+
+    /*
+     * Video đính kèm tiếp nhận (WAR-02): lưu tách khỏi ảnh vì dung lượng lớn hơn
+     * nhiều — mặc định disk 'local' để môi trường chưa tạo bucket R2 vẫn dùng được;
+     * đổi thành 'r2' sau khi điền đủ biến R2_* trong .env (xem config/filesystems.php).
+     */
+    'video_disk' => env('WARRANTY_VIDEO_DISK', 'local'),
 ];

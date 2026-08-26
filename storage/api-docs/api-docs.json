@@ -46125,7 +46125,7 @@
                                 ],
                                 "properties": {
                                     "file": {
-                                        "description": "Ảnh jpg/jpeg/png/webp, tối đa 10MB (Annex D SCR-WAR-01); tối đa 10 tệp ACTIVE mỗi case.",
+                                        "description": "Ảnh jpg/jpeg/png/webp <=10MB (Annex D SCR-WAR-01, tối đa 10 tệp ACTIVE mỗi case) HOẶC video mp4/mov/webm <=300MB và <=5 phút (WAR-02, tối đa 2 video ACTIVE mỗi case, đếm riêng khỏi ảnh).",
                                         "type": "string",
                                         "format": "binary"
                                     },

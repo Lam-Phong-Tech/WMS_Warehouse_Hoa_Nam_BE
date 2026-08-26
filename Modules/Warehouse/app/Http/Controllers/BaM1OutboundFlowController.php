@@ -13,11 +13,11 @@ use Illuminate\Http\Request;
  */
 class BaM1OutboundFlowController extends AlignedOutboundFlowController
 {
-    public function postIssue(Request $request, string $id, bool $bypassPackingLabelGate = true)
+    public function postIssue(Request $request, string $id, bool $bypassPackingLabelGate = true, string $bypassSource = 'BA_M1')
     {
         // The aligned parent owns state/version/idempotency/full-scan/stock guards.
         // Passing bypassPackingLabelGate=true removes only the legacy label gate;
         // stock mutation semantics remain exactly the canonical implementation.
-        return parent::postIssue($request, $id, $bypassPackingLabelGate);
+        return parent::postIssue($request, $id, $bypassPackingLabelGate, $bypassSource);
     }
 }

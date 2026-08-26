@@ -11,6 +11,7 @@ services:
       - WMS_NGINX_EXTERNAL_PORT=${NGINX_DOCKER_PORT:-8080}
     volumes:
       - .:/var/www/html:delegated
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     depends_on:
       backend:

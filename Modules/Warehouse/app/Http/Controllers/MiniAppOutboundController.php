@@ -175,7 +175,7 @@ class MiniAppOutboundController extends Controller
     /** The only inventory-decreasing action in the Mini App outbound adapter. */
     public function postIssue(Request $request, string $id)
     {
-        return $this->flow->postIssue($request, $id, bypassPackingLabelGate: true);
+        return $this->flow->postIssue($request, $id, bypassPackingLabelGate: true, bypassSource: 'MINI_APP');
     }
 
     private function requireDocument(string $id): object

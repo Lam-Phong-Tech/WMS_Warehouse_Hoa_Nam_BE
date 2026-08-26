@@ -556,7 +556,7 @@ class AlignedOutboundFlowController extends Controller
         return $this->respondSuccess($this->labelPayload($id), 'Đã xác nhận dán Packing Label; stock_effect=NONE.');
     }
 
-    public function postIssue(Request $request, string $id, bool $bypassPackingLabelGate = false)
+    public function postIssue(Request $request, string $id, bool $bypassPackingLabelGate = false, string $bypassSource = 'BA_M1')
     {
         $expectedVersion = $this->expectedVersion($request);
         $key = IdempotencyKeyGuard::require($request);
@@ -567,10 +567,10 @@ class AlignedOutboundFlowController extends Controller
             'post_issue_'.$id,
             $this->actorId(),
             $hash,
-            function () use ($id, $expectedVersion, $key, $hash): array {
+            function () use ($id, $expectedVersion, $key, $hash, $bypassSource): array {
                 $document = null;
                 try {
-                    $result = DB::transaction(function () use ($id, $expectedVersion, $key, $hash, &$document): array {
+                    $result = DB::transaction(function () use ($id, $expectedVersion, $key, $hash, $bypassSource, &$document): array {
                         $document = $this->lockDocument($id);
                         $this->assertVersion($document, $expectedVersion);
                         if ((string) $document->status !== 'SCANNING') {
@@ -590,11 +590,13 @@ class AlignedOutboundFlowController extends Controller
                         ]);
                         // BA-2026-08: stock post is independent of preview, printer
                         // availability and physical label application.
-                        $posted = $this->stock->postStockDocument($id, 'issue', $this->actorId(), $key, $hash);
+                        $posted = $this->stock->postStockDocument($id, 'issue', $this->actorId(), $key, $hash, [
+                            'packing_label_bypassed' => true,
+                            'packing_label_bypass_source' => $bypassSource,
+                        ]);
                         $posted['version'] = $expectedVersion + 1;
                         $posted['packing_label_applied'] = false;
                         $posted['packing_label_required'] = false;
-                        $posted['packing_label_bypassed'] = true;
                         $posted['rfid_required'] = false;
 
                         event(new \Modules\Warehouse\Events\OutboundPosted(
