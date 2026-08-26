@@ -80,7 +80,7 @@ class Wwhn193PutawayDependencyChainTest extends TestCase
     private function activeWarehouse(): Warehouse
     {
         return Warehouse::query()->where('status', 'ACTIVE')->first()
-            ?? Warehouse::create(['code' => 'KHO-TONG-HN', 'name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']);
+            ?? Warehouse::create(['code' => 'KHO-TONG-HN', 'name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']);
     }
 
     /**

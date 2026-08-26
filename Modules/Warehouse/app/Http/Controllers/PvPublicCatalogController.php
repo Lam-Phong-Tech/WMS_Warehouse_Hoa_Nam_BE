@@ -117,6 +117,11 @@ class PvPublicCatalogController extends Controller
         summary: 'App PV — danh sách ngành nghề ACTIVE dùng cho filter/gợi ý',
         security: [],
         tags: ['12. App PV'],
+        parameters: [
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
         responses: [
             new OA\Response(response: 200, description: 'PVIndustryPage'),
             new OA\Response(response: 400, description: 'INVALID_QUERY'),

@@ -1,22 +1,22 @@
 {
     "success": false,
-    "message": "The lines field is required.",
+    "message": "Dữ liệu gửi lên không hợp lệ.",
     "error_code": "BUSINESS_RULE_ERROR",
     "errors": {
-        "lines": [
-            "The lines field is required."
+        "dst_warehouse_id": [
+            "Trường kho đích là bắt buộc."
         ]
     },
     "error": {
         "code": "BUSINESS_RULE_ERROR",
         "details": {
-            "lines": [
-                "The lines field is required."
+            "dst_warehouse_id": [
+                "Trường kho đích là bắt buộc."
             ]
         }
     },
     "meta": {
-        "request_id": "e3f9ebb5-6422-4729-8e90-2d69e5508b50",
-        "timestamp": "2026-08-20T11:24:51+07:00"
+        "request_id": "43a2a306-db8e-4093-bf4f-ee3e392b2e50",
+        "timestamp": "2026-08-26T16:27:35+07:00"
     }
 }

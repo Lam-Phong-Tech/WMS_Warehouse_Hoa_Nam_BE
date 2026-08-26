@@ -79,7 +79,7 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
 
         $warehouse = Warehouse::firstOrCreate(
             ['code' => 'KHO-TONG-HN'],
-            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+            ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
         );
         $warehouseId = (string) $warehouse->id;
 

@@ -33,7 +33,7 @@ class Wwhn260MigrationPackClosureTest extends TestCase
     {
         parent::setUp();
 
-        $this->ensureActiveWarehouse('HN-WH-01', 'Kho tổng Hòa Nam');
+        $this->ensureActiveWarehouse('HN-WH-01', 'Kho tổng Hoa Nam');
         $this->operatorId = (string) $this->makeUser('cutover-operator-260')->getKey();
         $this->approverId = (string) $this->makeUser('data-owner-260')->getKey();
 

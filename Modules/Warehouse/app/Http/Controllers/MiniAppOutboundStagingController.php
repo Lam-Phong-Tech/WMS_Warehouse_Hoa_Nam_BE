@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\ProductQrPayload;
 
 /**
@@ -29,6 +30,17 @@ use Modules\Warehouse\Support\ProductQrPayload;
 class MiniAppOutboundStagingController extends Controller
 {
     use ApiResponse;
+    use ResolvesActorOrNull;
+
+    private function actorId(): string
+    {
+        $id = $this->actorIdOrNull();
+        if ($id === null) {
+            ApiError::abort(401, 'UNAUTHENTICATED', 'Bạn chưa đăng nhập.');
+        }
+
+        return $id;
+    }
 
     private const MAX_BATCH_ITEMS = 1000;
     private const RECORD_FIELDS = [
@@ -614,13 +626,4 @@ class MiniAppOutboundStagingController extends Controller
         ];
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Bạn chưa đăng nhập.');
-        }
-
-        return (string) $id;
-    }
 }

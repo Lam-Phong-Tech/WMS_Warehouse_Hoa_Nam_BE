@@ -52,7 +52,7 @@ class PostReceiptConcurrencyBehaviorTest extends TestCase
     {
         return Warehouse::create([
             'code' => 'KHO-TONG-HN',
-            'name' => 'Kho tổng Hòa Nam',
+            'name' => 'Kho tổng Hoa Nam',
             'status' => 'ACTIVE',
         ]);
     }

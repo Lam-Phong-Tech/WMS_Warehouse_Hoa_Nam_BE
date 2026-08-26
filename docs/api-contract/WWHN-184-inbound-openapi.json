@@ -112,7 +112,7 @@
                 ],
                 "summary": "Tạo phiếu nhập kho DRAFT",
                 "description": "Tạo chứng từ DRAFT và các dòng Expected. DRAFT chưa làm thay đổi tồn kho. Idempotency-Key là tuỳ chọn khi tạo.",
-                "operationId": "stock_in_create",
+                "operationId": "inbound_document_create_scan_driven",
                 "parameters": [
                     {
                         "name": "Idempotency-Key",
@@ -299,7 +299,7 @@
                 ],
                 "summary": "Sửa phiếu DRAFT/SCANNING và hiệu chỉnh Expected an toàn",
                 "description": "Bắt buộc If-Match. Khi SCANNING đã có scan evidence, line ID/SKU/import batch phải giữ nguyên; chỉ được hiệu chỉnh Expected/ghi chú và Expected không được nhỏ hơn scanned_qty. Không xoá/recreate scan evidence.",
-                "operationId": "stock_in_update",
+                "operationId": "inbound_document_update_scan_driven",
                 "parameters": [
                     {
                         "name": "id",
@@ -935,32 +935,51 @@
                     "09. Stock In (Inbound)"
                 ],
                 "summary": "Danh sách mã đã quét của phiếu nhập",
-                "operationId": "get_api_v1_inbound__documents_id_scan__entries",
+                "operationId": "inbound_scan_entries_list",
                 "parameters": [
                     {
                         "name": "id",
                         "in": "path",
                         "required": true,
                         "schema": {
-                            "type": "string"
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "ACTIVE (mặc định) hoặc ALL/REMOVED",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["ACTIVE", "REMOVED", "ALL"],
+                            "default": "ACTIVE"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Thành công"
-                    },
-                    "400": {
-                        "description": "Yêu cầu không đúng định dạng"
+                        "description": "Danh sách mã đã quét"
                     },
                     "401": {
                         "description": "Chưa xác thực"
                     },
+                    "404": {
+                        "description": "Không tìm thấy phiếu nhập"
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng"
+                    },
                     "403": {
                         "description": "Không có quyền truy cập"
-                    },
-                    "404": {
-                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu"
                     },
                     "409": {
                         "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời"

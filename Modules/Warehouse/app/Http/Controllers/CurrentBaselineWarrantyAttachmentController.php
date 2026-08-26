@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
 /**
@@ -21,6 +22,7 @@ use OpenApi\Attributes as OA;
 class CurrentBaselineWarrantyAttachmentController extends Controller
 {
     use ApiResponse;
+    use ResolvesActorOrNull { actorIdOrNull as actorId; }
 
     private const DISK = 'local';
 
@@ -29,6 +31,23 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
     /** Annex D SCR-WAR-01: images <= 10 files, <= 10MB/file. */
     private const MAX_ACTIVE_ATTACHMENTS = 10;
 
+    #[OA\Get(
+        path: '/api/v1/warranty-cases/{id}/attachments',
+        operationId: 'warranty_attachment_list',
+        summary: 'Danh sách tệp đính kèm của ca bảo hành',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách tệp đính kèm'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.view hoặc warranty.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy ca bảo hành'),
+        ]
+    )]
     public function index(Request $request, string $id)
     {
         $this->requireCase($id);
@@ -159,7 +178,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
 
         return $this->respondCreated(
             $this->payload($row) + ['scan_result' => $scan['result']],
-            'Warranty attachment uploaded; stock_effect=NONE.'
+            'Đã tải lên tệp đính kèm bảo hành; tồn kho chưa thay đổi (stock_effect=NONE).'
         );
     }
 
@@ -215,6 +234,20 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         );
     }
 
+    #[OA\Get(
+        path: '/api/v1/warranty-attachments/{attachmentId}/download',
+        operationId: 'warranty_attachment_download',
+        summary: 'Tải tệp đính kèm bảo hành',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [new OA\Parameter(name: 'attachmentId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Nội dung tệp (binary)'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.view hoặc warranty.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy tệp đính kèm'),
+        ]
+    )]
     public function download(Request $request, string $attachmentId)
     {
         $row = $this->requireAttachment($attachmentId);
@@ -234,6 +267,20 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         return Storage::disk(self::DISK)->download($path, (string) $row->file_name);
     }
 
+    #[OA\Delete(
+        path: '/api/v1/warranty-attachments/{attachmentId}',
+        operationId: 'warranty_attachment_delete',
+        summary: 'Xoá tệp đính kèm bảo hành (logic, không xoá file vật lý ngay)',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [new OA\Parameter(name: 'attachmentId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Đã xoá tệp đính kèm (xoá logic)'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy tệp đính kèm'),
+        ]
+    )]
     public function destroy(Request $request, string $attachmentId)
     {
         $row = $this->requireAttachment($attachmentId);
@@ -260,7 +307,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             'id' => $attachmentId,
             'status' => 'DELETED',
             'stock_effect' => 'NONE',
-        ], 'Warranty attachment deleted (logical).');
+        ], 'Đã xóa tệp đính kèm bảo hành (xóa logic).');
     }
 
     private function requireCase(string $id): object
@@ -302,10 +349,4 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         ];
     }
 
-    private function actorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
-    }
 }

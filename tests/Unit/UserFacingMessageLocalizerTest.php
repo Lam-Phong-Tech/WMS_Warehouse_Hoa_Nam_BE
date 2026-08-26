@@ -47,6 +47,29 @@ class UserFacingMessageLocalizerTest extends TestCase
         $this->assertSame('Trường mã SKU là bắt buộc.', $localized['sku_code'][0]);
     }
 
+    /**
+     * Phát hiện 26/08: "permission" và "product" là từ mượn tiếng Anh dùng phổ biến
+     * TRONG câu tiếng Việt hợp lệ của chính codebase (RoleController::assignPermissions,
+     * ProductMasterController) — nếu 2 từ này còn nằm trong danh sách kích hoạt
+     * `stillLooksEnglish()`, message THÀNH CÔNG hợp lệ bị thay nhầm bằng câu lỗi
+     * chung, khiến UI báo sai kết quả dù request đã xử lý đúng.
+     */
+    public function test_vietnamese_messages_using_permission_or_product_as_loanwords_pass_through_unchanged(): void
+    {
+        $this->assertSame(
+            'Gán permission cho role thành công',
+            UserFacingMessageLocalizer::translate('Gán permission cho role thành công')
+        );
+        $this->assertSame(
+            'Tạo product master thành công',
+            UserFacingMessageLocalizer::translate('Tạo product master thành công')
+        );
+        $this->assertSame(
+            'Không tìm thấy permission.',
+            UserFacingMessageLocalizer::translate('Không tìm thấy permission.')
+        );
+    }
+
     public function test_unknown_english_package_message_fails_closed_to_vietnamese(): void
     {
         $this->assertSame(

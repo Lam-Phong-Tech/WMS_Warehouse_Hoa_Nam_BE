@@ -64,9 +64,10 @@ class OutboundRequestController extends Controller
         }
         if ($request->filled('keyword')) {
             $keyword = trim((string) $request->input('keyword'));
-            $query->where(function ($sub) use ($keyword): void {
-                $sub->where('request_no', 'ilike', "%{$keyword}%")
-                    ->orWhere('customer_name', 'ilike', "%{$keyword}%");
+            $likeOperator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($sub) use ($keyword, $likeOperator): void {
+                $sub->where('request_no', $likeOperator, "%{$keyword}%")
+                    ->orWhere('recipient_name', $likeOperator, "%{$keyword}%");
             });
         }
 

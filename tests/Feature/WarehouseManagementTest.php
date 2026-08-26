@@ -36,7 +36,7 @@ class WarehouseManagementTest extends TestCase
     public function test_warehouse_list_returns_seeded_kho_tong(): void
     {
         $headers = $this->authHeaders();
-        Warehouse::create(['code' => 'WH-MAIN', 'name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']);
+        Warehouse::create(['code' => 'WH-MAIN', 'name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']);
 
         $response = $this->getJson('/api/v1/warehouses', $headers);
 
@@ -104,6 +104,26 @@ class WarehouseManagementTest extends TestCase
             $repository->create(['code' => 'WH-TWO', 'name' => 'Kho 2', 'status' => 'ACTIVE']);
         } finally {
             $this->assertDatabaseMissing('warehouses', ['code' => 'WH-TWO']);
+        }
+    }
+
+    /**
+     * REQ-SRS-001: hệ thống chỉ vận hành đúng 1 kho tổng vĩnh viễn — kể cả tạo
+     * thêm 1 kho INACTIVE (không tranh chấp "kho ACTIVE duy nhất") cũng phải bị
+     * chặn 409, không chỉ chặn khi kho mới là ACTIVE.
+     */
+    public function test_repository_blocks_creating_a_second_inactive_warehouse(): void
+    {
+        Warehouse::create(['code' => 'WH-ONE', 'name' => 'Kho 1', 'status' => 'ACTIVE']);
+
+        $repository = app(WarehouseRepositoryInterface::class);
+
+        $this->expectException(HttpResponseException::class);
+
+        try {
+            $repository->create(['code' => 'WH-EXTRA', 'name' => 'Kho phụ', 'status' => 'INACTIVE']);
+        } finally {
+            $this->assertDatabaseMissing('warehouses', ['code' => 'WH-EXTRA']);
         }
     }
 

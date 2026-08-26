@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 /**
@@ -22,6 +23,7 @@ use OpenApi\Attributes as OA;
 class CurrentBaselinePutawayTaskController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     #[OA\Post(
         path: '/api/v1/putaway-tasks',
@@ -230,13 +232,4 @@ class CurrentBaselinePutawayTaskController extends Controller
         ];
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

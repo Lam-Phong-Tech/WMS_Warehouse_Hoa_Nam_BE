@@ -528,7 +528,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
      */
     private function preparedReceipt(array $headers, string $skuCodePrefix): array
     {
-        $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
         $sku = Sku::create([
             'sku_code' => $skuCodePrefix.'-'.Str::upper(Str::random(6)),
             'sku_name' => "Component {$skuCodePrefix}",

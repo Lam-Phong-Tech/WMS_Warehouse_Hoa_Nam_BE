@@ -64,7 +64,7 @@ class Wwhn240ReversalNetEffectContractTest extends TestCase
         $this->admin->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
         $this->token = auth('api')->login($this->admin);
 
-        $this->warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        $this->warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
     }
 
     // ══════════════════════════════════════════════════════════

@@ -10,11 +10,30 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 class DepartmentController extends Controller
 {
     use ApiResponse;
 
+    #[OA\Get(
+        path: '/api/v1/departments',
+        operationId: 'department_list',
+        summary: 'Danh sách phòng ban (phân trang, filter theo keyword/status)',
+        security: [['bearerAuth' => []]],
+        tags: ['08. Departments'],
+        parameters: [
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 10)),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách phòng ban'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền iam.user.view'),
+        ]
+    )]
     public function index(Request $request)
     {
         $validated = $request->validate([
@@ -40,6 +59,31 @@ class DepartmentController extends Controller
         );
     }
 
+    #[OA\Post(
+        path: '/api/v1/departments',
+        operationId: 'department_create',
+        summary: 'Tạo phòng ban mới',
+        security: [['bearerAuth' => []]],
+        tags: ['08. Departments'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['department_code', 'department_name'],
+                properties: [
+                    new OA\Property(property: 'department_code', type: 'string', maxLength: 80, example: 'HN-DEPT-KHO'),
+                    new OA\Property(property: 'department_name', type: 'string', maxLength: 200, example: 'Phòng Kho vận'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, default: 'ACTIVE'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 500, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo phòng ban thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền iam.user.manage'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: department_code đã tồn tại)'),
+        ]
+    )]
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -71,6 +115,34 @@ class DepartmentController extends Controller
         return $this->respondCreated($row, 'Tạo phòng ban thành công.');
     }
 
+    #[OA\Patch(
+        path: '/api/v1/departments/{id}',
+        operationId: 'department_update',
+        summary: 'Cập nhật phòng ban',
+        security: [['bearerAuth' => []]],
+        tags: ['08. Departments'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'department_code', type: 'string', maxLength: 80),
+                    new OA\Property(property: 'department_name', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 500, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật phòng ban thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền iam.user.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy phòng ban'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: department_code đã tồn tại)'),
+        ]
+    )]
     public function update(Request $request, string $id)
     {
         $before = DB::table('department')->where('department_id', $id)->first();

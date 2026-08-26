@@ -412,9 +412,19 @@ class Wwhn184InboundContractParityTest extends TestCase
                     $compiledOperation['operationId'] ?? null,
                     "operationId của {$method} {$path} lệch giữa bản scoped và spec đã compile.",
                 );
+                // So sánh TẬP response code, không so thứ tự: thứ tự merge giữa
+                // annotation tường minh và các mã được RouteSyncProcessor/augmenter
+                // tự thêm không ổn định giữa các lần generate (phụ thuộc thứ tự
+                // scan filesystem), dù nội dung annotation không đổi. assertSame
+                // trên mảng tuần tự trước đây vô tình so cả thứ tự nên có thể đỏ
+                // giả (false positive) — phát hiện 26/08 khi thêm annotation mới.
+                $expectedCodes = array_keys($operation['responses'] ?? []);
+                $actualCodes = array_keys($compiledOperation['responses'] ?? []);
+                sort($expectedCodes);
+                sort($actualCodes);
                 $this->assertSame(
-                    array_keys($operation['responses'] ?? []),
-                    array_keys($compiledOperation['responses'] ?? []),
+                    $expectedCodes,
+                    $actualCodes,
                     "Tập response code của {$method} {$path} lệch giữa bản scoped và spec đã compile.",
                 );
             }

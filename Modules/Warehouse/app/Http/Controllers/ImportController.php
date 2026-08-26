@@ -44,10 +44,26 @@ class ImportController extends Controller
             new OA\Response(response: 403, description: 'Missing sku.manage permission'),
         ]
     )]
-    public function downloadTemplate(): BinaryFileResponse
+    public function downloadTemplate(): BinaryFileResponse|JsonResponse
     {
         $path = sys_get_temp_dir().'/WWHN-172-SKU-import-template-'.Str::uuid().'.xlsx';
-        $this->importService->createTemplate($path);
+        try {
+            $this->importService->createTemplate($path);
+        } catch (Throwable $e) {
+            // Cùng lớp sự cố hạ tầng với $file->store() ở importExcel(): ghi file
+            // template tạm có thể fail vì đĩa tạm đầy/hết quyền ghi. Trước đây
+            // exception của PhpSpreadsheet Writer thoát thẳng ra ngoài, không implement
+            // HttpExceptionInterface, nên rơi vào 500 chung thay vì lỗi retryable rõ
+            // ràng như phần còn lại của controller này.
+            Log::error('SKU import template generation failed', ['exception' => $e]);
+
+            return $this->respondError(
+                'Không tạo được file template. Vui lòng thử lại.',
+                [],
+                503,
+                'SKU_IMPORT_TEMPLATE_GENERATION_FAILED',
+            );
+        }
 
         return response()
             ->download($path, 'WWHN-172-SKU-import-template-v1.1.0.xlsx')
@@ -127,7 +143,23 @@ class ImportController extends Controller
         $file = $request->file('file');
         $path = $file->store('temp/imports', 'local');
         if (! is_string($path) || $path === '') {
-            throw new \RuntimeException('Không lưu được file import tạm thời.');
+            // Cùng lý do với ImportReportPersistenceException bên dưới: đây là sự cố
+            // KHẢ DỤNG của một phụ thuộc hạ tầng (đĩa lưu trữ tạm, có thể đầy/hết
+            // quyền ghi), không phải lỗi input hay lỗi không lường trước — nên trả
+            // 503 retryable thay vì để RuntimeException thoát ra ngoài mọi try-catch
+            // của action này thành 500 không có cấu trúc.
+            return $this->respondError(
+                'Không lưu được file import tạm thời. Vui lòng thử lại.',
+                [],
+                503,
+                'SKU_IMPORT_TEMP_STORAGE_FAILED',
+                ['data' => $this->withContract([
+                    'committed' => false,
+                    'partial_write' => false,
+                    'import_report_id' => null,
+                    'retryable' => true,
+                ], (bool) ($validated['update_existing'] ?? false))],
+            );
         }
         $localDisk = Storage::disk('local');
         $fullPath = $localDisk->path($path);

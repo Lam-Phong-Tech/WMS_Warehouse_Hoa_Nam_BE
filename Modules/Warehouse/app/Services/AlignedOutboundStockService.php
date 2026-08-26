@@ -193,7 +193,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
                 'updated_at' => now(),
             ]);
         if ($updated !== 1) {
-            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Inventory balance changed concurrently; retry against fresh state.');
+            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Tồn kho vừa bị thay đổi bởi thao tác khác. Vui lòng tải lại dữ liệu mới nhất rồi thử lại.');
         }
 
         $movementId = (string) Str::uuid();

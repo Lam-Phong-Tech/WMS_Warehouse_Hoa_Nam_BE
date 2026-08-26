@@ -622,7 +622,7 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
      */
     private function preparedReceipt(array $headers, string $skuCode, int $qty): array
     {
-        $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
         $sku = Sku::create([
             'sku_code' => $skuCode,
             'sku_name' => "Component {$skuCode}",
@@ -659,6 +659,6 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
 
     private function warehouseFixture(): Warehouse
     {
-        return $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        return $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
     }
 }

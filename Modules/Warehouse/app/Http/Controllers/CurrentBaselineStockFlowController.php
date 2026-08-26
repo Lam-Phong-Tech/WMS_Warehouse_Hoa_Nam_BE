@@ -14,11 +14,13 @@ use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineStockFlowController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     public function __construct(
         private readonly CurrentBaselineStockService $stock,
@@ -92,7 +94,7 @@ class CurrentBaselineStockFlowController extends Controller
             function () use ($id, $payload, $expectedVersion): array {
                 $result = $this->versionedScan($id, 'receipt', $payload, $expectedVersion);
 
-                return [200, $this->envelope('Inbound scan validated; stock_effect=NONE.', $result)];
+                return [200, $this->envelope('Đã ghi nhận mã quét nhập kho; tồn kho chưa thay đổi (stock_effect=NONE).', $result)];
             }
         );
 
@@ -138,6 +140,14 @@ class CurrentBaselineStockFlowController extends Controller
      * REMOVED, line scanned_qty giảm tương ứng, hoàn toàn stock-neutral; item sau
      * đó quét lại được vào chính phiếu này hoặc phiếu khác.
      */
+    // KHÔNG thêm #[OA\Post(path: '/api/v1/inbound-documents/{id}/unscan', ...)] ở
+    // đây: route này đã bị Flow06AlignmentServiceProvider ghi đè sang
+    // BaM1InboundScanCorrectionController::unscan() (đăng ký sau nên thắng); hàm
+    // dưới đây giờ là dead code cho path chính (alias '/unscan'), chỉ path alias
+    // '/reversals' bên dưới còn tác dụng minh hoạ. Annotation contract cho path
+    // này đã có sẵn ở InboundDocumentController::docContractUnscan() — thêm một
+    // bản nữa ở đây sẽ gây trùng path+method giữa 2 file, lặp lại đúng lỗi
+    // "Unable to merge @OA\Post()" đã sửa (xem config/l5-swagger.php).
     public function inboundUnscan(Request $request, string $id)
     {
         $payload = $request->validate([
@@ -217,7 +227,7 @@ class CurrentBaselineStockFlowController extends Controller
             ];
         }, 3);
 
-        return $this->respondSuccess($result, 'Inbound scan entry removed; stock_effect=NONE.')
+        return $this->respondSuccess($result, 'Đã gỡ mã quét nhập kho; tồn kho chưa thay đổi (stock_effect=NONE).')
             ->header('ETag', '"'.((int) $result['version']).'"');
     }
 
@@ -311,7 +321,7 @@ class CurrentBaselineStockFlowController extends Controller
             'completed_at' => $completedAt->toIso8601String(),
             'stock_effect' => 'NONE',
             'movement_created' => false,
-        ], 'Carton scan completed; stock_effect=NONE.');
+        ], 'Đã hoàn tất quét thùng; tồn kho chưa thay đổi (stock_effect=NONE).');
     }
 
     /**
@@ -399,10 +409,32 @@ class CurrentBaselineStockFlowController extends Controller
             ];
         }, 3);
 
-        return $this->respondSuccess($result, 'Outbound item match removed; stock_effect=NONE.')
+        return $this->respondSuccess($result, 'Đã gỡ khớp mã xuất kho; tồn kho chưa thay đổi (stock_effect=NONE).')
             ->header('ETag', '"'.((int) $result['version']).'"');
     }
 
+    #[OA\Post(
+        path: '/api/v1/inbound-documents/{id}/post-receipt',
+        operationId: 'stock_in_post_receipt',
+        summary: 'Full Post Receipt: SCANNING → POSTED, ghi nhận tăng tồn kho',
+        security: [['bearerAuth' => []]],
+        tags: ['09. Stock In (Inbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Post Receipt thành công; phiếu POSTED, tồn kho tăng'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có permission inbound.post'),
+            new OA\Response(response: 404, description: 'Không tìm thấy phiếu nhập'),
+            new OA\Response(response: 409, description: 'Chỉ SCANNING mới được Post'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp'),
+            new OA\Response(response: 422, description: 'Chưa scan đủ chính xác toàn bộ dòng'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match hợp lệ'),
+        ]
+    )]
     public function postReceipt(Request $request, string $id)
     {
         return $this->postDocument($request, $id, 'receipt');
@@ -569,6 +601,15 @@ class CurrentBaselineStockFlowController extends Controller
                     $posted = $this->stock->postStockDocument($id, $type, $this->actorId(), $key, $hash);
                     $posted['version'] = $expectedVersion + 1;
 
+                    if ($type === 'receipt') {
+                        event(new \Modules\Warehouse\Events\InboundCompleted(
+                            $id,
+                            (string) $document->doc_no,
+                            $document->dst_warehouse_id !== null ? (string) $document->dst_warehouse_id : null,
+                            $this->actorId(),
+                        ));
+                    }
+
                     return $posted;
                 }, 3);
 
@@ -618,7 +659,7 @@ class CurrentBaselineStockFlowController extends Controller
             function () use ($id, $type, $payload, $key, $hash, $expectedVersion): array {
                 $result = $this->reversal->execute($id, $type, $payload, $this->actorId(), $key, $hash, $expectedVersion);
 
-                return [200, $this->envelope('Reversal command processed; original document remains POSTED.', $result)];
+                return [200, $this->envelope('Đã xử lý lệnh điều chỉnh; chứng từ gốc vẫn giữ trạng thái POSTED.', $result)];
             }
         );
 
@@ -763,13 +804,4 @@ class CurrentBaselineStockFlowController extends Controller
         ];
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

@@ -40,7 +40,7 @@ class Wwhn299CutoverRehearsalEvidenceTest extends TestCase
     {
         parent::setUp();
 
-        $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
         $this->seedActor('rehearsal-operator', 'Rehearsal Operator', ['warehouse.view', 'inventory.view']);
         $this->seedActor('rehearsal-owner', 'Rehearsal Data Owner', ['warehouse.view', 'warehouse.manage', 'inventory.view']);
 

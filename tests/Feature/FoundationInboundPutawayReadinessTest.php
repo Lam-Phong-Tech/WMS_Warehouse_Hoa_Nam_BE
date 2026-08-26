@@ -104,7 +104,7 @@ class FoundationInboundPutawayReadinessTest extends TestCase
     public function test_component_receipt_requires_box_and_full_flow_preserves_stock_invariants(): void
     {
         $headers = $this->authHeaders();
-        $warehouse = $this->warehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        $warehouse = $this->warehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
         $sku = Sku::create([
             'sku_code' => 'COMP-E2E-001',
             'sku_name' => 'Component E2E',

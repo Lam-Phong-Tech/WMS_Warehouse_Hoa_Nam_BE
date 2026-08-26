@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
+        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
@@ -134,20 +135,39 @@ return Application::configure(basePath: dirname(__DIR__))
                 || str_contains($internalMessage, 'unique constraint failed')
                 || str_contains($internalMessage, 'duplicate entry');
 
-            if (! $isUniqueConflict) {
-                return null;
+            if ($isUniqueConflict) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dữ liệu đã được ghi bởi thao tác khác hoặc vi phạm ràng buộc duy nhất.',
+                    'error_code' => 'UNIQUE_CONSTRAINT_CONFLICT',
+                    'errors' => [],
+                    'error' => [
+                        'code' => 'UNIQUE_CONSTRAINT_CONFLICT',
+                        'details' => [],
+                    ],
+                ], 409);
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Dữ liệu đã được ghi bởi thao tác khác hoặc vi phạm ràng buộc duy nhất.',
-                'error_code' => 'UNIQUE_CONSTRAINT_CONFLICT',
-                'errors' => [],
-                'error' => [
-                    'code' => 'UNIQUE_CONSTRAINT_CONFLICT',
-                    'details' => [],
-                ],
-            ], 409);
+            // Safety net toàn cục cho lớp bug đã lặp lại ở nhiều controller: route
+            // {id}/{xxxId} không ràng buộc whereUuid() nên chuỗi rác lọt thẳng xuống
+            // where('col', $id) trên cột kiểu uuid native của PostgreSQL, Postgres ném
+            // 22P02 (invalid_text_representation) — KHÔNG phải HttpExceptionInterface
+            // nên trước đây rơi thẳng xuống 500 chung. sqlite không strict kiểu nên bug
+            // không lộ khi chạy test bằng sqlite, chỉ lộ trên Postgres thật.
+            if ($sqlState === '22P02') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Định dạng mã định danh trong yêu cầu không hợp lệ.',
+                    'error_code' => 'INVALID_IDENTIFIER_FORMAT',
+                    'errors' => [],
+                    'error' => [
+                        'code' => 'INVALID_IDENTIFIER_FORMAT',
+                        'details' => [],
+                    ],
+                ], 422);
+            }
+
+            return null;
         });
 
         // Safety net cho HttpException framework/third-party còn lại. Giữ mã HTTP và

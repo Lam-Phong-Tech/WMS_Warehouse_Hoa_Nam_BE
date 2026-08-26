@@ -14,7 +14,10 @@ class AssignRolePermissionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'permission_ids' => ['required', 'array'],
+            // 'required' coi mảng rỗng [] là "thiếu trường" và fail — chặn đúng thao
+            // tác hợp lệ "gỡ hết quyền của role về 0" (vd role "No Permission Test").
+            // 'present' chỉ đòi field có mặt trong request, cho phép giá trị là [].
+            'permission_ids' => ['present', 'array'],
             'permission_ids.*' => ['uuid', 'exists:permission,permission_id'],
         ];
     }

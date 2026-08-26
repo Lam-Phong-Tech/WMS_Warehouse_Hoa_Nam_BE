@@ -14,7 +14,7 @@ class CurrentBaselineComponentReadController extends Controller
     {
         $document = DB::table('component_issue_documents')->where('id', $id)->first();
         if ($document === null) {
-            return $this->respondNotFound('Component Issue not found.');
+            return $this->respondNotFound('Không tìm thấy phiếu xuất linh kiện.');
         }
 
         $lines = DB::table('component_issue_lines')

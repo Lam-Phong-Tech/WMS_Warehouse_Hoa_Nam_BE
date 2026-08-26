@@ -73,6 +73,12 @@ class AuthController extends Controller
                 result: 'FAILED', errorCode: 'RATE_LIMIT_EXCEEDED',
             );
 
+            event(new \Modules\Auth\Events\SecurityAlertRaised(
+                'LOGIN_THROTTLED',
+                null,
+                'Phát hiện nhiều lần đăng nhập sai liên tiếp; một định danh đã bị tạm khoá thử đăng nhập.',
+            ));
+
             return RateLimitResponse::make(
                 $request,
                 ['Retry-After' => (string) $retryAfter],
@@ -158,6 +164,12 @@ class AuthController extends Controller
                 // theo enum ERD §7 audit_logs.result CHECK SUCCESS/FAILED/DENIED.
                 result: 'DENIED', errorCode: 'ACCESS_DENIED',
             );
+
+            event(new \Modules\Auth\Events\SecurityAlertRaised(
+                'LOGIN_DENIED',
+                $user->user_id,
+                "Tài khoản {$user->username} bị từ chối đăng nhập vì đang ở trạng thái {$user->status}.",
+            ));
 
             return $this->respondError('Tài khoản đang bị khoá hoặc ngừng hoạt động.', [], 403, 'ACCESS_DENIED');
         }

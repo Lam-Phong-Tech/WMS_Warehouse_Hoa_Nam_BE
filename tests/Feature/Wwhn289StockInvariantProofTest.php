@@ -782,6 +782,6 @@ class Wwhn289StockInvariantProofTest extends TestCase
 
     private function canonicalWarehouse(): Warehouse
     {
-        return $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        return $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
     }
 }

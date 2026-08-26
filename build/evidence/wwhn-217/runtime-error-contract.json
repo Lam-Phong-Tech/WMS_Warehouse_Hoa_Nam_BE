@@ -4,7 +4,7 @@
     "source": "backend runtime (HTTP kernel + middleware thật, không mock)",
     "srs": "SRS §8.2 HTTP/Error Contract; §8.4 WWHN-40 \"UI hiding is not authorization\"; NFR-SRS-005",
     "backend_branch": "m1",
-    "backend_sha": "0895c14a5cc1a39837a79ce5de2ac1669ddb16ef",
+    "backend_sha": "ab7bdfca442ea89e983f0bacf238084bf1b9f2a3",
     "generated_by": "tests/Feature/Wwhn217RuntimeErrorContractTest.php",
     "http_classes_covered": [
         401,
@@ -128,12 +128,12 @@
             "method": "POST",
             "path": "/api/v1/inbound-documents/{id}/scan",
             "http": 422,
-            "error_code": "SCAN_EXCEEDS_REQUIRED",
+            "error_code": "BUSINESS_RULE_ERROR",
             "error_code_in_contract_catalog": true,
             "listed_in_srs_82_examples": false,
-            "rule": "Quét vượt Expected → 422; phiếu và tồn không đổi.",
+            "rule": "Quantity 0 không hợp lệ → 422; phiếu và tồn không đổi.",
             "verdict": "PASS",
-            "scenario": "scan quantity 999 vượt Expected 2",
+            "scenario": "scan quantity 0 (scan-driven: không còn gate quét vượt Expected)",
             "document_status_after": "SCANNING",
             "stock_effect_written": false
         }

@@ -10,11 +10,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineInboundBoxController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     #[OA\Post(
         path: '/api/v1/inbound-documents/{id}/boxes',
@@ -176,13 +178,4 @@ class CurrentBaselineInboundBoxController extends Controller
         ];
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use OpenApi\Attributes as OA;
 
 /**
  * Compatibility adapter for the 2026-08-25 BA warranty contract.
@@ -38,6 +39,20 @@ class BaM1WarrantyController extends CurrentBaselineWarrantyController
         return $response;
     }
 
+    #[OA\Get(
+        path: '/api/v1/warranty-cases/{id}',
+        operationId: 'warranty_case_detail',
+        summary: 'Chi tiết ca bảo hành',
+        security: [['bearerAuth' => []]],
+        tags: ['13. Warranty'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Chi tiết ca bảo hành'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền warranty.view hoặc warranty.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy ca bảo hành'),
+        ]
+    )]
     public function showWarrantyCase(Request $request, string $id)
     {
         $response = parent::showWarrantyCase($request, $id);

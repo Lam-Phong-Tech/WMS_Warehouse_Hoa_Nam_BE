@@ -131,7 +131,7 @@ class WarehouseBusinessDataSeeder extends Seeder
         $this->actorId = (string) $actorId;
         $this->warehouseId = (string) $warehouse->id;
 
-        $productSku = $this->ensureSku(self::PRODUCT_SKU, 'Máy bơm PV mẫu Hòa Nam', 'PRODUCT', true, 'HOANAM', 'PUMP', 'MDL-HN-01', 'SOLAR', 'KIT');
+        $productSku = $this->ensureSku(self::PRODUCT_SKU, 'Máy bơm PV mẫu Hoa Nam', 'PRODUCT', true, 'HOANAM', 'PUMP', 'MDL-HN-01', 'SOLAR', 'KIT');
         $componentSku = $this->ensureSku(self::COMPONENT_SKU, 'Bo mạch điều khiển mẫu', 'COMPONENT', false, 'HOANAM', 'SPARE_PART', 'MDL-HN-01', 'BATTERY', 'BARE');
 
         $this->seedComponentReceipt($componentSku);
@@ -160,7 +160,7 @@ class WarehouseBusinessDataSeeder extends Seeder
         $qty = 20;
         [$documentId, $lineId] = $this->createDocument('receipt', self::RECEIPT_COMPONENT_NO, [
             ['product_id' => $skuId, 'qty_planned' => $qty],
-        ], ['source_name' => 'Nhà cung cấp linh kiện Hòa Nam']);
+        ], ['source_name' => 'Nhà cung cấp linh kiện Hoa Nam']);
 
         $boxId = $this->ensureContainer('BOX-SEED-0001', 'BOX', 'EMPTY', $skuId);
 
@@ -208,7 +208,7 @@ class WarehouseBusinessDataSeeder extends Seeder
 
         [$documentId, $lineId] = $this->createDocument('receipt', self::RECEIPT_PRODUCT_NO, [
             ['product_id' => $skuId, 'qty_planned' => count($serials)],
-        ], ['source_name' => 'Nhà máy Hòa Nam']);
+        ], ['source_name' => 'Nhà máy Hoa Nam']);
 
         // GĐ1-REQ-008 + DEC-QR-001: identity đã tồn tại trước bị chặn khỏi inbound
         // thường, nên seeder phải đi đúng đường nghiệp vụ — scan composite QR tạo
@@ -273,7 +273,7 @@ class WarehouseBusinessDataSeeder extends Seeder
             ['product_id' => $skuId, 'qty_planned' => 1],
         ], [
             'outbound_request_id' => $requestId,
-            'recipient_name' => 'Đại lý Hòa Nam Hà Nội',
+            'recipient_name' => 'Đại lý Hoa Nam Hà Nội',
             'recipient_address' => 'Số 10, Cầu Giấy, Hà Nội',
         ]);
 
@@ -300,7 +300,7 @@ class WarehouseBusinessDataSeeder extends Seeder
             ['product_id' => $skuId, 'qty_planned' => 1],
         ], [
             'outbound_request_id' => $requestId,
-            'recipient_name' => 'Đại lý Hòa Nam Đà Nẵng',
+            'recipient_name' => 'Đại lý Hoa Nam Đà Nẵng',
             'recipient_address' => 'Số 5, Hải Châu, Đà Nẵng',
         ]);
     }
@@ -397,22 +397,22 @@ class WarehouseBusinessDataSeeder extends Seeder
      */
     private function seedExtraBusinessData(): void
     {
-        $productSku2 = $this->ensureSku(self::PRODUCT_SKU_2, 'Máy phát điện PV mẫu Hòa Nam 002', 'PRODUCT', true, 'KUBOTA', 'ENGINE', 'MDL-KB-01', 'DIESEL', 'SET');
-        $productSku3 = $this->ensureSku(self::PRODUCT_SKU_3, 'Máy cắt cỏ PV mẫu Hòa Nam 003', 'PRODUCT', true, 'HUSQVARNA', 'ENGINE', 'MDL-HQ-01', 'GASOLINE', 'BARE');
-        $productSku4 = $this->ensureSku(self::PRODUCT_SKU_4, 'Máy xới đất PV mẫu Hòa Nam 004', 'PRODUCT', true, 'YANMAR', 'TRACTOR', 'MDL-YM-01', 'DIESEL', 'SET');
-        $componentSku2 = $this->ensureSku(self::COMPONENT_SKU_2, 'Dây curoa mẫu Hòa Nam 002', 'COMPONENT', false, 'HOANAM', 'SPARE_PART', 'MDL-HN-01', null, 'BARE');
+        $productSku2 = $this->ensureSku(self::PRODUCT_SKU_2, 'Máy phát điện PV mẫu Hoa Nam 002', 'PRODUCT', true, 'KUBOTA', 'ENGINE', 'MDL-KB-01', 'DIESEL', 'SET');
+        $productSku3 = $this->ensureSku(self::PRODUCT_SKU_3, 'Máy cắt cỏ PV mẫu Hoa Nam 003', 'PRODUCT', true, 'HUSQVARNA', 'ENGINE', 'MDL-HQ-01', 'GASOLINE', 'BARE');
+        $productSku4 = $this->ensureSku(self::PRODUCT_SKU_4, 'Máy xới đất PV mẫu Hoa Nam 004', 'PRODUCT', true, 'YANMAR', 'TRACTOR', 'MDL-YM-01', 'DIESEL', 'SET');
+        $componentSku2 = $this->ensureSku(self::COMPONENT_SKU_2, 'Dây curoa mẫu Hoa Nam 002', 'COMPONENT', false, 'HOANAM', 'SPARE_PART', 'MDL-HN-01', null, 'BARE');
 
         // Mỗi bước dưới đây tự guard theo doc_no/code riêng (idempotent độc lập) —
         // không có transaction bọc toàn seedExtraBusinessData, nên nếu 1 bước lỗi
         // giữa chừng, lần chạy sau vẫn phải tiếp tục đúng từ bước còn thiếu.
-        $items2 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_2, $productSku2, 'SN-HN-SEED-EXT-01', 'RFID-HN-SEED-EXT-01', 2, 'Nhà máy Hòa Nam — lô mẫu 2');
-        $items3 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_3, $productSku3, 'SN-HN-SEED-EXT-02', 'RFID-HN-SEED-EXT-02', 2, 'Nhà máy Hòa Nam — lô mẫu 3');
-        $items4 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_4, $productSku4, 'SN-HN-SEED-EXT-03', 'RFID-HN-SEED-EXT-03', 6, 'Nhà máy Hòa Nam — lô mẫu 4');
+        $items2 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_2, $productSku2, 'SN-HN-SEED-EXT-01', 'RFID-HN-SEED-EXT-01', 2, 'Nhà máy Hoa Nam — lô mẫu 2');
+        $items3 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_3, $productSku3, 'SN-HN-SEED-EXT-02', 'RFID-HN-SEED-EXT-02', 2, 'Nhà máy Hoa Nam — lô mẫu 3');
+        $items4 = $this->seedProductReceiptVariant(self::RECEIPT_PRODUCT_NO_4, $productSku4, 'SN-HN-SEED-EXT-03', 'RFID-HN-SEED-EXT-03', 6, 'Nhà máy Hoa Nam — lô mẫu 4');
 
-        $issuedItem2 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_2, 'TOA-SEED-0003', $productSku2, $items2[0], 'Đại lý Hòa Nam Hồ Chí Minh', 'Số 1, Quận 7, TP.HCM', self::OUTBOUND_IMPORT_NOS[0]);
-        $issuedItem3 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_3, 'TOA-SEED-0004', $productSku3, $items3[0], 'Đại lý Hòa Nam Hải Phòng', 'Số 3, Lê Chân, Hải Phòng', self::OUTBOUND_IMPORT_NOS[1]);
-        $issuedItem4 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_4, 'TOA-SEED-0005', $productSku4, $items4[0], 'Đại lý Hòa Nam Cần Thơ', 'Số 8, Ninh Kiều, Cần Thơ', self::OUTBOUND_IMPORT_NOS[2]);
-        $issuedItem5 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_5, 'TOA-SEED-0006', $productSku4, $items4[1], 'Đại lý Hòa Nam Hà Nội', 'Số 2, Cầu Giấy, Hà Nội', self::OUTBOUND_IMPORT_NOS[2]);
+        $issuedItem2 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_2, 'TOA-SEED-0003', $productSku2, $items2[0], 'Đại lý Hoa Nam Hồ Chí Minh', 'Số 1, Quận 7, TP.HCM', self::OUTBOUND_IMPORT_NOS[0]);
+        $issuedItem3 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_3, 'TOA-SEED-0004', $productSku3, $items3[0], 'Đại lý Hoa Nam Hải Phòng', 'Số 3, Lê Chân, Hải Phòng', self::OUTBOUND_IMPORT_NOS[1]);
+        $issuedItem4 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_4, 'TOA-SEED-0005', $productSku4, $items4[0], 'Đại lý Hoa Nam Cần Thơ', 'Số 8, Ninh Kiều, Cần Thơ', self::OUTBOUND_IMPORT_NOS[2]);
+        $issuedItem5 = $this->seedPostedIssueVariant(self::ISSUE_POSTED_NO_5, 'TOA-SEED-0006', $productSku4, $items4[1], 'Đại lý Hoa Nam Hà Nội', 'Số 2, Cầu Giấy, Hà Nội', self::OUTBOUND_IMPORT_NOS[2]);
 
         $this->seedWarrantyCase($issuedItem2, $productSku2, self::WARRANTY_CASE_CODE_2, 'DEF-001');
         $this->seedWarrantyCase($issuedItem3, $productSku3, self::WARRANTY_CASE_CODE_3, 'DEF-002');
@@ -422,9 +422,9 @@ class WarehouseBusinessDataSeeder extends Seeder
 
         // Phiếu xuất thứ 6-7 (mỗi phiếu 1 import riêng) + warranty case thêm dùng
         // items4[3]/items4[4] để outbound_request_imports/warranty_case đạt ≥5 dòng.
-        $issuedItem6 = $this->seedPostedIssueVariant('PX-SEED-0007', 'TOA-SEED-0007', $productSku4, $items4[3], 'Đại lý Hòa Nam Đà Nẵng', 'Số 12, Hải Châu, Đà Nẵng', self::OUTBOUND_IMPORT_NOS[2]);
+        $issuedItem6 = $this->seedPostedIssueVariant('PX-SEED-0007', 'TOA-SEED-0007', $productSku4, $items4[3], 'Đại lý Hoa Nam Đà Nẵng', 'Số 12, Hải Châu, Đà Nẵng', self::OUTBOUND_IMPORT_NOS[2]);
         $this->seedWarrantyCase($issuedItem6, $productSku4, 'WC-SEED-0006', 'DEF-004');
-        $this->seedPostedIssueVariant('PX-SEED-0008', 'TOA-SEED-0008', $productSku4, $items4[4], 'Đại lý Hòa Nam Cần Thơ', 'Số 20, Ninh Kiều, Cần Thơ', self::OUTBOUND_IMPORT_NOS[3]);
+        $this->seedPostedIssueVariant('PX-SEED-0008', 'TOA-SEED-0008', $productSku4, $items4[4], 'Đại lý Hoa Nam Cần Thơ', 'Số 20, Ninh Kiều, Cần Thơ', self::OUTBOUND_IMPORT_NOS[3]);
 
         // BOX riêng cho componentSku2: assertContainerAvailable đòi container.primary_sku_id
         // khớp đúng SKU của Component Issue line, không dùng chung BOX-SEED-0001 (SKU khác).
@@ -550,7 +550,7 @@ class WarehouseBusinessDataSeeder extends Seeder
 
         [$documentId, $lineId] = $this->createDocument('receipt', $docNo, [
             ['product_id' => $skuId, 'qty_planned' => $qty],
-        ], ['source_name' => 'Nhà cung cấp linh kiện Hòa Nam — lô mẫu 2']);
+        ], ['source_name' => 'Nhà cung cấp linh kiện Hoa Nam — lô mẫu 2']);
 
         $this->stock->scanStockDocument($documentId, 'receipt', [
             'line_id' => $lineId,
@@ -1055,7 +1055,7 @@ class WarehouseBusinessDataSeeder extends Seeder
             'id' => $requestId,
             'request_no' => $requestNo,
             'import_id' => $importId,
-            'recipient_name' => 'Đại lý Hòa Nam',
+            'recipient_name' => 'Đại lý Hoa Nam',
             'recipient_address' => 'Hà Nội',
             'request_date' => now()->toDateString(),
             'status' => 'OPEN',

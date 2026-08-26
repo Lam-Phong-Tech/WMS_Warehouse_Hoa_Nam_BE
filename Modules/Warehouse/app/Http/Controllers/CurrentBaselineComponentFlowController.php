@@ -14,11 +14,13 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineComponentFlowController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     public function __construct(
         private readonly CurrentBaselineStockService $stock,
@@ -134,7 +136,7 @@ class CurrentBaselineComponentFlowController extends Controller
             return $documentId;
         }, 3);
 
-        return $this->respondCreated($this->payload($id), 'Component Issue DRAFT created; stock_effect=NONE.')
+        return $this->respondCreated($this->payload($id), 'Đã tạo phiếu xuất linh kiện (DRAFT); tồn kho chưa thay đổi (stock_effect=NONE).')
             ->header('ETag', '"1"');
     }
 
@@ -271,7 +273,7 @@ class CurrentBaselineComponentFlowController extends Controller
             ];
         }, 3);
 
-        return $this->respondSuccess($result, 'Component scan validated; stock_effect=NONE.')
+        return $this->respondSuccess($result, 'Đã ghi nhận quét linh kiện hợp lệ; tồn kho chưa thay đổi (stock_effect=NONE).')
             ->header('ETag', '"'.$result['version'].'"');
     }
 
@@ -338,10 +340,30 @@ class CurrentBaselineComponentFlowController extends Controller
             return ['component_issue_document_id' => $id, 'status' => 'CANCELLED', 'version' => $expectedVersion + 1, 'stock_effect' => 'NONE'];
         }, 3);
 
-        return $this->respondSuccess($result, 'Component Issue cancelled.')
+        return $this->respondSuccess($result, 'Đã hủy phiếu xuất linh kiện.')
             ->header('ETag', '"'.$result['version'].'"');
     }
 
+    #[OA\Post(
+        path: '/api/v1/component-issue-documents/{id}/post',
+        operationId: 'postComponentIssue',
+        summary: 'Hoàn tất xuất linh kiện bảo hành (trừ tồn COMPONENT; chỉ DRAFT/SCANNING, mọi dòng phải quét đủ)',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string', example: '"1"')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Đã hoàn tất xuất linh kiện; ETag = version mới.'),
+            new OA\Response(response: 404, description: 'Không tìm thấy Component Issue'),
+            new OA\Response(response: 409, description: 'Chỉ DRAFT/SCANNING mới được Post'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp version hiện tại'),
+            new OA\Response(response: 422, description: 'WARRANTY_CASE_NOT_ACTIVE hoặc FULL_POST_REQUIRED (còn dòng chưa quét đủ)'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match hợp lệ'),
+        ]
+    )]
     public function post(Request $request, string $id)
     {
         $expectedVersion = $this->expectedVersion($request);
@@ -393,7 +415,7 @@ class CurrentBaselineComponentFlowController extends Controller
                     return $posted;
                 }, 3);
 
-                return [200, $this->envelope('Component Issue posted.', $result)];
+                return [200, $this->envelope('Đã ghi nhận xuất linh kiện.', $result)];
             }
         );
 
@@ -463,7 +485,7 @@ class CurrentBaselineComponentFlowController extends Controller
             'resolved_object_type' => $itemId !== null ? 'ITEM' : 'CONTAINER',
             'resolved_object_id' => $itemId ?? $containerId,
             'result_status' => 'VALID',
-            'message' => 'Component Issue scan validated',
+            'message' => 'Đã quét hợp lệ cho phiếu xuất linh kiện',
             'created_at' => now(),
         ]);
 
@@ -518,13 +540,4 @@ class CurrentBaselineComponentFlowController extends Controller
         ];
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

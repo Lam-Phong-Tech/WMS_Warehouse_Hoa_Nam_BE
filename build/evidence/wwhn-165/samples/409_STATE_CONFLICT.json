@@ -1,6 +1,6 @@
 {
     "success": false,
-    "message": "Chỉ DRAFT/SCANNING mới được cập nhật.",
+    "message": "Chỉ phiếu Nháp/Đang quét mới được cập nhật thông tin đầu phiếu.",
     "error_code": "STATE_CONFLICT",
     "errors": [],
     "error": {
@@ -8,7 +8,7 @@
         "details": []
     },
     "meta": {
-        "request_id": "3c7372b2-d6f8-4075-9736-6c75999310f0",
-        "timestamp": "2026-08-20T11:24:51+07:00"
+        "request_id": "cd2538e2-b0e2-408e-ae11-1f42ec35be9c",
+        "timestamp": "2026-08-26T16:27:35+07:00"
     }
 }

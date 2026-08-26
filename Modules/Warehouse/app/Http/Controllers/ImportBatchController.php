@@ -60,7 +60,7 @@ class ImportBatchController extends Controller
                     new OA\Property(property: 'shipment_container_code', type: 'string', maxLength: 100, nullable: true, example: 'CONT-HN-000123'),
                     new OA\Property(property: 'supplier_batch_no', type: 'string', maxLength: 100, nullable: true, example: 'SUP-BATCH-0088'),
                     new OA\Property(property: 'import_period', type: 'string', maxLength: 30, nullable: true, example: '2026-Q3'),
-                    new OA\Property(property: 'supplier_name', type: 'string', maxLength: 200, nullable: true, example: 'Công ty TNHH Cung ứng Hòa Nam'),
+                    new OA\Property(property: 'supplier_name', type: 'string', maxLength: 200, nullable: true, example: 'Công ty TNHH Cung ứng Hoa Nam'),
                 ]
             )
         ),
@@ -73,7 +73,10 @@ class ImportBatchController extends Controller
     )]
     public function store(StoreImportBatchRequest $request)
     {
-        $importBatch = $this->importBatches->create($request->validated() + ['status' => 'ACTIVE']);
+        // Batch mới luôn phải ACTIVE — dùng array_merge (không phải toán tử `+`) để
+        // giá trị ép cứng này LUÔN thắng, kể cả khi client cố tình gửi status khác
+        // (rule cho phép nullable status nhưng Swagger không công bố field này).
+        $importBatch = $this->importBatches->create(array_merge($request->validated(), ['status' => 'ACTIVE']));
 
         AuditLogger::record(
             action: 'CREATE',
@@ -120,7 +123,7 @@ class ImportBatchController extends Controller
                 new OA\Property(property: 'shipment_container_code', type: 'string', maxLength: 100, nullable: true, example: 'CONT-HN-000123'),
                 new OA\Property(property: 'supplier_batch_no', type: 'string', maxLength: 100, nullable: true, example: 'SUP-BATCH-0088'),
                 new OA\Property(property: 'import_period', type: 'string', maxLength: 30, nullable: true, example: '2026-Q3'),
-                new OA\Property(property: 'supplier_name', type: 'string', maxLength: 200, nullable: true, example: 'Công ty TNHH Cung ứng Hòa Nam'),
+                new OA\Property(property: 'supplier_name', type: 'string', maxLength: 200, nullable: true, example: 'Công ty TNHH Cung ứng Hoa Nam'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
             ])
         ),

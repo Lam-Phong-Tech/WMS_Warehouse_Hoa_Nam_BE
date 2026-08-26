@@ -46,7 +46,7 @@ class EnsureCanonicalInboundWarehouse
             ApiError::abort(
                 422,
                 'INBOUND_WAREHOUSE_NOT_CANONICAL',
-                'Phiếu nhập MVP chỉ được phép sử dụng Kho tổng Hòa Nam đang ACTIVE.',
+                'Phiếu nhập MVP chỉ được phép sử dụng Kho tổng Hoa Nam đang ACTIVE.',
                 [
                     'dst_warehouse_id' => $warehouseId,
                     'required_warehouse_code' => self::CANONICAL_WAREHOUSE_CODE,

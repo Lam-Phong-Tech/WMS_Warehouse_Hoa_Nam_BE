@@ -135,14 +135,14 @@ class CanonicalMvpController extends Controller
             }
         });
 
-        return $this->respondCreated($this->importPayload($id), 'Outbound import validated.');
+        return $this->respondCreated($this->importPayload($id), 'Đã kiểm tra Import toa xuất.');
     }
 
     public function showOutboundRequestImport(string $id)
     {
         $payload = $this->importPayload($id);
 
-        return $payload ? $this->respondSuccess($payload) : $this->respondNotFound('Import not found.');
+        return $payload ? $this->respondSuccess($payload) : $this->respondNotFound('Không tìm thấy Import.');
     }
 
     public function consumeOutboundRequestImport(Request $request, string $id)
@@ -152,10 +152,10 @@ class CanonicalMvpController extends Controller
         $payload = DB::transaction(function () use ($id): array {
             $import = DB::table('outbound_request_imports')->where('id', $id)->lockForUpdate()->first();
             if ($import === null) {
-                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Import not found.');
+                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy Import.');
             }
             if ($import->status !== 'VALIDATED') {
-                ApiError::abort(409, 'STATE_CONFLICT', 'Only VALIDATED import can be consumed.');
+                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ Import ở trạng thái VALIDATED mới được xử lý.');
             }
 
             $rows = DB::table('outbound_request_import_rows')->where('import_id', $id)->orderBy('row_no')->get();
@@ -192,7 +192,7 @@ class CanonicalMvpController extends Controller
             return ['import_id' => $id, 'outbound_request_id' => $requestId, 'status' => 'CONSUMED'];
         });
 
-        return $this->respondSuccess($payload, 'Outbound import consumed.');
+        return $this->respondSuccess($payload, 'Đã xử lý Import toa xuất.');
     }
 
     #[OA\Get(
@@ -592,7 +592,7 @@ class CanonicalMvpController extends Controller
 
         $snapshot = DB::table('label_snapshots')->where('id', $id)->first();
         if ($snapshot === null) {
-            return $this->respondNotFound('Label snapshot not found.');
+            return $this->respondNotFound('Không tìm thấy snapshot nhãn.');
         }
 
         $eventId = (string) Str::uuid();
@@ -613,7 +613,7 @@ class CanonicalMvpController extends Controller
             'label_print_event_id' => $eventId,
             'reprint' => $reprint,
             'stock_effect' => 'NONE',
-        ], $reprint ? 'Label reprinted.' : 'Label printed.');
+        ], $reprint ? 'Đã in lại nhãn.' : 'Đã in nhãn.');
     }
 
     private function importPayload(string $id): ?array

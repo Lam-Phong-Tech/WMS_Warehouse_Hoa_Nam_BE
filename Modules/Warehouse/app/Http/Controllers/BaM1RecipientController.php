@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 /**
  * GĐ1 recipient master backed by historical agencies table.
@@ -18,6 +19,27 @@ class BaM1RecipientController extends Controller
 {
     public const TYPES = ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'];
 
+    #[OA\Get(
+        path: '/api/v1/recipients',
+        operationId: 'recipient_list',
+        summary: 'Danh sách nơi nhận hàng (phân trang, filter recipient_type/market/region/status/keyword; alias /api/v1/agencies dùng chung handler)',
+        security: [['bearerAuth' => []]],
+        tags: ['25. Recipients'],
+        parameters: [
+            new OA\Parameter(name: 'recipient_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'])),
+            new OA\Parameter(name: 'market', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'region', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 10)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách nơi nhận hàng'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền agency.view'),
+        ]
+    )]
     public function index(Request $request)
     {
         $validated = $request->validate([
@@ -67,6 +89,36 @@ class BaM1RecipientController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/v1/recipients',
+        operationId: 'recipient_create',
+        summary: 'Tạo nơi nhận hàng mới (alias /api/v1/agencies dùng chung handler)',
+        security: [['bearerAuth' => []]],
+        tags: ['25. Recipients'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['agency_code', 'agency_name', 'recipient_type'],
+                properties: [
+                    new OA\Property(property: 'agency_code', type: 'string', maxLength: 50, example: 'HN-DIST-001'),
+                    new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Nhà phân phối Hoa Nam Miền Bắc'),
+                    new OA\Property(property: 'recipient_type', type: 'string', enum: ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER']),
+                    new OA\Property(property: 'market', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'region', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, pattern: '^0\\d{9}$'),
+                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, default: 'ACTIVE'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo nơi nhận hàng thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền agency.manage'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: agency_code đã tồn tại, phone sai định dạng)'),
+        ]
+    )]
     public function store(Request $request)
     {
         $validated = $this->validatePayload($request, null, false);
@@ -92,6 +144,19 @@ class BaM1RecipientController extends Controller
         return response()->json(['success' => true, 'data' => $after], 201);
     }
 
+    #[OA\Get(
+        path: '/api/v1/recipients/{id}',
+        operationId: 'recipient_detail',
+        summary: 'Chi tiết nơi nhận hàng (alias /api/v1/agencies/{id} dùng chung handler)',
+        security: [['bearerAuth' => []]],
+        tags: ['25. Recipients'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Chi tiết nơi nhận hàng'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy đối tượng nhận hàng'),
+        ]
+    )]
     public function show(string $id)
     {
         $row = DB::table('agencies')->where('agency_id', $id)->first();
@@ -102,6 +167,43 @@ class BaM1RecipientController extends Controller
         return response()->json(['success' => true, 'data' => $row]);
     }
 
+    #[OA\Patch(
+        path: '/api/v1/recipients/{id}',
+        operationId: 'recipient_update',
+        summary: 'Cập nhật nơi nhận hàng (alias /api/v1/agencies/{id} dùng chung handler)',
+        description: 'Header `If-Match` (version) là optimistic locking TÙY CHỌN — chỉ được kiểm tra khi client có '
+            .'gửi header này. `agency_code` là bất biến một khi đã dùng trên chứng từ (422 AGENCY_CODE_IMMUTABLE).',
+        security: [['bearerAuth' => []]],
+        tags: ['25. Recipients'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: false, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'agency_code', type: 'string', maxLength: 50),
+                    new OA\Property(property: 'agency_name', type: 'string', maxLength: 255),
+                    new OA\Property(property: 'recipient_type', type: 'string', enum: ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER']),
+                    new OA\Property(property: 'market', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'region', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, pattern: '^0\\d{9}$'),
+                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật nơi nhận hàng thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền agency.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy đối tượng nhận hàng'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp version hiện tại'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ, hoặc đổi agency_code đã dùng trên chứng từ (AGENCY_CODE_IMMUTABLE)'),
+        ]
+    )]
     public function update(Request $request, string $id)
     {
         $before = DB::table('agencies')->where('agency_id', $id)->first();

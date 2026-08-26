@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 
 /**
  * Thin adapter for the warehouse Mini App.
@@ -31,6 +32,7 @@ use Modules\Warehouse\Services\CurrentBaselineStockService;
 class MiniAppInboundController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     public function __construct(
         private readonly CurrentBaselineDocumentController $documents,
@@ -503,16 +505,6 @@ class MiniAppInboundController extends Controller
         }
 
         return $document;
-    }
-
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
     }
 
     /** @return array<string,mixed> */

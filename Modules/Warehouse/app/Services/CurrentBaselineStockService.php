@@ -95,6 +95,15 @@ class CurrentBaselineStockService
                     'updated_at' => now(),
                 ]);
                 $this->recordDocumentStatus($documentId, 'DRAFT', 'SCANNING', 'scan_start', $actorId);
+
+                $scanWarehouseId = $documentType === 'receipt' ? $document->dst_warehouse_id : $document->src_warehouse_id;
+                event(new \Modules\Warehouse\Events\StockDocumentScanStarted(
+                    $documentId,
+                    (string) $document->doc_no,
+                    $documentType,
+                    $scanWarehouseId !== null ? (string) $scanWarehouseId : null,
+                    $actorId,
+                ));
             }
 
             if ($documentType === 'receipt') {
@@ -1059,7 +1068,7 @@ class CurrentBaselineStockService
             'resolved_object_type' => $item ? 'ITEM' : 'SKU',
             'resolved_object_id' => $item?->item_id ?? $line->product_id,
             'result_status' => 'VALID',
-            'message' => 'Validated against current baseline',
+            'message' => 'Hợp lệ theo baseline hiện hành',
             'created_at' => now(),
         ]);
 
@@ -1499,7 +1508,7 @@ class CurrentBaselineStockService
             'updated_at' => now(),
         ]);
         if ($updated !== 1) {
-            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Inventory balance changed concurrently; retry against fresh state.');
+            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Tồn kho vừa bị thay đổi bởi thao tác khác. Vui lòng tải lại dữ liệu mới nhất rồi thử lại.');
         }
 
         $movementId = (string) Str::uuid();

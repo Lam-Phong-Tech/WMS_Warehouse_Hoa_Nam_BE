@@ -98,6 +98,8 @@ class UserController extends Controller
             afterData: $user->makeHidden('password_hash')->toArray(),
         );
 
+        event(new \Modules\Auth\Events\UserAccountChanged($user->user_id, 'CREATE', $request->user()?->user_id));
+
         return $this->respondCreated($user, 'Tạo người dùng thành công');
     }
 
@@ -183,6 +185,8 @@ class UserController extends Controller
             beforeData: $beforeData,
             afterData: $user->makeHidden('password_hash')->toArray(),
         );
+
+        event(new \Modules\Auth\Events\UserAccountChanged($id, 'UPDATE', $request->user()?->user_id));
 
         return $this->respondSuccess($user, 'Cập nhật người dùng thành công');
     }

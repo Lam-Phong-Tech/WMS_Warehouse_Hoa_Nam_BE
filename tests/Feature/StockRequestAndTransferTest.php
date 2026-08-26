@@ -16,7 +16,7 @@ use Tests\TestCase;
  * stock-requests dùng được ngay với 1 kho tổng (receipt/issue). transfer-orders và
  * request_type=transfer cần ≥ 2 kho khác nhau — base production hiện chỉ seed 1 kho tổng,
  * nhưng test này tạo 2 bản ghi Warehouse để chứng minh code chạy đúng, sẵn sàng cho khi
- * Hoà Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).
+ * Hoa Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).
  */
 class StockRequestAndTransferTest extends TestCase
 {
@@ -70,7 +70,7 @@ class StockRequestAndTransferTest extends TestCase
     /** dispatch (trừ tồn kho nguồn) -> receive đủ (cộng tồn kho đích) -> completed. */
     public function test_transfer_full_dispatch_and_receive_moves_stock_between_warehouses(): void
     {
-        $this->markTestSkipped('TransferController đã port sẵn nhưng chưa wire route /api/v1/transfer-orders; chờ Hoà Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).');
+        $this->markTestSkipped('TransferController đã port sẵn nhưng chưa wire route /api/v1/transfer-orders; chờ Hoa Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).');
         $headers = $this->authHeaders();
         $src = Warehouse::create(['code' => 'KHO-SRC', 'name' => 'Kho nguon', 'status' => 'ACTIVE']);
         $dst = Warehouse::create(['code' => 'KHO-DST', 'name' => 'Kho dich', 'status' => 'ACTIVE']);
@@ -117,7 +117,7 @@ class StockRequestAndTransferTest extends TestCase
     /** dispatch -> receive thiếu (shortage) -> completed_with_loss, không cộng đủ tồn kho đích. */
     public function test_transfer_receive_with_shortage_marks_completed_with_loss(): void
     {
-        $this->markTestSkipped('TransferController đã port sẵn nhưng chưa wire route /api/v1/transfer-orders; chờ Hoà Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).');
+        $this->markTestSkipped('TransferController đã port sẵn nhưng chưa wire route /api/v1/transfer-orders; chờ Hoa Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).');
         $headers = $this->authHeaders();
         $src = Warehouse::create(['code' => 'KHO-SRC2', 'name' => 'Kho nguon 2', 'status' => 'ACTIVE']);
         $dst = Warehouse::create(['code' => 'KHO-DST2', 'name' => 'Kho dich 2', 'status' => 'ACTIVE']);

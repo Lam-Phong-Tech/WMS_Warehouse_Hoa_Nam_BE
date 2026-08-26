@@ -35,7 +35,7 @@ final class MiniAppOutboundDraftOpenApi
                     new OA\Property(property: 'name', type: 'string', maxLength: 200, nullable: true, example: 'Xuất hàng chiều 23/08'),
                     new OA\Property(property: 'request_no', type: 'string', maxLength: 80, nullable: true, description: 'Bỏ trống để server tự sinh.', example: 'MA-OUT-20260823-001'),
                     new OA\Property(property: 'request_date', type: 'string', format: 'date', nullable: true, example: '2026-08-23'),
-                    new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, example: 'Đại lý Hòa Nam Đà Nẵng'),
+                    new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200, example: 'Đại lý Hoa Nam Đà Nẵng'),
                     new OA\Property(property: 'recipient_address', type: 'string', maxLength: 1000, nullable: true, example: 'Hải Châu, Đà Nẵng'),
                     new OA\Property(property: 'recipient_contact_phone', type: 'string', maxLength: 50, nullable: true, example: '0912345678'),
                     new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),

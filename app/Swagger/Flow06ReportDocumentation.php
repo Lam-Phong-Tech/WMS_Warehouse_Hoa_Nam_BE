@@ -23,17 +23,14 @@ class Flow06ReportDocumentation
     // sách scan — giữ stub trùng path sẽ va chạm và đè mất schema thật, cùng
     // lý do với các path /api/v1/reports/* ở ghi chú đầu lớp.
 
-    #[OA\Get(path: '/api/v1/reversal-documents', operationId: 'flow06_reversal_list', summary: 'Danh sách phiếu reversal và correction', security: [['bearerAuth' => []]], tags: ['07. Inventory'], responses: [new OA\Response(response: 200, description: 'Danh sách reversal')])]
-    public function reversalList(): void {}
+    // GET /api/v1/reversal-documents, /{id} và /{id}/lines KHÔNG còn khai stub ở
+    // đây (26/08): contract thật (query status/keyword, data-scope kho...) nay nằm
+    // ngay trên ReversalDocumentController::index/show/lines — cùng lý do với các
+    // stub khác đã dọn ở trên, giữ lại sẽ va chạm "Unable to merge @OA\Get()" và
+    // đè mất schema thật.
 
     // POST /api/v1/reversal-documents KHÔNG còn khai stub ở đây (DEV handover QA
     // 2026-08-20): contract thật (requestBody reference_document_id/reason/lines...)
     // nằm ngay trên ReversalDocumentController::store, cùng lý do với các path
     // /api/v1/reports/* ở ghi chú đầu lớp — giữ stub sẽ va chạm và đè mất schema thật.
-
-    #[OA\Get(path: '/api/v1/reversal-documents/{id}', operationId: 'flow06_reversal_detail', summary: 'Chi tiết phiếu reversal và correction chain', security: [['bearerAuth' => []]], tags: ['07. Inventory'], parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Chi tiết reversal')])]
-    public function reversalDetail(): void {}
-
-    #[OA\Get(path: '/api/v1/reversal-documents/{id}/lines', operationId: 'flow06_reversal_lines', summary: 'Danh sách dòng movement được reversal', security: [['bearerAuth' => []]], tags: ['07. Inventory'], parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Dòng reversal')])]
-    public function reversalLines(): void {}
 }

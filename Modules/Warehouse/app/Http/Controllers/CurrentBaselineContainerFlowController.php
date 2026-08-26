@@ -11,11 +11,13 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineContainerFlowController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     private const STATUSES = [
         'EMPTY',
@@ -173,7 +175,7 @@ class CurrentBaselineContainerFlowController extends Controller
             return $container;
         }, 3);
 
-        return $this->respondCreated($result, 'Container created; assign physical code through physical_codes.container_id; stock_effect=NONE.');
+        return $this->respondCreated($result, 'Đã tạo container; gán mã vật lý qua physical_codes.container_id; tồn kho chưa thay đổi (stock_effect=NONE).');
     }
 
     #[OA\Patch(
@@ -280,7 +282,7 @@ class CurrentBaselineContainerFlowController extends Controller
             return ['container' => $after, 'stock_effect' => 'NONE'];
         }, 3);
 
-        return $this->respondSuccess($result, 'Container updated.');
+        return $this->respondSuccess($result, 'Cập nhật container thành công.');
     }
 
     #[OA\Post(
@@ -485,7 +487,7 @@ class CurrentBaselineContainerFlowController extends Controller
             return ['container_item_id' => $containerItemId, 'status' => 'REMOVED', 'container_status' => $remaining ? 'PARTIAL' : 'EMPTY', 'version' => $expectedVersion + 1, 'stock_effect' => 'NONE'];
         }, 3);
 
-        return $this->respondSuccess($result, 'Container content removed.');
+        return $this->respondSuccess($result, 'Đã gỡ nội dung container.');
     }
 
     /**
@@ -565,13 +567,4 @@ class CurrentBaselineContainerFlowController extends Controller
         }
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

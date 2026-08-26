@@ -12,14 +12,33 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 class ReversalDocumentController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     public function __construct(private readonly CurrentBaselineReversalService $reversalService) {}
 
+    #[OA\Get(
+        path: '/api/v1/reversal-documents',
+        operationId: 'flow06_reversal_list',
+        summary: 'Danh sách chứng từ điều chỉnh (reversal), phân trang, filter theo status/keyword, theo data-scope kho',
+        security: [['bearerAuth' => []]],
+        tags: ['11. Reversal'],
+        parameters: [
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách chứng từ điều chỉnh'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+        ]
+    )]
     public function index(Request $request)
     {
         $query = DB::table('reversal_documents')
@@ -82,6 +101,19 @@ class ReversalDocumentController extends Controller
         return $this->respondPaginated($query->paginate($this->perPage($request)));
     }
 
+    #[OA\Get(
+        path: '/api/v1/reversal-documents/{id}',
+        operationId: 'flow06_reversal_detail',
+        summary: 'Chi tiết chứng từ điều chỉnh',
+        security: [['bearerAuth' => []]],
+        tags: ['11. Reversal'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Chi tiết chứng từ điều chỉnh'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
+        ]
+    )]
     public function show(string $id)
     {
         $doc = DB::table('reversal_documents')
@@ -169,6 +201,26 @@ class ReversalDocumentController extends Controller
         return $this->respondSuccess($result, 'Đã xác nhận hàng vật lý quay lại kho; chưa phát sinh stock effect.');
     }
 
+    #[OA\Post(
+        path: '/api/v1/reversal-documents/{id}/post',
+        operationId: 'flow06_reversal_post',
+        summary: 'Post chứng từ điều chỉnh (thực thi điều chỉnh tồn kho)',
+        security: [['bearerAuth' => []]],
+        tags: ['11. Reversal'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Post chứng từ điều chỉnh thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
+            new OA\Response(response: 409, description: 'State/idempotency/dependency conflict'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match hợp lệ'),
+        ]
+    )]
     public function post(Request $request, string $id)
     {
         $key = IdempotencyKeyGuard::require($request);
@@ -260,6 +312,19 @@ class ReversalDocumentController extends Controller
      * nhau (trigger view ghi cả hai) nên không được dùng làm "số lượng gốc" — số gốc
      * phải lấy từ chính movement gốc, còn reversible_qty tính theo BR-REV-05.
      */
+    #[OA\Get(
+        path: '/api/v1/reversal-documents/{id}/lines',
+        operationId: 'flow06_reversal_lines',
+        summary: 'Danh sách dòng của chứng từ điều chỉnh',
+        security: [['bearerAuth' => []]],
+        tags: ['11. Reversal'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách dòng điều chỉnh'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
+        ]
+    )]
     public function lines(string $id)
     {
         $doc = DB::table('reversal_documents')->where('id', $id)->first();
@@ -524,7 +589,7 @@ class ReversalDocumentController extends Controller
 
                 return [201, [
                     'success' => true,
-                    'message' => 'Reversal document created.',
+                    'message' => 'Tạo chứng từ điều chỉnh thành công.',
                     'data' => $response,
                     'meta' => [
                         'request_id' => request()?->attributes->get('request_id'),
@@ -536,16 +601,6 @@ class ReversalDocumentController extends Controller
 
         return response()->json($body, $code)
             ->header('Idempotent-Replay', $replay ? 'true' : 'false');
-    }
-
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
     }
 
     /**

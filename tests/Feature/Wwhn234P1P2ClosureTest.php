@@ -79,7 +79,7 @@ class Wwhn234P1P2ClosureTest extends TestCase
     {
         return Warehouse::firstOrCreate(
             ['code' => 'KHO-TONG-HN'],
-            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+            ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
         );
     }
 

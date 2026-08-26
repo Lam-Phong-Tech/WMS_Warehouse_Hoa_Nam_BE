@@ -564,7 +564,7 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
      */
     private function preparedReceipt(array $headers, string $skuCodePrefix): array
     {
-        $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
         $sku = Sku::create([
             'sku_code' => $skuCodePrefix.'-'.Str::upper(Str::random(6)),
             'sku_name' => "Component {$skuCodePrefix}",
@@ -615,6 +615,6 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
 
     private function warehouseFixture(): Warehouse
     {
-        return $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        return $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
     }
 }

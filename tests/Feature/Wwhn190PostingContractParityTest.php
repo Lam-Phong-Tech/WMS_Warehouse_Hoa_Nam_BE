@@ -71,7 +71,7 @@ class Wwhn190PostingContractParityTest extends TestCase
     {
         Warehouse::firstOrCreate(
             ['code' => 'KHO-TONG-HN'],
-            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+            ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
         );
         $sku = Sku::create([
             'sku_code' => $skuCode,
@@ -95,7 +95,7 @@ class Wwhn190PostingContractParityTest extends TestCase
     {
         $warehouse = Warehouse::firstOrCreate(
             ['code' => 'KHO-TONG-HN'],
-            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+            ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
         );
 
         $create = $this->postJson('/api/v1/inbound-documents', [

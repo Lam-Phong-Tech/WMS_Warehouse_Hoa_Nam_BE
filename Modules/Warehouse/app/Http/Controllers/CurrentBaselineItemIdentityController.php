@@ -13,11 +13,13 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineItemIdentityController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     #[OA\Post(
         path: '/api/v1/skus/{id}/physical-codes',
@@ -130,7 +132,7 @@ class CurrentBaselineItemIdentityController extends Controller
                     ];
                 }, 3);
 
-                return [201, $this->envelope('Physical identity assigned to item.', $data)];
+                return [201, $this->envelope('Đã gán định danh vật lý cho item.', $data)];
             }
         );
 
@@ -334,6 +336,35 @@ class CurrentBaselineItemIdentityController extends Controller
         return 'SN-'.$skuCode.'-'.Str::upper(Str::uuid()->toString());
     }
 
+    #[OA\Delete(
+        path: '/api/v1/skus/{id}/physical-codes/{physicalCodeId}',
+        operationId: 'item_identity_revoke',
+        summary: 'Vô hiệu hoá mã vật lý gán cho item (deactivate, không xoá lịch sử)',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, description: 'sku_id', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'physicalCodeId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['reason'],
+                properties: [new OA\Property(property: 'reason', type: 'string', maxLength: 2000)]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã vô hiệu hoá định danh vật lý'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy item physical code, hoặc không thuộc SKU này'),
+            new OA\Response(response: 409, description: 'PHYSICAL_CODE_NOT_ACTIVE — chỉ code ACTIVE mới được deactivate'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp version hiện tại'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+            new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match hợp lệ'),
+        ]
+    )]
     public function revoke(Request $request, string $skuId, string $physicalCodeId)
     {
         $validated = $request->validate([
@@ -353,7 +384,7 @@ class CurrentBaselineItemIdentityController extends Controller
                         ApiError::abort(404, 'PHYSICAL_CODE_NOT_FOUND', 'Không tìm thấy item physical code.');
                     }
                     if ((int) ($code->version ?? 0) !== $expectedVersion) {
-                        ApiError::abort(412, 'STALE_VERSION', 'Physical code version mismatch.');
+                        ApiError::abort(412, 'STALE_VERSION', 'Mã vật lý đã bị thay đổi bởi thao tác khác. Vui lòng tải lại dữ liệu mới nhất.');
                     }
                     $itemId = (string) ($code->item_id ?? $code->assigned_object_id);
                     $item = DB::table('item_instances')->where('item_id', $itemId)->lockForUpdate()->first();
@@ -394,7 +425,7 @@ class CurrentBaselineItemIdentityController extends Controller
                     ];
                 }, 3);
 
-                return [200, $this->envelope('Physical identity deactivated.', $data)];
+                return [200, $this->envelope('Đã vô hiệu hóa định danh vật lý.', $data)];
             }
         );
 
@@ -429,13 +460,4 @@ class CurrentBaselineItemIdentityController extends Controller
         ];
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

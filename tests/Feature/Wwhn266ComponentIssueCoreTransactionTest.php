@@ -89,7 +89,7 @@ class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
         if ($warehouseId === null) {
             $warehouse = Warehouse::firstOrCreate(
                 ['code' => 'KHO-TONG-HN'],
-                ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+                ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
             );
             $warehouseId = (string) $warehouse->id;
         }

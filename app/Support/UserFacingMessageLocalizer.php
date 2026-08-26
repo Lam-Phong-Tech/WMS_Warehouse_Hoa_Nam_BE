@@ -191,10 +191,19 @@ final class UserFacingMessageLocalizer
         return $localized;
     }
 
+    /**
+     * "permission"/"product" bị loại khỏi danh sách kích hoạt: cả hai đều là từ mượn
+     * tiếng Anh dùng phổ biến TRONG câu tiếng Việt hợp lệ của chính codebase này (vd
+     * "Gán permission cho role thành công", "Tạo product master thành công") — giữ
+     * chúng trong regex khiến message THÀNH CÔNG hợp lệ bị thay nhầm bằng câu lỗi
+     * chung, làm UI báo sai kết quả dù request đã xử lý đúng (phát hiện 26/08 tại
+     * RoleController::assignPermissions). Một câu tiếng Anh thật sự bỏ sót vẫn gần
+     * như chắc chắn dính 1 trong các từ chức năng còn lại (the/must/field/error...).
+     */
     private static function stillLooksEnglish(string $message): bool
     {
         return preg_match(
-            '/\b(the|field|must|should|cannot|failed|failure|required|invalid|only|when|without|already|exists|document|quantity|warehouse|product|permission|unauthorized|forbidden|server|error)\b/i',
+            '/\b(the|field|must|should|cannot|failed|failure|required|invalid|only|when|without|already|exists|document|quantity|warehouse|unauthorized|forbidden|server|error)\b/i',
             $message
         ) === 1;
     }

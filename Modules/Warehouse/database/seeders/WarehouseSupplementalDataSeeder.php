@@ -92,7 +92,7 @@ class WarehouseSupplementalDataSeeder extends Seeder
             ['import_batch_code' => 'IMP-SEED-BATCH-002', 'shipment_container_code' => 'SHIP-SEED-002', 'supplier_batch_no' => 'SUP-SEED-002', 'import_period' => '2026-Q1', 'supplier_name' => 'Yanmar Việt Nam'],
             ['import_batch_code' => 'IMP-SEED-BATCH-003', 'shipment_container_code' => 'SHIP-SEED-003', 'supplier_batch_no' => 'SUP-SEED-003', 'import_period' => '2026-Q2', 'supplier_name' => 'Honda Việt Nam'],
             ['import_batch_code' => 'IMP-SEED-BATCH-004', 'shipment_container_code' => 'SHIP-SEED-004', 'supplier_batch_no' => 'SUP-SEED-004', 'import_period' => '2026-Q2', 'supplier_name' => 'Husqvarna Việt Nam'],
-            ['import_batch_code' => 'IMP-SEED-BATCH-005', 'shipment_container_code' => 'SHIP-SEED-005', 'supplier_batch_no' => 'SUP-SEED-005', 'import_period' => '2026-Q3', 'supplier_name' => 'Nhà cung cấp linh kiện Hòa Nam'],
+            ['import_batch_code' => 'IMP-SEED-BATCH-005', 'shipment_container_code' => 'SHIP-SEED-005', 'supplier_batch_no' => 'SUP-SEED-005', 'import_period' => '2026-Q3', 'supplier_name' => 'Nhà cung cấp linh kiện Hoa Nam'],
         ];
 
         foreach ($rows as $row) {

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Yêu cầu xuất/nhập/điều chuyển kho — bước tiền duyệt trước khi tạo stock_documents.
  * request_type=transfer cần src ≠ dst; base hiện chỉ có 1 kho tổng nên nhánh này
- * chưa dùng được thực tế cho tới khi Hoà Nam thêm kho thứ 2 (xem BRD_ERD_Upgrade_Guide.md).
+ * chưa dùng được thực tế cho tới khi Hoa Nam thêm kho thứ 2 (xem BRD_ERD_Upgrade_Guide.md).
  */
 return new class extends Migration
 {

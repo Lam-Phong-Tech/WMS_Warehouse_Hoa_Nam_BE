@@ -10,10 +10,12 @@ use App\Support\IdempotentEnvelope;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 /**
@@ -24,6 +26,7 @@ use OpenApi\Attributes as OA;
 class AlignedOutboundFlowController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     public function __construct(
         private readonly CurrentBaselineStockService $stock,
@@ -565,35 +568,62 @@ class AlignedOutboundFlowController extends Controller
             $this->actorId(),
             $hash,
             function () use ($id, $expectedVersion, $key, $hash): array {
-                $result = DB::transaction(function () use ($id, $expectedVersion, $key, $hash): array {
-                    $document = $this->lockDocument($id);
-                    $this->assertVersion($document, $expectedVersion);
-                    if ((string) $document->status !== 'SCANNING') {
-                        ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ SCANNING mới được Post Issue.');
-                    }
-                    if ($document->outbound_request_id === null) {
-                        ApiError::abort(422, 'OUTBOUND_REQUEST_REQUIRED', 'Outbound phải liên kết toa/request nguồn.');
-                    }
-                    if (! $this->isFullScan($id)) {
-                        ApiError::abort(422, 'FULL_POST_REQUIRED', 'Mọi line phải scan đủ chính xác trước Post Issue.');
+                $document = null;
+                try {
+                    $result = DB::transaction(function () use ($id, $expectedVersion, $key, $hash, &$document): array {
+                        $document = $this->lockDocument($id);
+                        $this->assertVersion($document, $expectedVersion);
+                        if ((string) $document->status !== 'SCANNING') {
+                            ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ SCANNING mới được Post Issue.');
+                        }
+                        if ($document->outbound_request_id === null) {
+                            ApiError::abort(422, 'OUTBOUND_REQUEST_REQUIRED', 'Outbound phải liên kết toa/request nguồn.');
+                        }
+                        if (! $this->isFullScan($id)) {
+                            ApiError::abort(422, 'FULL_POST_REQUIRED', 'Mọi line phải scan đủ chính xác trước Post Issue.');
+                        }
+
+                        DB::table('stock_documents')->where('id', $id)->update([
+                            'version' => $expectedVersion + 1,
+                            'updated_by' => $this->actorId(),
+                            'updated_at' => now(),
+                        ]);
+                        // BA-2026-08: stock post is independent of preview, printer
+                        // availability and physical label application.
+                        $posted = $this->stock->postStockDocument($id, 'issue', $this->actorId(), $key, $hash);
+                        $posted['version'] = $expectedVersion + 1;
+                        $posted['packing_label_applied'] = false;
+                        $posted['packing_label_required'] = false;
+                        $posted['packing_label_bypassed'] = true;
+                        $posted['rfid_required'] = false;
+
+                        event(new \Modules\Warehouse\Events\OutboundPosted(
+                            $id,
+                            (string) $document->doc_no,
+                            $document->src_warehouse_id !== null ? (string) $document->src_warehouse_id : null,
+                            $this->actorId(),
+                        ));
+
+                        return $posted;
+                    }, 3);
+                } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+                    // ApiError::abort() ném HttpResponseException; INSUFFICIENT_STOCK
+                    // là lỗi duy nhất trong nhánh này đáng cảnh báo real-time (thiếu
+                    // tồn giữa lúc Post Issue) — các lỗi 409/422 khác đã có ở FE ngay
+                    // trong response, không cần thêm thông báo.
+                    $responseData = optional($e->getResponse())->getData(true) ?? [];
+                    if (($responseData['error_code'] ?? null) === 'INSUFFICIENT_STOCK') {
+                        preg_match('/sản phẩm (.+)\.$/u', (string) ($responseData['message'] ?? ''), $match);
+                        event(new \Modules\Warehouse\Events\StockShortageDetected(
+                            $id,
+                            $document?->src_warehouse_id !== null ? (string) $document->src_warehouse_id : null,
+                            $match[1] ?? 'N/A',
+                            $this->actorId(),
+                        ));
                     }
 
-                    DB::table('stock_documents')->where('id', $id)->update([
-                        'version' => $expectedVersion + 1,
-                        'updated_by' => $this->actorId(),
-                        'updated_at' => now(),
-                    ]);
-                    // BA-2026-08: stock post is independent of preview, printer
-                    // availability and physical label application.
-                    $posted = $this->stock->postStockDocument($id, 'issue', $this->actorId(), $key, $hash);
-                    $posted['version'] = $expectedVersion + 1;
-                    $posted['packing_label_applied'] = false;
-                    $posted['packing_label_required'] = false;
-                    $posted['packing_label_bypassed'] = true;
-                    $posted['rfid_required'] = false;
-
-                    return $posted;
-                }, 3);
+                    throw $e;
+                }
 
                 // GĐ1-REQ-012: chuẩn bị nhãn nằm NGOÀI transaction trừ tồn — lỗi tạo
                 // snapshot nhãn không được rollback Post Issue; FE hiển thị cảnh báo và
@@ -601,10 +631,18 @@ class AlignedOutboundFlowController extends Controller
                 try {
                     $result['packing_label_id'] = $this->ensurePackingLabel($id);
                 } catch (\Throwable $labelError) {
+                    // Không nối $labelError->getMessage() thẳng vào response: message
+                    // kỹ thuật (có thể tiếng Anh, lộ tên bảng/cột nội bộ) trước đây đi
+                    // thẳng ra client vì field này nằm trong `data`, không qua
+                    // ApiError::abort()/UserFacingMessageLocalizer. Log đầy đủ để debug,
+                    // trả về client một câu tiếng Việt chung.
+                    Log::error('Post Issue: chuẩn bị nhãn đóng gói thất bại', [
+                        'stock_document_id' => $id,
+                        'exception' => $labelError,
+                    ]);
                     $result['packing_label_id'] = null;
-                    $result['packing_label_warning'] = 'Không chuẩn bị được nhãn đóng gói: '
-                        .$labelError->getMessage()
-                        .' Phiếu đã ghi nhận xuất kho; tồn kho không bị rollback.';
+                    $result['packing_label_warning'] = 'Không chuẩn bị được nhãn đóng gói do lỗi hệ thống. '
+                        .'Phiếu đã ghi nhận xuất kho; tồn kho không bị rollback. Vui lòng thử chuẩn bị/in lại nhãn sau.';
                 }
 
                 return [200, $this->envelope('Post Issue thành công; tồn được trừ tại bước hoàn tất này.', $result)];
@@ -831,13 +869,4 @@ class AlignedOutboundFlowController extends Controller
         ];
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }
