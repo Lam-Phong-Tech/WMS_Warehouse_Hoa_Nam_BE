@@ -52,7 +52,7 @@ class PostReceiptConcurrencyBehaviorTest extends TestCase
     {
         return Warehouse::create([
             'code' => 'KHO-TONG-HN',
-            'name' => 'Kho tổng Hòa Nam',
+            'name' => 'Kho tổng Hoa Nam',
             'status' => 'ACTIVE',
         ]);
     }
@@ -69,16 +69,18 @@ class PostReceiptConcurrencyBehaviorTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
+        // Hợp đồng GĐ1 scan-driven: header-only + materialize dòng COMPONENT qua
+        // /component-lines (không còn tạo phiếu kèm lines/qty_planned).
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_name' => 'Nha cung cap Race',
-            'lines' => [[
-                'product_id' => $sku->sku_id,
-                'qty_planned' => 4,
-            ]],
         ], $headers);
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+
+        $ensure = $this->postJson("/api/v1/inbound-documents/{$documentId}/component-lines", [
+            'sku_id' => (string) $sku->sku_id,
+        ], $headers)->assertOk();
+        $lineId = (string) $ensure->json('data.line_id');
 
         $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,

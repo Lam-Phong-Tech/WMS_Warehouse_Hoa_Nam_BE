@@ -64,13 +64,14 @@ class OutboundRequestController extends Controller
         }
         if ($request->filled('keyword')) {
             $keyword = trim((string) $request->input('keyword'));
-            $query->where(function ($sub) use ($keyword): void {
-                $sub->where('request_no', 'ilike', "%{$keyword}%")
-                    ->orWhere('customer_name', 'ilike', "%{$keyword}%");
+            $likeOperator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($sub) use ($keyword, $likeOperator): void {
+                $sub->where('request_no', $likeOperator, "%{$keyword}%")
+                    ->orWhere('recipient_name', $likeOperator, "%{$keyword}%");
             });
         }
 
-        $paginator = $query->paginate(min(100, max(1, (int) $request->input('per_page', 15))));
+        $paginator = $query->paginate(min(100, max(1, (int) $request->input('per_page', 10))));
         $requestIds = collect($paginator->items())->pluck('id')->map(fn ($id): string => (string) $id);
 
         $lineCounts = $requestIds->isEmpty() ? collect() : DB::table('outbound_request_lines')

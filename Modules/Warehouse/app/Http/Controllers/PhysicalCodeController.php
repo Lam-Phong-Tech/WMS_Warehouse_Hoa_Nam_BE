@@ -42,36 +42,15 @@ class PhysicalCodeController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->physicalCodes->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->physicalCodes->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 
-    #[OA\Post(
-        path: '/api/v1/physical-codes',
-        operationId: 'physical_code_create',
-        summary: 'Đăng ký mã vật lý mới',
-        security: [['bearerAuth' => []]],
-        tags: ['21. Physical Code'],
-        requestBody: new OA\RequestBody(
-            required: true,
-            content: new OA\JsonContent(
-                required: ['code_value', 'code_type', 'carrier_type'],
-                properties: [
-                    new OA\Property(property: 'code_value', type: 'string', maxLength: 100, example: 'HN1|SKU-0001|ITEM00001'),
-                    new OA\Property(property: 'code_type', type: 'string', enum: ['ITEM', 'CARTON', 'COMPONENT_SERIAL', 'BOX', 'TRAY', 'TEMP_WARRANTY', 'UNKNOWN'], example: 'ITEM'),
-                    new OA\Property(property: 'carrier_type', type: 'string', enum: ['QR', 'BARCODE', 'RFID', 'NFC', 'PLAIN_LABEL', 'MANUAL_CODE', 'TEMP_CODE'], example: 'QR'),
-                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 150, nullable: true, example: 'RFID-A1B2C3D4E5'),
-                    new OA\Property(property: 'encoded_payload_version', type: 'string', maxLength: 30, nullable: true, example: 'v1.1.0'),
-                ]
-            )
-        ),
-        responses: [
-            new OA\Response(response: 201, description: 'Tạo mã vật lý thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền physical_code.manage'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: code_type=ITEM nhưng carrier_type không phải chip)'),
-        ]
-    )]
+    // Annotation đã bị GỠ: route POST /api/v1/physical-codes trỏ tới
+    // CurrentBaselinePhysicalCodeController::store() (đã có annotation riêng ở
+    // đó) — method dưới đây là dead code, không route nào gọi tới. Giữ annotation
+    // ở cả hai nơi cho cùng path+method sẽ khiến l5-swagger:generate crash
+    // ("Unable to merge @OA\Post()").
     public function store(StorePhysicalCodeRequest $request)
     {
         $physicalCode = $this->physicalCodes->create($request->validated() + ['status' => 'ACTIVE']);
@@ -108,27 +87,9 @@ class PhysicalCodeController extends Controller
         return $physicalCode ? $this->respondSuccess($physicalCode) : $this->respondNotFound('Không tìm thấy mã vật lý.');
     }
 
-    #[OA\Patch(
-        path: '/api/v1/physical-codes/{id}',
-        operationId: 'physical_code_update',
-        summary: 'Sửa trạng thái mã vật lý (LOST/REPLACED/INACTIVE)',
-        security: [['bearerAuth' => []]],
-        tags: ['21. Physical Code'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-        requestBody: new OA\RequestBody(
-            content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'LOST', 'REPLACED', 'INACTIVE'], example: 'LOST'),
-                new OA\Property(property: 'replaced_by_code_id', type: 'string', format: 'uuid', nullable: true, example: 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d'),
-            ])
-        ),
-        responses: [
-            new OA\Response(response: 200, description: 'Cập nhật thành công'),
-            new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền physical_code.manage'),
-            new OA\Response(response: 404, description: 'Không tìm thấy mã vật lý'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
-        ]
-    )]
+    // Annotation đã bị GỠ: route PATCH /api/v1/physical-codes/{id} trỏ tới
+    // CurrentBaselinePhysicalCodeController::update() (đã có annotation riêng ở
+    // đó) — method dưới đây là dead code, không route nào gọi tới.
     public function update(UpdatePhysicalCodeRequest $request, string $id)
     {
         $before = $this->physicalCodes->find($id);

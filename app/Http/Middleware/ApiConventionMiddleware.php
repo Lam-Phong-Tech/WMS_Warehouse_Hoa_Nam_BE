@@ -6,6 +6,7 @@ use App\Support\IdempotencyStore;
 use App\Support\UserFacingMessageLocalizer;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Str;
 
@@ -22,6 +23,29 @@ class ApiConventionMiddleware
         $request->attributes->set('request_id', $requestId);
         if (class_exists(Context::class)) {
             Context::add('request_id', $requestId);
+        }
+
+        // Chặn tận gốc cả một lớp bug 500: nhiều controller (đã xác nhận ở
+        // MiniAppOutboundDraftController, MiniAppOutboundStagingController,
+        // AlignedOutboundFlowController) tự json_encode(..., JSON_THROW_ON_ERROR)
+        // lại dữ liệu request để tính checksum hoặc dựng sub-request nội bộ.
+        // Rule Laravel 'string' chỉ kiểm tra is_string(), không kiểm tra
+        // encoding, nên byte không hợp lệ UTF-8 qua được validate rồi làm
+        // json_encode ném JsonException không ai bắt => 500 thay vì 422. Kiểm
+        // tra một lần duy nhất ở đây, cho MỌI Content-Type (không chỉ JSON),
+        // để không phải vá lặp lại quy tắc này ở từng controller/rule.
+        if (! $this->hasValidUtf8Input($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dữ liệu gửi lên chứa ký tự không hợp lệ (không phải UTF-8).',
+                'error_code' => 'INVALID_PAYLOAD_ENCODING',
+                'errors' => [],
+                'error' => ['code' => 'INVALID_PAYLOAD_ENCODING', 'details' => []],
+                'meta' => [
+                    'request_id' => $requestId,
+                    'timestamp' => now()->toIso8601String(),
+                ],
+            ], 422)->header('X-Request-ID', $requestId);
         }
 
         if ($request->isJson()) {
@@ -267,5 +291,39 @@ class ApiConventionMiddleware
         $response->headers->set('X-Request-ID', $requestId);
 
         return $response;
+    }
+
+    /**
+     * CHỈ soát các giá trị input đã được Symfony parse (query string + body
+     * form fields), KHÔNG soát `$request->getContent()` thô. Với
+     * multipart/form-data (upload Excel import, ảnh warranty attachment...),
+     * raw content chứa nguyên byte nhị phân của file đính kèm — gần như không
+     * bao giờ là UTF-8 hợp lệ trên toàn bộ chuỗi — nên check trên raw body sẽ
+     * làm MỌI request có kèm file hợp lệ bị từ chối 422 oan. Còn với JSON
+     * body, byte không hợp lệ UTF-8 đã được khối `MALFORMED_JSON` ngay bên
+     * dưới bắt qua `json_decode()` (trả JSON_ERROR_UTF8), nên không cần soát
+     * lại raw content ở đây.
+     */
+    private function hasValidUtf8Input(Request $request): bool
+    {
+        return $this->allStringsValidUtf8($request->query->all())
+            && $this->allStringsValidUtf8($request->request->all());
+    }
+
+    private function allStringsValidUtf8(array $values): bool
+    {
+        foreach ($values as $value) {
+            if ($value instanceof UploadedFile) {
+                continue;
+            }
+            if (is_string($value) && ! mb_check_encoding($value, 'UTF-8')) {
+                return false;
+            }
+            if (is_array($value) && ! $this->allStringsValidUtf8($value)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

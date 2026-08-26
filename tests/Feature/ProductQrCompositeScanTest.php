@@ -26,8 +26,11 @@ class ProductQrCompositeScanTest extends TestCase
         return $serial !== null ? $raw."|SER={$serial}" : $raw;
     }
 
-    /** Phiếu nhập DRAFT với 1 line PRODUCT serial-tracked. */
-    private function draftInbound(string $skuCode, int $qty = 1): array
+    /**
+     * Phiếu nhập DRAFT header-only theo hợp đồng GĐ1 scan-driven — dòng SKU chỉ
+     * materialize khi scan composite QR (không còn tạo phiếu kèm lines).
+     */
+    private function draftInbound(string $skuCode): array
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
@@ -36,16 +39,11 @@ class ProductQrCompositeScanTest extends TestCase
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_name' => 'NCC QR Change Pack',
-            'lines' => [[
-                'product_id' => $sku->sku_id,
-                'qty_planned' => $qty,
-            ]],
         ], $headers)->assertCreated();
 
         return [
             'headers' => $headers,
             'document_id' => (string) $create->json('data.id'),
-            'line_id' => (string) $create->json('data.lines.0.id'),
             'sku_id' => $sku->sku_id,
             'warehouse_id' => $warehouse->id,
         ];
@@ -68,7 +66,6 @@ class ProductQrCompositeScanTest extends TestCase
         $response = $this->inboundScan($fixture, $this->composite('QR-SKU-01', 'SN-QR01-0001'));
 
         $response->assertOk()
-            ->assertJsonPath('data.line_id', $fixture['line_id'])
             ->assertJsonPath('data.item_id', null)
             ->assertJsonPath('data.scanned_quantity', 1)
             ->assertJsonPath('data.payload_format', 'COMPOSITE_V1')
@@ -85,7 +82,10 @@ class ProductQrCompositeScanTest extends TestCase
         $this->assertDatabaseMissing('physical_codes', ['code_value' => 'SN-QR01-0001']);
         $this->assertSame(0, DB::table('stock_movements')->count());
 
-        $entry = DB::table('inbound_scan_entries')->where('inbound_line_id', $fixture['line_id'])->first();
+        // GĐ1 scan-driven: dòng SKU do chính lần scan materialize.
+        $lineId = (string) $response->json('data.line_id');
+        $this->assertNotSame('', $lineId);
+        $entry = DB::table('inbound_scan_entries')->where('inbound_line_id', $lineId)->first();
         $this->assertNotNull($entry);
         $this->assertNull($entry->item_id);
         $this->assertSame('SN-QR01-0001', $entry->candidate_item_unique);
@@ -93,36 +93,63 @@ class ProductQrCompositeScanTest extends TestCase
 
     public function test_qr02_inbound_cung_item_unique_lan_hai_bi_duplicate(): void
     {
-        $fixture = $this->draftInbound('QR-SKU-02', 2);
-        $this->inboundScan($fixture, $this->composite('QR-SKU-02', 'SN-QR02-0001'))->assertOk();
+        $fixture = $this->draftInbound('QR-SKU-02');
+        $first = $this->inboundScan($fixture, $this->composite('QR-SKU-02', 'SN-QR02-0001'));
+        $first->assertOk();
+        $lineId = (string) $first->json('data.line_id');
 
         $this->inboundScan($fixture, $this->composite('QR-SKU-02', 'SN-QR02-0001'), 2)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'DUPLICATE_ITEM_IN_DOCUMENT');
 
-        $this->assertSame(1, (int) DB::table('stock_document_lines')->where('id', $fixture['line_id'])->value('scanned_qty'));
+        $this->assertSame(1, (int) DB::table('stock_document_lines')->where('id', $lineId)->value('scanned_qty'));
     }
 
-    public function test_qr03_embedded_sku_khong_co_line_bi_wrong_sku(): void
+    /**
+     * GĐ1 scan-driven: SKU embedded chưa có dòng KHÔNG còn là WRONG_SKU — hệ
+     * thống materialize dòng mới cho đúng SKU đó (Change Pack §6.1 bước 4 +
+     * DiagnosticCurrentBaselineStockService::prepareScanDrivenInboundLine).
+     */
+    public function test_qr03_embedded_sku_chua_co_line_tu_materialize_dong_moi(): void
     {
         $fixture = $this->draftInbound('QR-SKU-03');
-        $this->productSkuFixture('QR-SKU-03B');
+        $skuB = $this->productSkuFixture('QR-SKU-03B');
 
-        $this->inboundScan($fixture, $this->composite('QR-SKU-03B', 'SN-QR03-0001'))
-            ->assertStatus(422)
-            ->assertJsonPath('error.code', 'WRONG_SKU');
+        $first = $this->inboundScan($fixture, $this->composite('QR-SKU-03', 'SN-QR03-0001'));
+        $first->assertOk();
+        $second = $this->inboundScan($fixture, $this->composite('QR-SKU-03B', 'SN-QR03-0002'), 2);
+        $second->assertOk()->assertJsonPath('data.sku_id', (string) $skuB->sku_id);
 
-        $this->assertSame(0, (int) DB::table('stock_document_lines')->where('id', $fixture['line_id'])->value('scanned_qty'));
+        $this->assertNotSame((string) $first->json('data.line_id'), (string) $second->json('data.line_id'));
+        $this->assertSame(
+            2,
+            DB::table('stock_document_lines')->where('stock_document_id', $fixture['document_id'])->count()
+        );
+        $this->assertSame(
+            1,
+            (int) DB::table('stock_document_lines')->where('id', (string) $second->json('data.line_id'))->value('scanned_qty')
+        );
     }
 
-    public function test_qr04_scan_vuot_expected_bi_excess(): void
+    /**
+     * GĐ1 scan-driven: không còn gate "quét vượt expected" (SCAN_EXCEEDS_REQUIRED
+     * unreachable ở inbound) — qty_planned tự nâng theo scan, item thứ hai vẫn
+     * được nhận và scanned_qty tăng.
+     */
+    public function test_qr04_scan_vuot_tham_chieu_van_duoc_nhan_scan_driven(): void
     {
-        $fixture = $this->draftInbound('QR-SKU-04', 1);
-        $this->inboundScan($fixture, $this->composite('QR-SKU-04', 'SN-QR04-0001'))->assertOk();
+        $fixture = $this->draftInbound('QR-SKU-04');
+        $first = $this->inboundScan($fixture, $this->composite('QR-SKU-04', 'SN-QR04-0001'));
+        $first->assertOk()->assertJsonPath('data.scanned_quantity', 1);
 
         $this->inboundScan($fixture, $this->composite('QR-SKU-04', 'SN-QR04-0002'), 2)
-            ->assertStatus(422)
-            ->assertJsonPath('error.code', 'SCAN_EXCEEDS_REQUIRED');
+            ->assertOk()
+            ->assertJsonPath('data.scanned_quantity', 2);
+
+        $this->assertSame(
+            2,
+            (int) DB::table('stock_document_lines')->where('id', (string) $first->json('data.line_id'))->value('scanned_qty')
+        );
     }
 
     public function test_qr05_payload_hong_va_version_la_khong_tang_scanned_qty(): void
@@ -137,10 +164,17 @@ class ProductQrCompositeScanTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'UNSUPPORTED_PAYLOAD_VERSION');
 
+        // GĐ1-REQ-007: SKU chưa tồn tại trong master KHÔNG còn bị SKU_NOT_FOUND —
+        // BaM1StockService auto-create SKU PRODUCT ACTIVE tối thiểu rồi nhận scan.
+        $this->assertSame(0, DB::table('sku')->where('sku_code', 'QR-SKU-05-GHOST')->count());
         $this->inboundScan($fixture, $this->composite('QR-SKU-05-GHOST', 'SN-QR05-0001'))
-            ->assertStatus(422)
-            ->assertJsonPath('error.code', 'SKU_NOT_FOUND');
+            ->assertOk()
+            ->assertJsonPath('data.resolution_status', 'NEW_ITEM_CANDIDATE');
+        $ghost = DB::table('sku')->where('sku_code', 'QR-SKU-05-GHOST')->first();
+        $this->assertNotNull($ghost);
+        $this->assertSame('ACTIVE', strtoupper((string) $ghost->status));
 
+        // SKU đã tồn tại nhưng INACTIVE thì vẫn bị chặn (không auto-create đè).
         Sku::create([
             'sku_code' => 'QR-SKU-05-OFF',
             'sku_name' => 'Inactive QR sku',
@@ -149,18 +183,27 @@ class ProductQrCompositeScanTest extends TestCase
             'is_serial_tracked' => true,
             'status' => 'INACTIVE',
         ]);
-        $this->inboundScan($fixture, $this->composite('QR-SKU-05-OFF', 'SN-QR05-0002'))
+        $this->inboundScan($fixture, $this->composite('QR-SKU-05-OFF', 'SN-QR05-0002'), 2)
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'SKU_INACTIVE');
 
-        $this->assertSame(0, (int) DB::table('stock_document_lines')->where('id', $fixture['line_id'])->value('scanned_qty'));
+        // Không lần scan lỗi nào để lại scanned_qty hay movement.
+        $this->assertSame(
+            0,
+            (int) DB::table('stock_document_lines')
+                ->where('stock_document_id', $fixture['document_id'])
+                ->where('product_id', '!=', (string) $ghost->sku_id)
+                ->sum('scanned_qty')
+        );
         $this->assertSame(0, DB::table('stock_movements')->count());
     }
 
     public function test_qr06_post_receipt_dang_ky_item_physical_code_va_tang_ton_dung_mot_lan(): void
     {
-        $fixture = $this->draftInbound('QR-SKU-06', 2);
-        $this->inboundScan($fixture, $this->composite('QR-SKU-06', 'SN-QR06-0001'))->assertOk();
+        $fixture = $this->draftInbound('QR-SKU-06');
+        $firstScan = $this->inboundScan($fixture, $this->composite('QR-SKU-06', 'SN-QR06-0001'));
+        $firstScan->assertOk();
+        $lineId = (string) $firstScan->json('data.line_id');
         $this->inboundScan($fixture, $this->composite('QR-SKU-06', 'SN-QR06-0002', 'NSX-06-0002'), 2)->assertOk();
 
         $post = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/post-receipt", [], $fixture['headers'] + [
@@ -185,7 +228,7 @@ class ProductQrCompositeScanTest extends TestCase
         $this->assertSame('QR', (string) $code1->carrier_type);
 
         // Entry candidate đã được gán item_id.
-        $entries = DB::table('inbound_scan_entries')->where('inbound_line_id', $fixture['line_id'])->get();
+        $entries = DB::table('inbound_scan_entries')->where('inbound_line_id', $lineId)->get();
         $this->assertCount(2, $entries);
         foreach ($entries as $entry) {
             $this->assertNotNull($entry->item_id);
@@ -235,7 +278,13 @@ class ProductQrCompositeScanTest extends TestCase
         $this->assertSame(0, DB::table('stock_movements')->count());
     }
 
-    public function test_inbound_item_da_ton_tai_resolve_existing_va_cross_check_sku(): void
+    /**
+     * GĐ1-REQ-008: identity đã tồn tại trong DB (kể cả item_status=NEW) không
+     * được nhận lại qua inbound thường — 409 ITEM_ALREADY_REGISTERED; cross-check
+     * SKU embedded vẫn chạy TRƯỚC guard đó (WRONG_SKU khi QR dán nhầm SKU khác).
+     * (Thay cho test cũ resolve EXISTING_ITEM OK — hành vi đó đã bị bỏ.)
+     */
+    public function test_inbound_item_da_ton_tai_bi_chan_va_van_cross_check_sku(): void
     {
         $fixture = $this->draftInbound('QR-SKU-EX');
         // Item đã đăng ký sẵn (NEW) với physical code trùng item_unique.
@@ -253,9 +302,12 @@ class ProductQrCompositeScanTest extends TestCase
         $this->seedScanCode($itemId, 'SN-QREX-0001');
 
         $this->inboundScan($fixture, $this->composite('QR-SKU-EX', 'SN-QREX-0001'))
-            ->assertOk()
-            ->assertJsonPath('data.item_id', $itemId)
-            ->assertJsonPath('data.resolution_status', 'EXISTING_ITEM');
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'ITEM_ALREADY_REGISTERED');
+        $this->assertSame(
+            0,
+            (int) DB::table('stock_document_lines')->where('stock_document_id', $fixture['document_id'])->sum('scanned_qty')
+        );
 
         // Cùng item nhưng QR dán nhầm SKU khác -> WRONG_SKU (AC-QR-05 tinh thần chung).
         $other = $this->draftInbound('QR-SKU-EX2');
@@ -273,10 +325,6 @@ class ProductQrCompositeScanTest extends TestCase
         $second = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $first['warehouse_id'],
             'source_name' => 'NCC QR XDOC 2',
-            'lines' => [[
-                'product_id' => $first['sku_id'],
-                'qty_planned' => 1,
-            ]],
         ], $headers)->assertCreated();
 
         $this->postJson('/api/v1/inbound-documents/'.$second->json('data.id').'/scans', [
@@ -291,7 +339,7 @@ class ProductQrCompositeScanTest extends TestCase
     {
         config(['warehouse.product_qr.legacy_enabled' => false]);
 
-        $fixture = $this->draftInbound('QR-SKU-LGC', 2);
+        $fixture = $this->draftInbound('QR-SKU-LGC');
         // Plain legacy code của item đã đăng ký -> bị chặn khi flag OFF (QR-18).
         $itemId = (string) Str::uuid();
         DB::table('item_instances')->insert([
@@ -315,7 +363,13 @@ class ProductQrCompositeScanTest extends TestCase
             ->assertJsonPath('data.resolution_status', 'NEW_ITEM_CANDIDATE');
     }
 
-    public function test_legacy_flag_on_plain_code_giu_nguyen_hanh_vi_va_gan_legacy_item(): void
+    /**
+     * GĐ1-REQ-008: legacy code + flag ON vẫn resolve được item hiện hữu, nhưng
+     * identity đã tồn tại trong DB thì inbound thường phải chặn bằng 409
+     * ITEM_ALREADY_REGISTERED (sửa sai đi qua luồng reversal/return).
+     * (Thay cho hành vi cũ nhận LEGACY_ITEM OK.)
+     */
+    public function test_legacy_flag_on_plain_code_cua_item_da_ton_tai_bi_chan(): void
     {
         $fixture = $this->draftInbound('QR-SKU-LGO');
         $itemId = (string) Str::uuid();
@@ -331,12 +385,10 @@ class ProductQrCompositeScanTest extends TestCase
         ]);
         $this->seedScanCode($itemId, 'SN-LGO-0001');
 
-        // QR-17: legacy code + flag ON resolve item hiện hữu, tự match line.
         $this->inboundScan($fixture, 'SN-LGO-0001')
-            ->assertOk()
-            ->assertJsonPath('data.item_id', $itemId)
-            ->assertJsonPath('data.payload_format', 'LEGACY_CODE_VALUE')
-            ->assertJsonPath('data.resolution_status', 'LEGACY_ITEM');
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'ITEM_ALREADY_REGISTERED');
+        $this->assertSame(0, DB::table('inbound_scan_entries')->where('item_id', $itemId)->count());
     }
 
     // ----------------------------------------------------------------- outbound

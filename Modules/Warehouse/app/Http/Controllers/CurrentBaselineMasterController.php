@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
 /**
@@ -27,6 +28,7 @@ use OpenApi\Attributes as OA;
 class CurrentBaselineMasterController extends Controller
 {
     use ApiResponse;
+    use ResolvesActorOrNull { actorIdOrNull as actorId; }
 
     private const CACHE_TTL_POLICY = 'master';
 
@@ -770,10 +772,4 @@ class CurrentBaselineMasterController extends Controller
         return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn($table, $column)));
     }
 
-    private function actorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
-    }
 }

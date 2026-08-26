@@ -54,14 +54,41 @@ return [
                     base_path('app/Http/Controllers'),
                     base_path('Modules/Auth/app/Http/Controllers'),
                     base_path('Modules/AuditLog/app/Http/Controllers'),
+                    // Module Notification (26/08): thư mục controller mới, có annotation
+                    // #[OA\...] thật (NotificationController) nhưng chưa từng nằm trong
+                    // danh sách scan — cùng lỗi lớp với các mục HN-BE-API-005 bên dưới,
+                    // route thật publish dạng skeleton generic thay vì contract thật.
+                    base_path('Modules/Notification/app/Http/Controllers'),
+                    // BaM1* là handler THẬT đang chạy cho inbound/outbound/warranty GĐ1
+                    // (đăng ký sau trong Flow06AlignmentServiceProvider nên ghi đè route
+                    // cùng path+method của InboundDocumentController/OutboundDocumentController
+                    // — 2 file đó bị loại có chủ ý ở scanOptions.exclude bên dưới vì mô tả
+                    // sai hợp đồng thật). Các file BaM1* dưới đây hiện CHƯA có annotation
+                    // #[OA\...] nào — thêm vào scan trước để annotation được ghi trong
+                    // tương lai lập tức có hiệu lực, tránh lặp lại việc quên thêm dòng scan
+                    // như toàn bộ lịch sử HN-BE-API-005 phía trên.
+                    base_path('Modules/Warehouse/app/Http/Controllers/BaM1InboundDocumentController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/BaM1InboundComponentController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/BaM1InboundScanCorrectionController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/BaM1OutboundFlowController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/BaM1RecipientController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/BaM1ReportController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/BaM1WarrantyController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/WarehouseController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/ImportController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/ImportReportController.php'),
-                    // WWHN-184/DEV184-P1-01R: thiếu dòng này khiến RouteSyncProcessor
-                    // không thấy annotation thật của Inbound, tự sinh skeleton chung
-                    // chung ("Không có quyền truy cập", request body {} rỗng) thay vì
-                    // contract thật (If-Match/Idempotency-Key bắt buộc, reason, permission
-                    // inbound.cancel|inbound.create...). KHÔNG được bỏ dòng dưới.
+                    // WWHN-184/DEV184-P1-01R (sửa lại 26/08): file này từng khai 8 annotation
+                    // #[OA\...] xếp CHỒNG ở class-level, trong đó có 5 lần cùng loại #[OA\Post] —
+                    // swagger-php không merge được nhiều attribute CÙNG LOẠI tại cùng một context
+                    // và ném "Unable to merge @OA\Post()", làm l5-swagger:generate CRASH. Vì .env
+                    // có L5_SWAGGER_GENERATE_ALWAYS=true, mọi request tới /docs đều trigger
+                    // generate nên Swagger UI ('/api/documentation') luôn nhận 404 "Failed to
+                    // load API definition". Đã tách mỗi annotation ra một private stub method
+                    // riêng trong chính controller (xem docContractList/.../docContractReverse) —
+                    // giữ nguyên toàn bộ nội dung/operationId (SwaggerRouteSyncTest pin
+                    // 'stock_in_cancel'...) nhưng mỗi attribute giờ có context riêng, không còn
+                    // xung đột merge. KHÔNG được bỏ dòng dưới, và KHÔNG được gộp nhiều operation
+                    // cùng loại HTTP verb trở lại chung một method/class trong file này.
                     base_path('Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'),
                     // Flow 06 · Báo cáo: contract (filter §13.10 + schema Annex C) được
                     // khai ngay trên controller thật. KHÔNG được bỏ 4 dòng dưới, nếu không

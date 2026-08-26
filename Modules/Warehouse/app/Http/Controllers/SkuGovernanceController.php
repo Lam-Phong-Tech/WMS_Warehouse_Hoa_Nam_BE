@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Modules\Warehouse\Services\SkuAggregateService;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 
 /**
  * WWHN-172 SKU aggregate endpoints.
@@ -18,6 +19,8 @@ use Modules\Warehouse\Services\SkuAggregateService;
  */
 class SkuGovernanceController extends Controller
 {
+    use ResolvesActorOrNull { actorIdOrNull as actorId; }
+
     public function __construct(private readonly SkuAggregateService $service) {}
 
     public function store(Request $request): JsonResponse
@@ -139,13 +142,6 @@ class SkuGovernanceController extends Controller
         }
 
         ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match hoặc field version là bắt buộc.');
-    }
-
-    private function actorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
     }
 
     private function requestId(Request $request): ?string

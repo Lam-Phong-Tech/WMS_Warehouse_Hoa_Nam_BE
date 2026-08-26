@@ -14,6 +14,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
 
 /**
@@ -37,6 +38,7 @@ use Tests\TestCase;
  */
 class Wwhn240ForcedRollbackInjectionTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use RefreshDatabase;
 
     private function adminHeaders(): array
@@ -61,7 +63,7 @@ class Wwhn240ForcedRollbackInjectionTest extends TestCase
     {
         return Warehouse::firstOrCreate(
             ['code' => 'KHO-TONG-HN'],
-            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+            ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
         );
     }
 
@@ -84,47 +86,36 @@ class Wwhn240ForcedRollbackInjectionTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
+        // Contract GĐ1 scan-driven: header-only + composite QR HN1|SKU|ITEM,
+        // item register-at-Post — item_instances chỉ tồn tại SAU Post Receipt.
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
+            'source_name' => 'WWHN-240 rollback fixture',
+        ]);
+        $documentId = $document['document_id'];
+
+        $scanned = $this->scanProductItems(
+            $headers,
+            $documentId,
+            $skuCode,
+            $itemCount,
+            $document['version'],
+            'SN240-'.Str::upper(Str::random(6))
+        );
+
+        $post = $this->postInboundReceipt($headers, $documentId, $scanned['version'], 'wwhn240-receipt-'.Str::random(12));
+        $post->assertOk()->assertJsonPath('data.status', 'POSTED');
+        $nextVersion = (int) ($post->json('data.version') ?? ($scanned['version'] + 1));
+
         $itemIds = [];
-        for ($index = 0; $index < $itemCount; $index++) {
-            $itemId = (string) Str::uuid();
-            DB::table('item_instances')->insert([
-                'item_id' => $itemId,
-                'sku_id' => $sku->sku_id,
-                'serial_number' => 'SN240-'.Str::upper(Str::random(10)),
-                'item_status' => 'NEW',
-                'item_condition' => 'NORMAL',
-                'version' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+        foreach ($scanned['item_uniques'] as $itemUnique) {
+            $itemId = (string) DB::table('item_instances')->where('serial_number', $itemUnique)->value('item_id');
+            $this->assertNotSame('', $itemId, 'Post Receipt phải register item candidate thành item_instances.');
             $itemIds[] = $itemId;
         }
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
-            'source_name' => 'WWHN-240 rollback fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $itemCount]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
-
-        foreach ($itemIds as $offset => $itemId) {
-            $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-                'line_id' => $lineId,
-                'quantity' => 1,
-                'item_id' => $itemId,
-            ], $headers + ['If-Match' => (string) ($offset + 1)])->assertOk();
-        }
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => (string) ($itemCount + 1),
-            'Idempotency-Key' => 'wwhn240-receipt-'.Str::random(12),
-        ])->assertOk()->assertJsonPath('data.status', 'POSTED');
-
         return [
             'document_id' => $documentId,
-            'line_id' => $lineId,
+            'line_id' => (string) $scanned['line_id'],
             'movement_id' => (string) DB::table('stock_movements')
                 ->where('stock_document_id', $documentId)
                 ->where('movement_type', 'RECEIPT')
@@ -132,7 +123,7 @@ class Wwhn240ForcedRollbackInjectionTest extends TestCase
             'item_ids' => $itemIds,
             'sku_id' => (string) $sku->sku_id,
             'warehouse_id' => (string) $warehouse->id,
-            'next_version' => $itemCount + 2,
+            'next_version' => $nextVersion,
         ];
     }
 

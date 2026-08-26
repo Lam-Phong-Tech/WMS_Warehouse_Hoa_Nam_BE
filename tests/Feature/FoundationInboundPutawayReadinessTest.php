@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\UserFacingMessageLocalizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -11,11 +12,13 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Container;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesPutawayFixtures;
 use Tests\TestCase;
 
 class FoundationInboundPutawayReadinessTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesPutawayFixtures;
     use RefreshDatabase;
 
@@ -101,7 +104,7 @@ class FoundationInboundPutawayReadinessTest extends TestCase
     public function test_component_receipt_requires_box_and_full_flow_preserves_stock_invariants(): void
     {
         $headers = $this->authHeaders();
-        $warehouse = $this->warehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        $warehouse = $this->warehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
         $sku = Sku::create([
             'sku_code' => 'COMP-E2E-001',
             'sku_name' => 'Component E2E',
@@ -118,20 +121,22 @@ class FoundationInboundPutawayReadinessTest extends TestCase
         ]);
 
         $movementBefore = DB::table('stock_movements')->count();
+        // Contract GĐ1 scan-driven: tạo đầu phiếu header-only, dòng COMPONENT
+        // materialize qua /component-lines rồi mới quét theo Box.
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_name' => 'Nha cung cap E2E',
-            'lines' => [[
-                'product_id' => $sku->sku_id,
-                'qty_planned' => 5,
-            ]],
         ], $headers);
         $create->assertCreated()
             ->assertJsonPath('data.status', 'DRAFT')
             ->assertJsonPath('data.version', 1);
 
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        $lineId = (string) $this->postJson(
+            "/api/v1/inbound-documents/{$documentId}/component-lines",
+            ['sku_id' => $sku->sku_id],
+            $headers
+        )->assertOk()->json('data.line_id');
 
         $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
             'line_id' => $lineId,
@@ -238,7 +243,9 @@ class FoundationInboundPutawayReadinessTest extends TestCase
         ], $headers)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'BOX_NOT_PUTAWAY_ELIGIBLE')
-            ->assertJsonPath('error.details.box_status', 'STORED');
+            // error.details đi qua UserFacingMessageLocalizer::translateDetails() ở
+            // boundary API nên enum thô được Việt hóa — error_code giữ nguyên.
+            ->assertJsonPath('error.details.box_status', UserFacingMessageLocalizer::translate('STORED'));
         $this->assertSame($movementAfterPost, DB::table('stock_movements')->count());
     }
 

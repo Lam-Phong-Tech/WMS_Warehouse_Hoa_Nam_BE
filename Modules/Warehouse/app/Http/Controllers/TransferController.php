@@ -18,7 +18,7 @@ use OpenApi\Attributes as OA;
 /**
  * Phiếu điều chuyển kho (doc_type=transfer). Cần ≥ 2 kho khác nhau (src ≠ dst) để có ý nghĩa
  * thực tế — base hiện chỉ có 1 kho tổng nên nhánh nghiệp vụ này port sẵn code, chưa dùng được
- * cho tới khi Hoà Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).
+ * cho tới khi Hoa Nam thêm kho thứ 2 (xem docs/BRD_ERD_Upgrade_Guide.md).
  *
  * index/show/submit/approve/reject/cancel dùng chung Concerns\InteractsWithStockDocuments với
  * Inbound/Outbound; dispatch/receive/record-loss/return/confirm-return là action riêng của

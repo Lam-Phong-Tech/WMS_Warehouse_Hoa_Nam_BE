@@ -16,6 +16,7 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Yaml\Yaml;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
 
 /**
@@ -34,6 +35,7 @@ use Tests\TestCase;
  */
 class Flow05InventoryControlAlignmentTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use RefreshDatabase;
 
     private function authHeaders(): array
@@ -60,7 +62,7 @@ class Flow05InventoryControlAlignmentTest extends TestCase
     {
         return Warehouse::firstOrCreate(
             ['code' => 'KHO-TONG-HN'],
-            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+            ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
         );
     }
 
@@ -77,31 +79,23 @@ class Flow05InventoryControlAlignmentTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        // Contract GĐ1 scan-driven: header-only + component-lines + Box + đếm thực tế.
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'Flow05 fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $documentId = $document['document_id'];
 
-        $register = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => 'BOX-'.Str::upper(Str::random(8)),
-        ], $headers);
-        $boxId = (string) $register->json('data.container_id');
+        $received = $this->receiveComponentQuantity(
+            $headers,
+            $documentId,
+            (string) $sku->sku_id,
+            $qty,
+            $document['version']
+        );
+        $boxId = $received['container_id'];
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => $qty,
-            'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
-            'Idempotency-Key' => 'receipt-'.Str::random(12),
-        ])->assertOk();
+        $this->postInboundReceipt($headers, $documentId, $received['version'], 'receipt-'.Str::random(12))
+            ->assertOk();
 
         return [
             'document_id' => $documentId,

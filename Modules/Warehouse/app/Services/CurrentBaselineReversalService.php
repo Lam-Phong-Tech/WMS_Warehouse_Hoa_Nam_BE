@@ -75,6 +75,14 @@ class CurrentBaselineReversalService
             );
 
             if ($this->isStockRestoring($documentType) && ! $physicalConfirmed) {
+                $draft = DB::table('reversal_document')->where('reversal_document_id', $reversalId)->first();
+                event(new \Modules\Warehouse\Events\ReversalDraftCreated(
+                    $reversalId,
+                    (string) $draft->document_no,
+                    $draft->warehouse_id !== null ? (string) $draft->warehouse_id : null,
+                    $actorId,
+                ));
+
                 return [
                     'original_document_id' => $documentId,
                     'original_document_status' => 'POSTED',
@@ -442,6 +450,13 @@ class CurrentBaselineReversalService
             reason: $reversal->reason_text ?? $reversal->reason,
             afterData: ['status' => 'POSTED', 'movement_ids' => $movementIds, 'original_document_status' => 'POSTED'],
         );
+
+        event(new \Modules\Warehouse\Events\ReversalPosted(
+            $reversalId,
+            (string) $reversal->document_no,
+            $reversal->warehouse_id !== null ? (string) $reversal->warehouse_id : null,
+            $actorId,
+        ));
 
         return [
             'original_document_id' => (string) $document->id,
@@ -846,6 +861,13 @@ class CurrentBaselineReversalService
                 afterData: ['status' => 'CANCELLED', 'reason' => $reason, 'stock_effect' => 'NONE'],
             );
 
+            event(new \Modules\Warehouse\Events\ReversalCancelled(
+                $reversalId,
+                (string) $reversal->document_no,
+                $reversal->warehouse_id !== null ? (string) $reversal->warehouse_id : null,
+                $actorId,
+            ));
+
             return $this->reversalSnapshot($reversalId);
         }, 3);
     }
@@ -899,7 +921,12 @@ class CurrentBaselineReversalService
     private function assertVersion(object $row, int $expected, string $resource): void
     {
         if ((int) ($row->version ?? 0) !== $expected) {
-            ApiError::abort(412, 'STALE_VERSION', ucfirst($resource).' version mismatch.', [
+            $resourceLabel = match ($resource) {
+                'original document' => 'Chứng từ gốc',
+                'reversal document' => 'Chứng từ điều chỉnh',
+                default => 'Dữ liệu',
+            };
+            ApiError::abort(412, 'STALE_VERSION', $resourceLabel.' đã bị thay đổi bởi thao tác khác. Vui lòng tải lại dữ liệu mới nhất rồi thử lại.', [
                 'expected_version' => $expected,
                 'current_version' => (int) ($row->version ?? 0),
             ]);

@@ -1,6 +1,6 @@
 {
     "success": false,
-    "message": "Phiếu nhập nằm ngoài warehouse data scope hiện hành.",
+    "message": "Không thể thực hiện yêu cầu do dữ liệu hoặc trạng thái hiện tại không hợp lệ.",
     "error_code": "DATA_SCOPE_DENIED",
     "errors": [],
     "error": {
@@ -8,7 +8,7 @@
         "details": []
     },
     "meta": {
-        "request_id": "a9e1cee4-a9f0-47ab-8c27-224c9d120383",
-        "timestamp": "2026-08-20T11:24:51+07:00"
+        "request_id": "f8af33ab-3248-4033-94b6-d014f58c264c",
+        "timestamp": "2026-08-26T16:27:34+07:00"
     }
 }

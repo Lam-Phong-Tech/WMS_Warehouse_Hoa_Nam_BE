@@ -11,10 +11,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Warehouse\Services\SkuAggregateService;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineSkuController extends Controller
 {
+    use ResolvesActorOrNull { actorIdOrNull as actorId; }
+
     public function __construct(private readonly SkuAggregateService $service) {}
 
     #[OA\Post(
@@ -357,13 +360,6 @@ class CurrentBaselineSkuController extends Controller
         );
 
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
-    }
-
-    private function actorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
     }
 
     private function requestId(): ?string

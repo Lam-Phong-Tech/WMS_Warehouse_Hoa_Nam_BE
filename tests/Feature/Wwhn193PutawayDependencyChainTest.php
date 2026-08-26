@@ -12,6 +12,7 @@ use Modules\Warehouse\Models\Container;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
 
 /**
@@ -30,6 +31,7 @@ use Tests\TestCase;
  */
 class Wwhn193PutawayDependencyChainTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use RefreshDatabase;
 
     /** @var array<string, mixed> */
@@ -78,7 +80,7 @@ class Wwhn193PutawayDependencyChainTest extends TestCase
     private function activeWarehouse(): Warehouse
     {
         return Warehouse::query()->where('status', 'ACTIVE')->first()
-            ?? Warehouse::create(['code' => 'KHO-TONG-HN', 'name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']);
+            ?? Warehouse::create(['code' => 'KHO-TONG-HN', 'name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']);
     }
 
     /**
@@ -138,14 +140,16 @@ class Wwhn193PutawayDependencyChainTest extends TestCase
             'version' => 1,
         ]);
 
-        // ── Mắt xích 1 · phiếu nhập COMPONENT (WWHN-43/190) ─────────────────
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        // ── Mắt xích 1 · phiếu nhập COMPONENT header-only (GĐ1 scan-driven) ─
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'NCC chuỗi phụ thuộc',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $quantity]],
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $documentId = $document['document_id'];
+        $lineId = (string) $this->postJson(
+            "/api/v1/inbound-documents/{$documentId}/component-lines",
+            ['sku_id' => $sku->sku_id],
+            $headers
+        )->assertOk()->json('data.line_id');
 
         // ── Mắt xích 2 · đăng ký BOX + scan (WWHN-191) ──────────────────────
         $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
@@ -155,20 +159,21 @@ class Wwhn193PutawayDependencyChainTest extends TestCase
         $boxId = (string) $box->json('data.container_id');
         $this->assertSame('EMPTY', (string) $box->json('data.status'));
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scans", [
+        $scan = $this->postJson("/api/v1/inbound-documents/{$documentId}/scans", [
             'line_id' => $lineId,
             'quantity' => $quantity,
             'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])
+        ], $headers + ['If-Match' => (string) $document['version']])
             ->assertOk()
             ->assertJsonPath('data.stock_effect', 'NONE')
             ->assertJsonPath('data.movement_created', false);
+        $versionAfterScan = (int) $scan->json('data.version');
 
         $this->assertSame(0, DB::table('stock_movements')->count(), 'Scan phải stock-neutral.');
 
         // ── Mắt xích 3 · Post Receipt -> movement + balance (WWHN-192) ──────
         $post = $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $headers + [
-            'If-Match' => '2',
+            'If-Match' => (string) $versionAfterScan,
             'Idempotency-Key' => 'wwhn193-extdep-receipt-001',
         ]);
         $post->assertOk()
@@ -286,13 +291,15 @@ class Wwhn193PutawayDependencyChainTest extends TestCase
             'version' => 1,
         ]);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'NCC chưa post',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 3]],
-        ], $headers)->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $documentId = $document['document_id'];
+        $lineId = (string) $this->postJson(
+            "/api/v1/inbound-documents/{$documentId}/component-lines",
+            ['sku_id' => $sku->sku_id],
+            $headers
+        )->assertOk()->json('data.line_id');
 
         $boxId = (string) $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
             'line_id' => $lineId,
@@ -303,7 +310,7 @@ class Wwhn193PutawayDependencyChainTest extends TestCase
             'line_id' => $lineId,
             'quantity' => 3,
             'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
+        ], $headers + ['If-Match' => (string) $document['version']])->assertOk();
 
         // Chưa Post: BOX vẫn EMPTY, và putaway phải bị chặn.
         $this->assertDatabaseHas('containers', ['container_id' => $boxId, 'status' => 'EMPTY']);

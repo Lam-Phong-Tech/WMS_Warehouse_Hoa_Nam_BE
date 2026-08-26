@@ -4,7 +4,7 @@
     "engine": {
         "driver": "sqlite",
         "database": ":memory:",
-        "server_version": "3.40.0"
+        "server_version": "3.53.2"
     },
     "audit_write_policy": "fail_closed",
     "http_status": 500,
@@ -12,14 +12,14 @@
     "leaks_internal_detail": false,
     "db_before": {
         "putaway_event": {
-            "id": "63f3b7e7-874c-417b-9f8f-8d380747532c",
+            "id": "c37333e8-fdb2-4632-a51f-88c6dab0c2ff",
             "status": "DRAFT",
             "version": 1,
             "confirmed_at": null,
             "confirmed_by": null
         },
         "container": {
-            "container_id": "01a01d6a-5910-727c-9351-67e9704ecc7a",
+            "container_id": "01a03d67-5a43-738f-8813-cbe803eac074",
             "status": "RECEIVED_PENDING_PUTAWAY",
             "parent_container_id": null,
             "version": 1
@@ -28,14 +28,14 @@
     },
     "db_after": {
         "putaway_event": {
-            "id": "63f3b7e7-874c-417b-9f8f-8d380747532c",
+            "id": "c37333e8-fdb2-4632-a51f-88c6dab0c2ff",
             "status": "DRAFT",
             "version": 1,
             "confirmed_at": null,
             "confirmed_by": null
         },
         "container": {
-            "container_id": "01a01d6a-5910-727c-9351-67e9704ecc7a",
+            "container_id": "01a03d67-5a43-738f-8813-cbe803eac074",
             "status": "RECEIVED_PENDING_PUTAWAY",
             "parent_container_id": null,
             "version": 1
@@ -54,8 +54,8 @@
             "details": []
         },
         "meta": {
-            "request_id": "dba4bc6a-34b5-48d9-8f06-56e253282f5e",
-            "timestamp": "2026-08-20T11:25:04+07:00"
+            "request_id": "85f82568-c41a-4bea-bafa-10cd37785381",
+            "timestamp": "2026-08-26T16:29:38+07:00"
         }
     },
     "verdict": "PASS — rollback toàn phần, không có trạng thái \"đã xếp hàng nhưng mất dấu vết audit\""

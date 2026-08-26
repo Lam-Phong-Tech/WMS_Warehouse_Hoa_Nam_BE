@@ -6,7 +6,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * stock_documents = chứng từ nhập (receipt) / xuất (issue). Kho Hoà Nam chỉ vận hành 1 kho
+ * stock_documents = chứng từ nhập (receipt) / xuất (issue). Kho Hoa Nam chỉ vận hành 1 kho
  * tổng nên bỏ hẳn doc_type điều chuyển (transfer) và toàn bộ in_transit_ledger đi kèm.
  *
  * State machine: draft → pending → approved → (post-receipt|post-issue: received|issued)

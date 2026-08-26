@@ -17,8 +17,10 @@ class UserFacingMessageLocalizerTest extends TestCase
             'Số lượng quét phải lớn hơn 0.',
             UserFacingMessageLocalizer::translate('Scan quantity must be greater than zero.')
         );
+        // Localizer thay thuật ngữ "Post Issue" → "Hoàn tất xuất kho" giữ nguyên
+        // hoa/thường của cụm thuật ngữ (không hạ chữ cái đầu theo vị trí trong câu).
         $this->assertSame(
-            'Không thể hoàn tất xuất kho khi phiếu đang ở trạng thái "Đang quét".',
+            'Không thể Hoàn tất xuất kho khi phiếu đang ở trạng thái "Đang quét".',
             UserFacingMessageLocalizer::translate('Không thể Post Issue khi phiếu đang ở trạng thái "SCANNING".')
         );
     }
@@ -43,6 +45,29 @@ class UserFacingMessageLocalizerTest extends TestCase
             $localized['update_existing'][0]
         );
         $this->assertSame('Trường mã SKU là bắt buộc.', $localized['sku_code'][0]);
+    }
+
+    /**
+     * Phát hiện 26/08: "permission" và "product" là từ mượn tiếng Anh dùng phổ biến
+     * TRONG câu tiếng Việt hợp lệ của chính codebase (RoleController::assignPermissions,
+     * ProductMasterController) — nếu 2 từ này còn nằm trong danh sách kích hoạt
+     * `stillLooksEnglish()`, message THÀNH CÔNG hợp lệ bị thay nhầm bằng câu lỗi
+     * chung, khiến UI báo sai kết quả dù request đã xử lý đúng.
+     */
+    public function test_vietnamese_messages_using_permission_or_product_as_loanwords_pass_through_unchanged(): void
+    {
+        $this->assertSame(
+            'Gán permission cho role thành công',
+            UserFacingMessageLocalizer::translate('Gán permission cho role thành công')
+        );
+        $this->assertSame(
+            'Tạo product master thành công',
+            UserFacingMessageLocalizer::translate('Tạo product master thành công')
+        );
+        $this->assertSame(
+            'Không tìm thấy permission.',
+            UserFacingMessageLocalizer::translate('Không tìm thấy permission.')
+        );
     }
 
     public function test_unknown_english_package_message_fails_closed_to_vietnamese(): void

@@ -29,22 +29,33 @@ class WarehouseRepository extends BaseRepository implements WarehouseRepositoryI
     }
 
     /**
-     * Guard tầng ứng dụng: chỉ 1 warehouse ACTIVE tại một thời điểm. Bổ sung cho partial
-     * unique index ở migration 2026_08_02_000001 (index đó chỉ chạy trên Postgres — SQLite
-     * dùng cho test suite không hỗ trợ cùng cú pháp, nên guard phải verify được ở cả 2 nơi).
+     * REQ-SRS-001: hệ thống chỉ vận hành đúng 1 kho tổng vĩnh viễn — không được
+     * tạo thêm bất kỳ kho nào (kể cả INACTIVE) một khi đã có ≥1 dòng warehouse.
      */
     public function create(array $data): Model
     {
-        $this->guardSingleActive($data);
+        $this->guardNoExistingWarehouse();
 
         return parent::create($data);
     }
 
+    /**
+     * Guard tầng ứng dụng: chỉ 1 warehouse ACTIVE tại một thời điểm. Bổ sung cho partial
+     * unique index ở migration 2026_08_02_000001 (index đó chỉ chạy trên Postgres — SQLite
+     * dùng cho test suite không hỗ trợ cùng cú pháp, nên guard phải verify được ở cả 2 nơi).
+     */
     public function update(int|string $id, array $data): ?Model
     {
         $this->guardSingleActive($data, excludeId: $id);
 
         return parent::update($id, $data);
+    }
+
+    protected function guardNoExistingWarehouse(): void
+    {
+        if ($this->query()->exists()) {
+            ApiError::abort(409, 'STATE_CONFLICT', 'Hệ thống chỉ vận hành đúng 1 kho tổng; không được tạo thêm kho.');
+        }
     }
 
     protected function guardSingleActive(array $data, int|string|null $excludeId = null): void

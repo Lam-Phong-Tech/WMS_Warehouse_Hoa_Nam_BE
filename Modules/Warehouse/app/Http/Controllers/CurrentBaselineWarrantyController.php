@@ -14,10 +14,13 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineWarrantyController extends CurrentBaselineOperationsController
 {
+    use ResolvesActorOrNull { actorIdOrNull as currentActorId; }
+
     /**
      * DEC-WAR-STATE-001 (WWHN-244 / DEV244-P1-02) - ma tran trang thai da chot tren
      * SRS/FRD v1.12 §6 + ERD §45. Diem duy nhat docs khong phat bieu tuong minh la
@@ -131,7 +134,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         $execute = function () use ($validated, $request): array {
             $caseId = $this->createWarrantyCase($validated, $request);
 
-            return [201, $this->caseEnvelope($caseId, $request, 'Warranty case received; stock_effect=NONE.')];
+            return [201, $this->caseEnvelope($caseId, $request, 'Đã tiếp nhận ca bảo hành; tồn kho chưa thay đổi (stock_effect=NONE).')];
         };
 
         [$code, $body, $replay] = $idempotencyKey === null
@@ -243,10 +246,13 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'version' => 1,
                     'identification_status' => $item ? 'IDENTIFIED' : 'TEMP_ONLY',
                     'item_id' => $item?->item_id,
-                    'defect_id' => $defect?->defect_id,
+                    'defect_id' => $defectIds[0] ?? null,
+                    'defect_ids' => $defectIds,
                     'stock_effect' => 'NONE',
                 ],
             );
+
+            event(new \Modules\Warehouse\Events\WarrantyCaseCreated($caseId, $caseCode, $this->currentActorId()));
 
             return $caseId;
         }, 3);
@@ -256,7 +262,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
     {
         $payload = $this->casePayload($id, $request);
         if ($payload === []) {
-            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Warranty case not found.');
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy ca bảo hành.');
         }
 
         return $this->respondSuccess($payload)->header('ETag', '"'.$payload['version'].'"');
@@ -377,7 +383,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         $execute = function () use ($id, $validated, $expectedVersion, $request): array {
             $this->applyWarrantyCaseUpdate($id, $validated, $expectedVersion, $request);
 
-            return [200, $this->caseEnvelope($id, $request, 'Warranty case updated; stock_effect=NONE.')];
+            return [200, $this->caseEnvelope($id, $request, 'Đã cập nhật ca bảo hành; tồn kho chưa thay đổi (stock_effect=NONE).')];
         };
 
         [$code, $body, $replay] = $idempotencyKey === null
@@ -400,7 +406,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         DB::transaction(function () use ($id, $validated, $expectedVersion, $request): void {
             $case = DB::table('warranty_case')->where('warranty_case_id', $id)->lockForUpdate()->first();
             if ($case === null) {
-                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Warranty case not found.');
+                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy ca bảo hành.');
             }
             if ((int) $case->version !== $expectedVersion) {
                 ApiError::abort(412, 'STALE_VERSION', 'Warranty case version mismatch.', [
@@ -500,8 +506,15 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     ? Carbon::parse((string) $closedAt)->addYears(self::PII_RETENTION_YEARS)
                     : ($case->retention_until ?? null),
                 'updated_at' => now(),
+                'updated_by' => $this->currentActorId(),
             ]);
-            if (array_key_exists('defect_ids', $validated)) {
+            // GĐ1-REQ-009: warranty_case_defects là contract canonical — đồng bộ cả khi
+            // client chỉ gửi defect_id/defect_code đơn, nếu không hai nguồn sẽ lệch nhau.
+            if (
+                array_key_exists('defect_ids', $validated)
+                || array_key_exists('defect_id', $validated)
+                || array_key_exists('defect_code', $validated)
+            ) {
                 $this->syncWarrantyDefects($id, $defectIds);
             }
 
@@ -516,6 +529,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'created_by' => $this->currentActorId(),
                     'event_at' => now(),
                 ]);
+
+                event(new \Modules\Warehouse\Events\WarrantyStatusChanged($id, $case->status, $target, $this->currentActorId()));
             } elseif (($validated['note'] ?? $validated['description'] ?? $validated['confirmed_defect'] ?? null) !== null) {
                 DB::table('warranty_event')->insert([
                     'warranty_event_id' => (string) Str::uuid(),
@@ -711,15 +726,21 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         if (! Schema::hasTable('warranty_case_defects')) {
             return;
         }
+        $hasPrimaryColumn = Schema::hasColumn('warranty_case_defects', 'is_primary');
         DB::table('warranty_case_defects')->where('warranty_case_id', $caseId)->delete();
-        foreach ($defectIds as $defectId) {
-            DB::table('warranty_case_defects')->insert([
+        foreach (array_values($defectIds) as $index => $defectId) {
+            $row = [
                 'warranty_case_defect_id' => (string) Str::uuid(),
                 'warranty_case_id' => $caseId,
                 'defect_id' => $defectId,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+            if ($hasPrimaryColumn) {
+                // Phần tử đầu là defect chính — khớp warranty_case.defect_id legacy.
+                $row['is_primary'] = $index === 0;
+            }
+            DB::table('warranty_case_defects')->insert($row);
         }
     }
 
@@ -811,10 +832,4 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         return (int) $header;
     }
 
-    private function currentActorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
-    }
 }

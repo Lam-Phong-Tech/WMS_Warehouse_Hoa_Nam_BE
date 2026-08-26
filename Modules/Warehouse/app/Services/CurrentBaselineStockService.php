@@ -95,6 +95,15 @@ class CurrentBaselineStockService
                     'updated_at' => now(),
                 ]);
                 $this->recordDocumentStatus($documentId, 'DRAFT', 'SCANNING', 'scan_start', $actorId);
+
+                $scanWarehouseId = $documentType === 'receipt' ? $document->dst_warehouse_id : $document->src_warehouse_id;
+                event(new \Modules\Warehouse\Events\StockDocumentScanStarted(
+                    $documentId,
+                    (string) $document->doc_no,
+                    $documentType,
+                    $scanWarehouseId !== null ? (string) $scanWarehouseId : null,
+                    $actorId,
+                ));
             }
 
             if ($documentType === 'receipt') {
@@ -912,24 +921,13 @@ class CurrentBaselineStockService
 
     private function assertItemAvailableForReceipt(object $item, string $documentId): void
     {
-        // Normal receipt is only for a new identity. Any identity already in
+        // GĐ1-REQ-008: normal receipt is only for a new identity — bất kể
+        // item_status (IN_STOCK/ISSUED/IN_WARRANTY/...). Any identity already in
         // the database must go through a controlled reversal/return workflow.
         ApiError::abort(409, 'ITEM_ALREADY_REGISTERED', 'Mã máy đã tồn tại trong hệ thống; hãy dùng luồng reversal/return được kiểm soát.', [
             'item_id' => (string) $item->item_id,
             'item_status' => (string) ($item->item_status ?? ''),
         ]);
-
-        $conflict = DB::table('inbound_scan_entries as e')
-            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-            ->where('e.item_id', $item->item_id)
-            ->where('d.id', '!=', $documentId)
-            ->whereIn('d.status', self::ACTIVE_DOCUMENT_STATUSES)
-            ->where(fn ($query) => self::activeScanEntry($query))
-            ->exists();
-        if ($conflict) {
-            ApiError::abort(409, 'ITEM_ALREADY_RECEIVING', 'Item đang thuộc một inbound chưa Post khác.');
-        }
     }
 
     private function assertIssueAvailability(object $document, object $line, int $quantity): void
@@ -1070,7 +1068,7 @@ class CurrentBaselineStockService
             'resolved_object_type' => $item ? 'ITEM' : 'SKU',
             'resolved_object_id' => $item?->item_id ?? $line->product_id,
             'result_status' => 'VALID',
-            'message' => 'Validated against current baseline',
+            'message' => 'Hợp lệ theo baseline hiện hành',
             'created_at' => now(),
         ]);
 
@@ -1510,7 +1508,7 @@ class CurrentBaselineStockService
             'updated_at' => now(),
         ]);
         if ($updated !== 1) {
-            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Inventory balance changed concurrently; retry against fresh state.');
+            ApiError::abort(409, ConflictCode::CONCURRENCY, 'Tồn kho vừa bị thay đổi bởi thao tác khác. Vui lòng tải lại dữ liệu mới nhất rồi thử lại.');
         }
 
         $movementId = (string) Str::uuid();

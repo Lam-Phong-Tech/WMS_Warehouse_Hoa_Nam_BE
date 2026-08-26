@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Models\Container;
 use Modules\Warehouse\Models\Sku;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\Feature\Concerns\PreparesPutawayFixtures;
 use Tests\TestCase;
@@ -30,38 +31,46 @@ use Tests\TestCase;
  */
 class Flow02InboundPutawayAlignmentTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use PreparesPutawayFixtures;
     use RefreshDatabase;
 
-    /** Phiếu nhập DRAFT với 1 line PRODUCT serial-tracked. */
+    /**
+     * Phiếu nhập DRAFT theo contract GĐ1 scan-driven: HEADER-ONLY — dòng SKU chỉ
+     * materialize khi quét composite QR HN1|SKU|ITEM (item mới, register-at-Post).
+     */
     private function draftInbound(string $skuCode, int $qty = 1, ?array $headers = null): array
     {
         $headers ??= $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
         $sku = $this->productSkuFixture($skuCode);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'NCC Flow02',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
-        ], $headers)->assertCreated();
+        ]);
 
         return [
             'headers' => $headers,
-            'document_id' => (string) $create->json('data.id'),
-            'line_id' => (string) $create->json('data.lines.0.id'),
+            'document_id' => $document['document_id'],
+            'sku_code' => $skuCode,
             'sku_id' => $sku->sku_id,
             'warehouse_id' => $warehouse->id,
         ];
     }
 
-    private function receivableItem(string $skuId): string
+    /** Quét 1 item-candidate composite vào phiếu, trả về TestResponse (assertOk sẵn). */
+    private function scanCandidate(array $ctx, string $itemUnique, int $ifMatch)
     {
-        $itemId = $this->seedItemInStock($skuId);
-        DB::table('item_instances')->where('item_id', $itemId)->update(['item_status' => 'NEW']);
+        return $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
+            'quantity' => 1,
+            'code_value' => $this->compositeProductQr($ctx['sku_code'], $itemUnique),
+        ], $ctx['headers'] + ['If-Match' => (string) $ifMatch])->assertOk();
+    }
 
-        return $itemId;
+    private function entryIdOfCandidate(string $itemUnique): string
+    {
+        return (string) DB::table('inbound_scan_entries')->where('candidate_item_unique', $itemUnique)->value('id');
     }
 
     // ── P0-1 · SRS §3 Putaway permission ────────────────────────────────────
@@ -181,15 +190,11 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
     public function test_unscan_marks_entry_removed_and_restores_line_progress(): void
     {
         $ctx = $this->draftInbound('FLOW02-UNSCAN-01');
-        $itemId = $this->receivableItem($ctx['sku_id']);
+        $itemUnique = 'FLOW02-UNSCAN-01-ITEM-0001';
 
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'],
-            'quantity' => 1,
-            'item_id' => $itemId,
-        ], $ctx['headers'] + ['If-Match' => '1'])->assertOk();
-
-        $entryId = (string) DB::table('inbound_scan_entries')->where('item_id', $itemId)->value('id');
+        $scan = $this->scanCandidate($ctx, $itemUnique, 1);
+        $lineId = (string) $scan->json('data.line_id');
+        $entryId = $this->entryIdOfCandidate($itemUnique);
 
         $response = $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
             'inbound_scan_entry_id' => $entryId,
@@ -206,63 +211,57 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
 
         $this->assertDatabaseHas('inbound_scan_entries', ['id' => $entryId, 'status' => 'REMOVED']);
         $this->assertNotNull(DB::table('inbound_scan_entries')->where('id', $entryId)->value('removed_at'));
-        $this->assertSame(0, (int) DB::table('stock_document_lines')->where('id', $ctx['line_id'])->value('scanned_qty'));
+        $this->assertSame(0, (int) DB::table('stock_document_lines')->where('id', $lineId)->value('scanned_qty'));
         $this->assertSame(0, DB::table('stock_movements')->count());
-        // Item chưa từng vào tồn nên vẫn NEW.
-        $this->assertDatabaseHas('item_instances', ['item_id' => $itemId, 'item_status' => 'NEW']);
+        // Candidate register-at-Post: chưa Post nên identity chưa được ghi.
+        $this->assertSame(0, DB::table('item_instances')->where('serial_number', $itemUnique)->count());
     }
 
     public function test_removed_entry_allows_rescanning_the_same_item(): void
     {
         $ctx = $this->draftInbound('FLOW02-UNSCAN-02');
-        $itemId = $this->receivableItem($ctx['sku_id']);
+        $itemUnique = 'FLOW02-UNSCAN-02-ITEM-0001';
 
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $itemId,
-        ], $ctx['headers'] + ['If-Match' => '1'])->assertOk();
+        $scan = $this->scanCandidate($ctx, $itemUnique, 1);
+        $lineId = (string) $scan->json('data.line_id');
 
-        $entryId = (string) DB::table('inbound_scan_entries')->where('item_id', $itemId)->value('id');
+        $entryId = $this->entryIdOfCandidate($itemUnique);
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
             'inbound_scan_entry_id' => $entryId,
         ], $ctx['headers'] + ['If-Match' => '2'])->assertOk();
 
-        // Quét lại chính item vừa gỡ phải được chấp nhận (không còn DUPLICATE_ITEM_IN_DOCUMENT).
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $itemId,
-        ], $ctx['headers'] + ['If-Match' => '3'])->assertOk();
+        // Quét lại chính mã vừa gỡ phải được chấp nhận (không còn DUPLICATE_ITEM_IN_DOCUMENT).
+        $this->scanCandidate($ctx, $itemUnique, 3);
 
-        $this->assertSame(1, (int) DB::table('stock_document_lines')->where('id', $ctx['line_id'])->value('scanned_qty'));
-        $this->assertSame(1, DB::table('inbound_scan_entries')->where('item_id', $itemId)->where('status', 'ACTIVE')->count());
-        $this->assertSame(1, DB::table('inbound_scan_entries')->where('item_id', $itemId)->where('status', 'REMOVED')->count());
+        $this->assertSame(1, (int) DB::table('stock_document_lines')->where('id', $lineId)->value('scanned_qty'));
+        $this->assertSame(1, DB::table('inbound_scan_entries')->where('candidate_item_unique', $itemUnique)->where('status', 'ACTIVE')->count());
+        $this->assertSame(1, DB::table('inbound_scan_entries')->where('candidate_item_unique', $itemUnique)->where('status', 'REMOVED')->count());
     }
 
     public function test_post_receipt_does_not_put_removed_items_into_stock(): void
     {
         $ctx = $this->draftInbound('FLOW02-UNSCAN-03', 1);
-        $wrongItem = $this->receivableItem($ctx['sku_id']);
-        $rightItem = $this->receivableItem($ctx['sku_id']);
+        $wrongUnique = 'FLOW02-UNSCAN-03-WRONG-0001';
+        $rightUnique = 'FLOW02-UNSCAN-03-RIGHT-0001';
 
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $wrongItem,
-        ], $ctx['headers'] + ['If-Match' => '1'])->assertOk();
+        $this->scanCandidate($ctx, $wrongUnique, 1);
 
-        $entryId = (string) DB::table('inbound_scan_entries')->where('item_id', $wrongItem)->value('id');
+        $entryId = $this->entryIdOfCandidate($wrongUnique);
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
             'inbound_scan_entry_id' => $entryId,
         ], $ctx['headers'] + ['If-Match' => '2'])->assertOk();
 
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $rightItem,
-        ], $ctx['headers'] + ['If-Match' => '3'])->assertOk();
+        $this->scanCandidate($ctx, $rightUnique, 3);
 
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/post-receipt", [], $ctx['headers'] + [
             'If-Match' => '4',
             'Idempotency-Key' => 'flow02-unscan-03-post',
         ])->assertOk()->assertJsonPath('data.status', 'POSTED');
 
-        // Chỉ item còn ACTIVE được vào tồn; item đã gỡ phải giữ nguyên NEW.
-        $this->assertDatabaseHas('item_instances', ['item_id' => $rightItem, 'item_status' => 'IN_STOCK']);
-        $this->assertDatabaseHas('item_instances', ['item_id' => $wrongItem, 'item_status' => 'NEW']);
+        // Chỉ candidate còn ACTIVE được register + vào tồn; candidate đã gỡ không
+        // được ghi identity nào (register-at-Post chỉ đọc entry ACTIVE).
+        $this->assertDatabaseHas('item_instances', ['serial_number' => $rightUnique, 'item_status' => 'IN_STOCK']);
+        $this->assertSame(0, DB::table('item_instances')->where('serial_number', $wrongUnique)->count());
         $this->assertSame(1, (int) DB::table('inventory_balances')
             ->where('warehouse_id', $ctx['warehouse_id'])
             ->where('sku_id', $ctx['sku_id'])
@@ -273,11 +272,9 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
     public function test_unscan_requires_if_match_and_rejects_stale_version(): void
     {
         $ctx = $this->draftInbound('FLOW02-UNSCAN-04');
-        $itemId = $this->receivableItem($ctx['sku_id']);
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $itemId,
-        ], $ctx['headers'] + ['If-Match' => '1'])->assertOk();
-        $entryId = (string) DB::table('inbound_scan_entries')->where('item_id', $itemId)->value('id');
+        $itemUnique = 'FLOW02-UNSCAN-04-ITEM-0001';
+        $this->scanCandidate($ctx, $itemUnique, 1);
+        $entryId = $this->entryIdOfCandidate($itemUnique);
 
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
             'inbound_scan_entry_id' => $entryId,
@@ -298,13 +295,11 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
     public function test_unscan_is_rejected_twice_and_after_post(): void
     {
         $ctx = $this->draftInbound('FLOW02-UNSCAN-05', 2);
-        $first = $this->receivableItem($ctx['sku_id']);
-        $second = $this->receivableItem($ctx['sku_id']);
+        $firstUnique = 'FLOW02-UNSCAN-05-ITEM-0001';
+        $secondUnique = 'FLOW02-UNSCAN-05-ITEM-0002';
 
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $first,
-        ], $ctx['headers'] + ['If-Match' => '1'])->assertOk();
-        $entryId = (string) DB::table('inbound_scan_entries')->where('item_id', $first)->value('id');
+        $this->scanCandidate($ctx, $firstUnique, 1);
+        $entryId = $this->entryIdOfCandidate($firstUnique);
 
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
             'inbound_scan_entry_id' => $entryId,
@@ -317,18 +312,14 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'SCAN_ENTRY_NOT_ACTIVE');
 
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $first,
-        ], $ctx['headers'] + ['If-Match' => '3'])->assertOk();
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $second,
-        ], $ctx['headers'] + ['If-Match' => '4'])->assertOk();
+        $this->scanCandidate($ctx, $firstUnique, 3);
+        $this->scanCandidate($ctx, $secondUnique, 4);
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/post-receipt", [], $ctx['headers'] + [
             'If-Match' => '5',
             'Idempotency-Key' => 'flow02-unscan-05-post',
         ])->assertOk();
 
-        $postedEntry = (string) DB::table('inbound_scan_entries')->where('item_id', $second)->value('id');
+        $postedEntry = $this->entryIdOfCandidate($secondUnique);
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
             'inbound_scan_entry_id' => $postedEntry,
         ], $ctx['headers'] + ['If-Match' => '6'])
@@ -339,18 +330,13 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
     public function test_unscan_rejects_entry_from_another_document(): void
     {
         $ctxA = $this->draftInbound('FLOW02-UNSCAN-06-A');
-        $itemId = $this->receivableItem($ctxA['sku_id']);
-        $this->postJson("/api/v1/inbound-documents/{$ctxA['document_id']}/scan", [
-            'line_id' => $ctxA['line_id'], 'quantity' => 1, 'item_id' => $itemId,
-        ], $ctxA['headers'] + ['If-Match' => '1'])->assertOk();
-        $entryId = (string) DB::table('inbound_scan_entries')->where('item_id', $itemId)->value('id');
+        $itemUnique = 'FLOW02-UNSCAN-06-ITEM-0001';
+        $this->scanCandidate($ctxA, $itemUnique, 1);
+        $entryId = $this->entryIdOfCandidate($itemUnique);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $ctxA['warehouse_id'],
-            'lines' => [['product_id' => $ctxA['sku_id'], 'qty_planned' => 1]],
-        ], $ctxA['headers'])->assertCreated();
+        $other = $this->createInboundHeader($ctxA['headers'], (string) $ctxA['warehouse_id']);
 
-        $this->postJson('/api/v1/inbound-documents/'.$create->json('data.id').'/unscan', [
+        $this->postJson('/api/v1/inbound-documents/'.$other['document_id'].'/unscan', [
             'inbound_scan_entry_id' => $entryId,
         ], $ctxA['headers'] + ['If-Match' => '1'])
             ->assertStatus(404)
@@ -360,54 +346,61 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
     public function test_scan_entries_endpoint_hides_removed_rows_by_default(): void
     {
         $ctx = $this->draftInbound('FLOW02-UNSCAN-07', 2);
-        $removed = $this->receivableItem($ctx['sku_id']);
-        $kept = $this->receivableItem($ctx['sku_id']);
+        $removedUnique = 'FLOW02-UNSCAN-07-GO-0001';
+        $keptUnique = 'FLOW02-UNSCAN-07-GIU-0001';
 
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $removed,
-        ], $ctx['headers'] + ['If-Match' => '1'])->assertOk();
-        $entryId = (string) DB::table('inbound_scan_entries')->where('item_id', $removed)->value('id');
+        $this->scanCandidate($ctx, $removedUnique, 1);
+        $entryId = $this->entryIdOfCandidate($removedUnique);
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
             'inbound_scan_entry_id' => $entryId,
         ], $ctx['headers'] + ['If-Match' => '2'])->assertOk();
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $kept,
-        ], $ctx['headers'] + ['If-Match' => '3'])->assertOk();
+        $this->scanCandidate($ctx, $keptUnique, 3);
 
         $active = $this->getJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan-entries", $ctx['headers'])->assertOk();
         $this->assertCount(1, $active->json('data'));
-        $this->assertSame($kept, $active->json('data.0.item_id'));
+        // Candidate chưa Post nên identity hiển thị qua candidate_item_unique (DEC-QR-03).
+        $this->assertSame($keptUnique, $active->json('data.0.candidate_item_unique'));
 
         $all = $this->getJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan-entries?status=ALL", $ctx['headers'])->assertOk();
         $this->assertCount(2, $all->json('data'));
     }
 
-    public function test_removing_every_scan_entry_reopens_line_structure_editing(): void
+    public function test_manual_line_editing_stays_closed_under_scan_driven_contract(): void
     {
+        // GĐ1 scan-driven thay thế hành vi cũ "gỡ hết scan thì được sửa cấu trúc dòng":
+        // dòng SKU nay là HỆ QUẢ của quét thực tế, nên PATCH gửi `lines` bị chặn
+        // INBOUND_SCAN_DRIVEN vô điều kiện — kể cả khi đã gỡ hết mã quét. Đầu phiếu
+        // (source_reference/note...) vẫn cập nhật được bình thường.
         $ctx = $this->draftInbound('FLOW02-UNSCAN-08');
-        $itemId = $this->receivableItem($ctx['sku_id']);
+        $itemUnique = 'FLOW02-UNSCAN-08-ITEM-0001';
         $otherSku = $this->productSkuFixture('FLOW02-UNSCAN-08-OTHER');
 
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $itemId,
-        ], $ctx['headers'] + ['If-Match' => '1'])->assertOk();
+        $this->scanCandidate($ctx, $itemUnique, 1);
 
-        // Còn scan evidence sống -> không được đổi SKU của dòng.
         $this->patchJson("/api/v1/inbound-documents/{$ctx['document_id']}", [
-            'lines' => [['id' => $ctx['line_id'], 'product_id' => $otherSku->sku_id, 'qty_planned' => 1]],
+            'lines' => [['product_id' => $otherSku->sku_id, 'qty_planned' => 1]],
         ], $ctx['headers'] + ['If-Match' => '2'])
-            ->assertStatus(409)
-            ->assertJsonPath('error.code', 'SCANNED_LINE_STRUCTURE_IMMUTABLE');
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'INBOUND_SCAN_DRIVEN');
 
-        $entryId = (string) DB::table('inbound_scan_entries')->where('item_id', $itemId)->value('id');
+        $entryId = $this->entryIdOfCandidate($itemUnique);
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
             'inbound_scan_entry_id' => $entryId,
         ], $ctx['headers'] + ['If-Match' => '2'])->assertOk();
 
-        // Gỡ hết mã đã quét -> phiếu trở lại như chưa quét, được sửa cấu trúc dòng.
+        // Gỡ hết mã quét cũng KHÔNG mở lại cửa nhập dòng tay.
         $this->patchJson("/api/v1/inbound-documents/{$ctx['document_id']}", [
             'lines' => [['product_id' => $otherSku->sku_id, 'qty_planned' => 2]],
-        ], $ctx['headers'] + ['If-Match' => '3'])->assertOk();
+        ], $ctx['headers'] + ['If-Match' => '3'])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'INBOUND_SCAN_DRIVEN');
+
+        // Đầu phiếu vẫn sửa được — bề mặt hợp lệ không bị đóng nhầm.
+        $this->patchJson("/api/v1/inbound-documents/{$ctx['document_id']}", [
+            'source_reference' => 'PO-FLOW02-UNSCAN-08',
+        ], $ctx['headers'] + ['If-Match' => '3'])
+            ->assertOk()
+            ->assertJsonPath('data.source_reference', 'PO-FLOW02-UNSCAN-08');
 
         $this->assertSame(0, DB::table('stock_movements')->count());
     }
@@ -423,7 +416,6 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_reference' => 'PO-2026-0001',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
         ], $headers)->assertCreated();
 
         $create->assertJsonPath('data.source_reference', 'PO-2026-0001')
@@ -453,7 +445,6 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
         $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
             'source_reference' => str_repeat('A', 201),
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
         ], $headers)->assertStatus(422);
 
         $this->assertSame(0, DB::table('stock_documents')->where('doc_type', 'receipt')->count());
@@ -462,25 +453,25 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
     public function test_scan_code_value_is_trimmed_and_capped_at_150_chars(): void
     {
         $ctx = $this->draftInbound('FLOW02-SCANLEN');
-        $itemId = $this->receivableItem($ctx['sku_id']);
-        $codeValue = 'QR-'.Str::upper(Str::random(8));
-        $this->seedScanCode($itemId, $codeValue);
+        $itemUnique = 'FLOW02-SCANLEN-ITEM-0001';
 
         // Annex D: scan_input tối đa 150 ký tự.
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'],
             'quantity' => 1,
             'code_value' => str_repeat('B', 151),
         ], $ctx['headers'] + ['If-Match' => '1'])->assertStatus(422);
 
-        // Trim: khoảng trắng bao quanh không được làm resolver miss.
+        // Trim: khoảng trắng bao quanh không được làm parser composite miss.
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/scan", [
-            'line_id' => $ctx['line_id'],
             'quantity' => 1,
-            'code_value' => '  '.$codeValue.'  ',
-        ], $ctx['headers'] + ['If-Match' => '1'])
-            ->assertOk()
-            ->assertJsonPath('data.item_id', $itemId);
+            'code_value' => '  '.$this->compositeProductQr($ctx['sku_code'], $itemUnique).'  ',
+        ], $ctx['headers'] + ['If-Match' => '1'])->assertOk();
+
+        $this->assertSame(
+            1,
+            DB::table('inbound_scan_entries')->where('candidate_item_unique', $itemUnique)->count(),
+            'Candidate phải được ghi nhận đúng item_unique đã chuẩn hoá (trim).'
+        );
     }
 
     // ── P2-6 · Annex C permission + §13.6 pagination ────────────────────────
@@ -521,7 +512,6 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
             $this->postJson('/api/v1/inbound-documents', [
                 'dst_warehouse_id' => $warehouse->id,
                 'doc_no' => 'PN-FLOW02-PAGE-'.$index,
-                'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
             ], $headers)->assertCreated();
         }
 

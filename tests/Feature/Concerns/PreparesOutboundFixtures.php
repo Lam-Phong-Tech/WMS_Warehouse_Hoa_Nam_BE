@@ -62,7 +62,7 @@ trait PreparesOutboundFixtures
 
         return Warehouse::create([
             'code' => $code,
-            'name' => 'Kho tổng Hòa Nam',
+            'name' => 'Kho tổng Hoa Nam',
             'status' => 'ACTIVE',
         ]);
     }

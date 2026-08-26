@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Controllers\AuthController;
+use Modules\Auth\Http\Controllers\DepartmentController;
 use Modules\Auth\Http\Controllers\PermissionController;
 use Modules\Auth\Http\Controllers\RoleController;
 use Modules\Auth\Http\Controllers\UserController;
@@ -12,9 +13,6 @@ use Modules\Auth\Http\Middleware\PreventSelfRoleAssignment;
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])
         ->middleware(PersistRefreshTokenCookie::class);
-    // WWHN-289 (DEV289-P1-04): refresh là bề mặt xoay vòng token bị đánh cắp.
-    // /auth/login tự khoá theo lần-THẤT-BẠI trong AuthController (không phạt oan
-    // đăng nhập đúng), còn ở đây chặn tần suất. Ngưỡng tại config/rate_limit.php.
     Route::post('auth/refresh', [AuthController::class, 'refresh'])
         ->middleware([PersistRefreshTokenCookie::class, 'throttle:auth-refresh']);
 
@@ -30,10 +28,16 @@ Route::prefix('v1')->group(function (): void {
         Route::post('users', [UserController::class, 'store'])->middleware('permission:iam.user.manage');
         Route::get('users/{id}', [UserController::class, 'show'])->middleware('permission:iam.user.view');
         Route::patch('users/{id}', [UserController::class, 'update'])->middleware('permission:iam.user.manage');
-        // BR-IAM-01/06: tài khoản là chủ thể của audit trail nên không xoá.
-        // Vô hiệu hoá bằng PATCH status=INACTIVE|LOCKED (Annex C cũng không có deleteUser).
         Route::post('users/{id}/roles', [UserController::class, 'assignRoles'])
             ->middleware(['permission:iam.user.manage', PreventSelfRoleAssignment::class]);
+
+        // GĐ1 REQ-011: department is a managed master, not a hard-coded enum.
+        Route::get('departments', [DepartmentController::class, 'index'])
+            ->middleware('permission:iam.user.view');
+        Route::post('departments', [DepartmentController::class, 'store'])
+            ->middleware('permission:iam.user.manage');
+        Route::patch('departments/{id}', [DepartmentController::class, 'update'])
+            ->middleware('permission:iam.user.manage');
 
         Route::get('roles', [RoleController::class, 'index'])->middleware('permission:iam.role.view');
         Route::post('roles', [RoleController::class, 'store'])->middleware('permission:iam.role.manage');
@@ -44,7 +48,6 @@ Route::prefix('v1')->group(function (): void {
             ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
         Route::post('roles/{id}/permissions', [RoleController::class, 'assignPermissions'])
             ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
-        // Annex C replaceRolePermissions dùng PUT (thay toàn bộ tập quyền).
         Route::put('roles/{id}/permissions', [RoleController::class, 'assignPermissions'])
             ->middleware(['permission:iam.role.manage', EnsureMutableRole::class]);
 

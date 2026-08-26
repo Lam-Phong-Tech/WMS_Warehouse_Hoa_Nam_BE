@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -21,6 +22,7 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
 class CurrentBaselineOperationsController extends Controller
 {
     use ApiResponse;
+    use ResolvesActorOrNull { actorIdOrNull as actorId; }
 
     /**
      * WWHN-247: bản sao thứ hai của state machine bảo hành. Nó KHÔNG được route nào trỏ
@@ -119,7 +121,7 @@ class CurrentBaselineOperationsController extends Controller
 
         $existing = DB::table('outbound_request_imports')->where('source_checksum', $checksum)->first();
         if ($existing !== null) {
-            return $this->respondSuccess($this->importPayload((string) $existing->id), 'Duplicate checksum replayed; no duplicate import created.');
+            return $this->respondSuccess($this->importPayload((string) $existing->id), 'File trùng nội dung với lần import trước; trả lại kết quả cũ, không tạo import mới.');
         }
 
         $normalized = [];
@@ -181,7 +183,7 @@ class CurrentBaselineOperationsController extends Controller
     {
         $payload = $this->importPayload($id);
 
-        return $payload ? $this->respondSuccess($payload) : $this->respondNotFound('Import not found.');
+        return $payload ? $this->respondSuccess($payload) : $this->respondNotFound('Không tìm thấy Import.');
     }
 
     public function consumeOutboundRequestImport(Request $request, string $id)
@@ -345,7 +347,7 @@ class CurrentBaselineOperationsController extends Controller
             return $caseId;
         }, 3);
 
-        return $this->respondCreated($this->warrantyPayload($id, $request), 'Warranty case received; stock_effect=NONE.');
+        return $this->respondCreated($this->warrantyPayload($id, $request), 'Đã tiếp nhận ca bảo hành; tồn kho chưa thay đổi (stock_effect=NONE).');
     }
 
     public function updateWarrantyCase(Request $request, string $id)
@@ -414,9 +416,14 @@ class CurrentBaselineOperationsController extends Controller
             return $this->warrantyPayload($id, $request);
         }, 3);
 
-        return $this->respondSuccess($payload, 'Warranty case updated.');
+        return $this->respondSuccess($payload, 'Cập nhật ca bảo hành thành công.');
     }
 
+    // KHÔNG thêm #[OA\Post(path: '/api/v1/label-snapshots', ...)] ở đây: route
+    // này đã bị Flow06AlignmentServiceProvider ghi đè sang
+    // AlignedOutboundFlowController::storePackingLabel() (đã có annotation riêng
+    // cho đúng path này) — hàm dưới đây giờ là dead code. Thêm annotation trùng
+    // path+method ở đây sẽ lặp lại lỗi "Unable to merge @OA\Post()".
     public function storeLabelSnapshot(Request $request)
     {
         $validated = $request->validate([
@@ -444,7 +451,7 @@ class CurrentBaselineOperationsController extends Controller
             'version' => 0,
         ]);
 
-        return $this->respondCreated(DB::table('label_snapshots')->where('id', $id)->first(), 'Immutable label snapshot created.');
+        return $this->respondCreated(DB::table('label_snapshots')->where('id', $id)->first(), 'Đã tạo snapshot nhãn (bất biến).');
     }
 
     #[OA\Post(
@@ -501,7 +508,7 @@ class CurrentBaselineOperationsController extends Controller
             'version' => 0,
         ]);
 
-        return $this->respondCreated(DB::table('printer_configs')->where('id', $id)->first(), 'Printer config created.');
+        return $this->respondCreated(DB::table('printer_configs')->where('id', $id)->first(), 'Đã tạo cấu hình máy in.');
     }
 
     /** SCR-LBL-01: cập nhật/vô hiệu hóa máy in (health/status quản lý qua API). */
@@ -565,10 +572,23 @@ class CurrentBaselineOperationsController extends Controller
             afterData: $validated,
         );
 
-        return $this->respondSuccess(DB::table('printer_configs')->where('id', $id)->first(), 'Printer config updated.');
+        return $this->respondSuccess(DB::table('printer_configs')->where('id', $id)->first(), 'Đã cập nhật cấu hình máy in.');
     }
 
     /** Chi tiết một label snapshot kèm toàn bộ print events (audit In/In lại). */
+    #[OA\Get(
+        path: '/api/v1/label-snapshots/{id}',
+        operationId: 'label_snapshot_detail',
+        summary: 'Chi tiết label snapshot kèm toàn bộ print events',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Label snapshot + print_events'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy label snapshot'),
+        ]
+    )]
     public function showLabelSnapshot(string $id)
     {
         $snapshot = DB::table('label_snapshots')->where('id', $id)->first();
@@ -588,6 +608,22 @@ class CurrentBaselineOperationsController extends Controller
     }
 
     /** Nhật ký in nhãn (báo cáo Label/Print mục 12: attempts, failure/reprint). */
+    #[OA\Get(
+        path: '/api/v1/label-print-events',
+        operationId: 'label_print_event_list',
+        summary: 'Nhật ký in nhãn (phân trang, filter theo label_snapshot_id/status)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'label_snapshot_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 10)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách nhật ký in nhãn'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+        ]
+    )]
     public function listLabelPrintEvents(Request $request)
     {
         $request->validate([
@@ -604,7 +640,7 @@ class CurrentBaselineOperationsController extends Controller
             $query->where('status', strtoupper((string) $request->input('status')));
         }
 
-        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 15)))));
+        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 10)))));
     }
 
     #[OA\Post(
@@ -853,10 +889,10 @@ class CurrentBaselineOperationsController extends Controller
         }
 
         if ($requestNo === '') {
-            $errors[] = $this->rowError($rowNo, 'request_no', 'REQUIRED', 'request_no is required.');
+            $errors[] = $this->rowError($rowNo, 'request_no', 'REQUIRED', 'request_no là bắt buộc.');
         }
         if ($recipientName === '') {
-            $errors[] = $this->rowError($rowNo, 'recipient_name', 'REQUIRED', 'recipient/customer name is required.');
+            $errors[] = $this->rowError($rowNo, 'recipient_name', 'REQUIRED', 'Tên người nhận/khách hàng là bắt buộc.');
         }
         // DEC-PHONE-VN-001: SĐT người nhận, khi có, phải đúng định dạng VN (10 chữ số,
         // bắt đầu bằng 0) — cùng quy tắc với StoreAgencyRequest/StoreWarehouseRequest.
@@ -873,7 +909,7 @@ class CurrentBaselineOperationsController extends Controller
             $sku = DB::table('sku')->where('sku_code', $skuCode)->first();
         }
         if ($sku === null || strtoupper((string) $sku->status) !== 'ACTIVE') {
-            $errors[] = $this->rowError($rowNo, 'sku_code', 'SKU_NOT_ACTIVE', 'SKU not found or inactive.');
+            $errors[] = $this->rowError($rowNo, 'sku_code', 'SKU_NOT_ACTIVE', 'Không tìm thấy SKU hoặc SKU đang ngừng hoạt động.');
         } elseif (strtoupper((string) $sku->sku_type) !== 'PRODUCT') {
             // §5.4.1: COMPONENT chỉ xuất qua Component Issue gắn warranty case active.
             $errors[] = $this->rowError(
@@ -884,7 +920,7 @@ class CurrentBaselineOperationsController extends Controller
             );
         }
         if (filter_var($requiredQty, FILTER_VALIDATE_INT) === false || (int) $requiredQty <= 0) {
-            $errors[] = $this->rowError($rowNo, 'required_qty', 'INVALID_QUANTITY', 'required_qty must be a positive integer.');
+            $errors[] = $this->rowError($rowNo, 'required_qty', 'INVALID_QUANTITY', 'required_qty phải là số nguyên dương.');
         }
 
         return [[
@@ -1018,12 +1054,12 @@ class CurrentBaselineOperationsController extends Controller
 
         $snapshot = DB::table('label_snapshots')->where('id', $id)->first();
         if ($snapshot === null) {
-            return $this->respondNotFound('Label snapshot not found.');
+            return $this->respondNotFound('Không tìm thấy snapshot nhãn.');
         }
         $this->assertLabelPrintable($request, $snapshot, $reprint);
         $printer = DB::table('printer_configs')->where('id', $validated['printer_config_id'])->first();
         if ($printer === null || ($printer->status ?? 'ACTIVE') !== 'ACTIVE' || empty($printer->agent_endpoint)) {
-            return $this->recordPrintFailure($snapshot, $validated['printer_config_id'], 'Printer agent is not ACTIVE/configured.', $reprint);
+            return $this->recordPrintFailure($snapshot, $validated['printer_config_id'], 'Máy in chưa được cấu hình hoặc đang ở trạng thái không hoạt động.', $reprint);
         }
 
         $eventId = (string) Str::uuid();
@@ -1222,13 +1258,6 @@ class CurrentBaselineOperationsController extends Controller
             'data' => $data,
             'meta' => ['request_id' => request()?->attributes->get('request_id'), 'timestamp' => now()->toIso8601String()],
         ];
-    }
-
-    private function actorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
     }
 
     private function mask(string $value): string

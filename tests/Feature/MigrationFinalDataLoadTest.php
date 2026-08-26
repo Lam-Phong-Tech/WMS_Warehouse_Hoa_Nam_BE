@@ -42,7 +42,7 @@ class MigrationFinalDataLoadTest extends TestCase
     {
         parent::setUp();
 
-        $this->ensureActiveWarehouse('HN-WH-01', 'Kho tổng Hòa Nam');
+        $this->ensureActiveWarehouse('HN-WH-01', 'Kho tổng Hoa Nam');
 
         $this->seedActor('cutover-operator', 'Cutover Operator', self::OPERATOR_PERMISSIONS);
         $this->seedActor('data-owner', 'Data Owner', self::APPROVER_PERMISSIONS);

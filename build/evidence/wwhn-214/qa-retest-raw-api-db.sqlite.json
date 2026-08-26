@@ -6,15 +6,15 @@
                     "step": "outbound.scan.a",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/outbound-documents/fce303f4-4cb7-401d-9196-01856e408a3f/scan",
+                        "uri": "/api/v1/outbound-documents/79305d47-da9b-4788-922c-007c57755d25/scan",
                         "headers": {
                             "If-Match": "1",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "3d5be206-3eeb-4eb1-a78b-1e4e973d3df2",
+                            "line_id": "72403547-f26a-45fe-92bd-f49c770c9fc7",
                             "quantity": 1,
-                            "item_id": "099cf83e-d5db-480c-89c3-4ca53f7d9dd2"
+                            "item_id": "ef57fe4b-aab2-4240-9915-1b0d6bfe82ec"
                         }
                     },
                     "response": {
@@ -24,20 +24,27 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Packing Label DRAFT; stock_effect=NONE.",
+                            "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Nhãn đóng gói Nháp; stock_effect=NONE.",
                             "data": {
-                                "document_id": "fce303f4-4cb7-401d-9196-01856e408a3f",
-                                "line_id": "3d5be206-3eeb-4eb1-a78b-1e4e973d3df2",
-                                "sku_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
-                                "item_id": "099cf83e-d5db-480c-89c3-4ca53f7d9dd2",
+                                "document_id": "79305d47-da9b-4788-922c-007c57755d25",
+                                "line_id": "72403547-f26a-45fe-92bd-f49c770c9fc7",
+                                "sku_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
+                                "item_id": "ef57fe4b-aab2-4240-9915-1b0d6bfe82ec",
                                 "quantity": 1,
                                 "required_quantity": 1,
                                 "scanned_quantity": 1,
                                 "status": "SCANNING",
                                 "stock_effect": "NONE",
                                 "movement_created": false,
+                                "payload_format": null,
+                                "payload_version": null,
+                                "sku_code": "WWHN214-NONEG-001",
+                                "item_unique": null,
+                                "serial_number": "SN-GDW72Z5M",
+                                "normalized_code_value": null,
+                                "resolution_status": "LEGACY_ITEM",
                                 "version": 2,
-                                "label_snapshot_id": "e1e7a4fc-a923-45bd-b41d-c4397bee71c5",
+                                "label_snapshot_id": "b7b1d8a1-fd39-4327-87b1-c60bd97c52c8",
                                 "label_status": "DRAFT",
                                 "packing_label_ready": true,
                                 "rfid_required": false,
@@ -45,8 +52,8 @@
                                 "scan_source_origin": "INFERRED"
                             },
                             "meta": {
-                                "request_id": "77bd0478-8768-46be-be31-993c83113957",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "4bb9ca65-290d-4ca1-9f0c-e1f7957ec8b0",
+                                "timestamp": "2026-08-26T16:32:12+07:00"
                             }
                         }
                     }
@@ -55,15 +62,15 @@
                     "step": "outbound.scan.b",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/outbound-documents/2af7bcc4-d261-4d36-92f5-f540e945fce1/scan",
+                        "uri": "/api/v1/outbound-documents/83dbc50d-1e29-4422-99b3-0fe320f84ca9/scan",
                         "headers": {
                             "If-Match": "1",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "986329a0-e4d7-4f64-b6ca-bc08f941b589",
+                            "line_id": "232edade-01d7-456b-8311-ef0e332990b7",
                             "quantity": 1,
-                            "item_id": "02b53af7-3b01-48dd-958c-333046b74647"
+                            "item_id": "c24b29a7-905a-49a2-b045-ea8003d93d56"
                         }
                     },
                     "response": {
@@ -73,20 +80,27 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Packing Label DRAFT; stock_effect=NONE.",
+                            "message": "Scan đủ toàn bộ phiếu. Đã tổng hợp lô và tạo/đảm bảo 01 Nhãn đóng gói Nháp; stock_effect=NONE.",
                             "data": {
-                                "document_id": "2af7bcc4-d261-4d36-92f5-f540e945fce1",
-                                "line_id": "986329a0-e4d7-4f64-b6ca-bc08f941b589",
-                                "sku_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
-                                "item_id": "02b53af7-3b01-48dd-958c-333046b74647",
+                                "document_id": "83dbc50d-1e29-4422-99b3-0fe320f84ca9",
+                                "line_id": "232edade-01d7-456b-8311-ef0e332990b7",
+                                "sku_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
+                                "item_id": "c24b29a7-905a-49a2-b045-ea8003d93d56",
                                 "quantity": 1,
                                 "required_quantity": 1,
                                 "scanned_quantity": 1,
                                 "status": "SCANNING",
                                 "stock_effect": "NONE",
                                 "movement_created": false,
+                                "payload_format": null,
+                                "payload_version": null,
+                                "sku_code": "WWHN214-NONEG-001",
+                                "item_unique": null,
+                                "serial_number": "SN-OWMEDHOG",
+                                "normalized_code_value": null,
+                                "resolution_status": "LEGACY_ITEM",
                                 "version": 2,
-                                "label_snapshot_id": "2d34053f-e43c-41c0-8aa9-1b604f0a0c24",
+                                "label_snapshot_id": "02177bb8-5380-44c7-a546-0f547f5e9540",
                                 "label_status": "DRAFT",
                                 "packing_label_ready": true,
                                 "rfid_required": false,
@@ -94,8 +108,8 @@
                                 "scan_source_origin": "INFERRED"
                             },
                             "meta": {
-                                "request_id": "d6d12358-48b0-439b-9eff-06cadc0e214b",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "0223eef3-6f3c-4d38-8846-d805bf05500a",
+                                "timestamp": "2026-08-26T16:32:12+07:00"
                             }
                         }
                     }
@@ -104,7 +118,7 @@
                     "step": "post-issue.a(win)",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/outbound-documents/fce303f4-4cb7-401d-9196-01856e408a3f/post-issue",
+                        "uri": "/api/v1/outbound-documents/79305d47-da9b-4788-922c-007c57755d25/post-issue",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-noneg-a",
@@ -120,23 +134,25 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Post Issue thành công; tồn được trừ tại bước hoàn tất này.",
+                            "message": "Hoàn tất xuất kho thành công; tồn được trừ tại bước hoàn tất này.",
                             "data": {
-                                "document_id": "fce303f4-4cb7-401d-9196-01856e408a3f",
+                                "document_id": "79305d47-da9b-4788-922c-007c57755d25",
                                 "status": "POSTED",
                                 "movement_ids": [
-                                    "c1fc2d94-6169-4dd6-b5a0-03011b569abd"
+                                    "1c51449c-d166-4261-843f-6359001938b5"
                                 ],
                                 "stock_effect": "DECREASE",
                                 "rfid_required": false,
                                 "version": 3,
-                                "packing_label_id": "e1e7a4fc-a923-45bd-b41d-c4397bee71c5",
-                                "packing_label_applied": true,
+                                "packing_label_applied": false,
+                                "packing_label_required": false,
+                                "packing_label_bypassed": true,
+                                "packing_label_id": "b7b1d8a1-fd39-4327-87b1-c60bd97c52c8",
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "f00dc6c8-13a0-419f-9244-0839ee48f71d",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "397d888c-044e-4bcd-824b-c684980d122d",
+                                "timestamp": "2026-08-26T16:32:12+07:00"
                             }
                         }
                     }
@@ -145,7 +161,7 @@
                     "step": "post-issue.b(insufficient)",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/outbound-documents/2af7bcc4-d261-4d36-92f5-f540e945fce1/post-issue",
+                        "uri": "/api/v1/outbound-documents/83dbc50d-1e29-4422-99b3-0fe320f84ca9/post-issue",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-noneg-b",
@@ -158,7 +174,7 @@
                         "headers": [],
                         "body": {
                             "success": false,
-                            "message": "Post Issue sẽ làm tồn/available_qty âm.",
+                            "message": "Hoàn tất xuất kho sẽ làm tồn/available_qty âm.",
                             "error_code": "INSUFFICIENT_AVAILABLE_STOCK",
                             "errors": [],
                             "error": {
@@ -166,8 +182,8 @@
                                 "details": []
                             },
                             "meta": {
-                                "request_id": "e28074d6-1470-474d-80dd-90f3c6e16575",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "47f73223-77d9-4112-bedd-4151276900ef",
+                                "timestamp": "2026-08-26T16:32:12+07:00"
                             }
                         }
                     }
@@ -177,17 +193,17 @@
             "db_raw": {
                 "balance_before_posts": [
                     {
-                        "id": "fdde1906-1294-4161-ad8a-d45d29a68658",
-                        "warehouse_id": "01a01d6a-89ca-70d2-a3d8-461fc77e1e79",
-                        "product_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
+                        "id": "3aa276c5-da34-4756-8250-a574cd8f2890",
+                        "warehouse_id": "01a03d69-b2a2-70d1-9bdb-8db0e5f61925",
+                        "product_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
                         "on_hand_qty": 1,
                         "available_qty": 1,
                         "reserved_qty": 0,
                         "stock_status": "AVAILABLE",
                         "version": 1,
-                        "created_at": "2026-08-20 11:25:16",
-                        "updated_at": "2026-08-20 11:25:16",
-                        "sku_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
+                        "created_at": "2026-08-26 16:32:12",
+                        "updated_at": "2026-08-26 16:32:12",
+                        "sku_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
                         "quantity": 1,
                         "last_movement_id": null,
                         "last_reconciled_at": null
@@ -195,17 +211,17 @@
                 ],
                 "balance_after_posts": [
                     {
-                        "id": "fdde1906-1294-4161-ad8a-d45d29a68658",
-                        "warehouse_id": "01a01d6a-89ca-70d2-a3d8-461fc77e1e79",
-                        "product_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
+                        "id": "3aa276c5-da34-4756-8250-a574cd8f2890",
+                        "warehouse_id": "01a03d69-b2a2-70d1-9bdb-8db0e5f61925",
+                        "product_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
                         "on_hand_qty": 0,
                         "available_qty": 0,
                         "reserved_qty": 0,
                         "stock_status": "AVAILABLE",
                         "version": 2,
-                        "created_at": "2026-08-20 11:25:16",
-                        "updated_at": "2026-08-20 11:25:16",
-                        "sku_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
+                        "created_at": "2026-08-26 16:32:12",
+                        "updated_at": "2026-08-26 16:32:12",
+                        "sku_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
                         "quantity": 0,
                         "last_movement_id": null,
                         "last_reconciled_at": null
@@ -213,12 +229,12 @@
                 ],
                 "movements_after_posts": [
                     {
-                        "id": "d787de00-c811-4433-8b3e-143836f9f4cf",
-                        "movement_no": "MV-SEED-PAJCTO6N",
-                        "business_key": "seed-opening-839f31f5-a0a6-4c7b-a146-2217332a1834",
+                        "id": "dfc93872-b9e7-4d3c-89c6-c0a38ea39652",
+                        "movement_no": "MV-SEED-NZBJAFI8",
+                        "business_key": "seed-opening-fa966bdb-d4f3-4852-be8a-e0ce5d1f72e7",
                         "movement_type": "RECEIPT",
-                        "warehouse_id": "01a01d6a-89ca-70d2-a3d8-461fc77e1e79",
-                        "product_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
+                        "warehouse_id": "01a03d69-b2a2-70d1-9bdb-8db0e5f61925",
+                        "product_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
                         "stock_status": "AVAILABLE",
                         "qty_before": 0,
                         "qty_delta": 1,
@@ -226,14 +242,14 @@
                         "stock_document_id": null,
                         "stock_document_line_id": null,
                         "original_movement_id": null,
-                        "created_by": "01a01d6a-89c8-70cf-b1f1-2071a3dd17c8",
+                        "created_by": "01a03d69-b29d-7136-b7c0-dcf387a5a0e6",
                         "request_id": null,
-                        "occurred_at": "2026-08-20 11:25:16",
-                        "created_at": "2026-08-20 11:25:16",
-                        "sku_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
+                        "occurred_at": "2026-08-26 16:32:12",
+                        "created_at": "2026-08-26 16:32:12",
+                        "sku_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
                         "quantity": 1,
                         "source_type": "OPENING_BALANCE_SEED",
-                        "source_id": "b2d8ae9c-6394-4495-ba95-c6b73496703d",
+                        "source_id": "d1a6036b-fcd9-45eb-b22c-d7d461a285d6",
                         "source_line_id": null,
                         "item_id": null,
                         "container_id": null,
@@ -241,29 +257,29 @@
                         "idempotency_record_id": null
                     },
                     {
-                        "id": "c1fc2d94-6169-4dd6-b5a0-03011b569abd",
-                        "movement_no": "MV-20260820-OVGVF0BW",
-                        "business_key": "b53235d24f545dc7593ba7bf6af75c901cddf007",
+                        "id": "1c51449c-d166-4261-843f-6359001938b5",
+                        "movement_no": "MV-20260826-ZFPQFJAY",
+                        "business_key": "0890ebf2bd775e0f9e141542b77ca37e6bd295e7",
                         "movement_type": "ISSUE",
-                        "warehouse_id": "01a01d6a-89ca-70d2-a3d8-461fc77e1e79",
-                        "product_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
+                        "warehouse_id": "01a03d69-b2a2-70d1-9bdb-8db0e5f61925",
+                        "product_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
                         "stock_status": "AVAILABLE",
                         "qty_before": 1,
                         "qty_delta": -1,
                         "qty_after": 0,
-                        "stock_document_id": "fce303f4-4cb7-401d-9196-01856e408a3f",
-                        "stock_document_line_id": "3d5be206-3eeb-4eb1-a78b-1e4e973d3df2",
+                        "stock_document_id": "79305d47-da9b-4788-922c-007c57755d25",
+                        "stock_document_line_id": "72403547-f26a-45fe-92bd-f49c770c9fc7",
                         "original_movement_id": null,
-                        "created_by": "01a01d6a-89c8-70cf-b1f1-2071a3dd17c8",
-                        "request_id": "f00dc6c8-13a0-419f-9244-0839ee48f71d",
-                        "occurred_at": "2026-08-20 11:25:16",
-                        "created_at": "2026-08-20 11:25:16",
-                        "sku_id": "01a01d6a-89ca-70d2-a3d8-461fc7d0be9d",
+                        "created_by": "01a03d69-b29d-7136-b7c0-dcf387a5a0e6",
+                        "request_id": "397d888c-044e-4bcd-824b-c684980d122d",
+                        "occurred_at": "2026-08-26 16:32:12",
+                        "created_at": "2026-08-26 16:32:12",
+                        "sku_id": "01a03d69-b2a3-735d-aba1-18d2ac23404f",
                         "quantity": 1,
                         "source_type": "STOCK_DOCUMENT",
-                        "source_id": "fce303f4-4cb7-401d-9196-01856e408a3f",
-                        "source_line_id": "3d5be206-3eeb-4eb1-a78b-1e4e973d3df2",
-                        "item_id": "099cf83e-d5db-480c-89c3-4ca53f7d9dd2",
+                        "source_id": "79305d47-da9b-4788-922c-007c57755d25",
+                        "source_line_id": "72403547-f26a-45fe-92bd-f49c770c9fc7",
+                        "item_id": "ef57fe4b-aab2-4240-9915-1b0d6bfe82ec",
                         "container_id": null,
                         "correction_chain_id": null,
                         "idempotency_record_id": null
@@ -283,14 +299,8 @@
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "dst_warehouse_id": "01a01d6a-8aad-714e-a36f-37773f6deda6",
-                            "source_name": "NCC retest WWHN-214",
-                            "lines": [
-                                {
-                                    "product_id": "01a01d6a-8aae-709c-b81d-65bb55ea56a3",
-                                    "qty_planned": 7
-                                }
-                            ]
+                            "dst_warehouse_id": "01a03d69-b84e-71fe-b72f-afa5d29e891d",
+                            "source_name": "NCC retest WWHN-214"
                         }
                     },
                     "response": {
@@ -300,69 +310,62 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Tạo phiếu nhập kho thành công.",
+                            "message": "Đã tạo phiếu nhập. Quét hàng để hệ thống tự hình thành SKU và số lượng thực nhận.",
                             "data": {
-                                "id": "8917442d-cff7-4ff7-9721-537d3dcafed4",
+                                "id": "977832a0-f48d-41c2-863e-ca75690deaa8",
+                                "stock_document_id": "977832a0-f48d-41c2-863e-ca75690deaa8",
+                                "doc_no": "PN-20260826163213-KVED",
                                 "doc_type": "receipt",
-                                "doc_no": "PN-20260820112516-ANGS",
-                                "doc_date": "2026-08-20",
+                                "doc_date": "2026-08-26",
                                 "status": "DRAFT",
-                                "src_warehouse_id": null,
-                                "dst_warehouse_id": "01a01d6a-8aad-714e-a36f-37773f6deda6",
-                                "note": null,
-                                "create_idempotency_key": null,
-                                "submitted_by": null,
-                                "submitted_at": null,
-                                "approved_by": null,
-                                "approved_at": null,
-                                "posted_by": null,
-                                "posted_at": null,
-                                "closed_by": null,
-                                "closed_at": null,
-                                "reversed_by": null,
-                                "reversed_at": null,
-                                "reverse_reason": null,
-                                "reject_reason": null,
-                                "rejected_by": null,
-                                "rejected_at": null,
-                                "cancel_reason": null,
-                                "cancelled_by": null,
-                                "cancelled_at": null,
-                                "created_by": "01a01d6a-8aac-7276-b2b3-7fb4246f6273",
-                                "updated_by": "01a01d6a-8aac-7276-b2b3-7fb4246f6273",
-                                "created_at": "2026-08-20 11:25:16",
-                                "updated_at": "2026-08-20 11:25:16",
-                                "deleted_at": null,
+                                "dst_warehouse_id": "01a03d69-b84e-71fe-b72f-afa5d29e891d",
                                 "source_name": "NCC retest WWHN-214",
-                                "outbound_request_id": null,
-                                "agency_id": null,
-                                "recipient_name": null,
-                                "recipient_address": null,
-                                "version": 1,
-                                "recipient_contact_phone": null,
                                 "source_reference": "NCC retest WWHN-214",
-                                "lines": [
-                                    {
-                                        "id": "2b5bd09b-59d4-4e62-a4d9-1a430b57a840",
-                                        "stock_document_id": "8917442d-cff7-4ff7-9721-537d3dcafed4",
-                                        "line_no": 1,
-                                        "product_id": "01a01d6a-8aae-709c-b81d-65bb55ea56a3",
-                                        "qty_planned": 7,
-                                        "qty_actual": 7,
-                                        "scanned_qty": 0,
-                                        "created_at": "2026-08-20 11:25:16",
-                                        "updated_at": "2026-08-20 11:25:16",
-                                        "outbound_request_line_id": null,
-                                        "import_batch_id": null,
-                                        "note": null,
-                                        "version": 1,
-                                        "item_instance_id": null
-                                    }
-                                ]
+                                "note": null,
+                                "version": 1,
+                                "lines": [],
+                                "qty_planned": 0,
+                                "scanned_qty": 0,
+                                "inbound_quantity_source": "ACTUAL_SCAN"
                             },
                             "meta": {
-                                "request_id": "da0e6acd-3802-4e51-9ccd-56fa4e5231f4",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "61d48ab3-c1b0-41c4-8361-14baa9cc6d62",
+                                "timestamp": "2026-08-26T16:32:13+07:00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "step": "inbound.component-line",
+                    "request": {
+                        "method": "POST",
+                        "uri": "/api/v1/inbound-documents/977832a0-f48d-41c2-863e-ca75690deaa8/component-lines",
+                        "headers": {
+                            "Authorization": "Bearer ***masked***"
+                        },
+                        "body": {
+                            "sku_id": "01a03d69-b84e-71fe-b72f-afa5d2bf4818"
+                        }
+                    },
+                    "response": {
+                        "status": 200,
+                        "headers": [],
+                        "body": {
+                            "success": true,
+                            "message": "Đã sẵn sàng ghi nhận linh kiện thực tế theo Box.",
+                            "data": {
+                                "line_id": "edec97fd-c2b4-4ce3-a37f-15b779993ce8",
+                                "document_id": "977832a0-f48d-41c2-863e-ca75690deaa8",
+                                "sku_id": "01a03d69-b84e-71fe-b72f-afa5d2bf4818",
+                                "sku_code": "LK-214-DF9XTB",
+                                "sku_name": "Linh kiện retest WWHN-214",
+                                "is_serial_tracked": false,
+                                "scanned_qty": 0,
+                                "quantity_source": "ACTUAL_BOX_COUNT"
+                            },
+                            "meta": {
+                                "request_id": "41066539-176f-4114-94df-18e24cb2d1f1",
+                                "timestamp": "2026-08-26T16:32:13+07:00"
                             }
                         }
                     }
@@ -371,13 +374,13 @@
                     "step": "inbound.box",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/8917442d-cff7-4ff7-9721-537d3dcafed4/boxes",
+                        "uri": "/api/v1/inbound-documents/977832a0-f48d-41c2-863e-ca75690deaa8/boxes",
                         "headers": {
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "2b5bd09b-59d4-4e62-a4d9-1a430b57a840",
-                            "box_code": "BOX-214-PEVLY2"
+                            "line_id": "edec97fd-c2b4-4ce3-a37f-15b779993ce8",
+                            "box_code": "BOX-214-N6GXCY"
                         }
                     },
                     "response": {
@@ -385,12 +388,12 @@
                         "headers": [],
                         "body": {
                             "success": true,
-                            "message": "Đã đăng ký BOX cho dòng nhập COMPONENT.",
+                            "message": "Đã đăng ký BOX cho dòng nhập Linh kiện.",
                             "data": {
-                                "container_id": "86fd03b8-d906-4b3e-86f8-a5c81c84d695",
+                                "container_id": "a98b987f-f12f-4379-8067-5116bfba9bf3",
                                 "container_type": "BOX",
-                                "box_code": "BOX-214-PEVLY2",
-                                "sku_id": "01a01d6a-8aae-709c-b81d-65bb55ea56a3",
+                                "box_code": "BOX-214-N6GXCY",
+                                "sku_id": "01a03d69-b84e-71fe-b72f-afa5d2bf4818",
                                 "status": "EMPTY",
                                 "version": 1,
                                 "created": true,
@@ -398,8 +401,8 @@
                                 "movement_created": false
                             },
                             "meta": {
-                                "request_id": "8feec8d7-2833-4f18-8222-09dc86d29f8d",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "e38a7d64-f541-404d-80de-c3093a7fff2f",
+                                "timestamp": "2026-08-26T16:32:13+07:00"
                             }
                         }
                     }
@@ -408,15 +411,15 @@
                     "step": "inbound.scan",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/8917442d-cff7-4ff7-9721-537d3dcafed4/scan",
+                        "uri": "/api/v1/inbound-documents/977832a0-f48d-41c2-863e-ca75690deaa8/scans",
                         "headers": {
                             "If-Match": "1",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "2b5bd09b-59d4-4e62-a4d9-1a430b57a840",
+                            "line_id": "edec97fd-c2b4-4ce3-a37f-15b779993ce8",
                             "quantity": 7,
-                            "container_id": "86fd03b8-d906-4b3e-86f8-a5c81c84d695"
+                            "container_id": "a98b987f-f12f-4379-8067-5116bfba9bf3"
                         }
                     },
                     "response": {
@@ -427,11 +430,11 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Inbound scan validated; stock_effect=NONE.",
+                            "message": "Đã ghi nhận mã quét nhập kho; tồn kho chưa thay đổi (stock_effect=NONE).",
                             "data": {
-                                "document_id": "8917442d-cff7-4ff7-9721-537d3dcafed4",
-                                "line_id": "2b5bd09b-59d4-4e62-a4d9-1a430b57a840",
-                                "sku_id": "01a01d6a-8aae-709c-b81d-65bb55ea56a3",
+                                "document_id": "977832a0-f48d-41c2-863e-ca75690deaa8",
+                                "line_id": "edec97fd-c2b4-4ce3-a37f-15b779993ce8",
+                                "sku_id": "01a03d69-b84e-71fe-b72f-afa5d2bf4818",
                                 "item_id": null,
                                 "quantity": 7,
                                 "required_quantity": 7,
@@ -439,12 +442,19 @@
                                 "status": "SCANNING",
                                 "stock_effect": "NONE",
                                 "movement_created": false,
+                                "payload_format": null,
+                                "payload_version": null,
+                                "sku_code": "LK-214-DF9XTB",
+                                "item_unique": null,
+                                "serial_number": null,
+                                "normalized_code_value": null,
+                                "resolution_status": null,
                                 "version": 2,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "e4bf77c5-2fcf-4394-b618-be9feeea6bc1",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "fde23ced-4614-4ce8-88a9-c78b79d9d0d3",
+                                "timestamp": "2026-08-26T16:32:13+07:00"
                             }
                         }
                     }
@@ -453,10 +463,10 @@
                     "step": "post-receipt.first",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/8917442d-cff7-4ff7-9721-537d3dcafed4/post-receipt",
+                        "uri": "/api/v1/inbound-documents/977832a0-f48d-41c2-863e-ca75690deaa8/post-receipt",
                         "headers": {
                             "If-Match": "2",
-                            "Idempotency-Key": "w214-retry-v2wxd2",
+                            "Idempotency-Key": "w214-retry-i0kzkq",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {}
@@ -469,20 +479,21 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Post Receipt thành công.",
+                            "message": "Hoàn tất nhập kho thành công.",
                             "data": {
-                                "document_id": "8917442d-cff7-4ff7-9721-537d3dcafed4",
+                                "document_id": "977832a0-f48d-41c2-863e-ca75690deaa8",
                                 "status": "POSTED",
                                 "movement_ids": [
-                                    "f73c91dc-7b9f-4a4c-b119-cfe59730a13f"
+                                    "efb9bb1c-cb45-4de1-8297-e62252ee3153"
                                 ],
                                 "stock_effect": "INCREASE",
+                                "inbound_quantity_source": "ACTUAL_SCAN",
                                 "version": 3,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "77843b3c-b429-45bd-94d8-5a7baf04df45",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "9070afd5-c5aa-48d2-8d69-f2e8011f3929",
+                                "timestamp": "2026-08-26T16:32:13+07:00"
                             }
                         }
                     }
@@ -491,10 +502,10 @@
                     "step": "post-receipt.replay-same-key",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/8917442d-cff7-4ff7-9721-537d3dcafed4/post-receipt",
+                        "uri": "/api/v1/inbound-documents/977832a0-f48d-41c2-863e-ca75690deaa8/post-receipt",
                         "headers": {
                             "If-Match": "2",
-                            "Idempotency-Key": "w214-retry-v2wxd2",
+                            "Idempotency-Key": "w214-retry-i0kzkq",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {}
@@ -507,20 +518,21 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Post Receipt thành công.",
+                            "message": "Hoàn tất nhập kho thành công.",
                             "data": {
-                                "document_id": "8917442d-cff7-4ff7-9721-537d3dcafed4",
+                                "document_id": "977832a0-f48d-41c2-863e-ca75690deaa8",
                                 "status": "POSTED",
                                 "movement_ids": [
-                                    "f73c91dc-7b9f-4a4c-b119-cfe59730a13f"
+                                    "efb9bb1c-cb45-4de1-8297-e62252ee3153"
                                 ],
                                 "stock_effect": "INCREASE",
+                                "inbound_quantity_source": "ACTUAL_SCAN",
                                 "version": 3,
                                 "replayed": true
                             },
                             "meta": {
-                                "request_id": "77843b3c-b429-45bd-94d8-5a7baf04df45",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "9070afd5-c5aa-48d2-8d69-f2e8011f3929",
+                                "timestamp": "2026-08-26T16:32:13+07:00"
                             }
                         }
                     }
@@ -529,10 +541,10 @@
                     "step": "post-receipt.same-key-diff-payload",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/8917442d-cff7-4ff7-9721-537d3dcafed4/post-receipt",
+                        "uri": "/api/v1/inbound-documents/977832a0-f48d-41c2-863e-ca75690deaa8/post-receipt",
                         "headers": {
                             "If-Match": "2",
-                            "Idempotency-Key": "w214-retry-v2wxd2",
+                            "Idempotency-Key": "w214-retry-i0kzkq",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
@@ -554,8 +566,8 @@
                                 "details": []
                             },
                             "meta": {
-                                "request_id": "10ff3028-367b-4bc1-bf09-f209ac4642a5",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "f3bbf6bc-0706-49eb-b4fc-b5060657299e",
+                                "timestamp": "2026-08-26T16:32:13+07:00"
                             }
                         }
                     }
@@ -565,28 +577,28 @@
             "db_raw": {
                 "movements": [
                     {
-                        "id": "f73c91dc-7b9f-4a4c-b119-cfe59730a13f",
-                        "movement_no": "MV-20260820-0DGF5D5U",
-                        "business_key": "f954ffe1651daa30c90a6273fee2614903fb141b",
+                        "id": "efb9bb1c-cb45-4de1-8297-e62252ee3153",
+                        "movement_no": "MV-20260826-ZIL5XZDX",
+                        "business_key": "cae65235875a2b1db82d2819f8e0b1b031d8954e",
                         "movement_type": "RECEIPT",
-                        "warehouse_id": "01a01d6a-8aad-714e-a36f-37773f6deda6",
-                        "product_id": "01a01d6a-8aae-709c-b81d-65bb55ea56a3",
+                        "warehouse_id": "01a03d69-b84e-71fe-b72f-afa5d29e891d",
+                        "product_id": "01a03d69-b84e-71fe-b72f-afa5d2bf4818",
                         "stock_status": "AVAILABLE",
                         "qty_before": 0,
                         "qty_delta": 7,
                         "qty_after": 7,
-                        "stock_document_id": "8917442d-cff7-4ff7-9721-537d3dcafed4",
-                        "stock_document_line_id": "2b5bd09b-59d4-4e62-a4d9-1a430b57a840",
+                        "stock_document_id": "977832a0-f48d-41c2-863e-ca75690deaa8",
+                        "stock_document_line_id": "edec97fd-c2b4-4ce3-a37f-15b779993ce8",
                         "original_movement_id": null,
-                        "created_by": "01a01d6a-8aac-7276-b2b3-7fb4246f6273",
-                        "request_id": "77843b3c-b429-45bd-94d8-5a7baf04df45",
-                        "occurred_at": "2026-08-20 11:25:16",
-                        "created_at": "2026-08-20 11:25:16",
-                        "sku_id": "01a01d6a-8aae-709c-b81d-65bb55ea56a3",
+                        "created_by": "01a03d69-b84d-739d-b6fd-06ca8c5c44ad",
+                        "request_id": "9070afd5-c5aa-48d2-8d69-f2e8011f3929",
+                        "occurred_at": "2026-08-26 16:32:13",
+                        "created_at": "2026-08-26 16:32:13",
+                        "sku_id": "01a03d69-b84e-71fe-b72f-afa5d2bf4818",
                         "quantity": 7,
                         "source_type": "STOCK_DOCUMENT",
-                        "source_id": "8917442d-cff7-4ff7-9721-537d3dcafed4",
-                        "source_line_id": "2b5bd09b-59d4-4e62-a4d9-1a430b57a840",
+                        "source_id": "977832a0-f48d-41c2-863e-ca75690deaa8",
+                        "source_line_id": "edec97fd-c2b4-4ce3-a37f-15b779993ce8",
                         "item_id": null,
                         "container_id": null,
                         "correction_chain_id": null,
@@ -595,17 +607,17 @@
                 ],
                 "balance": [
                     {
-                        "id": "6807c3d1-2c08-45cc-80b2-eaa6b148c3a8",
-                        "warehouse_id": "01a01d6a-8aad-714e-a36f-37773f6deda6",
-                        "product_id": "01a01d6a-8aae-709c-b81d-65bb55ea56a3",
+                        "id": "bf759591-8489-40e9-9df6-b10e2a0d24bc",
+                        "warehouse_id": "01a03d69-b84e-71fe-b72f-afa5d29e891d",
+                        "product_id": "01a03d69-b84e-71fe-b72f-afa5d2bf4818",
                         "on_hand_qty": 7,
                         "available_qty": 7,
                         "reserved_qty": 0,
                         "stock_status": "AVAILABLE",
                         "version": 2,
-                        "created_at": "2026-08-20 11:25:16",
-                        "updated_at": "2026-08-20 11:25:16",
-                        "sku_id": "01a01d6a-8aae-709c-b81d-65bb55ea56a3",
+                        "created_at": "2026-08-26 16:32:13",
+                        "updated_at": "2026-08-26 16:32:13",
+                        "sku_id": "01a03d69-b84e-71fe-b72f-afa5d2bf4818",
                         "quantity": 7,
                         "last_movement_id": null,
                         "last_reconciled_at": null
@@ -613,21 +625,21 @@
                 ],
                 "document": [
                     {
-                        "id": "8917442d-cff7-4ff7-9721-537d3dcafed4",
+                        "id": "977832a0-f48d-41c2-863e-ca75690deaa8",
                         "doc_type": "receipt",
-                        "doc_no": "PN-20260820112516-ANGS",
-                        "doc_date": "2026-08-20",
+                        "doc_no": "PN-20260826163213-KVED",
+                        "doc_date": "2026-08-26",
                         "status": "POSTED",
                         "src_warehouse_id": null,
-                        "dst_warehouse_id": "01a01d6a-8aad-714e-a36f-37773f6deda6",
+                        "dst_warehouse_id": "01a03d69-b84e-71fe-b72f-afa5d29e891d",
                         "note": null,
                         "create_idempotency_key": null,
-                        "submitted_by": "01a01d6a-8aac-7276-b2b3-7fb4246f6273",
-                        "submitted_at": "2026-08-20 11:25:16",
+                        "submitted_by": "01a03d69-b84d-739d-b6fd-06ca8c5c44ad",
+                        "submitted_at": "2026-08-26 16:32:13",
                         "approved_by": null,
                         "approved_at": null,
-                        "posted_by": "01a01d6a-8aac-7276-b2b3-7fb4246f6273",
-                        "posted_at": "2026-08-20 11:25:16",
+                        "posted_by": "01a03d69-b84d-739d-b6fd-06ca8c5c44ad",
+                        "posted_at": "2026-08-26 16:32:13",
                         "closed_by": null,
                         "closed_at": null,
                         "reversed_by": null,
@@ -639,10 +651,10 @@
                         "cancel_reason": null,
                         "cancelled_by": null,
                         "cancelled_at": null,
-                        "created_by": "01a01d6a-8aac-7276-b2b3-7fb4246f6273",
-                        "updated_by": "01a01d6a-8aac-7276-b2b3-7fb4246f6273",
-                        "created_at": "2026-08-20 11:25:16",
-                        "updated_at": "2026-08-20 11:25:16",
+                        "created_by": "01a03d69-b84d-739d-b6fd-06ca8c5c44ad",
+                        "updated_by": "01a03d69-b84d-739d-b6fd-06ca8c5c44ad",
+                        "created_at": "2026-08-26 16:32:13",
+                        "updated_at": "2026-08-26 16:32:13",
                         "deleted_at": null,
                         "source_name": "NCC retest WWHN-214",
                         "outbound_request_id": null,
@@ -650,7 +662,12 @@
                         "recipient_name": null,
                         "recipient_address": null,
                         "version": 3,
-                        "recipient_contact_phone": null
+                        "recipient_contact_phone": null,
+                        "recipient_type": null,
+                        "recipient_reference_id": null,
+                        "recipient_name_snapshot": null,
+                        "recipient_address_snapshot": null,
+                        "recipient_phone_snapshot": null
                     }
                 ]
             },
@@ -667,14 +684,8 @@
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "dst_warehouse_id": "01a01d6a-8b59-7112-a713-3eb0dd70f937",
-                            "source_name": "NCC retest WWHN-214",
-                            "lines": [
-                                {
-                                    "product_id": "01a01d6a-8b5a-7273-96e5-d07bbf1c66ca",
-                                    "qty_planned": 4
-                                }
-                            ]
+                            "dst_warehouse_id": "01a03d69-be78-72db-b4bf-492ee2220ab1",
+                            "source_name": "NCC retest WWHN-214"
                         }
                     },
                     "response": {
@@ -684,69 +695,62 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Tạo phiếu nhập kho thành công.",
+                            "message": "Đã tạo phiếu nhập. Quét hàng để hệ thống tự hình thành SKU và số lượng thực nhận.",
                             "data": {
-                                "id": "4cba27c5-3fef-48d0-a919-e13f543fcee9",
+                                "id": "e7482598-745c-419a-bbac-1ec8245b040c",
+                                "stock_document_id": "e7482598-745c-419a-bbac-1ec8245b040c",
+                                "doc_no": "PN-20260826163215-WE2D",
                                 "doc_type": "receipt",
-                                "doc_no": "PN-20260820112516-UGKZ",
-                                "doc_date": "2026-08-20",
+                                "doc_date": "2026-08-26",
                                 "status": "DRAFT",
-                                "src_warehouse_id": null,
-                                "dst_warehouse_id": "01a01d6a-8b59-7112-a713-3eb0dd70f937",
-                                "note": null,
-                                "create_idempotency_key": null,
-                                "submitted_by": null,
-                                "submitted_at": null,
-                                "approved_by": null,
-                                "approved_at": null,
-                                "posted_by": null,
-                                "posted_at": null,
-                                "closed_by": null,
-                                "closed_at": null,
-                                "reversed_by": null,
-                                "reversed_at": null,
-                                "reverse_reason": null,
-                                "reject_reason": null,
-                                "rejected_by": null,
-                                "rejected_at": null,
-                                "cancel_reason": null,
-                                "cancelled_by": null,
-                                "cancelled_at": null,
-                                "created_by": "01a01d6a-8b58-736e-a96a-af77254a24c7",
-                                "updated_by": "01a01d6a-8b58-736e-a96a-af77254a24c7",
-                                "created_at": "2026-08-20 11:25:16",
-                                "updated_at": "2026-08-20 11:25:16",
-                                "deleted_at": null,
+                                "dst_warehouse_id": "01a03d69-be78-72db-b4bf-492ee2220ab1",
                                 "source_name": "NCC retest WWHN-214",
-                                "outbound_request_id": null,
-                                "agency_id": null,
-                                "recipient_name": null,
-                                "recipient_address": null,
-                                "version": 1,
-                                "recipient_contact_phone": null,
                                 "source_reference": "NCC retest WWHN-214",
-                                "lines": [
-                                    {
-                                        "id": "8045d8a6-c436-4740-9cb7-6cb52adfa74e",
-                                        "stock_document_id": "4cba27c5-3fef-48d0-a919-e13f543fcee9",
-                                        "line_no": 1,
-                                        "product_id": "01a01d6a-8b5a-7273-96e5-d07bbf1c66ca",
-                                        "qty_planned": 4,
-                                        "qty_actual": 4,
-                                        "scanned_qty": 0,
-                                        "created_at": "2026-08-20 11:25:16",
-                                        "updated_at": "2026-08-20 11:25:16",
-                                        "outbound_request_line_id": null,
-                                        "import_batch_id": null,
-                                        "note": null,
-                                        "version": 1,
-                                        "item_instance_id": null
-                                    }
-                                ]
+                                "note": null,
+                                "version": 1,
+                                "lines": [],
+                                "qty_planned": 0,
+                                "scanned_qty": 0,
+                                "inbound_quantity_source": "ACTUAL_SCAN"
                             },
                             "meta": {
-                                "request_id": "1fb4ea10-2825-403e-8af9-d45cffd0be58",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "4872c3bd-0dea-4348-a102-67d7a46dff27",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "step": "inbound.component-line",
+                    "request": {
+                        "method": "POST",
+                        "uri": "/api/v1/inbound-documents/e7482598-745c-419a-bbac-1ec8245b040c/component-lines",
+                        "headers": {
+                            "Authorization": "Bearer ***masked***"
+                        },
+                        "body": {
+                            "sku_id": "01a03d69-be79-72a3-98fc-e27982d33647"
+                        }
+                    },
+                    "response": {
+                        "status": 200,
+                        "headers": [],
+                        "body": {
+                            "success": true,
+                            "message": "Đã sẵn sàng ghi nhận linh kiện thực tế theo Box.",
+                            "data": {
+                                "line_id": "62592880-b443-4963-a689-607d6bd51a04",
+                                "document_id": "e7482598-745c-419a-bbac-1ec8245b040c",
+                                "sku_id": "01a03d69-be79-72a3-98fc-e27982d33647",
+                                "sku_code": "LK-214-3E0J6F",
+                                "sku_name": "Linh kiện retest WWHN-214",
+                                "is_serial_tracked": false,
+                                "scanned_qty": 0,
+                                "quantity_source": "ACTUAL_BOX_COUNT"
+                            },
+                            "meta": {
+                                "request_id": "ec5b8a51-b726-41b8-b686-39767133bfaf",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
                             }
                         }
                     }
@@ -755,13 +759,13 @@
                     "step": "inbound.box",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/4cba27c5-3fef-48d0-a919-e13f543fcee9/boxes",
+                        "uri": "/api/v1/inbound-documents/e7482598-745c-419a-bbac-1ec8245b040c/boxes",
                         "headers": {
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "8045d8a6-c436-4740-9cb7-6cb52adfa74e",
-                            "box_code": "BOX-214-DTQVEW"
+                            "line_id": "62592880-b443-4963-a689-607d6bd51a04",
+                            "box_code": "BOX-214-N7LQH2"
                         }
                     },
                     "response": {
@@ -769,12 +773,12 @@
                         "headers": [],
                         "body": {
                             "success": true,
-                            "message": "Đã đăng ký BOX cho dòng nhập COMPONENT.",
+                            "message": "Đã đăng ký BOX cho dòng nhập Linh kiện.",
                             "data": {
-                                "container_id": "69c4a66d-71a8-4fb2-8433-f04634591b77",
+                                "container_id": "7dafd68c-47b4-4f70-9be4-541eacbe5675",
                                 "container_type": "BOX",
-                                "box_code": "BOX-214-DTQVEW",
-                                "sku_id": "01a01d6a-8b5a-7273-96e5-d07bbf1c66ca",
+                                "box_code": "BOX-214-N7LQH2",
+                                "sku_id": "01a03d69-be79-72a3-98fc-e27982d33647",
                                 "status": "EMPTY",
                                 "version": 1,
                                 "created": true,
@@ -782,8 +786,8 @@
                                 "movement_created": false
                             },
                             "meta": {
-                                "request_id": "12870945-3d08-4de0-85da-8eee65e5e9cb",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "4776280b-87ff-408c-b88e-d3608c514817",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
                             }
                         }
                     }
@@ -792,15 +796,15 @@
                     "step": "inbound.scan",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/4cba27c5-3fef-48d0-a919-e13f543fcee9/scan",
+                        "uri": "/api/v1/inbound-documents/e7482598-745c-419a-bbac-1ec8245b040c/scans",
                         "headers": {
                             "If-Match": "1",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "8045d8a6-c436-4740-9cb7-6cb52adfa74e",
+                            "line_id": "62592880-b443-4963-a689-607d6bd51a04",
                             "quantity": 4,
-                            "container_id": "69c4a66d-71a8-4fb2-8433-f04634591b77"
+                            "container_id": "7dafd68c-47b4-4f70-9be4-541eacbe5675"
                         }
                     },
                     "response": {
@@ -811,11 +815,11 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Inbound scan validated; stock_effect=NONE.",
+                            "message": "Đã ghi nhận mã quét nhập kho; tồn kho chưa thay đổi (stock_effect=NONE).",
                             "data": {
-                                "document_id": "4cba27c5-3fef-48d0-a919-e13f543fcee9",
-                                "line_id": "8045d8a6-c436-4740-9cb7-6cb52adfa74e",
-                                "sku_id": "01a01d6a-8b5a-7273-96e5-d07bbf1c66ca",
+                                "document_id": "e7482598-745c-419a-bbac-1ec8245b040c",
+                                "line_id": "62592880-b443-4963-a689-607d6bd51a04",
+                                "sku_id": "01a03d69-be79-72a3-98fc-e27982d33647",
                                 "item_id": null,
                                 "quantity": 4,
                                 "required_quantity": 4,
@@ -823,12 +827,19 @@
                                 "status": "SCANNING",
                                 "stock_effect": "NONE",
                                 "movement_created": false,
+                                "payload_format": null,
+                                "payload_version": null,
+                                "sku_code": "LK-214-3E0J6F",
+                                "item_unique": null,
+                                "serial_number": null,
+                                "normalized_code_value": null,
+                                "resolution_status": null,
                                 "version": 2,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "f53b2342-56d3-4a11-bfd0-221ace59a406",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "4ac32bed-0e03-4917-92f0-020096081963",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
                             }
                         }
                     }
@@ -837,7 +848,7 @@
                     "step": "post-receipt.no-if-match",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/4cba27c5-3fef-48d0-a919-e13f543fcee9/post-receipt",
+                        "uri": "/api/v1/inbound-documents/e7482598-745c-419a-bbac-1ec8245b040c/post-receipt",
                         "headers": {
                             "Idempotency-Key": "w214-conc-missing",
                             "Authorization": "Bearer ***masked***"
@@ -849,7 +860,7 @@
                         "headers": [],
                         "body": {
                             "success": false,
-                            "message": "If-Match là bắt buộc cho scan/post/reversal mutation.",
+                            "message": "If-Match là bắt buộc cho scan/post/điều chỉnh tồn kho mutation.",
                             "error_code": "PRECONDITION_REQUIRED",
                             "errors": [],
                             "error": {
@@ -857,8 +868,8 @@
                                 "details": []
                             },
                             "meta": {
-                                "request_id": "6a3492a0-eacb-436c-8977-0111211c3160",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "4e333ac8-4d02-4afb-bb54-c83fd248c742",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
                             }
                         }
                     }
@@ -867,7 +878,7 @@
                     "step": "post-receipt.stale-if-match",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/4cba27c5-3fef-48d0-a919-e13f543fcee9/post-receipt",
+                        "uri": "/api/v1/inbound-documents/e7482598-745c-419a-bbac-1ec8245b040c/post-receipt",
                         "headers": {
                             "If-Match": "1",
                             "Idempotency-Key": "w214-conc-stale",
@@ -880,7 +891,7 @@
                         "headers": [],
                         "body": {
                             "success": false,
-                            "message": "Document version mismatch.",
+                            "message": "Không thể thực hiện yêu cầu do dữ liệu hoặc trạng thái hiện tại không hợp lệ.",
                             "error_code": "STALE_VERSION",
                             "errors": {
                                 "expected_version": 1,
@@ -894,8 +905,8 @@
                                 }
                             },
                             "meta": {
-                                "request_id": "9c327d7d-c06a-48e1-b665-1574219b3a33",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "b69499f6-de86-4f81-803d-da26fcf155ad",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
                             }
                         }
                     }
@@ -904,7 +915,7 @@
                     "step": "post-receipt.current-version",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/4cba27c5-3fef-48d0-a919-e13f543fcee9/post-receipt",
+                        "uri": "/api/v1/inbound-documents/e7482598-745c-419a-bbac-1ec8245b040c/post-receipt",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-conc-win",
@@ -920,20 +931,21 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Post Receipt thành công.",
+                            "message": "Hoàn tất nhập kho thành công.",
                             "data": {
-                                "document_id": "4cba27c5-3fef-48d0-a919-e13f543fcee9",
+                                "document_id": "e7482598-745c-419a-bbac-1ec8245b040c",
                                 "status": "POSTED",
                                 "movement_ids": [
-                                    "7a05775a-09dd-4416-a9bd-656a5ec97e0b"
+                                    "b20114bb-4ddc-4ae2-a151-1a43c4e2a615"
                                 ],
                                 "stock_effect": "INCREASE",
+                                "inbound_quantity_source": "ACTUAL_SCAN",
                                 "version": 3,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "f85e7cb6-8dc1-466c-aad4-da40fd083fd3",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "75c5ec05-1862-4cf0-b35e-c9d09565c4ee",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
                             }
                         }
                     }
@@ -942,7 +954,7 @@
                     "step": "post-receipt.repost-new-key",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/4cba27c5-3fef-48d0-a919-e13f543fcee9/post-receipt",
+                        "uri": "/api/v1/inbound-documents/e7482598-745c-419a-bbac-1ec8245b040c/post-receipt",
                         "headers": {
                             "If-Match": "3",
                             "Idempotency-Key": "w214-conc-repost",
@@ -955,7 +967,7 @@
                         "headers": [],
                         "body": {
                             "success": false,
-                            "message": "Chỉ SCANNING mới được Post.",
+                            "message": "Chỉ Đang quét mới được Post.",
                             "error_code": "STATE_CONFLICT",
                             "errors": [],
                             "error": {
@@ -963,8 +975,8 @@
                                 "details": []
                             },
                             "meta": {
-                                "request_id": "89c863e4-c39c-45d2-9f9b-df860a547add",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "bb9c35a9-66b8-4f45-b967-bcf692ee3320",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
                             }
                         }
                     }
@@ -973,7 +985,7 @@
                     "step": "post-receipt.stale-after-post",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/4cba27c5-3fef-48d0-a919-e13f543fcee9/post-receipt",
+                        "uri": "/api/v1/inbound-documents/e7482598-745c-419a-bbac-1ec8245b040c/post-receipt",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-conc-stale2",
@@ -986,7 +998,7 @@
                         "headers": [],
                         "body": {
                             "success": false,
-                            "message": "Document version mismatch.",
+                            "message": "Không thể thực hiện yêu cầu do dữ liệu hoặc trạng thái hiện tại không hợp lệ.",
                             "error_code": "STALE_VERSION",
                             "errors": {
                                 "expected_version": 2,
@@ -1000,8 +1012,8 @@
                                 }
                             },
                             "meta": {
-                                "request_id": "d10b8860-a051-4600-bbe3-9e0c1b519e31",
-                                "timestamp": "2026-08-20T11:25:16+07:00"
+                                "request_id": "5bbcb3ac-d69f-4631-86cf-d0db1970bd76",
+                                "timestamp": "2026-08-26T16:32:15+07:00"
                             }
                         }
                     }
@@ -1011,28 +1023,28 @@
             "db_raw": {
                 "movements": [
                     {
-                        "id": "7a05775a-09dd-4416-a9bd-656a5ec97e0b",
-                        "movement_no": "MV-20260820-NKCNO7HO",
-                        "business_key": "e1320468aaab2be35cb59991ffc542b47998d1a8",
+                        "id": "b20114bb-4ddc-4ae2-a151-1a43c4e2a615",
+                        "movement_no": "MV-20260826-8LQZMMG3",
+                        "business_key": "930716e8223ddb1c544467b9d223e87e2e3f2681",
                         "movement_type": "RECEIPT",
-                        "warehouse_id": "01a01d6a-8b59-7112-a713-3eb0dd70f937",
-                        "product_id": "01a01d6a-8b5a-7273-96e5-d07bbf1c66ca",
+                        "warehouse_id": "01a03d69-be78-72db-b4bf-492ee2220ab1",
+                        "product_id": "01a03d69-be79-72a3-98fc-e27982d33647",
                         "stock_status": "AVAILABLE",
                         "qty_before": 0,
                         "qty_delta": 4,
                         "qty_after": 4,
-                        "stock_document_id": "4cba27c5-3fef-48d0-a919-e13f543fcee9",
-                        "stock_document_line_id": "8045d8a6-c436-4740-9cb7-6cb52adfa74e",
+                        "stock_document_id": "e7482598-745c-419a-bbac-1ec8245b040c",
+                        "stock_document_line_id": "62592880-b443-4963-a689-607d6bd51a04",
                         "original_movement_id": null,
-                        "created_by": "01a01d6a-8b58-736e-a96a-af77254a24c7",
-                        "request_id": "f85e7cb6-8dc1-466c-aad4-da40fd083fd3",
-                        "occurred_at": "2026-08-20 11:25:16",
-                        "created_at": "2026-08-20 11:25:16",
-                        "sku_id": "01a01d6a-8b5a-7273-96e5-d07bbf1c66ca",
+                        "created_by": "01a03d69-be77-700b-8213-fa640272e00b",
+                        "request_id": "75c5ec05-1862-4cf0-b35e-c9d09565c4ee",
+                        "occurred_at": "2026-08-26 16:32:15",
+                        "created_at": "2026-08-26 16:32:15",
+                        "sku_id": "01a03d69-be79-72a3-98fc-e27982d33647",
                         "quantity": 4,
                         "source_type": "STOCK_DOCUMENT",
-                        "source_id": "4cba27c5-3fef-48d0-a919-e13f543fcee9",
-                        "source_line_id": "8045d8a6-c436-4740-9cb7-6cb52adfa74e",
+                        "source_id": "e7482598-745c-419a-bbac-1ec8245b040c",
+                        "source_line_id": "62592880-b443-4963-a689-607d6bd51a04",
                         "item_id": null,
                         "container_id": null,
                         "correction_chain_id": null,
@@ -1041,17 +1053,17 @@
                 ],
                 "balance": [
                     {
-                        "id": "3f0eccd0-3e2c-4303-b3bf-8b80b1cec7ba",
-                        "warehouse_id": "01a01d6a-8b59-7112-a713-3eb0dd70f937",
-                        "product_id": "01a01d6a-8b5a-7273-96e5-d07bbf1c66ca",
+                        "id": "0918992a-623f-4d1c-b164-388cd48a9352",
+                        "warehouse_id": "01a03d69-be78-72db-b4bf-492ee2220ab1",
+                        "product_id": "01a03d69-be79-72a3-98fc-e27982d33647",
                         "on_hand_qty": 4,
                         "available_qty": 4,
                         "reserved_qty": 0,
                         "stock_status": "AVAILABLE",
                         "version": 2,
-                        "created_at": "2026-08-20 11:25:16",
-                        "updated_at": "2026-08-20 11:25:16",
-                        "sku_id": "01a01d6a-8b5a-7273-96e5-d07bbf1c66ca",
+                        "created_at": "2026-08-26 16:32:15",
+                        "updated_at": "2026-08-26 16:32:15",
+                        "sku_id": "01a03d69-be79-72a3-98fc-e27982d33647",
                         "quantity": 4,
                         "last_movement_id": null,
                         "last_reconciled_at": null
@@ -1059,21 +1071,21 @@
                 ],
                 "document": [
                     {
-                        "id": "4cba27c5-3fef-48d0-a919-e13f543fcee9",
+                        "id": "e7482598-745c-419a-bbac-1ec8245b040c",
                         "doc_type": "receipt",
-                        "doc_no": "PN-20260820112516-UGKZ",
-                        "doc_date": "2026-08-20",
+                        "doc_no": "PN-20260826163215-WE2D",
+                        "doc_date": "2026-08-26",
                         "status": "POSTED",
                         "src_warehouse_id": null,
-                        "dst_warehouse_id": "01a01d6a-8b59-7112-a713-3eb0dd70f937",
+                        "dst_warehouse_id": "01a03d69-be78-72db-b4bf-492ee2220ab1",
                         "note": null,
                         "create_idempotency_key": null,
-                        "submitted_by": "01a01d6a-8b58-736e-a96a-af77254a24c7",
-                        "submitted_at": "2026-08-20 11:25:16",
+                        "submitted_by": "01a03d69-be77-700b-8213-fa640272e00b",
+                        "submitted_at": "2026-08-26 16:32:15",
                         "approved_by": null,
                         "approved_at": null,
-                        "posted_by": "01a01d6a-8b58-736e-a96a-af77254a24c7",
-                        "posted_at": "2026-08-20 11:25:16",
+                        "posted_by": "01a03d69-be77-700b-8213-fa640272e00b",
+                        "posted_at": "2026-08-26 16:32:15",
                         "closed_by": null,
                         "closed_at": null,
                         "reversed_by": null,
@@ -1085,10 +1097,10 @@
                         "cancel_reason": null,
                         "cancelled_by": null,
                         "cancelled_at": null,
-                        "created_by": "01a01d6a-8b58-736e-a96a-af77254a24c7",
-                        "updated_by": "01a01d6a-8b58-736e-a96a-af77254a24c7",
-                        "created_at": "2026-08-20 11:25:16",
-                        "updated_at": "2026-08-20 11:25:16",
+                        "created_by": "01a03d69-be77-700b-8213-fa640272e00b",
+                        "updated_by": "01a03d69-be77-700b-8213-fa640272e00b",
+                        "created_at": "2026-08-26 16:32:15",
+                        "updated_at": "2026-08-26 16:32:15",
                         "deleted_at": null,
                         "source_name": "NCC retest WWHN-214",
                         "outbound_request_id": null,
@@ -1096,7 +1108,12 @@
                         "recipient_name": null,
                         "recipient_address": null,
                         "version": 3,
-                        "recipient_contact_phone": null
+                        "recipient_contact_phone": null,
+                        "recipient_type": null,
+                        "recipient_reference_id": null,
+                        "recipient_name_snapshot": null,
+                        "recipient_address_snapshot": null,
+                        "recipient_phone_snapshot": null
                     }
                 ],
                 "note": "Race đa kết nối OS thật: xem log retest Wwhn184/198/219 RuntimeConcurrency trên PostgreSQL trong cùng gói R."
@@ -1114,14 +1131,8 @@
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "dst_warehouse_id": "01a01d6a-8c19-702c-bc8a-01d3d1f9182d",
-                            "source_name": "NCC retest WWHN-214",
-                            "lines": [
-                                {
-                                    "product_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
-                                    "qty_planned": 5
-                                }
-                            ]
+                            "dst_warehouse_id": "01a03d69-c4ad-716a-a6d4-4407ca229251",
+                            "source_name": "NCC retest WWHN-214"
                         }
                     },
                     "response": {
@@ -1131,69 +1142,62 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Tạo phiếu nhập kho thành công.",
+                            "message": "Đã tạo phiếu nhập. Quét hàng để hệ thống tự hình thành SKU và số lượng thực nhận.",
                             "data": {
-                                "id": "0c36f2a7-9865-46f8-a3c9-60d31df0a8dd",
+                                "id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
+                                "stock_document_id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
+                                "doc_no": "PN-20260826163216-0PU4",
                                 "doc_type": "receipt",
-                                "doc_no": "PN-20260820112517-9T4V",
-                                "doc_date": "2026-08-20",
+                                "doc_date": "2026-08-26",
                                 "status": "DRAFT",
-                                "src_warehouse_id": null,
-                                "dst_warehouse_id": "01a01d6a-8c19-702c-bc8a-01d3d1f9182d",
-                                "note": null,
-                                "create_idempotency_key": null,
-                                "submitted_by": null,
-                                "submitted_at": null,
-                                "approved_by": null,
-                                "approved_at": null,
-                                "posted_by": null,
-                                "posted_at": null,
-                                "closed_by": null,
-                                "closed_at": null,
-                                "reversed_by": null,
-                                "reversed_at": null,
-                                "reverse_reason": null,
-                                "reject_reason": null,
-                                "rejected_by": null,
-                                "rejected_at": null,
-                                "cancel_reason": null,
-                                "cancelled_by": null,
-                                "cancelled_at": null,
-                                "created_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                                "updated_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                                "created_at": "2026-08-20 11:25:17",
-                                "updated_at": "2026-08-20 11:25:17",
-                                "deleted_at": null,
+                                "dst_warehouse_id": "01a03d69-c4ad-716a-a6d4-4407ca229251",
                                 "source_name": "NCC retest WWHN-214",
-                                "outbound_request_id": null,
-                                "agency_id": null,
-                                "recipient_name": null,
-                                "recipient_address": null,
-                                "version": 1,
-                                "recipient_contact_phone": null,
                                 "source_reference": "NCC retest WWHN-214",
-                                "lines": [
-                                    {
-                                        "id": "eed32712-f9ea-4872-ab4f-6b9651371c75",
-                                        "stock_document_id": "0c36f2a7-9865-46f8-a3c9-60d31df0a8dd",
-                                        "line_no": 1,
-                                        "product_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
-                                        "qty_planned": 5,
-                                        "qty_actual": 5,
-                                        "scanned_qty": 0,
-                                        "created_at": "2026-08-20 11:25:17",
-                                        "updated_at": "2026-08-20 11:25:17",
-                                        "outbound_request_line_id": null,
-                                        "import_batch_id": null,
-                                        "note": null,
-                                        "version": 1,
-                                        "item_instance_id": null
-                                    }
-                                ]
+                                "note": null,
+                                "version": 1,
+                                "lines": [],
+                                "qty_planned": 0,
+                                "scanned_qty": 0,
+                                "inbound_quantity_source": "ACTUAL_SCAN"
                             },
                             "meta": {
-                                "request_id": "26abe405-3115-4ed1-b00c-dfd726d9e6d4",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "59fa72e2-4f17-4c55-a6e3-e292aed9e489",
+                                "timestamp": "2026-08-26T16:32:17+07:00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "step": "inbound.component-line",
+                    "request": {
+                        "method": "POST",
+                        "uri": "/api/v1/inbound-documents/ae606629-7dcb-4380-a3d6-327fbf43084f/component-lines",
+                        "headers": {
+                            "Authorization": "Bearer ***masked***"
+                        },
+                        "body": {
+                            "sku_id": "01a03d69-c4ae-7237-b62a-0bcf75446646"
+                        }
+                    },
+                    "response": {
+                        "status": 200,
+                        "headers": [],
+                        "body": {
+                            "success": true,
+                            "message": "Đã sẵn sàng ghi nhận linh kiện thực tế theo Box.",
+                            "data": {
+                                "line_id": "a386d3f3-278a-4da7-9edf-0fffaff36258",
+                                "document_id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
+                                "sku_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
+                                "sku_code": "LK-214-UE4ANR",
+                                "sku_name": "Linh kiện retest WWHN-214",
+                                "is_serial_tracked": false,
+                                "scanned_qty": 0,
+                                "quantity_source": "ACTUAL_BOX_COUNT"
+                            },
+                            "meta": {
+                                "request_id": "d19102d1-b8d1-48a8-92f5-e7a6e064cb25",
+                                "timestamp": "2026-08-26T16:32:17+07:00"
                             }
                         }
                     }
@@ -1202,13 +1206,13 @@
                     "step": "inbound.box",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/0c36f2a7-9865-46f8-a3c9-60d31df0a8dd/boxes",
+                        "uri": "/api/v1/inbound-documents/ae606629-7dcb-4380-a3d6-327fbf43084f/boxes",
                         "headers": {
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "eed32712-f9ea-4872-ab4f-6b9651371c75",
-                            "box_code": "BOX-214-QK2IH7"
+                            "line_id": "a386d3f3-278a-4da7-9edf-0fffaff36258",
+                            "box_code": "BOX-214-ZA6R3Q"
                         }
                     },
                     "response": {
@@ -1216,12 +1220,12 @@
                         "headers": [],
                         "body": {
                             "success": true,
-                            "message": "Đã đăng ký BOX cho dòng nhập COMPONENT.",
+                            "message": "Đã đăng ký BOX cho dòng nhập Linh kiện.",
                             "data": {
-                                "container_id": "0761c24e-ef23-4dc7-b14c-1b8b57db613e",
+                                "container_id": "39656fec-bbb0-493f-99cd-ee1e12f4731f",
                                 "container_type": "BOX",
-                                "box_code": "BOX-214-QK2IH7",
-                                "sku_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
+                                "box_code": "BOX-214-ZA6R3Q",
+                                "sku_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
                                 "status": "EMPTY",
                                 "version": 1,
                                 "created": true,
@@ -1229,8 +1233,8 @@
                                 "movement_created": false
                             },
                             "meta": {
-                                "request_id": "9fb75b4f-9b50-44b9-a5c0-c9843582448e",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "85909471-d8bc-4e0f-8773-6f5d1d79757a",
+                                "timestamp": "2026-08-26T16:32:17+07:00"
                             }
                         }
                     }
@@ -1239,15 +1243,15 @@
                     "step": "inbound.scan",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/0c36f2a7-9865-46f8-a3c9-60d31df0a8dd/scan",
+                        "uri": "/api/v1/inbound-documents/ae606629-7dcb-4380-a3d6-327fbf43084f/scans",
                         "headers": {
                             "If-Match": "1",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "eed32712-f9ea-4872-ab4f-6b9651371c75",
+                            "line_id": "a386d3f3-278a-4da7-9edf-0fffaff36258",
                             "quantity": 5,
-                            "container_id": "0761c24e-ef23-4dc7-b14c-1b8b57db613e"
+                            "container_id": "39656fec-bbb0-493f-99cd-ee1e12f4731f"
                         }
                     },
                     "response": {
@@ -1258,11 +1262,11 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Inbound scan validated; stock_effect=NONE.",
+                            "message": "Đã ghi nhận mã quét nhập kho; tồn kho chưa thay đổi (stock_effect=NONE).",
                             "data": {
-                                "document_id": "0c36f2a7-9865-46f8-a3c9-60d31df0a8dd",
-                                "line_id": "eed32712-f9ea-4872-ab4f-6b9651371c75",
-                                "sku_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
+                                "document_id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
+                                "line_id": "a386d3f3-278a-4da7-9edf-0fffaff36258",
+                                "sku_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
                                 "item_id": null,
                                 "quantity": 5,
                                 "required_quantity": 5,
@@ -1270,12 +1274,19 @@
                                 "status": "SCANNING",
                                 "stock_effect": "NONE",
                                 "movement_created": false,
+                                "payload_format": null,
+                                "payload_version": null,
+                                "sku_code": "LK-214-UE4ANR",
+                                "item_unique": null,
+                                "serial_number": null,
+                                "normalized_code_value": null,
+                                "resolution_status": null,
                                 "version": 2,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "d60d1245-263b-4c22-9bac-d0c31cfe3dd5",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "829df30f-4411-421b-aabe-a59f0c986d1f",
+                                "timestamp": "2026-08-26T16:32:17+07:00"
                             }
                         }
                     }
@@ -1284,7 +1295,7 @@
                     "step": "post-receipt.injected-failure",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/0c36f2a7-9865-46f8-a3c9-60d31df0a8dd/post-receipt",
+                        "uri": "/api/v1/inbound-documents/ae606629-7dcb-4380-a3d6-327fbf43084f/post-receipt",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-rollback",
@@ -1305,8 +1316,8 @@
                                 "details": []
                             },
                             "meta": {
-                                "request_id": "9aad4d4e-c677-4db4-b262-7e8e470f7d21",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "063ad084-3de9-483e-8741-77bea45f9218",
+                                "timestamp": "2026-08-26T16:32:17+07:00"
                             }
                         }
                     }
@@ -1315,7 +1326,7 @@
                     "step": "post-receipt.retry-after-failure",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/0c36f2a7-9865-46f8-a3c9-60d31df0a8dd/post-receipt",
+                        "uri": "/api/v1/inbound-documents/ae606629-7dcb-4380-a3d6-327fbf43084f/post-receipt",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-rollback-retry",
@@ -1331,20 +1342,21 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Post Receipt thành công.",
+                            "message": "Hoàn tất nhập kho thành công.",
                             "data": {
-                                "document_id": "0c36f2a7-9865-46f8-a3c9-60d31df0a8dd",
+                                "document_id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
                                 "status": "POSTED",
                                 "movement_ids": [
-                                    "061f0f13-d493-4598-a414-0ee99642e288"
+                                    "46de7055-b61a-418f-a662-492ce4a10888"
                                 ],
                                 "stock_effect": "INCREASE",
+                                "inbound_quantity_source": "ACTUAL_SCAN",
                                 "version": 3,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "a70210ff-1549-47a1-94db-e6344604795f",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "e0d69140-9f42-4696-b101-72168a043058",
+                                "timestamp": "2026-08-26T16:32:17+07:00"
                             }
                         }
                     }
@@ -1357,17 +1369,17 @@
                     "balance": [],
                     "document": [
                         {
-                            "id": "0c36f2a7-9865-46f8-a3c9-60d31df0a8dd",
+                            "id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
                             "doc_type": "receipt",
-                            "doc_no": "PN-20260820112517-9T4V",
-                            "doc_date": "2026-08-20",
+                            "doc_no": "PN-20260826163216-0PU4",
+                            "doc_date": "2026-08-26",
                             "status": "SCANNING",
                             "src_warehouse_id": null,
-                            "dst_warehouse_id": "01a01d6a-8c19-702c-bc8a-01d3d1f9182d",
+                            "dst_warehouse_id": "01a03d69-c4ad-716a-a6d4-4407ca229251",
                             "note": null,
                             "create_idempotency_key": null,
-                            "submitted_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                            "submitted_at": "2026-08-20 11:25:17",
+                            "submitted_by": "01a03d69-c4ac-7221-a659-89152d998737",
+                            "submitted_at": "2026-08-26 16:32:17",
                             "approved_by": null,
                             "approved_at": null,
                             "posted_by": null,
@@ -1383,10 +1395,10 @@
                             "cancel_reason": null,
                             "cancelled_by": null,
                             "cancelled_at": null,
-                            "created_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                            "updated_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                            "created_at": "2026-08-20 11:25:17",
-                            "updated_at": "2026-08-20 11:25:17",
+                            "created_by": "01a03d69-c4ac-7221-a659-89152d998737",
+                            "updated_by": "01a03d69-c4ac-7221-a659-89152d998737",
+                            "created_at": "2026-08-26 16:32:16",
+                            "updated_at": "2026-08-26 16:32:17",
                             "deleted_at": null,
                             "source_name": "NCC retest WWHN-214",
                             "outbound_request_id": null,
@@ -1394,7 +1406,12 @@
                             "recipient_name": null,
                             "recipient_address": null,
                             "version": 2,
-                            "recipient_contact_phone": null
+                            "recipient_contact_phone": null,
+                            "recipient_type": null,
+                            "recipient_reference_id": null,
+                            "recipient_name_snapshot": null,
+                            "recipient_address_snapshot": null,
+                            "recipient_phone_snapshot": null
                         }
                     ]
                 },
@@ -1402,17 +1419,17 @@
                     "movements": [],
                     "balance": [
                         {
-                            "id": "1448f0a1-13b7-420d-b43a-fbbdbe85d02d",
-                            "warehouse_id": "01a01d6a-8c19-702c-bc8a-01d3d1f9182d",
-                            "product_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
+                            "id": "0a2a42a4-37e2-4f59-9302-cb838d0648c2",
+                            "warehouse_id": "01a03d69-c4ad-716a-a6d4-4407ca229251",
+                            "product_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
                             "on_hand_qty": 5,
                             "available_qty": 5,
                             "reserved_qty": 0,
                             "stock_status": "AVAILABLE",
                             "version": 2,
-                            "created_at": "2026-08-20 11:25:17",
-                            "updated_at": "2026-08-20 11:25:17",
-                            "sku_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
+                            "created_at": "2026-08-26 16:32:17",
+                            "updated_at": "2026-08-26 16:32:17",
+                            "sku_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
                             "quantity": 5,
                             "last_movement_id": null,
                             "last_reconciled_at": null
@@ -1420,17 +1437,17 @@
                     ],
                     "document": [
                         {
-                            "id": "0c36f2a7-9865-46f8-a3c9-60d31df0a8dd",
+                            "id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
                             "doc_type": "receipt",
-                            "doc_no": "PN-20260820112517-9T4V",
-                            "doc_date": "2026-08-20",
+                            "doc_no": "PN-20260826163216-0PU4",
+                            "doc_date": "2026-08-26",
                             "status": "SCANNING",
                             "src_warehouse_id": null,
-                            "dst_warehouse_id": "01a01d6a-8c19-702c-bc8a-01d3d1f9182d",
+                            "dst_warehouse_id": "01a03d69-c4ad-716a-a6d4-4407ca229251",
                             "note": null,
                             "create_idempotency_key": null,
-                            "submitted_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                            "submitted_at": "2026-08-20 11:25:17",
+                            "submitted_by": "01a03d69-c4ac-7221-a659-89152d998737",
+                            "submitted_at": "2026-08-26 16:32:17",
                             "approved_by": null,
                             "approved_at": null,
                             "posted_by": null,
@@ -1446,10 +1463,10 @@
                             "cancel_reason": null,
                             "cancelled_by": null,
                             "cancelled_at": null,
-                            "created_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                            "updated_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                            "created_at": "2026-08-20 11:25:17",
-                            "updated_at": "2026-08-20 11:25:17",
+                            "created_by": "01a03d69-c4ac-7221-a659-89152d998737",
+                            "updated_by": "01a03d69-c4ac-7221-a659-89152d998737",
+                            "created_at": "2026-08-26 16:32:16",
+                            "updated_at": "2026-08-26 16:32:17",
                             "deleted_at": null,
                             "source_name": "NCC retest WWHN-214",
                             "outbound_request_id": null,
@@ -1457,35 +1474,40 @@
                             "recipient_name": null,
                             "recipient_address": null,
                             "version": 2,
-                            "recipient_contact_phone": null
+                            "recipient_contact_phone": null,
+                            "recipient_type": null,
+                            "recipient_reference_id": null,
+                            "recipient_name_snapshot": null,
+                            "recipient_address_snapshot": null,
+                            "recipient_phone_snapshot": null
                         }
                     ]
                 },
                 "db_after_retry": {
                     "movements": [
                         {
-                            "id": "061f0f13-d493-4598-a414-0ee99642e288",
-                            "movement_no": "MV-20260820-NJ0V7Q0X",
-                            "business_key": "c192877419a244b3d9617219552731f9ba44f96e",
+                            "id": "46de7055-b61a-418f-a662-492ce4a10888",
+                            "movement_no": "MV-20260826-KPNUQK8N",
+                            "business_key": "191eb724d1a8520245f2d90c8368f3700bde4c67",
                             "movement_type": "RECEIPT",
-                            "warehouse_id": "01a01d6a-8c19-702c-bc8a-01d3d1f9182d",
-                            "product_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
+                            "warehouse_id": "01a03d69-c4ad-716a-a6d4-4407ca229251",
+                            "product_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
                             "stock_status": "AVAILABLE",
                             "qty_before": 0,
                             "qty_delta": 5,
                             "qty_after": 5,
-                            "stock_document_id": "0c36f2a7-9865-46f8-a3c9-60d31df0a8dd",
-                            "stock_document_line_id": "eed32712-f9ea-4872-ab4f-6b9651371c75",
+                            "stock_document_id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
+                            "stock_document_line_id": "a386d3f3-278a-4da7-9edf-0fffaff36258",
                             "original_movement_id": null,
-                            "created_by": "01a01d6a-8c17-73ea-9621-5b9c72542310",
-                            "request_id": "a70210ff-1549-47a1-94db-e6344604795f",
-                            "occurred_at": "2026-08-20 11:25:17",
-                            "created_at": "2026-08-20 11:25:17",
-                            "sku_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
+                            "created_by": "01a03d69-c4ac-7221-a659-89152d998737",
+                            "request_id": "e0d69140-9f42-4696-b101-72168a043058",
+                            "occurred_at": "2026-08-26 16:32:17",
+                            "created_at": "2026-08-26 16:32:17",
+                            "sku_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
                             "quantity": 5,
                             "source_type": "STOCK_DOCUMENT",
-                            "source_id": "0c36f2a7-9865-46f8-a3c9-60d31df0a8dd",
-                            "source_line_id": "eed32712-f9ea-4872-ab4f-6b9651371c75",
+                            "source_id": "ae606629-7dcb-4380-a3d6-327fbf43084f",
+                            "source_line_id": "a386d3f3-278a-4da7-9edf-0fffaff36258",
                             "item_id": null,
                             "container_id": null,
                             "correction_chain_id": null,
@@ -1494,17 +1516,17 @@
                     ],
                     "balance": [
                         {
-                            "id": "1448f0a1-13b7-420d-b43a-fbbdbe85d02d",
-                            "warehouse_id": "01a01d6a-8c19-702c-bc8a-01d3d1f9182d",
-                            "product_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
+                            "id": "0a2a42a4-37e2-4f59-9302-cb838d0648c2",
+                            "warehouse_id": "01a03d69-c4ad-716a-a6d4-4407ca229251",
+                            "product_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
                             "on_hand_qty": 5,
                             "available_qty": 5,
                             "reserved_qty": 0,
                             "stock_status": "AVAILABLE",
                             "version": 2,
-                            "created_at": "2026-08-20 11:25:17",
-                            "updated_at": "2026-08-20 11:25:17",
-                            "sku_id": "01a01d6a-8c19-702c-bc8a-01d3d2a88608",
+                            "created_at": "2026-08-26 16:32:17",
+                            "updated_at": "2026-08-26 16:32:17",
+                            "sku_id": "01a03d69-c4ae-7237-b62a-0bcf75446646",
                             "quantity": 5,
                             "last_movement_id": null,
                             "last_reconciled_at": null
@@ -1520,7 +1542,7 @@
                     "step": "post-receipt.anonymous",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/94830473-f4c0-4adf-957b-eef1aaea5226/post-receipt",
+                        "uri": "/api/v1/inbound-documents/3b2fc09a-4142-45d8-92a6-a355d39fb396/post-receipt",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-rbac-anon",
@@ -1533,7 +1555,7 @@
                         "headers": [],
                         "body": {
                             "success": false,
-                            "message": "Chưa xác thực",
+                            "message": "Chưa đăng nhập hoặc phiên đăng nhập đã hết hạn.",
                             "error_code": "UNAUTHENTICATED",
                             "errors": [],
                             "error": {
@@ -1541,8 +1563,8 @@
                                 "details": []
                             },
                             "meta": {
-                                "request_id": "9b437545-ce34-46c9-989e-3eb5037d3b1d",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "94d803eb-a17c-4d78-bf1d-17d6a5024299",
+                                "timestamp": "2026-08-26T16:32:18+07:00"
                             }
                         }
                     }
@@ -1556,14 +1578,8 @@
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "dst_warehouse_id": "01a01d6a-8ce7-71b2-b236-dff72ce0de9e",
-                            "source_name": "NCC retest WWHN-214",
-                            "lines": [
-                                {
-                                    "product_id": "01a01d6a-8ce7-71b2-b236-dff72d1de702",
-                                    "qty_planned": 3
-                                }
-                            ]
+                            "dst_warehouse_id": "01a03d69-cac7-7382-bec6-480964a573f4",
+                            "source_name": "NCC retest WWHN-214"
                         }
                     },
                     "response": {
@@ -1573,69 +1589,62 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Tạo phiếu nhập kho thành công.",
+                            "message": "Đã tạo phiếu nhập. Quét hàng để hệ thống tự hình thành SKU và số lượng thực nhận.",
                             "data": {
-                                "id": "a50b390e-e223-4c5f-a53c-e343d8ffc945",
+                                "id": "701d278b-3be6-47a5-a3c9-02ee5d85308d",
+                                "stock_document_id": "701d278b-3be6-47a5-a3c9-02ee5d85308d",
+                                "doc_no": "PN-20260826163218-7DEX",
                                 "doc_type": "receipt",
-                                "doc_no": "PN-20260820112517-1ZHR",
-                                "doc_date": "2026-08-20",
+                                "doc_date": "2026-08-26",
                                 "status": "DRAFT",
-                                "src_warehouse_id": null,
-                                "dst_warehouse_id": "01a01d6a-8ce7-71b2-b236-dff72ce0de9e",
-                                "note": null,
-                                "create_idempotency_key": null,
-                                "submitted_by": null,
-                                "submitted_at": null,
-                                "approved_by": null,
-                                "approved_at": null,
-                                "posted_by": null,
-                                "posted_at": null,
-                                "closed_by": null,
-                                "closed_at": null,
-                                "reversed_by": null,
-                                "reversed_at": null,
-                                "reverse_reason": null,
-                                "reject_reason": null,
-                                "rejected_by": null,
-                                "rejected_at": null,
-                                "cancel_reason": null,
-                                "cancelled_by": null,
-                                "cancelled_at": null,
-                                "created_by": "01a01d6a-8ce5-70b3-967e-8d16e5303a03",
-                                "updated_by": "01a01d6a-8ce5-70b3-967e-8d16e5303a03",
-                                "created_at": "2026-08-20 11:25:17",
-                                "updated_at": "2026-08-20 11:25:17",
-                                "deleted_at": null,
+                                "dst_warehouse_id": "01a03d69-cac7-7382-bec6-480964a573f4",
                                 "source_name": "NCC retest WWHN-214",
-                                "outbound_request_id": null,
-                                "agency_id": null,
-                                "recipient_name": null,
-                                "recipient_address": null,
-                                "version": 1,
-                                "recipient_contact_phone": null,
                                 "source_reference": "NCC retest WWHN-214",
-                                "lines": [
-                                    {
-                                        "id": "8e0c4f2c-3d2d-42d4-a31e-557e8285c142",
-                                        "stock_document_id": "a50b390e-e223-4c5f-a53c-e343d8ffc945",
-                                        "line_no": 1,
-                                        "product_id": "01a01d6a-8ce7-71b2-b236-dff72d1de702",
-                                        "qty_planned": 3,
-                                        "qty_actual": 3,
-                                        "scanned_qty": 0,
-                                        "created_at": "2026-08-20 11:25:17",
-                                        "updated_at": "2026-08-20 11:25:17",
-                                        "outbound_request_line_id": null,
-                                        "import_batch_id": null,
-                                        "note": null,
-                                        "version": 1,
-                                        "item_instance_id": null
-                                    }
-                                ]
+                                "note": null,
+                                "version": 1,
+                                "lines": [],
+                                "qty_planned": 0,
+                                "scanned_qty": 0,
+                                "inbound_quantity_source": "ACTUAL_SCAN"
                             },
                             "meta": {
-                                "request_id": "f066711a-b7c3-406b-886f-48a196727c2f",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "0c9a43d1-acce-4845-b19b-56487278bedf",
+                                "timestamp": "2026-08-26T16:32:18+07:00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "step": "inbound.component-line",
+                    "request": {
+                        "method": "POST",
+                        "uri": "/api/v1/inbound-documents/701d278b-3be6-47a5-a3c9-02ee5d85308d/component-lines",
+                        "headers": {
+                            "Authorization": "Bearer ***masked***"
+                        },
+                        "body": {
+                            "sku_id": "01a03d69-cac7-7382-bec6-480964acfd24"
+                        }
+                    },
+                    "response": {
+                        "status": 200,
+                        "headers": [],
+                        "body": {
+                            "success": true,
+                            "message": "Đã sẵn sàng ghi nhận linh kiện thực tế theo Box.",
+                            "data": {
+                                "line_id": "57b6bb72-32a9-4b75-b739-97f931ea7483",
+                                "document_id": "701d278b-3be6-47a5-a3c9-02ee5d85308d",
+                                "sku_id": "01a03d69-cac7-7382-bec6-480964acfd24",
+                                "sku_code": "LK-214-K49MLO",
+                                "sku_name": "Linh kiện retest WWHN-214",
+                                "is_serial_tracked": false,
+                                "scanned_qty": 0,
+                                "quantity_source": "ACTUAL_BOX_COUNT"
+                            },
+                            "meta": {
+                                "request_id": "f006f760-2f1b-4127-9501-36dc5ab64668",
+                                "timestamp": "2026-08-26T16:32:18+07:00"
                             }
                         }
                     }
@@ -1644,13 +1653,13 @@
                     "step": "inbound.box",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/a50b390e-e223-4c5f-a53c-e343d8ffc945/boxes",
+                        "uri": "/api/v1/inbound-documents/701d278b-3be6-47a5-a3c9-02ee5d85308d/boxes",
                         "headers": {
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "8e0c4f2c-3d2d-42d4-a31e-557e8285c142",
-                            "box_code": "BOX-214-CBTNZU"
+                            "line_id": "57b6bb72-32a9-4b75-b739-97f931ea7483",
+                            "box_code": "BOX-214-ZTVBCA"
                         }
                     },
                     "response": {
@@ -1658,12 +1667,12 @@
                         "headers": [],
                         "body": {
                             "success": true,
-                            "message": "Đã đăng ký BOX cho dòng nhập COMPONENT.",
+                            "message": "Đã đăng ký BOX cho dòng nhập Linh kiện.",
                             "data": {
-                                "container_id": "ce72ea6b-94c7-42c9-ba38-b0e4672041d4",
+                                "container_id": "f641d8b7-f433-4589-8f68-3b71bf8a81e6",
                                 "container_type": "BOX",
-                                "box_code": "BOX-214-CBTNZU",
-                                "sku_id": "01a01d6a-8ce7-71b2-b236-dff72d1de702",
+                                "box_code": "BOX-214-ZTVBCA",
+                                "sku_id": "01a03d69-cac7-7382-bec6-480964acfd24",
                                 "status": "EMPTY",
                                 "version": 1,
                                 "created": true,
@@ -1671,8 +1680,8 @@
                                 "movement_created": false
                             },
                             "meta": {
-                                "request_id": "0af45e6f-8656-41af-961a-d0f9fa2ea851",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "f3328fa8-2b79-4738-9561-d7f41d40d5de",
+                                "timestamp": "2026-08-26T16:32:18+07:00"
                             }
                         }
                     }
@@ -1681,15 +1690,15 @@
                     "step": "inbound.scan",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/a50b390e-e223-4c5f-a53c-e343d8ffc945/scan",
+                        "uri": "/api/v1/inbound-documents/701d278b-3be6-47a5-a3c9-02ee5d85308d/scans",
                         "headers": {
                             "If-Match": "1",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "8e0c4f2c-3d2d-42d4-a31e-557e8285c142",
+                            "line_id": "57b6bb72-32a9-4b75-b739-97f931ea7483",
                             "quantity": 3,
-                            "container_id": "ce72ea6b-94c7-42c9-ba38-b0e4672041d4"
+                            "container_id": "f641d8b7-f433-4589-8f68-3b71bf8a81e6"
                         }
                     },
                     "response": {
@@ -1700,11 +1709,11 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Inbound scan validated; stock_effect=NONE.",
+                            "message": "Đã ghi nhận mã quét nhập kho; tồn kho chưa thay đổi (stock_effect=NONE).",
                             "data": {
-                                "document_id": "a50b390e-e223-4c5f-a53c-e343d8ffc945",
-                                "line_id": "8e0c4f2c-3d2d-42d4-a31e-557e8285c142",
-                                "sku_id": "01a01d6a-8ce7-71b2-b236-dff72d1de702",
+                                "document_id": "701d278b-3be6-47a5-a3c9-02ee5d85308d",
+                                "line_id": "57b6bb72-32a9-4b75-b739-97f931ea7483",
+                                "sku_id": "01a03d69-cac7-7382-bec6-480964acfd24",
                                 "item_id": null,
                                 "quantity": 3,
                                 "required_quantity": 3,
@@ -1712,12 +1721,19 @@
                                 "status": "SCANNING",
                                 "stock_effect": "NONE",
                                 "movement_created": false,
+                                "payload_format": null,
+                                "payload_version": null,
+                                "sku_code": "LK-214-K49MLO",
+                                "item_unique": null,
+                                "serial_number": null,
+                                "normalized_code_value": null,
+                                "resolution_status": null,
                                 "version": 2,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "d54b38a4-03d6-4480-9393-140ca80d7fcc",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "7200200a-4441-4643-a45e-7be069101275",
+                                "timestamp": "2026-08-26T16:32:18+07:00"
                             }
                         }
                     }
@@ -1726,7 +1742,7 @@
                     "step": "post-receipt.no-permission",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/a50b390e-e223-4c5f-a53c-e343d8ffc945/post-receipt",
+                        "uri": "/api/v1/inbound-documents/701d278b-3be6-47a5-a3c9-02ee5d85308d/post-receipt",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-rbac-denied",
@@ -1747,8 +1763,8 @@
                                 "details": []
                             },
                             "meta": {
-                                "request_id": "5b700646-e144-4eb7-a7e7-048ccfe5e631",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "f0b89ff7-d1be-4c4b-b847-885ba10aeccb",
+                                "timestamp": "2026-08-26T16:32:18+07:00"
                             }
                         }
                     }
@@ -1759,17 +1775,17 @@
                 "movements": [],
                 "document": [
                     {
-                        "id": "a50b390e-e223-4c5f-a53c-e343d8ffc945",
+                        "id": "701d278b-3be6-47a5-a3c9-02ee5d85308d",
                         "doc_type": "receipt",
-                        "doc_no": "PN-20260820112517-1ZHR",
-                        "doc_date": "2026-08-20",
+                        "doc_no": "PN-20260826163218-7DEX",
+                        "doc_date": "2026-08-26",
                         "status": "SCANNING",
                         "src_warehouse_id": null,
-                        "dst_warehouse_id": "01a01d6a-8ce7-71b2-b236-dff72ce0de9e",
+                        "dst_warehouse_id": "01a03d69-cac7-7382-bec6-480964a573f4",
                         "note": null,
                         "create_idempotency_key": null,
-                        "submitted_by": "01a01d6a-8ce5-70b3-967e-8d16e5303a03",
-                        "submitted_at": "2026-08-20 11:25:17",
+                        "submitted_by": "01a03d69-cac6-7349-94a3-d383fcfa484f",
+                        "submitted_at": "2026-08-26 16:32:18",
                         "approved_by": null,
                         "approved_at": null,
                         "posted_by": null,
@@ -1785,10 +1801,10 @@
                         "cancel_reason": null,
                         "cancelled_by": null,
                         "cancelled_at": null,
-                        "created_by": "01a01d6a-8ce5-70b3-967e-8d16e5303a03",
-                        "updated_by": "01a01d6a-8ce5-70b3-967e-8d16e5303a03",
-                        "created_at": "2026-08-20 11:25:17",
-                        "updated_at": "2026-08-20 11:25:17",
+                        "created_by": "01a03d69-cac6-7349-94a3-d383fcfa484f",
+                        "updated_by": "01a03d69-cac6-7349-94a3-d383fcfa484f",
+                        "created_at": "2026-08-26 16:32:18",
+                        "updated_at": "2026-08-26 16:32:18",
                         "deleted_at": null,
                         "source_name": "NCC retest WWHN-214",
                         "outbound_request_id": null,
@@ -1796,7 +1812,12 @@
                         "recipient_name": null,
                         "recipient_address": null,
                         "version": 2,
-                        "recipient_contact_phone": null
+                        "recipient_contact_phone": null,
+                        "recipient_type": null,
+                        "recipient_reference_id": null,
+                        "recipient_name_snapshot": null,
+                        "recipient_address_snapshot": null,
+                        "recipient_phone_snapshot": null
                     }
                 ],
                 "balance": []
@@ -1814,14 +1835,8 @@
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "dst_warehouse_id": "01a01d6a-8d9d-737b-9acc-122f9fed3a44",
-                            "source_name": "NCC retest WWHN-214",
-                            "lines": [
-                                {
-                                    "product_id": "01a01d6a-8d9d-737b-9acc-122fa0d157ee",
-                                    "qty_planned": 3
-                                }
-                            ]
+                            "dst_warehouse_id": "01a03d69-cf46-721c-bef8-69894bd726c2",
+                            "source_name": "NCC retest WWHN-214"
                         }
                     },
                     "response": {
@@ -1831,69 +1846,62 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Tạo phiếu nhập kho thành công.",
+                            "message": "Đã tạo phiếu nhập. Quét hàng để hệ thống tự hình thành SKU và số lượng thực nhận.",
                             "data": {
-                                "id": "c9d736a4-0853-44b7-b498-303765b0477c",
+                                "id": "419aa4bf-24d5-415e-8d99-34a654a9647e",
+                                "stock_document_id": "419aa4bf-24d5-415e-8d99-34a654a9647e",
+                                "doc_no": "PN-20260826163219-HSET",
                                 "doc_type": "receipt",
-                                "doc_no": "PN-20260820112517-SCVG",
-                                "doc_date": "2026-08-20",
+                                "doc_date": "2026-08-26",
                                 "status": "DRAFT",
-                                "src_warehouse_id": null,
-                                "dst_warehouse_id": "01a01d6a-8d9d-737b-9acc-122f9fed3a44",
-                                "note": null,
-                                "create_idempotency_key": null,
-                                "submitted_by": null,
-                                "submitted_at": null,
-                                "approved_by": null,
-                                "approved_at": null,
-                                "posted_by": null,
-                                "posted_at": null,
-                                "closed_by": null,
-                                "closed_at": null,
-                                "reversed_by": null,
-                                "reversed_at": null,
-                                "reverse_reason": null,
-                                "reject_reason": null,
-                                "rejected_by": null,
-                                "rejected_at": null,
-                                "cancel_reason": null,
-                                "cancelled_by": null,
-                                "cancelled_at": null,
-                                "created_by": "01a01d6a-8d9c-7002-99cf-b1c6e2acb1d1",
-                                "updated_by": "01a01d6a-8d9c-7002-99cf-b1c6e2acb1d1",
-                                "created_at": "2026-08-20 11:25:17",
-                                "updated_at": "2026-08-20 11:25:17",
-                                "deleted_at": null,
+                                "dst_warehouse_id": "01a03d69-cf46-721c-bef8-69894bd726c2",
                                 "source_name": "NCC retest WWHN-214",
-                                "outbound_request_id": null,
-                                "agency_id": null,
-                                "recipient_name": null,
-                                "recipient_address": null,
-                                "version": 1,
-                                "recipient_contact_phone": null,
                                 "source_reference": "NCC retest WWHN-214",
-                                "lines": [
-                                    {
-                                        "id": "ab14c0d4-8d29-4be7-956f-19395388840a",
-                                        "stock_document_id": "c9d736a4-0853-44b7-b498-303765b0477c",
-                                        "line_no": 1,
-                                        "product_id": "01a01d6a-8d9d-737b-9acc-122fa0d157ee",
-                                        "qty_planned": 3,
-                                        "qty_actual": 3,
-                                        "scanned_qty": 0,
-                                        "created_at": "2026-08-20 11:25:17",
-                                        "updated_at": "2026-08-20 11:25:17",
-                                        "outbound_request_line_id": null,
-                                        "import_batch_id": null,
-                                        "note": null,
-                                        "version": 1,
-                                        "item_instance_id": null
-                                    }
-                                ]
+                                "note": null,
+                                "version": 1,
+                                "lines": [],
+                                "qty_planned": 0,
+                                "scanned_qty": 0,
+                                "inbound_quantity_source": "ACTUAL_SCAN"
                             },
                             "meta": {
-                                "request_id": "3ce5c397-09b1-4f76-9bc9-1495af361b4b",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "740390fe-8870-4670-94a2-d7f91a4d73fb",
+                                "timestamp": "2026-08-26T16:32:19+07:00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "step": "inbound.component-line",
+                    "request": {
+                        "method": "POST",
+                        "uri": "/api/v1/inbound-documents/419aa4bf-24d5-415e-8d99-34a654a9647e/component-lines",
+                        "headers": {
+                            "Authorization": "Bearer ***masked***"
+                        },
+                        "body": {
+                            "sku_id": "01a03d69-cf46-721c-bef8-69894c0b7f7c"
+                        }
+                    },
+                    "response": {
+                        "status": 200,
+                        "headers": [],
+                        "body": {
+                            "success": true,
+                            "message": "Đã sẵn sàng ghi nhận linh kiện thực tế theo Box.",
+                            "data": {
+                                "line_id": "f85d2609-314d-4d34-8f88-259fd35b7a68",
+                                "document_id": "419aa4bf-24d5-415e-8d99-34a654a9647e",
+                                "sku_id": "01a03d69-cf46-721c-bef8-69894c0b7f7c",
+                                "sku_code": "LK-214-VMLAJF",
+                                "sku_name": "Linh kiện retest WWHN-214",
+                                "is_serial_tracked": false,
+                                "scanned_qty": 0,
+                                "quantity_source": "ACTUAL_BOX_COUNT"
+                            },
+                            "meta": {
+                                "request_id": "63c6ee2e-0301-47f2-8de6-c12b74643f75",
+                                "timestamp": "2026-08-26T16:32:19+07:00"
                             }
                         }
                     }
@@ -1902,13 +1910,13 @@
                     "step": "inbound.box",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/c9d736a4-0853-44b7-b498-303765b0477c/boxes",
+                        "uri": "/api/v1/inbound-documents/419aa4bf-24d5-415e-8d99-34a654a9647e/boxes",
                         "headers": {
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "ab14c0d4-8d29-4be7-956f-19395388840a",
-                            "box_code": "BOX-214-FP0TQ9"
+                            "line_id": "f85d2609-314d-4d34-8f88-259fd35b7a68",
+                            "box_code": "BOX-214-VDUGZL"
                         }
                     },
                     "response": {
@@ -1916,12 +1924,12 @@
                         "headers": [],
                         "body": {
                             "success": true,
-                            "message": "Đã đăng ký BOX cho dòng nhập COMPONENT.",
+                            "message": "Đã đăng ký BOX cho dòng nhập Linh kiện.",
                             "data": {
-                                "container_id": "c6c67043-31bc-46fb-aac6-cdb2e5a9aefb",
+                                "container_id": "26538076-4507-4dcb-8bb9-3502b66f1cde",
                                 "container_type": "BOX",
-                                "box_code": "BOX-214-FP0TQ9",
-                                "sku_id": "01a01d6a-8d9d-737b-9acc-122fa0d157ee",
+                                "box_code": "BOX-214-VDUGZL",
+                                "sku_id": "01a03d69-cf46-721c-bef8-69894c0b7f7c",
                                 "status": "EMPTY",
                                 "version": 1,
                                 "created": true,
@@ -1929,8 +1937,8 @@
                                 "movement_created": false
                             },
                             "meta": {
-                                "request_id": "9fd0abe2-c031-4776-a14f-5e22496b5712",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "c79fabf3-b3c5-4d2f-b5a9-b7de66072047",
+                                "timestamp": "2026-08-26T16:32:19+07:00"
                             }
                         }
                     }
@@ -1939,15 +1947,15 @@
                     "step": "inbound.scan",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/c9d736a4-0853-44b7-b498-303765b0477c/scan",
+                        "uri": "/api/v1/inbound-documents/419aa4bf-24d5-415e-8d99-34a654a9647e/scans",
                         "headers": {
                             "If-Match": "1",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "ab14c0d4-8d29-4be7-956f-19395388840a",
+                            "line_id": "f85d2609-314d-4d34-8f88-259fd35b7a68",
                             "quantity": 3,
-                            "container_id": "c6c67043-31bc-46fb-aac6-cdb2e5a9aefb"
+                            "container_id": "26538076-4507-4dcb-8bb9-3502b66f1cde"
                         }
                     },
                     "response": {
@@ -1958,11 +1966,11 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Inbound scan validated; stock_effect=NONE.",
+                            "message": "Đã ghi nhận mã quét nhập kho; tồn kho chưa thay đổi (stock_effect=NONE).",
                             "data": {
-                                "document_id": "c9d736a4-0853-44b7-b498-303765b0477c",
-                                "line_id": "ab14c0d4-8d29-4be7-956f-19395388840a",
-                                "sku_id": "01a01d6a-8d9d-737b-9acc-122fa0d157ee",
+                                "document_id": "419aa4bf-24d5-415e-8d99-34a654a9647e",
+                                "line_id": "f85d2609-314d-4d34-8f88-259fd35b7a68",
+                                "sku_id": "01a03d69-cf46-721c-bef8-69894c0b7f7c",
                                 "item_id": null,
                                 "quantity": 3,
                                 "required_quantity": 3,
@@ -1970,12 +1978,19 @@
                                 "status": "SCANNING",
                                 "stock_effect": "NONE",
                                 "movement_created": false,
+                                "payload_format": null,
+                                "payload_version": null,
+                                "sku_code": "LK-214-VMLAJF",
+                                "item_unique": null,
+                                "serial_number": null,
+                                "normalized_code_value": null,
+                                "resolution_status": null,
                                 "version": 2,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "b4cf9c2a-f81e-4a38-b64e-58d82ebf52aa",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "8c6350e5-4a44-47eb-88d3-b82b3c8a6aff",
+                                "timestamp": "2026-08-26T16:32:19+07:00"
                             }
                         }
                     }
@@ -1984,7 +1999,7 @@
                     "step": "post-receipt",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/c9d736a4-0853-44b7-b498-303765b0477c/post-receipt",
+                        "uri": "/api/v1/inbound-documents/419aa4bf-24d5-415e-8d99-34a654a9647e/post-receipt",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-append-only",
@@ -2000,20 +2015,21 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Post Receipt thành công.",
+                            "message": "Hoàn tất nhập kho thành công.",
                             "data": {
-                                "document_id": "c9d736a4-0853-44b7-b498-303765b0477c",
+                                "document_id": "419aa4bf-24d5-415e-8d99-34a654a9647e",
                                 "status": "POSTED",
                                 "movement_ids": [
-                                    "0272acd1-4458-4a79-9bae-14d6fb114bbf"
+                                    "70db9acf-1e68-4172-801d-637e39cb0b47"
                                 ],
                                 "stock_effect": "INCREASE",
+                                "inbound_quantity_source": "ACTUAL_SCAN",
                                 "version": 3,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "d0d13a7f-d2b9-4513-9f83-813d3bae6e04",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "e8c62378-6ef4-4e43-a5ca-f00895481102",
+                                "timestamp": "2026-08-26T16:32:19+07:00"
                             }
                         }
                     }
@@ -2023,36 +2039,36 @@
             "db_raw": {
                 "ledger_rows": [
                     {
-                        "id": "0272acd1-4458-4a79-9bae-14d6fb114bbf",
-                        "movement_no": "MV-20260820-ECFJD9DH",
-                        "business_key": "1d813805d127cb504b8e577b293318c096760d05",
+                        "id": "70db9acf-1e68-4172-801d-637e39cb0b47",
+                        "movement_no": "MV-20260826-ZZBVES3Y",
+                        "business_key": "f7c9ca0f6db4dae1ba987662b160debbb57725ff",
                         "movement_type": "RECEIPT",
-                        "warehouse_id": "01a01d6a-8d9d-737b-9acc-122f9fed3a44",
-                        "product_id": "01a01d6a-8d9d-737b-9acc-122fa0d157ee",
+                        "warehouse_id": "01a03d69-cf46-721c-bef8-69894bd726c2",
+                        "product_id": "01a03d69-cf46-721c-bef8-69894c0b7f7c",
                         "stock_status": "AVAILABLE",
                         "qty_before": 0,
                         "qty_delta": 3,
                         "qty_after": 3,
-                        "stock_document_id": "c9d736a4-0853-44b7-b498-303765b0477c",
-                        "stock_document_line_id": "ab14c0d4-8d29-4be7-956f-19395388840a",
+                        "stock_document_id": "419aa4bf-24d5-415e-8d99-34a654a9647e",
+                        "stock_document_line_id": "f85d2609-314d-4d34-8f88-259fd35b7a68",
                         "original_movement_id": null,
-                        "created_by": "01a01d6a-8d9c-7002-99cf-b1c6e2acb1d1",
-                        "request_id": "d0d13a7f-d2b9-4513-9f83-813d3bae6e04",
-                        "occurred_at": "2026-08-20 11:25:17",
-                        "created_at": "2026-08-20 11:25:17",
-                        "sku_id": "01a01d6a-8d9d-737b-9acc-122fa0d157ee",
+                        "created_by": "01a03d69-cf45-72a1-ae7d-2e9c3161bcbb",
+                        "request_id": "e8c62378-6ef4-4e43-a5ca-f00895481102",
+                        "occurred_at": "2026-08-26 16:32:19",
+                        "created_at": "2026-08-26 16:32:19",
+                        "sku_id": "01a03d69-cf46-721c-bef8-69894c0b7f7c",
                         "quantity": 3,
                         "source_type": "STOCK_DOCUMENT",
-                        "source_id": "c9d736a4-0853-44b7-b498-303765b0477c",
-                        "source_line_id": "ab14c0d4-8d29-4be7-956f-19395388840a",
+                        "source_id": "419aa4bf-24d5-415e-8d99-34a654a9647e",
+                        "source_line_id": "f85d2609-314d-4d34-8f88-259fd35b7a68",
                         "item_id": null,
                         "container_id": null,
                         "correction_chain_id": null,
                         "idempotency_record_id": null
                     }
                 ],
-                "update_rejected_with": "SQLSTATE[23000]: Integrity constraint violation: 19 stock_movements is append-only under HN-WMS-ERD-DD-001 (Connection: sqlite, Database: :memory:, SQL: update \"stock_movements\" set \"qty_delta\" = 999 where \"id\" = 0272acd1-4458-4a79-9bae-14d6fb114bbf)",
-                "delete_rejected_with": "SQLSTATE[23000]: Integrity constraint violation: 19 stock_movements is append-only under HN-WMS-ERD-DD-001 (Connection: sqlite, Database: :memory:, SQL: delete from \"stock_movements\" where \"id\" = 0272acd1-4458-4a79-9bae-14d6fb114bbf)"
+                "update_rejected_with": "SQLSTATE[23000]: Integrity constraint violation: 19 stock_movements is append-only under HN-WMS-ERD-DD-001 (Connection: sqlite, Database: :memory:, SQL: update \"stock_movements\" set \"qty_delta\" = 999 where \"id\" = 70db9acf-1e68-4172-801d-637e39cb0b47)",
+                "delete_rejected_with": "SQLSTATE[23000]: Integrity constraint violation: 19 stock_movements is append-only under HN-WMS-ERD-DD-001 (Connection: sqlite, Database: :memory:, SQL: delete from \"stock_movements\" where \"id\" = 70db9acf-1e68-4172-801d-637e39cb0b47)"
             },
             "verdict": "PASS"
         },
@@ -2067,14 +2083,8 @@
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "dst_warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
-                            "source_name": "NCC retest WWHN-214",
-                            "lines": [
-                                {
-                                    "product_id": "01a01d6a-8e72-70ca-9b04-ec33aec7367c",
-                                    "qty_planned": 6
-                                }
-                            ]
+                            "dst_warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
+                            "source_name": "NCC retest WWHN-214"
                         }
                     },
                     "response": {
@@ -2084,69 +2094,62 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Tạo phiếu nhập kho thành công.",
+                            "message": "Đã tạo phiếu nhập. Quét hàng để hệ thống tự hình thành SKU và số lượng thực nhận.",
                             "data": {
-                                "id": "e63e1f6c-4b47-4011-8e6a-c64946045e29",
+                                "id": "677a06be-83ef-4cf8-b1ff-6c8df6f39db1",
+                                "stock_document_id": "677a06be-83ef-4cf8-b1ff-6c8df6f39db1",
+                                "doc_no": "PN-20260826163220-SLEN",
                                 "doc_type": "receipt",
-                                "doc_no": "PN-20260820112517-COEJ",
-                                "doc_date": "2026-08-20",
+                                "doc_date": "2026-08-26",
                                 "status": "DRAFT",
-                                "src_warehouse_id": null,
-                                "dst_warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
-                                "note": null,
-                                "create_idempotency_key": null,
-                                "submitted_by": null,
-                                "submitted_at": null,
-                                "approved_by": null,
-                                "approved_at": null,
-                                "posted_by": null,
-                                "posted_at": null,
-                                "closed_by": null,
-                                "closed_at": null,
-                                "reversed_by": null,
-                                "reversed_at": null,
-                                "reverse_reason": null,
-                                "reject_reason": null,
-                                "rejected_by": null,
-                                "rejected_at": null,
-                                "cancel_reason": null,
-                                "cancelled_by": null,
-                                "cancelled_at": null,
-                                "created_by": "01a01d6a-8e70-7135-9be9-b13aa165b517",
-                                "updated_by": "01a01d6a-8e70-7135-9be9-b13aa165b517",
-                                "created_at": "2026-08-20 11:25:17",
-                                "updated_at": "2026-08-20 11:25:17",
-                                "deleted_at": null,
+                                "dst_warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
                                 "source_name": "NCC retest WWHN-214",
-                                "outbound_request_id": null,
-                                "agency_id": null,
-                                "recipient_name": null,
-                                "recipient_address": null,
-                                "version": 1,
-                                "recipient_contact_phone": null,
                                 "source_reference": "NCC retest WWHN-214",
-                                "lines": [
-                                    {
-                                        "id": "2d20f8c0-9530-4fac-a235-a6164963f9f7",
-                                        "stock_document_id": "e63e1f6c-4b47-4011-8e6a-c64946045e29",
-                                        "line_no": 1,
-                                        "product_id": "01a01d6a-8e72-70ca-9b04-ec33aec7367c",
-                                        "qty_planned": 6,
-                                        "qty_actual": 6,
-                                        "scanned_qty": 0,
-                                        "created_at": "2026-08-20 11:25:17",
-                                        "updated_at": "2026-08-20 11:25:17",
-                                        "outbound_request_line_id": null,
-                                        "import_batch_id": null,
-                                        "note": null,
-                                        "version": 1,
-                                        "item_instance_id": null
-                                    }
-                                ]
+                                "note": null,
+                                "version": 1,
+                                "lines": [],
+                                "qty_planned": 0,
+                                "scanned_qty": 0,
+                                "inbound_quantity_source": "ACTUAL_SCAN"
                             },
                             "meta": {
-                                "request_id": "c9436b92-3891-4dbe-b996-d083de9cd17e",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "cabbfa4e-cf38-41bf-ba06-100d4c946925",
+                                "timestamp": "2026-08-26T16:32:20+07:00"
+                            }
+                        }
+                    }
+                },
+                {
+                    "step": "inbound.component-line",
+                    "request": {
+                        "method": "POST",
+                        "uri": "/api/v1/inbound-documents/677a06be-83ef-4cf8-b1ff-6c8df6f39db1/component-lines",
+                        "headers": {
+                            "Authorization": "Bearer ***masked***"
+                        },
+                        "body": {
+                            "sku_id": "01a03d69-d3ee-7311-b077-c9bce78308e9"
+                        }
+                    },
+                    "response": {
+                        "status": 200,
+                        "headers": [],
+                        "body": {
+                            "success": true,
+                            "message": "Đã sẵn sàng ghi nhận linh kiện thực tế theo Box.",
+                            "data": {
+                                "line_id": "cd00645b-e59c-4dc9-b3c8-bc08547c89a1",
+                                "document_id": "677a06be-83ef-4cf8-b1ff-6c8df6f39db1",
+                                "sku_id": "01a03d69-d3ee-7311-b077-c9bce78308e9",
+                                "sku_code": "LK-214-RD8GTO",
+                                "sku_name": "Linh kiện retest WWHN-214",
+                                "is_serial_tracked": false,
+                                "scanned_qty": 0,
+                                "quantity_source": "ACTUAL_BOX_COUNT"
+                            },
+                            "meta": {
+                                "request_id": "4e63bab2-972c-4daa-a64f-0b729ae17c4a",
+                                "timestamp": "2026-08-26T16:32:20+07:00"
                             }
                         }
                     }
@@ -2155,13 +2158,13 @@
                     "step": "inbound.box",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/e63e1f6c-4b47-4011-8e6a-c64946045e29/boxes",
+                        "uri": "/api/v1/inbound-documents/677a06be-83ef-4cf8-b1ff-6c8df6f39db1/boxes",
                         "headers": {
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "2d20f8c0-9530-4fac-a235-a6164963f9f7",
-                            "box_code": "BOX-214-HINU09"
+                            "line_id": "cd00645b-e59c-4dc9-b3c8-bc08547c89a1",
+                            "box_code": "BOX-214-67A3XS"
                         }
                     },
                     "response": {
@@ -2169,12 +2172,12 @@
                         "headers": [],
                         "body": {
                             "success": true,
-                            "message": "Đã đăng ký BOX cho dòng nhập COMPONENT.",
+                            "message": "Đã đăng ký BOX cho dòng nhập Linh kiện.",
                             "data": {
-                                "container_id": "682b7073-914b-47f8-ba47-e43d9001fba0",
+                                "container_id": "9feb51a1-1ba2-4862-991a-f578b93a9257",
                                 "container_type": "BOX",
-                                "box_code": "BOX-214-HINU09",
-                                "sku_id": "01a01d6a-8e72-70ca-9b04-ec33aec7367c",
+                                "box_code": "BOX-214-67A3XS",
+                                "sku_id": "01a03d69-d3ee-7311-b077-c9bce78308e9",
                                 "status": "EMPTY",
                                 "version": 1,
                                 "created": true,
@@ -2182,8 +2185,8 @@
                                 "movement_created": false
                             },
                             "meta": {
-                                "request_id": "c277b641-d944-45c4-84b0-5f90d2072d24",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "447bb439-98de-4d5b-9d5e-1a0292f6d584",
+                                "timestamp": "2026-08-26T16:32:20+07:00"
                             }
                         }
                     }
@@ -2192,15 +2195,15 @@
                     "step": "inbound.scan",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/e63e1f6c-4b47-4011-8e6a-c64946045e29/scan",
+                        "uri": "/api/v1/inbound-documents/677a06be-83ef-4cf8-b1ff-6c8df6f39db1/scans",
                         "headers": {
                             "If-Match": "1",
                             "Authorization": "Bearer ***masked***"
                         },
                         "body": {
-                            "line_id": "2d20f8c0-9530-4fac-a235-a6164963f9f7",
+                            "line_id": "cd00645b-e59c-4dc9-b3c8-bc08547c89a1",
                             "quantity": 6,
-                            "container_id": "682b7073-914b-47f8-ba47-e43d9001fba0"
+                            "container_id": "9feb51a1-1ba2-4862-991a-f578b93a9257"
                         }
                     },
                     "response": {
@@ -2211,11 +2214,11 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Inbound scan validated; stock_effect=NONE.",
+                            "message": "Đã ghi nhận mã quét nhập kho; tồn kho chưa thay đổi (stock_effect=NONE).",
                             "data": {
-                                "document_id": "e63e1f6c-4b47-4011-8e6a-c64946045e29",
-                                "line_id": "2d20f8c0-9530-4fac-a235-a6164963f9f7",
-                                "sku_id": "01a01d6a-8e72-70ca-9b04-ec33aec7367c",
+                                "document_id": "677a06be-83ef-4cf8-b1ff-6c8df6f39db1",
+                                "line_id": "cd00645b-e59c-4dc9-b3c8-bc08547c89a1",
+                                "sku_id": "01a03d69-d3ee-7311-b077-c9bce78308e9",
                                 "item_id": null,
                                 "quantity": 6,
                                 "required_quantity": 6,
@@ -2223,12 +2226,19 @@
                                 "status": "SCANNING",
                                 "stock_effect": "NONE",
                                 "movement_created": false,
+                                "payload_format": null,
+                                "payload_version": null,
+                                "sku_code": "LK-214-RD8GTO",
+                                "item_unique": null,
+                                "serial_number": null,
+                                "normalized_code_value": null,
+                                "resolution_status": null,
                                 "version": 2,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "b07edd98-226e-4288-a567-74fe3407f33c",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "67dcab74-8fbe-43f9-a9ba-3ebd6f91510a",
+                                "timestamp": "2026-08-26T16:32:20+07:00"
                             }
                         }
                     }
@@ -2237,7 +2247,7 @@
                     "step": "post-receipt",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/inbound-documents/e63e1f6c-4b47-4011-8e6a-c64946045e29/post-receipt",
+                        "uri": "/api/v1/inbound-documents/677a06be-83ef-4cf8-b1ff-6c8df6f39db1/post-receipt",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-recon-rcv",
@@ -2253,20 +2263,21 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Post Receipt thành công.",
+                            "message": "Hoàn tất nhập kho thành công.",
                             "data": {
-                                "document_id": "e63e1f6c-4b47-4011-8e6a-c64946045e29",
+                                "document_id": "677a06be-83ef-4cf8-b1ff-6c8df6f39db1",
                                 "status": "POSTED",
                                 "movement_ids": [
-                                    "db84e731-dbfe-4ae0-b7b7-6f96ea5c1121"
+                                    "5f1cd17d-6811-42d8-a997-394b1c452230"
                                 ],
                                 "stock_effect": "INCREASE",
+                                "inbound_quantity_source": "ACTUAL_SCAN",
                                 "version": 3,
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "e91011f1-3751-4456-bbd0-0193b8faf2a6",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "af41ac60-e20e-4c4d-afce-6748802fbb4e",
+                                "timestamp": "2026-08-26T16:32:20+07:00"
                             }
                         }
                     }
@@ -2275,7 +2286,7 @@
                     "step": "post-issue",
                     "request": {
                         "method": "POST",
-                        "uri": "/api/v1/outbound-documents/b2ead34b-ed8a-41ff-b9e7-2acb245bbe25/post-issue",
+                        "uri": "/api/v1/outbound-documents/9572b9f6-8019-4715-b66f-ef2dcb4a4ef2/post-issue",
                         "headers": {
                             "If-Match": "2",
                             "Idempotency-Key": "w214-recon-iss",
@@ -2291,23 +2302,25 @@
                         },
                         "body": {
                             "success": true,
-                            "message": "Post Issue thành công; tồn được trừ tại bước hoàn tất này.",
+                            "message": "Hoàn tất xuất kho thành công; tồn được trừ tại bước hoàn tất này.",
                             "data": {
-                                "document_id": "b2ead34b-ed8a-41ff-b9e7-2acb245bbe25",
+                                "document_id": "9572b9f6-8019-4715-b66f-ef2dcb4a4ef2",
                                 "status": "POSTED",
                                 "movement_ids": [
-                                    "49b09631-8711-4796-a529-25d4993d4600"
+                                    "4430552a-1c0e-4d7f-a0de-44305ec66ee5"
                                 ],
                                 "stock_effect": "DECREASE",
                                 "rfid_required": false,
                                 "version": 3,
-                                "packing_label_id": "e13355e8-f5b5-4f53-9a83-97eedbb42a49",
-                                "packing_label_applied": true,
+                                "packing_label_applied": false,
+                                "packing_label_required": false,
+                                "packing_label_bypassed": true,
+                                "packing_label_id": "f2872dd6-9f90-4a26-9df7-7649f1f31e2b",
                                 "replayed": false
                             },
                             "meta": {
-                                "request_id": "351a4e39-c019-4146-8103-02f00a54381b",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "d2c17275-ae74-4427-87c3-865c3ec8c097",
+                                "timestamp": "2026-08-26T16:32:21+07:00"
                             }
                         }
                     }
@@ -2316,7 +2329,7 @@
                     "step": "report.reconciliation.component",
                     "request": {
                         "method": "GET",
-                        "uri": "/api/v1/reports/inventory-reconciliation?product_id=01a01d6a-8e72-70ca-9b04-ec33aec7367c",
+                        "uri": "/api/v1/reports/inventory-reconciliation?product_id=01a03d69-d3ee-7311-b077-c9bce78308e9",
                         "headers": {
                             "Authorization": "Bearer ***masked***"
                         },
@@ -2351,11 +2364,11 @@
                                 },
                                 "rows": [
                                     {
-                                        "id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce|01a01d6a-8e72-70ca-9b04-ec33aec7367c|AVAILABLE",
-                                        "warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
+                                        "id": "01a03d69-d3ed-7078-97b3-38cf1785219a|01a03d69-d3ee-7311-b077-c9bce78308e9|AVAILABLE",
+                                        "warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
                                         "warehouse_code": "KHO-TONG-HN",
-                                        "product_id": "01a01d6a-8e72-70ca-9b04-ec33aec7367c",
-                                        "product_code": "LK-214-NIGYKC",
+                                        "product_id": "01a03d69-d3ee-7311-b077-c9bce78308e9",
+                                        "product_code": "LK-214-RD8GTO",
                                         "product_name": "Linh kiện retest WWHN-214",
                                         "category_id": null,
                                         "category": "",
@@ -2374,7 +2387,7 @@
                                         "balance_exists": true,
                                         "mismatch_reason": null,
                                         "reconciliation_status": "MATCH",
-                                        "updated_at": "2026-08-20 11:25:17",
+                                        "updated_at": "2026-08-26 16:32:20",
                                         "serial_subledger_status": "NOT_APPLICABLE",
                                         "quantity_subledger_status": "NOT_APPLICABLE",
                                         "container_integrity_status": "MATCH",
@@ -2384,8 +2397,8 @@
                                 "mismatches": []
                             },
                             "meta": {
-                                "request_id": "d537d3ab-a8b8-427b-9772-546dc6274f43",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "74f649cb-6873-400c-bfbe-2d8aade1fd79",
+                                "timestamp": "2026-08-26T16:32:21+07:00"
                             }
                         }
                     }
@@ -2394,7 +2407,7 @@
                     "step": "report.reconciliation.product",
                     "request": {
                         "method": "GET",
-                        "uri": "/api/v1/reports/inventory-reconciliation?product_id=01a01d6a-8e8a-7067-9850-a977eeee3eae",
+                        "uri": "/api/v1/reports/inventory-reconciliation?product_id=01a03d69-d4a0-72e1-ba1f-62a0334466de",
                         "headers": {
                             "Authorization": "Bearer ***masked***"
                         },
@@ -2429,10 +2442,10 @@
                                 },
                                 "rows": [
                                     {
-                                        "id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce|01a01d6a-8e8a-7067-9850-a977eeee3eae|AVAILABLE",
-                                        "warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
+                                        "id": "01a03d69-d3ed-7078-97b3-38cf1785219a|01a03d69-d4a0-72e1-ba1f-62a0334466de|AVAILABLE",
+                                        "warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
                                         "warehouse_code": "KHO-TONG-HN",
-                                        "product_id": "01a01d6a-8e8a-7067-9850-a977eeee3eae",
+                                        "product_id": "01a03d69-d4a0-72e1-ba1f-62a0334466de",
                                         "product_code": "WWHN214-RECON-001",
                                         "product_name": "Product outbound test",
                                         "category_id": null,
@@ -2452,7 +2465,7 @@
                                         "balance_exists": true,
                                         "mismatch_reason": null,
                                         "reconciliation_status": "MATCH",
-                                        "updated_at": "2026-08-20 11:25:17",
+                                        "updated_at": "2026-08-26 16:32:21",
                                         "serial_subledger_status": "NOT_APPLICABLE",
                                         "quantity_subledger_status": "NOT_APPLICABLE",
                                         "container_integrity_status": "MATCH",
@@ -2462,8 +2475,8 @@
                                 "mismatches": []
                             },
                             "meta": {
-                                "request_id": "a00ed795-b55f-4bab-9f1f-933c36fe6069",
-                                "timestamp": "2026-08-20T11:25:17+07:00"
+                                "request_id": "eb11a6be-0f2a-4bc5-afb0-29b4c1f468d4",
+                                "timestamp": "2026-08-26T16:32:21+07:00"
                             }
                         }
                     }
@@ -2473,16 +2486,16 @@
             "db_raw": {
                 "ledger_vs_balance": [
                     {
-                        "warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
-                        "sku_id": "01a01d6a-8e72-70ca-9b04-ec33aec7367c",
+                        "warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
+                        "sku_id": "01a03d69-d3ee-7311-b077-c9bce78308e9",
                         "stock_status": "AVAILABLE",
                         "balance_quantity": 6,
                         "ledger_sum_qty_delta": 6,
                         "delta": 0
                     },
                     {
-                        "warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
-                        "sku_id": "01a01d6a-8e8a-7067-9850-a977eeee3eae",
+                        "warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
+                        "sku_id": "01a03d69-d4a0-72e1-ba1f-62a0334466de",
                         "stock_status": "AVAILABLE",
                         "balance_quantity": 0,
                         "ledger_sum_qty_delta": 0,
@@ -2492,40 +2505,40 @@
                 "reconciliation_incidents": 0,
                 "movements_all": [
                     {
-                        "id": "db84e731-dbfe-4ae0-b7b7-6f96ea5c1121",
-                        "movement_no": "MV-20260820-VU0YMISD",
-                        "business_key": "2a7f011272e597ce5c4b4ce418be3da51c06e0cd",
+                        "id": "5f1cd17d-6811-42d8-a997-394b1c452230",
+                        "movement_no": "MV-20260826-VZ0L62GN",
+                        "business_key": "2e59192cd5ec5780f733f8b00a037bab713a5688",
                         "movement_type": "RECEIPT",
-                        "warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
-                        "product_id": "01a01d6a-8e72-70ca-9b04-ec33aec7367c",
+                        "warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
+                        "product_id": "01a03d69-d3ee-7311-b077-c9bce78308e9",
                         "stock_status": "AVAILABLE",
                         "qty_before": 0,
                         "qty_delta": 6,
                         "qty_after": 6,
-                        "stock_document_id": "e63e1f6c-4b47-4011-8e6a-c64946045e29",
-                        "stock_document_line_id": "2d20f8c0-9530-4fac-a235-a6164963f9f7",
+                        "stock_document_id": "677a06be-83ef-4cf8-b1ff-6c8df6f39db1",
+                        "stock_document_line_id": "cd00645b-e59c-4dc9-b3c8-bc08547c89a1",
                         "original_movement_id": null,
-                        "created_by": "01a01d6a-8e70-7135-9be9-b13aa165b517",
-                        "request_id": "e91011f1-3751-4456-bbd0-0193b8faf2a6",
-                        "occurred_at": "2026-08-20 11:25:17",
-                        "created_at": "2026-08-20 11:25:17",
-                        "sku_id": "01a01d6a-8e72-70ca-9b04-ec33aec7367c",
+                        "created_by": "01a03d69-d3ec-7012-90ea-c7cdf7db2fcb",
+                        "request_id": "af41ac60-e20e-4c4d-afce-6748802fbb4e",
+                        "occurred_at": "2026-08-26 16:32:20",
+                        "created_at": "2026-08-26 16:32:20",
+                        "sku_id": "01a03d69-d3ee-7311-b077-c9bce78308e9",
                         "quantity": 6,
                         "source_type": "STOCK_DOCUMENT",
-                        "source_id": "e63e1f6c-4b47-4011-8e6a-c64946045e29",
-                        "source_line_id": "2d20f8c0-9530-4fac-a235-a6164963f9f7",
+                        "source_id": "677a06be-83ef-4cf8-b1ff-6c8df6f39db1",
+                        "source_line_id": "cd00645b-e59c-4dc9-b3c8-bc08547c89a1",
                         "item_id": null,
                         "container_id": null,
                         "correction_chain_id": null,
                         "idempotency_record_id": null
                     },
                     {
-                        "id": "2d9fecec-f66a-42b7-8974-2d3f2fe57eae",
-                        "movement_no": "MV-SEED-A0N3PP9U",
-                        "business_key": "seed-opening-0aaede78-65f2-497d-9c3e-4c399b705b6d",
+                        "id": "1cdb93c7-4a0e-444d-8200-7b9b95b89427",
+                        "movement_no": "MV-SEED-BYSS4BGD",
+                        "business_key": "seed-opening-9c9edfcd-9bcc-43f0-924b-f5a78465b4ce",
                         "movement_type": "RECEIPT",
-                        "warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
-                        "product_id": "01a01d6a-8e8a-7067-9850-a977eeee3eae",
+                        "warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
+                        "product_id": "01a03d69-d4a0-72e1-ba1f-62a0334466de",
                         "stock_status": "AVAILABLE",
                         "qty_before": 0,
                         "qty_delta": 1,
@@ -2533,14 +2546,14 @@
                         "stock_document_id": null,
                         "stock_document_line_id": null,
                         "original_movement_id": null,
-                        "created_by": "01a01d6a-8e70-7135-9be9-b13aa165b517",
+                        "created_by": "01a03d69-d3ec-7012-90ea-c7cdf7db2fcb",
                         "request_id": null,
-                        "occurred_at": "2026-08-20 11:25:17",
-                        "created_at": "2026-08-20 11:25:17",
-                        "sku_id": "01a01d6a-8e8a-7067-9850-a977eeee3eae",
+                        "occurred_at": "2026-08-26 16:32:21",
+                        "created_at": "2026-08-26 16:32:21",
+                        "sku_id": "01a03d69-d4a0-72e1-ba1f-62a0334466de",
                         "quantity": 1,
                         "source_type": "OPENING_BALANCE_SEED",
-                        "source_id": "b423b82a-a05e-4a92-aa6e-0202c940b2a2",
+                        "source_id": "5e0bce09-c399-4f34-b173-a97b5a24f728",
                         "source_line_id": null,
                         "item_id": null,
                         "container_id": null,
@@ -2548,29 +2561,29 @@
                         "idempotency_record_id": null
                     },
                     {
-                        "id": "49b09631-8711-4796-a529-25d4993d4600",
-                        "movement_no": "MV-20260820-VDFTXUOE",
-                        "business_key": "980feb64a696d8d885654b81d9d6eba036c35aaf",
+                        "id": "4430552a-1c0e-4d7f-a0de-44305ec66ee5",
+                        "movement_no": "MV-20260826-MNGMSLR1",
+                        "business_key": "e6ca308eea275d65cafc031fc0062b9a8b7028cf",
                         "movement_type": "ISSUE",
-                        "warehouse_id": "01a01d6a-8e72-70ca-9b04-ec33ae4915ce",
-                        "product_id": "01a01d6a-8e8a-7067-9850-a977eeee3eae",
+                        "warehouse_id": "01a03d69-d3ed-7078-97b3-38cf1785219a",
+                        "product_id": "01a03d69-d4a0-72e1-ba1f-62a0334466de",
                         "stock_status": "AVAILABLE",
                         "qty_before": 1,
                         "qty_delta": -1,
                         "qty_after": 0,
-                        "stock_document_id": "b2ead34b-ed8a-41ff-b9e7-2acb245bbe25",
-                        "stock_document_line_id": "0c0d23c1-015c-4b46-9837-dc806b6c1ee2",
+                        "stock_document_id": "9572b9f6-8019-4715-b66f-ef2dcb4a4ef2",
+                        "stock_document_line_id": "c0606350-95fa-44f6-afd8-370123a9c6f5",
                         "original_movement_id": null,
-                        "created_by": "01a01d6a-8e70-7135-9be9-b13aa165b517",
-                        "request_id": "351a4e39-c019-4146-8103-02f00a54381b",
-                        "occurred_at": "2026-08-20 11:25:17",
-                        "created_at": "2026-08-20 11:25:17",
-                        "sku_id": "01a01d6a-8e8a-7067-9850-a977eeee3eae",
+                        "created_by": "01a03d69-d3ec-7012-90ea-c7cdf7db2fcb",
+                        "request_id": "d2c17275-ae74-4427-87c3-865c3ec8c097",
+                        "occurred_at": "2026-08-26 16:32:21",
+                        "created_at": "2026-08-26 16:32:21",
+                        "sku_id": "01a03d69-d4a0-72e1-ba1f-62a0334466de",
                         "quantity": 1,
                         "source_type": "STOCK_DOCUMENT",
-                        "source_id": "b2ead34b-ed8a-41ff-b9e7-2acb245bbe25",
-                        "source_line_id": "0c0d23c1-015c-4b46-9837-dc806b6c1ee2",
-                        "item_id": "e6ee24b9-f31e-4c7d-b26b-3f3f7ac3d1a3",
+                        "source_id": "9572b9f6-8019-4715-b66f-ef2dcb4a4ef2",
+                        "source_line_id": "c0606350-95fa-44f6-afd8-370123a9c6f5",
+                        "item_id": "0ef4650b-ba5a-4ebd-98a9-a1758413a848",
                         "container_id": null,
                         "correction_chain_id": null,
                         "idempotency_record_id": null
@@ -2583,10 +2596,10 @@
     "ticket": "WWHN-214",
     "register_item": "DEV214-P1-04R (HARD GATE) + DEV214-P1-01R",
     "run": {
-        "candidate_sha": "0895c14a5cc1a39837a79ce5de2ac1669ddb16ef",
+        "candidate_sha": null,
         "driver": "sqlite",
-        "php": "8.3.30",
-        "executed_at": "2026-08-20T11:25:17+07:00",
+        "php": "8.3.33",
+        "executed_at": "2026-08-26T16:32:21+07:00",
         "producer": "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest"
     }
 }

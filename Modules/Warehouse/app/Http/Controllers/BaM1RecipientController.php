@@ -9,20 +9,43 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use OpenApi\Attributes as OA;
 
 /**
- * Recipient master backed by the historical `agencies` table so existing FKs in
- * outbound documents remain valid. `recipient_type` is authoritative for the four
- * business recipient classes confirmed on 2026-08-25.
+ * GĐ1 recipient master backed by historical agencies table.
+ * Exactly four business recipient classes are allowed.
  */
 class BaM1RecipientController extends Controller
 {
-    private const TYPES = ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'];
+    public const TYPES = ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'];
 
+    #[OA\Get(
+        path: '/api/v1/recipients',
+        operationId: 'recipient_list',
+        summary: 'Danh sách nơi nhận hàng (phân trang, filter recipient_type/market/region/status/keyword; alias /api/v1/agencies dùng chung handler)',
+        security: [['bearerAuth' => []]],
+        tags: ['25. Recipients'],
+        parameters: [
+            new OA\Parameter(name: 'recipient_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'])),
+            new OA\Parameter(name: 'market', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'region', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 10)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách nơi nhận hàng'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền agency.view'),
+        ]
+    )]
     public function index(Request $request)
     {
         $validated = $request->validate([
             'recipient_type' => ['nullable', Rule::in(self::TYPES)],
+            'market' => ['nullable', 'string', 'max:120'],
+            'region' => ['nullable', 'string', 'max:120'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
             'keyword' => ['nullable', 'string', 'max:200'],
             'page' => ['nullable', 'integer', 'min:1'],
@@ -30,11 +53,10 @@ class BaM1RecipientController extends Controller
         ]);
 
         $query = DB::table('agencies');
-        if (! empty($validated['recipient_type'])) {
-            $query->where('recipient_type', $validated['recipient_type']);
-        }
-        if (! empty($validated['status'])) {
-            $query->where('status', $validated['status']);
+        foreach (['recipient_type', 'market', 'region', 'status'] as $field) {
+            if (! empty($validated[$field])) {
+                $query->where($field, $validated[$field]);
+            }
         }
         if (! empty($validated['keyword'])) {
             $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
@@ -42,11 +64,13 @@ class BaM1RecipientController extends Controller
                 $nested->whereRaw('LOWER(agency_code) LIKE ?', [$keyword])
                     ->orWhereRaw('LOWER(agency_name) LIKE ?', [$keyword])
                     ->orWhereRaw("LOWER(COALESCE(contact_name, '')) LIKE ?", [$keyword])
-                    ->orWhereRaw("LOWER(COALESCE(phone, '')) LIKE ?", [$keyword]);
+                    ->orWhereRaw("LOWER(COALESCE(phone, '')) LIKE ?", [$keyword])
+                    ->orWhereRaw("LOWER(COALESCE(market, '')) LIKE ?", [$keyword])
+                    ->orWhereRaw("LOWER(COALESCE(region, '')) LIKE ?", [$keyword]);
             });
         }
 
-        $perPage = (int) ($validated['per_page'] ?? 50);
+        $perPage = (int) ($validated['per_page'] ?? 10);
         $page = (int) ($validated['page'] ?? 1);
         $total = (clone $query)->count();
         $rows = $query->orderBy('agency_name')->forPage($page, $perPage)->get();
@@ -65,6 +89,36 @@ class BaM1RecipientController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/v1/recipients',
+        operationId: 'recipient_create',
+        summary: 'Tạo nơi nhận hàng mới (alias /api/v1/agencies dùng chung handler)',
+        security: [['bearerAuth' => []]],
+        tags: ['25. Recipients'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['agency_code', 'agency_name', 'recipient_type'],
+                properties: [
+                    new OA\Property(property: 'agency_code', type: 'string', maxLength: 50, example: 'HN-DIST-001'),
+                    new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Nhà phân phối Hoa Nam Miền Bắc'),
+                    new OA\Property(property: 'recipient_type', type: 'string', enum: ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER']),
+                    new OA\Property(property: 'market', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'region', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, pattern: '^0\\d{9}$'),
+                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, default: 'ACTIVE'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Tạo nơi nhận hàng thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền agency.manage'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: agency_code đã tồn tại, phone sai định dạng)'),
+        ]
+    )]
     public function store(Request $request)
     {
         $validated = $this->validatePayload($request, null, false);
@@ -75,6 +129,8 @@ class BaM1RecipientController extends Controller
             'agency_code' => $validated['agency_code'],
             'agency_name' => $validated['agency_name'],
             'recipient_type' => $validated['recipient_type'],
+            'market' => $validated['market'] ?? null,
+            'region' => $validated['region'] ?? null,
             'contact_name' => $validated['contact_name'] ?? null,
             'phone' => $validated['phone'] ?? null,
             'address' => $validated['address'] ?? null,
@@ -82,11 +138,25 @@ class BaM1RecipientController extends Controller
             'created_at' => $now,
             'updated_at' => $now,
         ]);
-        $this->audit('RECIPIENT_CREATE', $id, $request, null, DB::table('agencies')->where('agency_id', $id)->first());
+        $after = DB::table('agencies')->where('agency_id', $id)->first();
+        $this->audit('RECIPIENT_CREATE', $id, $request, null, $after);
 
-        return response()->json(['success' => true, 'data' => DB::table('agencies')->where('agency_id', $id)->first()], 201);
+        return response()->json(['success' => true, 'data' => $after], 201);
     }
 
+    #[OA\Get(
+        path: '/api/v1/recipients/{id}',
+        operationId: 'recipient_detail',
+        summary: 'Chi tiết nơi nhận hàng (alias /api/v1/agencies/{id} dùng chung handler)',
+        security: [['bearerAuth' => []]],
+        tags: ['25. Recipients'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Chi tiết nơi nhận hàng'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy đối tượng nhận hàng'),
+        ]
+    )]
     public function show(string $id)
     {
         $row = DB::table('agencies')->where('agency_id', $id)->first();
@@ -97,6 +167,43 @@ class BaM1RecipientController extends Controller
         return response()->json(['success' => true, 'data' => $row]);
     }
 
+    #[OA\Patch(
+        path: '/api/v1/recipients/{id}',
+        operationId: 'recipient_update',
+        summary: 'Cập nhật nơi nhận hàng (alias /api/v1/agencies/{id} dùng chung handler)',
+        description: 'Header `If-Match` (version) là optimistic locking TÙY CHỌN — chỉ được kiểm tra khi client có '
+            .'gửi header này. `agency_code` là bất biến một khi đã dùng trên chứng từ (422 AGENCY_CODE_IMMUTABLE).',
+        security: [['bearerAuth' => []]],
+        tags: ['25. Recipients'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: false, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: false,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'agency_code', type: 'string', maxLength: 50),
+                    new OA\Property(property: 'agency_name', type: 'string', maxLength: 255),
+                    new OA\Property(property: 'recipient_type', type: 'string', enum: ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER']),
+                    new OA\Property(property: 'market', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'region', type: 'string', maxLength: 120, nullable: true),
+                    new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, pattern: '^0\\d{9}$'),
+                    new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật nơi nhận hàng thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền agency.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy đối tượng nhận hàng'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp version hiện tại'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ, hoặc đổi agency_code đã dùng trên chứng từ (AGENCY_CODE_IMMUTABLE)'),
+        ]
+    )]
     public function update(Request $request, string $id)
     {
         $before = DB::table('agencies')->where('agency_id', $id)->first();
@@ -104,7 +211,13 @@ class BaM1RecipientController extends Controller
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy đối tượng nhận hàng.');
         }
         $validated = $this->validatePayload($request, $id, true);
+        // Annex C updateAgency + ERD agencies.version: If-Match là optimistic locking,
+        // chỉ enforce khi client gửi header (parity với AgencyController để việc chuyển
+        // handler runtime không làm mất guard).
+        $this->assertVersionIfProvided($request, $before);
+        $this->assertCodeImmutableAfterUse($id, $validated, $before);
         if ($validated !== []) {
+            $validated['version'] = (int) ($before->version ?? 0) + 1;
             $validated['updated_at'] = now();
             DB::table('agencies')->where('agency_id', $id)->update($validated);
         }
@@ -112,6 +225,41 @@ class BaM1RecipientController extends Controller
         $this->audit('RECIPIENT_UPDATE', $id, $request, $before, $after);
 
         return response()->json(['success' => true, 'data' => $after]);
+    }
+
+    private function assertVersionIfProvided(Request $request, object $current): void
+    {
+        $header = (string) $request->header('If-Match', '');
+        if ($header === '') {
+            return;
+        }
+        $header = trim(preg_replace('/^W\//', '', $header) ?? $header, '" ');
+        if (! ctype_digit($header)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên.');
+        }
+        if ((int) $header !== (int) ($current->version ?? 0)) {
+            ApiError::abort(412, 'STALE_VERSION', 'Đối tượng nhận hàng đã được cập nhật bởi phiên khác; tải lại trước khi lưu.', [
+                'expected_version' => (int) $header,
+                'current_version' => (int) ($current->version ?? 0),
+            ]);
+        }
+    }
+
+    /**
+     * BR-AGY: mã nơi nhận đã xuất hiện trên chứng từ là bất biến — đổi mã sẽ làm
+     * lịch sử phiếu xuất trỏ sai định danh.
+     */
+    private function assertCodeImmutableAfterUse(string $id, array $validated, object $before): void
+    {
+        $newCode = $validated['agency_code'] ?? null;
+        if ($newCode === null || (string) $newCode === (string) $before->agency_code) {
+            return;
+        }
+        $used = DB::table('stock_documents')->where('agency_id', $id)->exists()
+            || DB::table('outbound_requests')->where('agency_id', $id)->exists();
+        if ($used) {
+            ApiError::abort(422, 'AGENCY_CODE_IMMUTABLE', 'Không thể đổi mã nơi nhận đã được dùng trên chứng từ.');
+        }
     }
 
     private function validatePayload(Request $request, ?string $id, bool $partial): array
@@ -124,6 +272,8 @@ class BaM1RecipientController extends Controller
             ],
             'agency_name' => [$required, 'string', 'max:255'],
             'recipient_type' => [$required, Rule::in(self::TYPES)],
+            'market' => ['nullable', 'string', 'max:120'],
+            'region' => ['nullable', 'string', 'max:120'],
             'contact_name' => ['nullable', 'string', 'max:200'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'address' => ['nullable', 'string', 'max:500'],

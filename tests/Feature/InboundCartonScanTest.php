@@ -6,12 +6,16 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
 /**
  * Inbound Carton Scan v1.0 (Implementation Delta 20/08/2026) — carton scan
- * context cho PRODUCT inbound:
+ * context cho PRODUCT inbound, cập nhật 2026-08-25 theo hợp đồng GĐ1
+ * scan-driven: phiếu header-only, item nhận qua composite QR new-item-candidate
+ * (identity đã tồn tại bị 409 ITEM_ALREADY_REGISTERED nên không còn scan bằng
+ * item_id NEW như bản cũ).
  *
  *  - classify expose container_id/container_code/container_type (§3.1, CTN-T01);
  *  - PRODUCT scan mang container_id được verify carton usable/CARTON/primary SKU
@@ -25,6 +29,7 @@ use Tests\TestCase;
  */
 class InboundCartonScanTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -52,52 +57,35 @@ class InboundCartonScanTest extends TestCase
         return $containerId;
     }
 
-    /** item_instances.item_status=NEW — receivable theo assertItemAvailableForReceipt(). */
-    private function seedReceivableItem(string $skuId): string
-    {
-        $itemId = (string) Str::uuid();
-        DB::table('item_instances')->insert([
-            'item_id' => $itemId,
-            'sku_id' => $skuId,
-            'serial_number' => 'SN-'.Str::upper(Str::random(10)),
-            'item_status' => 'NEW',
-            'item_condition' => 'NORMAL',
-            'version' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        return $itemId;
-    }
-
-    /** @return array{headers: array, document_id: string, line_id: string, sku_id: string} */
-    private function draftProductInbound(string $skuCode, int $qtyPlanned): array
+    /** @return array{headers: array, document_id: string, sku_id: string, sku_code: string} */
+    private function draftProductInbound(string $skuCode): array
     {
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
         $sku = $this->productSkuFixture($skuCode);
-
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'NCC Carton Scan v1.0',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qtyPlanned]],
-        ], $headers)->assertCreated();
+        ]);
 
         return [
             'headers' => $headers,
-            'document_id' => (string) $create->json('data.id'),
-            'line_id' => (string) $create->json('data.lines.0.id'),
+            'document_id' => $document['document_id'],
             'sku_id' => (string) $sku->sku_id,
+            'sku_code' => $skuCode,
         ];
     }
 
-    private function scanItemIntoDocument(
+    /** Composite QR scan (new item candidate) — có/không kèm carton context. */
+    private function scanQrIntoDocument(
         array $ctx,
-        string $itemId,
+        string $itemUnique,
         int $ifMatch,
         ?string $containerId = null
     ) {
-        $body = ['line_id' => $ctx['line_id'], 'quantity' => 1, 'item_id' => $itemId];
+        $body = [
+            'quantity' => 1,
+            'code_value' => $this->compositeProductQr($ctx['sku_code'], $itemUnique),
+        ];
         if ($containerId !== null) {
             $body['container_id'] = $containerId;
         }
@@ -156,33 +144,32 @@ class InboundCartonScanTest extends TestCase
      */
     public function test_product_scan_binds_carton_and_loose_item_stays_unbound(): void
     {
-        $ctx = $this->draftProductInbound('CTN-SCAN-SKU-001', 2);
+        $ctx = $this->draftProductInbound('CTN-SCAN-SKU-001');
         $cartonId = $this->cartonFixture('CTN-SCAN-001', $ctx['sku_id']);
-        $itemInCarton = $this->seedReceivableItem($ctx['sku_id']);
-        $looseItem = $this->seedReceivableItem($ctx['sku_id']);
 
         $movementsBefore = DB::table('stock_movements')->count();
         $balancesBefore = DB::table('inventory_balances')->count();
 
-        $this->scanItemIntoDocument($ctx, $itemInCarton, 1, $cartonId)
-            ->assertOk()
+        $first = $this->scanQrIntoDocument($ctx, 'SN-CTN-SCAN-0001', 1, $cartonId);
+        $first->assertOk()
             ->assertJsonPath('data.stock_effect', 'NONE')
             ->assertJsonPath('data.movement_created', false)
             ->assertJsonPath('data.scanned_quantity', 1);
+        $lineId = (string) $first->json('data.line_id');
         $this->assertDatabaseHas('inbound_scan_entries', [
-            'inbound_line_id' => $ctx['line_id'],
-            'item_id' => $itemInCarton,
+            'inbound_line_id' => $lineId,
+            'candidate_item_unique' => 'SN-CTN-SCAN-0001',
             'container_id' => $cartonId,
             'status' => 'ACTIVE',
         ]);
 
         // Máy lẻ: không gửi container_id — entry mới phải có container_id null.
-        $this->scanItemIntoDocument($ctx, $looseItem, 2)
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-SCAN-0002', 2)
             ->assertOk()
             ->assertJsonPath('data.scanned_quantity', 2);
         $looseEntry = DB::table('inbound_scan_entries')
-            ->where('inbound_line_id', $ctx['line_id'])
-            ->where('item_id', $looseItem)
+            ->where('inbound_line_id', $lineId)
+            ->where('candidate_item_unique', 'SN-CTN-SCAN-0002')
             ->first();
         $this->assertNotNull($looseEntry);
         $this->assertNull($looseEntry->container_id, 'Máy lẻ không được gắn vào carton đã kết thúc.');
@@ -193,35 +180,35 @@ class InboundCartonScanTest extends TestCase
 
     /**
      * §3.2 validation: carton không tồn tại / sai loại (BOX) / primary SKU không
-     * khớp dòng nhập đều bị reject và không tạo scan entry.
+     * khớp dòng nhập đều bị reject và không tạo scan entry (dòng scan-driven
+     * materialize trong cùng transaction cũng rollback theo).
      */
     public function test_product_scan_rejects_invalid_carton_context(): void
     {
-        $ctx = $this->draftProductInbound('CTN-VALID-SKU-001', 1);
+        $ctx = $this->draftProductInbound('CTN-VALID-SKU-001');
         $otherSku = $this->productSkuFixture('CTN-VALID-SKU-OTHER');
-        $item = $this->seedReceivableItem($ctx['sku_id']);
         $entriesBefore = DB::table('inbound_scan_entries')->count();
 
         // Carton không tồn tại.
-        $this->scanItemIntoDocument($ctx, $item, 1, (string) Str::uuid())
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-VALID-0001', 1, (string) Str::uuid())
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'CARTON_NOT_FOUND');
 
         // Container loại BOX không được nhận PRODUCT item.
         $boxId = $this->cartonFixture('CTN-VALID-BOX-001', $ctx['sku_id'], 'BOX');
-        $this->scanItemIntoDocument($ctx, $item, 1, $boxId)
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-VALID-0001', 1, $boxId)
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'CARTON_TYPE_INVALID');
 
         // Carton đăng ký primary SKU khác SKU của dòng nhập.
         $wrongSkuCarton = $this->cartonFixture('CTN-VALID-WRONG-SKU', $otherSku->sku_id);
-        $this->scanItemIntoDocument($ctx, $item, 1, $wrongSkuCarton)
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-VALID-0001', 1, $wrongSkuCarton)
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'CARTON_SKU_MISMATCH');
 
         // Carton CLOSED không còn nhận scan mới.
         $closedCarton = $this->cartonFixture('CTN-VALID-CLOSED', $ctx['sku_id'], 'CARTON', 'CLOSED');
-        $this->scanItemIntoDocument($ctx, $item, 1, $closedCarton)
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-VALID-0001', 1, $closedCarton)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'CARTON_NOT_USABLE');
 
@@ -230,7 +217,12 @@ class InboundCartonScanTest extends TestCase
             DB::table('inbound_scan_entries')->count(),
             'Scan bị reject không được để lại inbound_scan_entries.'
         );
-        $this->assertDatabaseHas('stock_document_lines', ['id' => $ctx['line_id'], 'scanned_qty' => 0]);
+        // Scan-driven: mọi lần scan lỗi rollback cả dòng materialize tạm.
+        $this->assertSame(
+            0,
+            DB::table('stock_document_lines')->where('stock_document_id', $ctx['document_id'])->count(),
+            'Scan bị reject không được để lại dòng materialize.'
+        );
     }
 
     /**
@@ -242,25 +234,24 @@ class InboundCartonScanTest extends TestCase
      */
     public function test_first_scan_locks_carton_primary_sku_for_unregistered_carton(): void
     {
-        $ctx = $this->draftProductInbound('CTN-LOCK-SKU-001', 2);
+        $ctx = $this->draftProductInbound('CTN-LOCK-SKU-001');
         $cartonId = $this->cartonFixture('CTN-LOCK-001', null);
         $this->assertDatabaseHas('containers', ['container_id' => $cartonId, 'primary_sku_id' => null]);
 
-        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 1, $cartonId)
-            ->assertOk();
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-LOCK-0001', 1, $cartonId)->assertOk();
         $this->assertDatabaseHas('containers', [
             'container_id' => $cartonId,
             'primary_sku_id' => $ctx['sku_id'],
         ]);
 
         // Item cùng SKU vẫn quét bình thường vào carton đã khoá.
-        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 2, $cartonId)
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-LOCK-0002', 2, $cartonId)
             ->assertOk()
             ->assertJsonPath('data.scanned_quantity', 2);
 
         // Một document khác, SKU khác, cùng cố quét vào carton đã khoá phải bị chặn.
-        $otherCtx = $this->draftProductInbound('CTN-LOCK-SKU-OTHER-001', 1);
-        $this->scanItemIntoDocument($otherCtx, $this->seedReceivableItem($otherCtx['sku_id']), 1, $cartonId)
+        $otherCtx = $this->draftProductInbound('CTN-LOCK-SKU-OTHER-001');
+        $this->scanQrIntoDocument($otherCtx, 'SN-CTN-LOCK-OTHER-0001', 1, $cartonId)
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'CARTON_SKU_MISMATCH');
 
@@ -279,10 +270,10 @@ class InboundCartonScanTest extends TestCase
      */
     public function test_complete_scan_is_audit_only_and_duplicate_harmless(): void
     {
-        $ctx = $this->draftProductInbound('CTN-COMPLETE-SKU-001', 3);
+        $ctx = $this->draftProductInbound('CTN-COMPLETE-SKU-001');
         $cartonId = $this->cartonFixture('CTN-COMPLETE-001', $ctx['sku_id']);
-        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 1, $cartonId)->assertOk();
-        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 2, $cartonId)->assertOk();
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-COMPLETE-0001', 1, $cartonId)->assertOk();
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-COMPLETE-0002', 2, $cartonId)->assertOk();
 
         $versionBefore = (int) DB::table('stock_documents')->where('id', $ctx['document_id'])->value('version');
         $cartonStatusBefore = (string) DB::table('containers')->where('container_id', $cartonId)->value('status');
@@ -337,7 +328,7 @@ class InboundCartonScanTest extends TestCase
      */
     public function test_complete_scan_guards(): void
     {
-        $ctx = $this->draftProductInbound('CTN-GUARD-SKU-001', 2);
+        $ctx = $this->draftProductInbound('CTN-GUARD-SKU-001');
         $cartonId = $this->cartonFixture('CTN-GUARD-001', $ctx['sku_id']);
 
         // Chưa quét gì vào carton → không có gì để xác nhận.
@@ -347,16 +338,18 @@ class InboundCartonScanTest extends TestCase
             $ctx['headers']
         )->assertStatus(422)->assertJsonPath('error.code', 'CARTON_NO_ACTIVE_SCANS');
 
-        // Entry REMOVED không còn tính là ACTIVE (ERD bảng 28).
-        $item = $this->seedReceivableItem($ctx['sku_id']);
-        $this->scanItemIntoDocument($ctx, $item, 1, $cartonId)->assertOk();
-        $entryId = (string) DB::table('inbound_scan_entries')
-            ->where('inbound_line_id', $ctx['line_id'])
-            ->where('item_id', $item)
-            ->value('id');
-        $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/unscan", [
-            'inbound_scan_entry_id' => $entryId,
-        ], $ctx['headers'] + ['If-Match' => '2'])->assertOk();
+        // Entry REMOVED không còn tính là ACTIVE (ERD bảng 28) — gỡ mã qua đúng
+        // endpoint nghiệp vụ để guard được kiểm chứng trên đường chạy thật.
+        $first = $this->scanQrIntoDocument($ctx, 'SN-CTN-GUARD-0001', 1, $cartonId);
+        $first->assertOk();
+        $entry = DB::table('inbound_scan_entries')
+            ->where('candidate_item_unique', 'SN-CTN-GUARD-0001')
+            ->first();
+        $this->postJson(
+            "/api/v1/inbound-documents/{$ctx['document_id']}/unscan",
+            ['inbound_scan_entry_id' => (string) $entry->id],
+            $ctx['headers'] + ['If-Match' => (string) $first->json('data.version')]
+        )->assertOk()->assertJsonPath('data.status', 'REMOVED');
         $this->postJson(
             "/api/v1/inbound-documents/{$ctx['document_id']}/cartons/{$cartonId}/complete-scan",
             [],
@@ -386,10 +379,10 @@ class InboundCartonScanTest extends TestCase
      */
     public function test_rescan_same_carton_after_complete_supplements_missed_item(): void
     {
-        $ctx = $this->draftProductInbound('CTN-RESCAN-SKU-001', 2);
+        $ctx = $this->draftProductInbound('CTN-RESCAN-SKU-001');
         $cartonId = $this->cartonFixture('CTN-RESCAN-001', $ctx['sku_id']);
 
-        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 1, $cartonId)->assertOk();
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-RESCAN-0001', 1, $cartonId)->assertOk();
         $this->postJson(
             "/api/v1/inbound-documents/{$ctx['document_id']}/cartons/{$cartonId}/complete-scan",
             [],
@@ -398,7 +391,7 @@ class InboundCartonScanTest extends TestCase
 
         // Phát hiện sót 1 máy: FE set lại active carton (không có state server nào
         // chặn) và item bổ sung tiếp tục mang container_id của chính carton đó.
-        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 2, $cartonId)->assertOk();
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-RESCAN-0002', 2, $cartonId)->assertOk();
         $this->postJson(
             "/api/v1/inbound-documents/{$ctx['document_id']}/cartons/{$cartonId}/complete-scan",
             [],
@@ -415,9 +408,9 @@ class InboundCartonScanTest extends TestCase
     /** Complete-scan trên phiếu đã POSTED bị chặn bằng STATE_CONFLICT (§3.3 guard). */
     public function test_complete_scan_rejected_after_document_posted(): void
     {
-        $ctx = $this->draftProductInbound('CTN-POSTED-SKU-001', 1);
+        $ctx = $this->draftProductInbound('CTN-POSTED-SKU-001');
         $cartonId = $this->cartonFixture('CTN-POSTED-001', $ctx['sku_id']);
-        $this->scanItemIntoDocument($ctx, $this->seedReceivableItem($ctx['sku_id']), 1, $cartonId)->assertOk();
+        $this->scanQrIntoDocument($ctx, 'SN-CTN-POSTED-0001', 1, $cartonId)->assertOk();
 
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/post-receipt", [], $ctx['headers'] + [
             'If-Match' => '2',

@@ -16,9 +16,9 @@ class StockDocumentLine extends Model
 
     protected $keyType = 'string';
 
+    // completion_type/shortage_reason đã bị gỡ khỏi schema (migration 2026_08_10_000620).
     protected $fillable = [
         'stock_document_id', 'line_no', 'product_id', 'item_instance_id', 'qty_planned', 'qty_actual', 'scanned_qty',
-        'completion_type', 'shortage_reason',
     ];
 
     protected $casts = [

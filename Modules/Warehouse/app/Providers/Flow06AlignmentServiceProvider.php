@@ -5,38 +5,52 @@ namespace Modules\Warehouse\Providers;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
+use Modules\Warehouse\Http\Controllers\BaM1InboundComponentController;
+use Modules\Warehouse\Http\Controllers\BaM1InboundDocumentController;
+use Modules\Warehouse\Http\Controllers\BaM1InboundScanCorrectionController;
 use Modules\Warehouse\Http\Controllers\BaM1OutboundFlowController;
 use Modules\Warehouse\Http\Controllers\BaM1RecipientController;
 use Modules\Warehouse\Http\Controllers\BaM1WarrantyController;
+use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceOutboundWarehouseScope;
+use Modules\Warehouse\Http\Middleware\EnsureCanonicalInboundWarehouse;
 use Modules\Warehouse\Services\BaM1StockService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 
-/**
- * Runtime overrides for the current business baseline.
- * Registered after normal Warehouse routes so identical method/URI pairs resolve
- * to these canonical BA handlers without maintaining two active semantics.
- */
+/** Runtime overrides for the confirmed GĐ1 business baseline. */
 class Flow06AlignmentServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Keep the canonical diagnostic/reservation behavior and add the 2026-08-25
-        // unknown-SKU materialization adapter for scan-driven inbound.
-        $this->app->bind(CurrentBaselineStockService::class, BaM1StockService::class);
+        // Bind chuyển xuống boot(): provider này được register lồng trong
+        // parent::register() của WarehouseServiceProvider, nên bind tại đây bị
+        // chính dòng bind CurrentBaselineStockService → Diagnostic... của
+        // WarehouseServiceProvider (chạy SAU) đè mất — hậu quả runtime là
+        // BaM1StockService (auto-create SKU chưa tồn tại, GĐ1-REQ-007) không bao
+        // giờ được resolve. boot() chạy sau toàn bộ register() nên bind ở đó
+        // thắng một cách tất định.
     }
 
     public function boot(): void
     {
+        $this->app->bind(CurrentBaselineStockService::class, BaM1StockService::class);
         $this->app->booted(function (): void {
             Route::middleware(['api', 'auth:api'])->prefix('api/v1')->group(function (): void {
-                // BA 2026-08-25: Post Issue is the stock transaction. Packing Label
-                // is independent and cannot gate or rollback it.
+                // Inbound is scan-driven: header only, then actual scans/counts.
+                Route::post('inbound-documents', [BaM1InboundDocumentController::class, 'store'])
+                    ->middleware(['permission:inbound.create', EnforceInboundWarehouseScope::class, EnsureCanonicalInboundWarehouse::class]);
+                Route::patch('inbound-documents/{id}', [BaM1InboundDocumentController::class, 'update'])
+                    ->middleware(['permission:inbound.create', EnforceInboundWarehouseScope::class, EnsureCanonicalInboundWarehouse::class]);
+                Route::post('inbound-documents/{id}/component-lines', [BaM1InboundComponentController::class, 'ensureLine'])
+                    ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
+                Route::post('inbound-documents/{id}/unscan', [BaM1InboundScanCorrectionController::class, 'unscan'])
+                    ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
+
+                // Post Issue is the stock transaction; label printing is independent.
                 Route::post('outbound-documents/{id}/post-issue', [BaM1OutboundFlowController::class, 'postIssue'])
                     ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
 
-                // Multi-defect + canonical estimated_completion_date, with legacy
-                // expected_completion_date/defect_codes aliases.
+                // Warranty: multi-defect + canonical estimated_completion_date.
                 Route::post('warranty-cases', [BaM1WarrantyController::class, 'storeWarrantyCase'])
                     ->middleware('permission:warranty.manage');
                 Route::get('warranty-cases/{id}', [BaM1WarrantyController::class, 'showWarrantyCase'])
@@ -46,22 +60,18 @@ class Flow06AlignmentServiceProvider extends ServiceProvider
                 Route::post('warranty-cases/{id}/status', [BaM1WarrantyController::class, 'updateWarrantyCase'])
                     ->middleware('permission:warranty.manage');
 
-                // Four recipient classes share the historical agencies master so
-                // existing outbound FK/history stays valid.
-                Route::get('agencies', [BaM1RecipientController::class, 'index'])->middleware('permission:agency.view');
-                Route::post('agencies', [BaM1RecipientController::class, 'store'])->middleware('permission:agency.manage');
-                Route::get('agencies/{id}', [BaM1RecipientController::class, 'show'])->middleware('permission:agency.view');
-                Route::patch('agencies/{id}', [BaM1RecipientController::class, 'update'])->middleware('permission:agency.manage');
-                Route::get('recipients', [BaM1RecipientController::class, 'index'])->middleware('permission:agency.view');
-                Route::post('recipients', [BaM1RecipientController::class, 'store'])->middleware('permission:agency.manage');
-                Route::get('recipients/{id}', [BaM1RecipientController::class, 'show'])->middleware('permission:agency.view');
-                Route::patch('recipients/{id}', [BaM1RecipientController::class, 'update'])->middleware('permission:agency.manage');
+                // GĐ1-REQ-001: agencies/recipients (4 loại nơi nhận) đã trỏ thẳng
+                // BaM1RecipientController trong routes/api.php — không override runtime
+                // ở đây nữa, cùng lý do với nhóm reports bên dưới.
 
-                // Packing label remains available as its own transaction; it does
-                // not participate in the Post Issue commit boundary.
+                // GĐ1 report dimensions (outbound-by-agency/outbound-by-recipient/
+                // warranty-defects/warranty-defect-sku-breakdown) đã chuyển thẳng vào
+                // routes/api.php, đăng ký trước "reports/{report_code}" catch-all —
+                // override runtime ở đây từng bị chính catch-all đó che khuất và không
+                // bao giờ chạy (xem WWHN-195, cùng root cause).
+
+                // No APPLY/"đã dán" business state in GĐ1.
                 Route::post('label-snapshots', [AlignedOutboundFlowController::class, 'storePackingLabel'])
-                    ->middleware('permission:label.print');
-                Route::post('label-snapshots/{id}/apply', [AlignedOutboundFlowController::class, 'applyPackingLabel'])
                     ->middleware('permission:label.print');
             });
         });

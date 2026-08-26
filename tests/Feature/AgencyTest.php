@@ -37,7 +37,7 @@ class AgencyTest extends TestCase
 
         $create = $this->postJson('/api/v1/agencies', [
             'agency_code' => 'DL-0001',
-            'agency_name' => 'Đại lý Hoà Nam Q1',
+            'agency_name' => 'Đại lý Hoa Nam Q1',
         ], $headers);
 
         $create->assertCreated()->assertJsonPath('data.agency_code', 'DL-0001');
@@ -46,8 +46,8 @@ class AgencyTest extends TestCase
         $list = $this->getJson('/api/v1/agencies?keyword=Hoa+Nam', $headers);
         $list->assertOk();
 
-        $update = $this->patchJson("/api/v1/agencies/{$id}", ['agency_name' => 'Đại lý Hoà Nam Q3'], $headers);
-        $update->assertOk()->assertJsonPath('data.agency_name', 'Đại lý Hoà Nam Q3');
+        $update = $this->patchJson("/api/v1/agencies/{$id}", ['agency_name' => 'Đại lý Hoa Nam Q3'], $headers);
+        $update->assertOk()->assertJsonPath('data.agency_name', 'Đại lý Hoa Nam Q3');
     }
 
     public function test_agency_code_must_be_unique(): void

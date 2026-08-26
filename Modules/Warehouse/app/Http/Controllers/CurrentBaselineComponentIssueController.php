@@ -14,10 +14,12 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 
 class CurrentBaselineComponentIssueController extends Controller
 {
     use ApiResponse;
+    use ResolvesActorOrNull { actorIdOrNull as actorId; }
 
     public function __construct(
         private readonly CurrentBaselineStockService $stock,
@@ -144,7 +146,7 @@ class CurrentBaselineComponentIssueController extends Controller
             return $documentId;
         }, 3);
 
-        return $this->respondCreated($this->payload($id), 'Component Issue created; stock_effect=NONE.');
+        return $this->respondCreated($this->payload($id), 'Đã tạo phiếu xuất linh kiện; tồn kho chưa thay đổi (stock_effect=NONE).');
     }
 
     public function post(Request $request, string $id)
@@ -199,10 +201,4 @@ class CurrentBaselineComponentIssueController extends Controller
         ];
     }
 
-    private function actorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
-    }
 }

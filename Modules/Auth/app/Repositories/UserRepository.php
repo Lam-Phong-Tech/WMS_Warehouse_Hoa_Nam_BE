@@ -10,14 +10,11 @@ class UserRepository extends BaseRepository implements UserRepositoryInterface
 {
     protected array $searchable = ['username', 'display_name', 'email'];
 
-    protected array $filterable = ['status'];
+    protected array $filterable = ['status', 'department_id'];
 
-    /**
-     * IAM-01 needs the persisted role assignment and pivot scope in list/detail
-     * responses. Keep this at repository level so every user read has one
-     * canonical response shape instead of UI-only role/scope reconstruction.
-     */
-    protected array $with = ['roles'];
+    // GĐ1-REQ-011: FE cột "Phòng ban" cần tên phòng ban ngay trong user list —
+    // eager-load để không trả UUID trần và không N+1.
+    protected array $with = ['roles', 'department'];
 
     public function __construct(User $model)
     {

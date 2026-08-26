@@ -43,7 +43,7 @@ class ProductMasterController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->productMasters->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->productMasters->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 

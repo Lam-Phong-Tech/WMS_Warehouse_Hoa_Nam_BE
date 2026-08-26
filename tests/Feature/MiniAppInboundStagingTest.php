@@ -115,13 +115,11 @@ class MiniAppInboundStagingTest extends TestCase
         $sku = $this->productSkuFixture('PROD-MINI-IN-AGENCY-ISO');
         $this->seedDirtyOutboundAgencyHistory((string) $warehouse->id, (string) $headers['__user_id']);
 
+        // Hợp đồng GĐ1 scan-driven: canonical create là HEADER-ONLY (gửi lines
+        // sẽ bị 422 INBOUND_SCAN_DRIVEN — dòng SKU materialize từ scan thực tế).
         $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => (string) $warehouse->id,
             'source_name' => 'Canonical inbound isolated from outbound history',
-            'lines' => [[
-                'product_id' => (string) $sku->sku_id,
-                'qty_planned' => 1,
-            ]],
         ], $headers + ['Idempotency-Key' => 'inbound-dirty-outbound-canonical'])
             ->assertCreated()
             ->assertJsonPath('data.doc_type', 'receipt');

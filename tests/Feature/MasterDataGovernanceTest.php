@@ -94,6 +94,8 @@ class MasterDataGovernanceTest extends TestCase
         $agencyId = (string) $this->postJson('/api/v1/agencies', [
             'agency_code' => 'AGY-GOV-001',
             'agency_name' => 'Đại lý test',
+            // GĐ1-REQ-001: recipient_type (4 loại nơi nhận) là trường bắt buộc.
+            'recipient_type' => 'AGENCY',
         ], $headers)->assertCreated()->json('data.agency_id');
 
         DB::table('stock_documents')->insert([
@@ -112,9 +114,11 @@ class MasterDataGovernanceTest extends TestCase
             'updated_at' => now(),
         ]);
 
+        // BaM1RecipientController (GĐ1): mã bất biến sau khi dùng trả 422
+        // AGENCY_CODE_IMMUTABLE (thay cho 409 AGENCY_CODE_IMMUTABLE_AFTER_USE cũ).
         $this->patchJson("/api/v1/agencies/{$agencyId}", ['agency_code' => 'AGY-GOV-001-NEW'], $headers)
-            ->assertStatus(409)
-            ->assertJsonPath('error.code', 'AGENCY_CODE_IMMUTABLE_AFTER_USE');
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'AGENCY_CODE_IMMUTABLE');
     }
 
     public function test_agency_update_honours_if_match(): void
@@ -123,6 +127,8 @@ class MasterDataGovernanceTest extends TestCase
         $agencyId = (string) $this->postJson('/api/v1/agencies', [
             'agency_code' => 'AGY-GOV-002',
             'agency_name' => 'Đại lý version',
+            // GĐ1-REQ-001: recipient_type (4 loại nơi nhận) là trường bắt buộc.
+            'recipient_type' => 'AGENCY',
         ], $headers)->assertCreated()->json('data.agency_id');
 
         $this->patchJson("/api/v1/agencies/{$agencyId}", ['agency_name' => 'Sai version'], $headers + ['If-Match' => '77'])
@@ -211,24 +217,17 @@ class MasterDataGovernanceTest extends TestCase
         $warehouse = $this->warehouseFixture();
         $sku = $this->productSkuFixture('PROD-SCAN-ENTRY');
 
+        // Hợp đồng GĐ1 scan-driven: phiếu header-only, dòng + bằng chứng quét
+        // sinh ra từ chính composite QR scan (không còn tạo phiếu kèm lines).
         $create = $this->postJson('/api/v1/inbound-documents', [
             'dst_warehouse_id' => $warehouse->id,
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => 1]],
         ], $headers)->assertCreated();
         $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
 
-        // Bằng chứng quét do luồng Post Receipt ghi; test này chỉ chứng minh nó
-        // đọc lại được qua API (trước đây chỉ tồn tại trong state của phiên FE).
-        DB::table('inbound_scan_entries')->insert([
-            'id' => (string) Str::uuid(),
-            'inbound_line_id' => $lineId,
+        $this->postJson("/api/v1/inbound-documents/{$documentId}/scans", [
             'quantity' => 1,
-            'scan_source' => 'CAMERA_OR_MANUAL_CODE',
-            'status' => 'ACTIVE',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+            'code_value' => 'HN1|SKU=PROD-SCAN-ENTRY|ITEM=SN-SCAN-ENTRY-0001',
+        ], $headers + ['If-Match' => '1'])->assertOk();
 
         $rows = $this->getJson("/api/v1/inbound-documents/{$documentId}/scan-entries", $headers)
             ->assertOk()

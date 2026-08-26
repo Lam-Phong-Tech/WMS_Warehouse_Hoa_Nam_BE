@@ -42,7 +42,7 @@ class RoleController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->roles->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->roles->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 
@@ -127,6 +127,7 @@ class RoleController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền role.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy role'),
+            new OA\Response(response: 409, description: 'SYSTEM_ROLE_IMMUTABLE — role SUPER_ADMIN không được sửa'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
         ]
     )]
@@ -229,6 +230,7 @@ class RoleController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền role.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy role'),
+            new OA\Response(response: 409, description: 'SYSTEM_ROLE_IMMUTABLE — role SUPER_ADMIN không được sửa permission'),
             new OA\Response(response: 422, description: 'permission_ids không hợp lệ'),
         ]
     )]
@@ -253,6 +255,7 @@ class RoleController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền role.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy role'),
+            new OA\Response(response: 409, description: 'SYSTEM_ROLE_IMMUTABLE — role SUPER_ADMIN không được sửa permission'),
             new OA\Response(response: 422, description: 'permission_ids không hợp lệ'),
         ]
     )]
@@ -272,6 +275,14 @@ class RoleController extends Controller
         }
         $role->permissions()->sync($pivotData);
 
+        // RoleRepository bật cache (domain 'auth.role', TTL rbac) cho find()/paginate(),
+        // nhưng sync() ở trên đi thẳng qua Eloquent relation, không qua update() của
+        // repository nên không tự bump cache. Không forget ở đây thì GET /roles và
+        // GET /roles/{id} vẫn trả permission set CŨ tới hết TTL dù DB đã ghi đúng —
+        // màn hình IAM-01 trông như "chưa lưu được" dù enforcement (AuthCache bên dưới)
+        // đã có hiệu lực ngay.
+        $this->roles->forgetCache($id);
+
         // Permission caches are keyed by user version (User::permissionCodes, TTL
         // 300s). Bump version của mọi user đang giữ role để thu hồi/gán quyền có hiệu
         // lực ngay request kế tiếp (BR-IAM: backend enforcement, least privilege).
@@ -286,6 +297,8 @@ class RoleController extends Controller
             beforeData: ['permission_ids' => $beforePermissionIds],
             afterData: ['permission_ids' => array_keys($pivotData)],
         );
+
+        event(new \Modules\Auth\Events\RolePermissionsChanged($id, (string) $role->role_code, $request->user()?->user_id));
 
         return $this->respondSuccess($role->load('permissions'), 'Gán permission cho role thành công');
     }

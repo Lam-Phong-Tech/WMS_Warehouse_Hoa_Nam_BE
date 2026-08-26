@@ -76,7 +76,7 @@ class Wwhn231PopulatedReconciliationEvidence extends Command
         // warehouse mà warehouseFixture() của bộ test dùng, không tự đặt code riêng.
         $warehouse = Warehouse::query()->where('status', 'ACTIVE')->first() ?? Warehouse::create([
             'code' => 'KHO-TONG-HN',
-            'name' => 'Kho tổng Hòa Nam',
+            'name' => 'Kho tổng Hoa Nam',
             'status' => 'ACTIVE',
         ]);
 

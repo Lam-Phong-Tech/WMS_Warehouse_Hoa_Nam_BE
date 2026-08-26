@@ -12,18 +12,37 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineDocumentController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     /**
      * Annex D SCR-IN-01: bảng mã đã quét của phiếu nhập (mã / SKU / kết quả /
      * nguồn CAMERA hay nhập tay) phải đọc lại được sau khi tải lại trang —
      * inbound_scan_entries đã lưu scan_source nhưng trước đó không có endpoint đọc.
      */
+    #[OA\Get(
+        path: '/api/v1/inbound-documents/{id}/scan-entries',
+        operationId: 'inbound_scan_entries_list',
+        summary: 'Danh sách mã đã quét của phiếu nhập (Annex D SCR-IN-01)',
+        security: [['bearerAuth' => []]],
+        tags: ['09. Stock In (Inbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'status', in: 'query', description: 'ACTIVE (mặc định) hoặc ALL/REMOVED', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'REMOVED', 'ALL'], default: 'ACTIVE')),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách mã đã quét'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy phiếu nhập'),
+        ]
+    )]
     public function inboundScanEntries(Request $request, string $id)
     {
         $document = DB::table('stock_documents')->where('id', $id)->where('doc_type', 'receipt')->first();
@@ -134,6 +153,35 @@ class CurrentBaselineDocumentController extends Controller
         return $this->updateDocument($request, $id, 'receipt', $validated);
     }
 
+    #[OA\Post(
+        path: '/api/v1/inbound-documents/{id}/cancel',
+        operationId: 'stock_in_cancel',
+        summary: 'Huỷ phiếu nhập DRAFT/SCANNING (terminal, stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['09. Stock In (Inbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string', example: '"1"')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['reason'],
+                properties: [new OA\Property(property: 'reason', type: 'string', maxLength: 1000)]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã huỷ phiếu; status=CANCELLED'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có permission inbound.cancel hoặc inbound.create (route nhận cả hai — Annex C khai inbound.create, baseline seed cấp inbound.cancel riêng cho WAREHOUSE_APPROVER/KEEPER; xem docs/DR_HN_20260817_FLOW02_OPEN_DECISIONS.md)'),
+            new OA\Response(response: 404, description: 'Không tìm thấy phiếu nhập'),
+            new OA\Response(response: 409, description: 'Chỉ DRAFT/SCANNING mới được huỷ'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp'),
+            new OA\Response(response: 428, description: 'Thiếu If-Match hợp lệ'),
+            new OA\Response(response: 400, description: 'Yêu cầu không đúng định dạng'),
+            new OA\Response(response: 422, description: 'Thiếu reason hoặc reason quá dài'),
+        ]
+    )]
     public function cancelInbound(Request $request, string $id)
     {
         return $this->cancelDocument($request, $id, 'receipt');
@@ -186,7 +234,7 @@ class CurrentBaselineDocumentController extends Controller
             function () use ($type, $validated, $actorId): array {
                 $document = $this->createDocument($type, $validated, $actorId);
 
-                return [201, $this->envelope('Document created.', $document)];
+                return [201, $this->envelope($type === 'receipt' ? 'Tạo phiếu nhập kho thành công.' : 'Tạo phiếu xuất kho thành công.', $document)];
             }
         );
 
@@ -214,16 +262,21 @@ class CurrentBaselineDocumentController extends Controller
             }
 
             $lines = array_values($validated['lines'] ?? []);
-            if ($lines === []) {
+            // GĐ1-REQ-004: phiếu nhập scan-driven được tạo header-only — dòng SKU sinh
+            // từ quét thực tế. Chỉ phiếu xuất (đi từ toa/request) mới bắt buộc có dòng.
+            // Route receipt runtime đã trỏ BaM1InboundDocumentController; guard tại đây
+            // phải khớp contract đó để không sống lại nếu override bị gỡ.
+            if ($lines === [] && $type !== 'receipt') {
                 ApiError::abort(422, 'DOCUMENT_HAS_NO_LINES', 'Chứng từ phải có ít nhất một dòng.');
             }
             $this->assertLineSkus($type, $lines);
 
             $documentId = (string) Str::uuid();
+            $docNo = $validated['doc_no'] ?? (($type === 'receipt' ? 'PN-' : 'PX-').now()->format('YmdHis').'-'.Str::upper(Str::random(4)));
             DB::table('stock_documents')->insert([
                 'id' => $documentId,
                 'doc_type' => $type,
-                'doc_no' => $validated['doc_no'] ?? (($type === 'receipt' ? 'PN-' : 'PX-').now()->format('YmdHis').'-'.Str::upper(Str::random(4))),
+                'doc_no' => $docNo,
                 'doc_date' => $validated['doc_date'] ?? now()->toDateString(),
                 'status' => 'DRAFT',
                 'src_warehouse_id' => $type === 'issue' ? $warehouseId : null,
@@ -277,6 +330,8 @@ class CurrentBaselineDocumentController extends Controller
                 requestId: request()?->attributes->get('request_id'),
                 afterData: ['status' => 'DRAFT', 'version' => 1, 'outbound_request_id' => $validated['outbound_request_id'] ?? null],
             );
+
+            event(new \Modules\Warehouse\Events\StockDocumentCreated($documentId, (string) $docNo, $type, $warehouseId, $actorId));
 
             return $this->documentPayload($documentId);
         }, 3);
@@ -485,6 +540,15 @@ class CurrentBaselineDocumentController extends Controller
                 afterData: ['status' => 'CANCELLED', 'version' => $expectedVersion + 1],
             );
 
+            $warehouseId = $type === 'receipt' ? $document->dst_warehouse_id : $document->src_warehouse_id;
+            event(new \Modules\Warehouse\Events\StockDocumentCancelled(
+                $id,
+                (string) $document->doc_no,
+                $type,
+                $warehouseId !== null ? (string) $warehouseId : null,
+                $this->actorId(),
+            ));
+
             return $this->documentPayload($id);
         }, 3);
 
@@ -628,13 +692,4 @@ class CurrentBaselineDocumentController extends Controller
         ];
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

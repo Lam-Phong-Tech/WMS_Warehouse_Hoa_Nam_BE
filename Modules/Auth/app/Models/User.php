@@ -7,6 +7,7 @@ use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Modules\Auth\Support\AuthCache;
@@ -25,24 +26,22 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     protected $keyType = 'string';
 
     protected $fillable = [
-        'username', 'display_name', 'email', 'phone', 'password_hash', 'status', 'version',
+        'username', 'display_name', 'email', 'phone', 'department_id', 'password_hash', 'status', 'version',
     ];
 
     protected $hidden = ['password_hash'];
 
-    /**
-     * Active roles are immutable for the lifetime of one HTTP request. Keeping
-     * the collection in memory prevents /auth/me, permission and warehouse-scope
-     * resolution from executing the same user_role/role query repeatedly.
-     *
-     * This is deliberately request-local rather than a cross-request cache, so
-     * RBAC changes remain visible on the next request without invalidation risk.
-     */
     private ?EloquentCollection $activeRolesMemo = null;
 
     public function getAuthPassword(): string
     {
         return $this->password_hash;
+    }
+
+    /** GĐ1-REQ-011: user thuộc một phòng ban (nullable). */
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class, 'department_id', 'department_id');
     }
 
     public function roles(): BelongsToMany
@@ -65,9 +64,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             });
     }
 
-    /**
-     * @return EloquentCollection<int, Role>
-     */
+    /** @return EloquentCollection<int, Role> */
     public function activeRoleModels(): EloquentCollection
     {
         if ($this->activeRolesMemo !== null) {
@@ -125,12 +122,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
         return $this->isSuperAdmin() || in_array($permissionKey, $this->permissionCodes(), true);
     }
 
-    /**
-     * null = không giới hạn kho (SUPER_ADMIN hoặc role SYSTEM có scope_ref rỗng).
-     * [] = không có scope kho hợp lệ. Danh sách UUID = chỉ được truy cập các kho đó.
-     *
-     * @return array<int, string>|null
-     */
+    /** @return array<int, string>|null */
     public function warehouseScopeIds(): ?array
     {
         if ($this->isSuperAdmin()) {

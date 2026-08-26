@@ -15,6 +15,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use Modules\Warehouse\Support\ProductQrPayload;
 
 /**
@@ -31,6 +32,7 @@ use Modules\Warehouse\Support\ProductQrPayload;
 class MiniAppInboundStagingController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     private const CANONICAL_WAREHOUSE_CODE = 'KHO-TONG-HN';
 
@@ -449,7 +451,7 @@ class MiniAppInboundStagingController extends Controller
             ApiError::abort(422, 'WAREHOUSE_INACTIVE', 'Kho đang không ACTIVE.');
         }
         if (strtoupper(trim((string) $warehouse->code)) !== self::CANONICAL_WAREHOUSE_CODE) {
-            ApiError::abort(422, 'INBOUND_WAREHOUSE_NOT_CANONICAL', 'Luồng nhập kho MVP chỉ dùng Kho tổng Hòa Nam.', [
+            ApiError::abort(422, 'INBOUND_WAREHOUSE_NOT_CANONICAL', 'Luồng nhập kho MVP chỉ dùng Kho tổng Hoa Nam.', [
                 'required_warehouse_code' => self::CANONICAL_WAREHOUSE_CODE,
             ]);
         }
@@ -584,16 +586,6 @@ class MiniAppInboundStagingController extends Controller
             ->map(fn ($row) => (array) $row)
             ->values()
             ->all();
-    }
-
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
     }
 
     private function envelope(string $message, array $data): array

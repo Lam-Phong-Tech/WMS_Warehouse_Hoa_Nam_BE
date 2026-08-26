@@ -12,12 +12,14 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 #[OA\Tag(name: '24. Putaway', description: 'BP-WMS-03: component BOX -> TRAY, stock-neutral')]
 class PutawayController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
     private const OPERATION_CONFIRM = 'confirm';
 
@@ -638,13 +640,4 @@ class PutawayController extends Controller
         }
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

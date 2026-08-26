@@ -135,14 +135,14 @@ class CanonicalMvpController extends Controller
             }
         });
 
-        return $this->respondCreated($this->importPayload($id), 'Outbound import validated.');
+        return $this->respondCreated($this->importPayload($id), 'Đã kiểm tra Import toa xuất.');
     }
 
     public function showOutboundRequestImport(string $id)
     {
         $payload = $this->importPayload($id);
 
-        return $payload ? $this->respondSuccess($payload) : $this->respondNotFound('Import not found.');
+        return $payload ? $this->respondSuccess($payload) : $this->respondNotFound('Không tìm thấy Import.');
     }
 
     public function consumeOutboundRequestImport(Request $request, string $id)
@@ -152,10 +152,10 @@ class CanonicalMvpController extends Controller
         $payload = DB::transaction(function () use ($id): array {
             $import = DB::table('outbound_request_imports')->where('id', $id)->lockForUpdate()->first();
             if ($import === null) {
-                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Import not found.');
+                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy Import.');
             }
             if ($import->status !== 'VALIDATED') {
-                ApiError::abort(409, 'STATE_CONFLICT', 'Only VALIDATED import can be consumed.');
+                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ Import ở trạng thái VALIDATED mới được xử lý.');
             }
 
             $rows = DB::table('outbound_request_import_rows')->where('import_id', $id)->orderBy('row_no')->get();
@@ -192,7 +192,7 @@ class CanonicalMvpController extends Controller
             return ['import_id' => $id, 'outbound_request_id' => $requestId, 'status' => 'CONSUMED'];
         });
 
-        return $this->respondSuccess($payload, 'Outbound import consumed.');
+        return $this->respondSuccess($payload, 'Đã xử lý Import toa xuất.');
     }
 
     #[OA\Get(
@@ -380,16 +380,39 @@ class CanonicalMvpController extends Controller
             // các product_id có mặt trong trang hiện tại (không phải N+1).
             function ($rows): void {
                 $productIds = $rows->pluck('product_id')->filter()->unique()->values()->all();
-                if ($productIds === []) {
-                    return;
+                if ($productIds !== []) {
+                    $skus = DB::table('sku')->whereIn('sku_id', $productIds)
+                        ->get(['sku_id', 'sku_code', 'sku_name'])
+                        ->keyBy('sku_id');
+                    foreach ($rows as $row) {
+                        $sku = $row->product_id !== null ? $skus->get($row->product_id) : null;
+                        $row->sku_code = $sku->sku_code ?? null;
+                        $row->sku_name = $sku->sku_name ?? null;
+                    }
                 }
-                $skus = DB::table('sku')->whereIn('sku_id', $productIds)
-                    ->get(['sku_id', 'sku_code', 'sku_name'])
-                    ->keyBy('sku_id');
+
+                // GĐ1-REQ-009: WAR-01 hiển thị đủ multi-defect — enrich sau phân trang,
+                // gom một query warranty_case_defects × defect_catalogs cho trang hiện tại.
+                $caseIds = $rows->pluck('warranty_case_id')->filter()->unique()->values()->all();
+                $defectsByCase = $caseIds === []
+                    ? collect()
+                    : DB::table('warranty_case_defects as wcd')
+                        ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
+                        ->whereIn('wcd.warranty_case_id', $caseIds)
+                        ->orderByDesc('wcd.is_primary')
+                        ->orderBy('dc.defect_code')
+                        ->get(['wcd.warranty_case_id', 'wcd.defect_id', 'wcd.is_primary', 'dc.defect_code', 'dc.defect_name'])
+                        ->groupBy('warranty_case_id');
                 foreach ($rows as $row) {
-                    $sku = $row->product_id !== null ? $skus->get($row->product_id) : null;
-                    $row->sku_code = $sku->sku_code ?? null;
-                    $row->sku_name = $sku->sku_name ?? null;
+                    $defects = collect($defectsByCase->get((string) $row->warranty_case_id) ?? [])
+                        ->map(fn (object $defect): array => [
+                            'defect_id' => (string) $defect->defect_id,
+                            'defect_code' => (string) $defect->defect_code,
+                            'defect_name' => (string) $defect->defect_name,
+                            'is_primary' => (bool) $defect->is_primary,
+                        ])->values();
+                    $row->defects = $defects->all();
+                    $row->defect_ids = $defects->pluck('defect_id')->values()->all();
                 }
             },
         );
@@ -569,7 +592,7 @@ class CanonicalMvpController extends Controller
 
         $snapshot = DB::table('label_snapshots')->where('id', $id)->first();
         if ($snapshot === null) {
-            return $this->respondNotFound('Label snapshot not found.');
+            return $this->respondNotFound('Không tìm thấy snapshot nhãn.');
         }
 
         $eventId = (string) Str::uuid();
@@ -590,7 +613,7 @@ class CanonicalMvpController extends Controller
             'label_print_event_id' => $eventId,
             'reprint' => $reprint,
             'stock_effect' => 'NONE',
-        ], $reprint ? 'Label reprinted.' : 'Label printed.');
+        ], $reprint ? 'Đã in lại nhãn.' : 'Đã in nhãn.');
     }
 
     private function importPayload(string $id): ?array

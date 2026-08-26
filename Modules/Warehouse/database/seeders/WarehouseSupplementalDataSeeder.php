@@ -10,6 +10,7 @@ use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Models\InventorySerial;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\PvRelations;
 
 /**
  * Seed bổ sung cho các bảng "vệ tinh" chưa được WarehouseDatabaseSeeder/
@@ -91,7 +92,7 @@ class WarehouseSupplementalDataSeeder extends Seeder
             ['import_batch_code' => 'IMP-SEED-BATCH-002', 'shipment_container_code' => 'SHIP-SEED-002', 'supplier_batch_no' => 'SUP-SEED-002', 'import_period' => '2026-Q1', 'supplier_name' => 'Yanmar Việt Nam'],
             ['import_batch_code' => 'IMP-SEED-BATCH-003', 'shipment_container_code' => 'SHIP-SEED-003', 'supplier_batch_no' => 'SUP-SEED-003', 'import_period' => '2026-Q2', 'supplier_name' => 'Honda Việt Nam'],
             ['import_batch_code' => 'IMP-SEED-BATCH-004', 'shipment_container_code' => 'SHIP-SEED-004', 'supplier_batch_no' => 'SUP-SEED-004', 'import_period' => '2026-Q2', 'supplier_name' => 'Husqvarna Việt Nam'],
-            ['import_batch_code' => 'IMP-SEED-BATCH-005', 'shipment_container_code' => 'SHIP-SEED-005', 'supplier_batch_no' => 'SUP-SEED-005', 'import_period' => '2026-Q3', 'supplier_name' => 'Nhà cung cấp linh kiện Hòa Nam'],
+            ['import_batch_code' => 'IMP-SEED-BATCH-005', 'shipment_container_code' => 'SHIP-SEED-005', 'supplier_batch_no' => 'SUP-SEED-005', 'import_period' => '2026-Q3', 'supplier_name' => 'Nhà cung cấp linh kiện Hoa Nam'],
         ];
 
         foreach ($rows as $row) {
@@ -160,7 +161,11 @@ class WarehouseSupplementalDataSeeder extends Seeder
         }
     }
 
-    /** Chưa có luồng nghiệp vụ thật ghi vào bảng này — dữ liệu tham chiếu mẫu, schema-valid. */
+    /**
+     * Chưa có luồng nghiệp vụ thật ghi vào bảng này — dữ liệu tham chiếu mẫu,
+     * schema-valid. Ghi vào bảng canonical `sku_alias`: `sku_aliases` chỉ là VIEW
+     * tương thích (migration 2026_08_09_000400) — insert vào view nổ trên sqlite.
+     */
     private function seedSkuAliases(): void
     {
         $skuIds = Sku::query()->orderBy('sku_code')->limit(5)->pluck('sku_id');
@@ -168,25 +173,21 @@ class WarehouseSupplementalDataSeeder extends Seeder
 
         foreach ($skuIds as $index => $skuId) {
             $aliasCode = 'ALIAS-SEED-'.sprintf('%03d', $index + 1);
-            $exists = DB::table('sku_aliases')
-                ->where('sku_id', $skuId)
+            $exists = DB::table('sku_alias')
+                ->where('product_id', $skuId)
                 ->where('alias_code', $aliasCode)
                 ->exists();
             if ($exists) {
                 continue;
             }
 
-            DB::table('sku_aliases')->insert([
-                'id' => (string) Str::uuid(),
-                'sku_id' => $skuId,
-                'source_system' => $systems[$index] ?? 'LEGACY_ERP',
+            DB::table('sku_alias')->insert([
+                'alias_id' => (string) Str::uuid(),
+                'product_id' => $skuId,
+                'alias_type' => $systems[$index] ?? 'LEGACY_ERP',
                 'alias_code' => $aliasCode,
-                'status' => 'ACTIVE',
                 'created_at' => now(),
                 'updated_at' => now(),
-                'created_by' => $this->actorId,
-                'updated_by' => $this->actorId,
-                'version' => 1,
             ]);
         }
     }
@@ -414,7 +415,10 @@ class WarehouseSupplementalDataSeeder extends Seeder
     {
         $skuIds = Sku::query()->orderBy('sku_code')->limit(5)->pluck('sku_id')->values();
         $severities = ['WARNING', 'ERROR', 'CRITICAL', 'WARNING', 'ERROR'];
-        $statuses = ['RESOLVED', 'RESOLVED', 'WAIVED', 'OPEN', 'RESOLVED'];
+        // Không seed incident OPEN: core.reconciliation_backlog của wms:golive-check
+        // fail-closed khi còn incident mở, nên dữ liệu mẫu để lại backlog sẽ làm gate
+        // sẵn sàng đỏ trên chính môi trường vừa seed.
+        $statuses = ['RESOLVED', 'RESOLVED', 'WAIVED', 'RESOLVED', 'RESOLVED'];
 
         foreach ($skuIds as $index => $skuId) {
             $incidentNo = 'REC-SEED-'.sprintf('%03d', $index + 1);
@@ -422,9 +426,7 @@ class WarehouseSupplementalDataSeeder extends Seeder
                 continue;
             }
 
-            DB::table('reconciliation_incidents')->insert([
-                'id' => (string) Str::uuid(),
-                'sku_id' => $skuId,
+            $erdColumns = [
                 'incident_no' => $incidentNo,
                 'divergence_type' => 'QUANTITY_MISMATCH',
                 'warehouse_id' => $this->warehouseId,
@@ -437,7 +439,21 @@ class WarehouseSupplementalDataSeeder extends Seeder
                 'status' => $statuses[$index] ?? 'RESOLVED',
                 'created_at' => now()->subDays(5 - $index),
                 'updated_at' => now()->subDays(5 - $index),
-            ]);
+            ];
+
+            // Cùng driver-duality với ReconcileInventoryBalances::recordIncident():
+            // pgsql ghi bảng plural; sqlite chỉ có bảng singular (plural là VIEW).
+            if (DB::getDriverName() === 'pgsql') {
+                DB::table('reconciliation_incidents')->insert($erdColumns + [
+                    'id' => (string) Str::uuid(),
+                    'sku_id' => $skuId,
+                ]);
+            } else {
+                DB::table('reconciliation_incident')->insert($erdColumns + [
+                    'incident_id' => (string) Str::uuid(),
+                    'product_id' => $skuId,
+                ]);
+            }
         }
     }
 
@@ -452,28 +468,34 @@ class WarehouseSupplementalDataSeeder extends Seeder
             return;
         }
 
+        // WWHN-252/PvRelations: bảng ghi được khác nhau theo driver — plural là
+        // bảng thật trên PostgreSQL nhưng chỉ là VIEW trên sqlite (insert sẽ nổ).
+        $rule = PvRelations::rule();
         foreach ($industryIds as $index => $industryId) {
             $skuId = $skuIds[$index % $skuIds->count()];
-            $exists = DB::table('pv_recommendation_rules')
+            $exists = DB::table($rule['table'])
                 ->where('industry_id', $industryId)
-                ->where('sku_id', $skuId)
+                ->where($rule['sku'], $skuId)
                 ->exists();
             if ($exists) {
                 continue;
             }
 
-            DB::table('pv_recommendation_rules')->insert([
-                'id' => (string) Str::uuid(),
+            $row = [
+                $rule['key'] => (string) Str::uuid(),
                 'industry_id' => $industryId,
-                'sku_id' => $skuId,
+                $rule['sku'] => $skuId,
                 'category_id' => null,
                 'tag_id' => null,
                 'priority' => $index + 1,
                 'status' => 'ACTIVE',
-                'version' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ];
+            if (PvRelations::isPgsql()) {
+                $row['version'] = 1;
+            }
+            DB::table($rule['table'])->insert($row);
         }
     }
 
@@ -529,17 +551,19 @@ class WarehouseSupplementalDataSeeder extends Seeder
 
             if ($tagIds->isNotEmpty()) {
                 $tagId = $tagIds[$index % $tagIds->count()];
-                $existsTag = DB::table('pv_product_tags')
+                // PvRelations::productTagTable(): plural là bảng thật trên PostgreSQL,
+                // nhưng trên sqlite plural chỉ là VIEW — bảng ghi là số ít.
+                $productTagTable = PvRelations::productTagTable();
+                $existsTag = DB::table($productTagTable)
                     ->where('profile_id', $profileId)
                     ->where('tag_id', $tagId)
                     ->exists();
                 if (! $existsTag) {
-                    DB::table('pv_product_tags')->insert([
+                    DB::table($productTagTable)->insert([
                         'profile_id' => $profileId,
                         'tag_id' => $tagId,
                         'created_at' => now(),
-                        'created_by' => $this->actorId,
-                    ]);
+                    ] + (PvRelations::isPgsql() ? ['created_by' => $this->actorId] : []));
                 }
             }
         }

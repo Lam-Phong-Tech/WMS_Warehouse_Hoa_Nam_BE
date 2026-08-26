@@ -134,4 +134,43 @@ return [
     // wms:golive-check đỏ trong retest R4 của WWHN-184, cùng kiểu thiếu như dòng 130000
     // ngay phía trên); chờ Tech Lead phê duyệt nguồn gốc tại WWHN-222.
     '2026_08_19_150000_align_audit_result_vocabulary_with_erd' => 'down() rỗng có chủ ý — fail-forward của WWHN-222 R2, khai bổ sung khi retest R4 WWHN-184 phát hiện thiếu, chờ Tech Lead phê duyệt nguồn gốc',
+    // ------------------------------------------------------------------
+    // Khai bổ sung khi hoàn thiện Change Scope GĐ1 (25/08): 4 migration dưới đây đã
+    // landing trên m1 từ các phiên trước nhưng chưa từng có entry allowlist, nên
+    // wms:golive-check đỏ độc lập với thay đổi GĐ1. Tất cả đều là repair fail-forward:
+    // hoàn tác = dựng lại đúng defect mà chúng vá.
+    // TRẠNG THÁI: khai hộ theo nguồn gốc từng ticket, chờ Tech Lead phê duyệt.
+    // ------------------------------------------------------------------
+    // Vá view IAM legacy bị rơi cột (phone/scope_type/scope_ref) do INSTEAD OF trigger
+    // PostgreSQL bỏ sót dù bảng canonical đã có. Hoàn tác = trả lại view thiếu cột.
+    '2026_08_21_100000_fix_iam_legacy_view_dropped_columns' => 'down() rỗng có chủ ý — fail-forward vá view IAM legacy mất cột, chờ Tech Lead phê duyệt nguồn gốc',
+    // Vá runtime final-scan outbound: CHECK status cũ, cột item-level NOT NULL và
+    // normalize trigger tham chiếu cột đã gỡ đều làm lần quét cuối nổ SQLSTATE 23xxx/42xxx.
+    '2026_08_23_212000_repair_packing_label_final_scan_runtime' => 'down() rỗng có chủ ý — fail-forward vá runtime Packing Label final scan, chờ Tech Lead phê duyệt nguồn gốc',
+    // Nới cột structured NOT NULL còn sót trên DB UAT đã chạy migration 2026-08-23.
+    '2026_08_24_090000_relax_legacy_label_snapshot_structured_columns' => 'down() rỗng có chủ ý — fail-forward nới cột legacy label_snapshots trên UAT, chờ Tech Lead phê duyệt nguồn gốc',
+    // Thu hẹp mirror outbound về đúng dòng issue thay đổi: mirror statement-level cũ
+    // làm mọi INSERT stock_documents (kể cả phiếu nhập) chạm dòng issue cũ và dính guard
+    // AGENCY_NOT_ACTIVE. Hoàn tác = chặn lại đường ghi inbound.
+    '2026_08_24_110000_scope_outbound_document_mirror_to_changed_issue_document' => 'down() rỗng có chủ ý — fail-forward thu hẹp ERD mirror outbound, chờ Tech Lead phê duyệt nguồn gốc',
+    // Vá gap khiến PUT /api/v1/users/{id} ném SQLSTATE[42703] "column department_id
+    // does not exist" (500) trên PostgreSQL: migration 2026_08_25_171000 dùng
+    // Schema::hasTable('app_user') để quyết định thêm cột, nhưng app_user là VIEW
+    // (không phải TABLE) nên hasTable() luôn trả false — cột chưa từng được tạo.
+    // Cùng lớp quyết định với 2026_08_21_100000 (dòng phía trên): down() dựng lại
+    // view/trigger app_user thiếu cột department_id là tái tạo lại chính defect P0
+    // này, không phải một lựa chọn kỹ thuật trung lập.
+    // TRẠNG THÁI: khai kèm khi vá (2026-08-26), chờ Tech Lead phê duyệt nguồn gốc.
+    '2026_08_26_000100_fix_app_user_department_id_view_gap' => 'down() rỗng có chủ ý — fail-forward vá gap department_id trên view app_user (PG), chờ Tech Lead phê duyệt nguồn gốc',
+    // Vá gap khiến GET /api/v1/reports/warranty-defects ném SQLSTATE[42703]
+    // "column wc.estimated_completion_date does not exist" (500) trên PostgreSQL:
+    // 2026_08_25_000100/2026_08_25_170000 dùng Schema::table('warranty_case', ...)
+    // nhưng warranty_case là VIEW (bảng canonical là warranty_cases) nên ALTER TABLE
+    // không áp dụng — cùng lớp quyết định với 2026_08_21_100000/2026_08_26_000100.
+    '2026_08_26_090000_fix_warranty_case_estimated_completion_date_missing' => 'down() rỗng có chủ ý — fail-forward vá gap estimated_completion_date trên view warranty_case (PG), chờ Tech Lead phê duyệt nguồn gốc',
+    // Vá gap khiến không ghi nhận được "ai sửa case bảo hành lần cuối":
+    // warranty_cases.updated_by tồn tại thật trên PG nhưng view warranty_case
+    // không expose và trigger write-through không ghi qua được — cùng lớp quyết
+    // định với 2 mục phía trên (view/trigger thiếu cột so với bảng canonical).
+    '2026_08_26_100000_fix_warranty_case_updated_by_missing' => 'down() rỗng có chủ ý — fail-forward vá gap updated_by trên view warranty_case (PG), chờ Tech Lead phê duyệt nguồn gốc',
 ];

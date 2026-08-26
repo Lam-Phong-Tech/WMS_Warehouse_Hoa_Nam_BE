@@ -10,12 +10,41 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselinePhysicalCodeController extends Controller
 {
     use ApiResponse;
+    use ResolvesActor;
 
+    #[OA\Post(
+        path: '/api/v1/physical-codes',
+        operationId: 'physical_code_create',
+        summary: 'Gán mã vật lý (QR/barcode/RFID/NFC) tới một item hoặc container',
+        security: [['bearerAuth' => []]],
+        tags: ['21. Physical Code'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['code_value', 'carrier_type'],
+                properties: [
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200),
+                    new OA\Property(property: 'code_type', type: 'string', enum: ['ITEM', 'CARTON', 'COMPONENT_SERIAL', 'BOX', 'TRAY', 'TEMP_WARRANTY', 'UNKNOWN'], nullable: true),
+                    new OA\Property(property: 'carrier_type', type: 'string', enum: ['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL']),
+                    new OA\Property(property: 'hardware_uid', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'is_primary', type: 'boolean', nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Đã gán mã vật lý vào đối tượng đích'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ, hoặc map đồng thời cả item_id và container_id (PHYSICAL_CODE_TARGET_XOR)'),
+        ]
+    )]
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -46,10 +75,22 @@ class CurrentBaselinePhysicalCodeController extends Controller
 
         $id = DB::transaction(function () use ($validated, $hasItem, $hasContainer, $targetType, $request): string {
             $targetId = $hasItem ? (string) $validated['item_id'] : ($hasContainer ? (string) $validated['container_id'] : null);
+            // firstOrFail() ném Illuminate\Database\RecordsNotFoundException (RuntimeException),
+            // không phải HttpExceptionInterface/ValidationException — bootstrap/app.php chỉ
+            // Việt hoá 3 loại đó, mọi Throwable khác rơi thẳng vào safety net 500. Giữa lúc
+            // validate 'exists:...' xong và lúc lock ở đây chạy, nếu dòng bị xoá bởi một
+            // tiến trình khác thì phải trả 404 RESOURCE_NOT_FOUND như mọi nhánh khác của
+            // controller này, không phải 500.
             if ($hasItem) {
-                DB::table('item_instances')->where('item_id', $targetId)->lockForUpdate()->firstOrFail();
+                $target = DB::table('item_instances')->where('item_id', $targetId)->lockForUpdate()->first();
+                if ($target === null) {
+                    ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy item.');
+                }
             } elseif ($hasContainer) {
-                DB::table('containers')->where('container_id', $targetId)->lockForUpdate()->firstOrFail();
+                $target = DB::table('containers')->where('container_id', $targetId)->lockForUpdate()->first();
+                if ($target === null) {
+                    ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy container.');
+                }
             }
 
             $physicalCodeId = (string) Str::uuid();
@@ -93,7 +134,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
             return $physicalCodeId;
         }, 3);
 
-        return $this->respondCreated(DB::table('physical_codes')->where('physical_code_id', $id)->first(), 'Physical code mapped to canonical target.');
+        return $this->respondCreated(DB::table('physical_codes')->where('physical_code_id', $id)->first(), 'Đã gán mã vật lý vào đối tượng đích.');
     }
 
     /**
@@ -219,6 +260,35 @@ class CurrentBaselinePhysicalCodeController extends Controller
         ], $payload['created'] ? 'Đã gắn RFID cho item; RFID không phải điều kiện Post Issue.' : 'RFID đã gắn trước đó cho item này.');
     }
 
+    #[OA\Patch(
+        path: '/api/v1/physical-codes/{id}',
+        operationId: 'physical_code_update',
+        summary: 'Cập nhật trạng thái mã vật lý (ACTIVE/INACTIVE/LOST/DAMAGED)',
+        security: [['bearerAuth' => []]],
+        tags: ['21. Physical Code'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['status'],
+                properties: [
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOST', 'DAMAGED']),
+                    new OA\Property(property: 'deactivation_reason', type: 'string', maxLength: 2000, nullable: true),
+                    new OA\Property(property: 'is_primary', type: 'boolean', nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Cập nhật mã vật lý thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy mã vật lý'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
+        ]
+    )]
     public function update(Request $request, string $id)
     {
         $validated = $request->validate([
@@ -282,7 +352,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
             return $after;
         }, 3);
 
-        return $this->respondSuccess($result, 'Physical code updated.');
+        return $this->respondSuccess($result, 'Cập nhật mã vật lý thành công.');
     }
 
     private function expectedVersion(Request $request): int
@@ -300,13 +370,4 @@ class CurrentBaselinePhysicalCodeController extends Controller
         return (int) $header;
     }
 
-    private function actorId(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

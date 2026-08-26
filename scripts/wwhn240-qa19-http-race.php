@@ -141,7 +141,7 @@ if ($warehouseId === '') {
     DB::table('warehouses')->insert([
         'id' => $warehouseId,
         'code' => 'KHO-TONG-HN',
-        'name' => 'Kho tổng Hòa Nam',
+        'name' => 'Kho tổng Hoa Nam',
         'status' => 'ACTIVE',
         'created_at' => now(),
         'updated_at' => now(),

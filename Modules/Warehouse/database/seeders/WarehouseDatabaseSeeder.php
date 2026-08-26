@@ -15,7 +15,7 @@ class WarehouseDatabaseSeeder extends Seeder
 {
     private const WAREHOUSE = [
         'code' => 'KHO-TONG-HN',
-        'name' => 'Kho tổng Hòa Nam',
+        'name' => 'Kho tổng Hoa Nam',
         'address' => 'Số 1, KCN Quang Minh, Mê Linh, Hà Nội',
         'contact_person' => 'Nguyễn Văn A',
         'phone' => '0900000000',
@@ -24,23 +24,9 @@ class WarehouseDatabaseSeeder extends Seeder
 
     private const LEGACY_WAREHOUSE_CODE = 'WH-MAIN';
 
-    /**
-     * Kho phụ mẫu — đảm bảo bảng warehouses có tối thiểu 5 dòng.
-     *
-     * uk_warehouses_single_active (partial unique index trên status='ACTIVE')
-     * cho phép đúng MỘT warehouse ACTIVE tại một thời điểm — hệ thống hiện tại
-     * là single-warehouse. Kho phụ do đó phải INACTIVE, không phải dữ liệu lỗi.
-     */
-    private const EXTRA_WAREHOUSES = [
-        ['code' => 'KHO-HN-DN', 'name' => 'Kho chi nhánh Đà Nẵng', 'address' => 'Số 20, Cầu Giấy, Đà Nẵng', 'contact_person' => 'Trần Thị B', 'phone' => '0900000001', 'status' => 'INACTIVE'],
-        ['code' => 'KHO-HN-HCM', 'name' => 'Kho chi nhánh Hồ Chí Minh', 'address' => 'Số 5, Quận 7, TP.HCM', 'contact_person' => 'Lê Văn C', 'phone' => '0900000002', 'status' => 'INACTIVE'],
-        ['code' => 'KHO-HN-HP', 'name' => 'Kho chi nhánh Hải Phòng', 'address' => 'Số 15, Lê Chân, Hải Phòng', 'contact_person' => 'Phạm Thị D', 'phone' => '0900000003', 'status' => 'INACTIVE'],
-        ['code' => 'KHO-HN-CT', 'name' => 'Kho chi nhánh Cần Thơ', 'address' => 'Số 8, Ninh Kiều, Cần Thơ', 'contact_person' => 'Hoàng Văn E', 'phone' => '0900000004', 'status' => 'INACTIVE'],
-    ];
-
     private const BASELINE_SKU = [
         'sku_code' => 'HN-PV-BASE-001',
-        'sku_name' => 'SKU baseline Hòa Nam',
+        'sku_name' => 'SKU baseline Hoa Nam',
         'sku_type' => 'PRODUCT',
         'unit' => 'cái',
         'is_serial_tracked' => false,
@@ -64,11 +50,11 @@ class WarehouseDatabaseSeeder extends Seeder
     ];
 
     private const AGENCIES = [
-        ['agency_code' => 'AG-001', 'agency_name' => 'Đại lý Hòa Nam Hà Nội', 'contact_name' => 'Nguyễn Thị Hạnh', 'phone' => '0911111111', 'address' => 'Hà Nội'],
-        ['agency_code' => 'AG-002', 'agency_name' => 'Đại lý Hòa Nam Đà Nẵng', 'contact_name' => 'Trần Văn Bình', 'phone' => '0922222222', 'address' => 'Đà Nẵng'],
-        ['agency_code' => 'AG-003', 'agency_name' => 'Đại lý Hòa Nam Hồ Chí Minh', 'contact_name' => 'Lê Thị Cúc', 'phone' => '0933333333', 'address' => 'Hồ Chí Minh'],
-        ['agency_code' => 'AG-004', 'agency_name' => 'Đại lý Hòa Nam Hải Phòng', 'contact_name' => 'Phạm Văn Đức', 'phone' => '0944444444', 'address' => 'Hải Phòng'],
-        ['agency_code' => 'AG-005', 'agency_name' => 'Đại lý Hòa Nam Cần Thơ', 'contact_name' => 'Hoàng Thị Em', 'phone' => '0955555555', 'address' => 'Cần Thơ'],
+        ['agency_code' => 'AG-001', 'agency_name' => 'Đại lý Hoa Nam Hà Nội', 'contact_name' => 'Nguyễn Thị Hạnh', 'phone' => '0911111111', 'address' => 'Hà Nội'],
+        ['agency_code' => 'AG-002', 'agency_name' => 'Đại lý Hoa Nam Đà Nẵng', 'contact_name' => 'Trần Văn Bình', 'phone' => '0922222222', 'address' => 'Đà Nẵng'],
+        ['agency_code' => 'AG-003', 'agency_name' => 'Đại lý Hoa Nam Hồ Chí Minh', 'contact_name' => 'Lê Thị Cúc', 'phone' => '0933333333', 'address' => 'Hồ Chí Minh'],
+        ['agency_code' => 'AG-004', 'agency_name' => 'Đại lý Hoa Nam Hải Phòng', 'contact_name' => 'Phạm Văn Đức', 'phone' => '0944444444', 'address' => 'Hải Phòng'],
+        ['agency_code' => 'AG-005', 'agency_name' => 'Đại lý Hoa Nam Cần Thơ', 'contact_name' => 'Hoàng Thị Em', 'phone' => '0955555555', 'address' => 'Cần Thơ'],
     ];
 
     private const BRANDS = [
@@ -76,7 +62,7 @@ class WarehouseDatabaseSeeder extends Seeder
         ['brand_code' => 'YANMAR', 'brand_name' => 'Yanmar', 'description' => 'Hãng động cơ và máy nông nghiệp Nhật Bản.'],
         ['brand_code' => 'HONDA', 'brand_name' => 'Honda', 'description' => 'Hãng động cơ đa dụng và máy cầm tay Nhật Bản.'],
         ['brand_code' => 'HUSQVARNA', 'brand_name' => 'Husqvarna', 'description' => 'Hãng thiết bị cắt cỏ, lâm nghiệp Thụy Điển.'],
-        ['brand_code' => 'HOANAM', 'brand_name' => 'Hòa Nam', 'description' => 'Thương hiệu nội bộ Hòa Nam — sản phẩm lắp ráp/gia công trong nước.'],
+        ['brand_code' => 'HOANAM', 'brand_name' => 'Hoa Nam', 'description' => 'Thương hiệu nội bộ Hoa Nam — sản phẩm lắp ráp/gia công trong nước.'],
     ];
 
     private const PRODUCT_CATEGORIES = [
@@ -92,7 +78,7 @@ class WarehouseDatabaseSeeder extends Seeder
         ['model_code' => 'MDL-YM-01', 'model_name' => 'Yanmar Model 01', 'brand_code' => 'YANMAR', 'description' => 'Dòng model tiêu chuẩn của Yanmar cho máy xới đất.'],
         ['model_code' => 'MDL-HD-01', 'model_name' => 'Honda Model 01', 'brand_code' => 'HONDA', 'description' => 'Dòng model tiêu chuẩn của Honda cho động cơ đa dụng.'],
         ['model_code' => 'MDL-HQ-01', 'model_name' => 'Husqvarna Model 01', 'brand_code' => 'HUSQVARNA', 'description' => 'Dòng model tiêu chuẩn của Husqvarna cho máy cắt cỏ.'],
-        ['model_code' => 'MDL-HN-01', 'model_name' => 'Hòa Nam Model 01', 'brand_code' => 'HOANAM', 'description' => 'Dòng model nội bộ Hòa Nam cho máy bơm/bo mạch/dây curoa.'],
+        ['model_code' => 'MDL-HN-01', 'model_name' => 'Hoa Nam Model 01', 'brand_code' => 'HOANAM', 'description' => 'Dòng model nội bộ Hoa Nam cho máy bơm/bo mạch/dây curoa.'],
     ];
 
     private const PV_INDUSTRIES = [
@@ -157,10 +143,6 @@ class WarehouseDatabaseSeeder extends Seeder
             Warehouse::query()->create(self::WAREHOUSE);
         } else {
             $warehouse->update(self::WAREHOUSE);
-        }
-
-        foreach (self::EXTRA_WAREHOUSES as $row) {
-            Warehouse::query()->updateOrCreate(['code' => $row['code']], $row);
         }
 
         $this->seedCanonicalMasters();

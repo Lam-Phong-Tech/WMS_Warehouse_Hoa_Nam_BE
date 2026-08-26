@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -16,7 +17,26 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class CurrentBaselineImportController extends CurrentBaselineOperationsController
 {
+    use ResolvesActor { actorId as actorIdCurrent; }
+
     /** Danh sách batch import toa xuất (phục vụ báo cáo Excel Import/Match mục 12). */
+    #[OA\Get(
+        path: '/api/v1/outbound-request-imports',
+        operationId: 'outbound_request_import_list',
+        summary: 'Danh sách batch import toa xuất (phân trang, filter status/keyword)',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['UPLOADED', 'VALIDATED', 'REJECTED', 'CONSUMED'])),
+            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 10)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách batch import toa xuất'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền outbound.request.import hoặc outbound.import'),
+        ]
+    )]
     public function indexOutboundRequestImports(Request $request)
     {
         $request->validate([
@@ -31,17 +51,30 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
         }
         if ($request->filled('keyword')) {
             $keyword = trim((string) $request->input('keyword'));
-            $query->where(function ($sub) use ($keyword): void {
-                $sub->where('import_no', 'ilike', "%{$keyword}%")
-                    ->orWhere('source_file_name', 'ilike', "%{$keyword}%")
-                    ->orWhere('source_key', 'ilike', "%{$keyword}%");
+            $likeOperator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($sub) use ($keyword, $likeOperator): void {
+                $sub->where('import_no', $likeOperator, "%{$keyword}%")
+                    ->orWhere('source_file_name', $likeOperator, "%{$keyword}%")
+                    ->orWhere('source_key', $likeOperator, "%{$keyword}%");
             });
         }
 
-        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 15)))));
+        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 10)))));
     }
 
     /** Template Excel toa yêu cầu xuất — file mẫu bắt buộc cho Ready-for-UAT. */
+    #[OA\Get(
+        path: '/api/v1/outbound-request-imports/template',
+        operationId: 'outbound_request_import_template',
+        summary: 'Tải template Excel toa yêu cầu xuất',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        responses: [
+            new OA\Response(response: 200, description: 'File XLSX template'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền outbound.request.import hoặc outbound.import'),
+        ]
+    )]
     public function downloadOutboundRequestTemplate()
     {
         $spreadsheet = new Spreadsheet;
@@ -220,7 +253,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
             }
         }, 3);
 
-        return $this->respondCreated($this->importPayloadCurrent($importId), 'Excel validation completed against PRODUCT-only outbound baseline.');
+        return $this->respondCreated($this->importPayloadCurrent($importId), 'Đã kiểm tra file Excel theo quy tắc chỉ áp dụng cho SKU loại PRODUCT.');
     }
 
     /**
@@ -414,10 +447,11 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                         }
 
                         $documentId = (string) Str::uuid();
+                        $outboundDocNo = 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6));
                         DB::table('stock_documents')->insert([
                             'id' => $documentId,
                             'doc_type' => 'issue',
-                            'doc_no' => 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6)),
+                            'doc_no' => $outboundDocNo,
                             'doc_date' => now()->toDateString(),
                             'status' => 'DRAFT',
                             'src_warehouse_id' => $warehouseId,
@@ -460,6 +494,14 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                             'updated_by' => $this->actorIdCurrent(),
                         ]);
 
+                        event(new \Modules\Warehouse\Events\StockDocumentCreated(
+                            $documentId,
+                            $outboundDocNo,
+                            'issue',
+                            $warehouseId !== null ? (string) $warehouseId : null,
+                            $this->actorIdCurrent(),
+                        ));
+
                         $requestIds[] = $requestId;
                         $documentIds[] = $documentId;
                     }
@@ -489,7 +531,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                     ];
                 }, 3);
 
-                return [200, $this->envelopeCurrent('Outbound import consumed; CONSUMED outbound requests and DRAFT outbound documents created.', $result)];
+                return [200, $this->envelopeCurrent('Đã xử lý import toa xuất: toa yêu cầu chuyển sang CONSUMED và đã tạo phiếu xuất kho ở trạng thái DRAFT.', $result)];
             }
         );
 
@@ -741,13 +783,4 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
         ];
     }
 
-    private function actorIdCurrent(): string
-    {
-        $id = auth('api')->id();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Authentication required.');
-        }
-
-        return (string) $id;
-    }
 }

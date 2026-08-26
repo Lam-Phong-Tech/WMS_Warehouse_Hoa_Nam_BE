@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Permission;
@@ -34,6 +35,10 @@ class RbacCacheInvalidationTest extends TestCase
         parent::setUp();
         $this->seed(AuthDatabaseSeeder::class);
         Cache::flush();
+        // RolePermissionsChanged tự bắn 1 queued listener (module Notification,
+        // ShouldQueue) — không liên quan gì tới RBAC cache đang test ở đây, fake
+        // queue để cô lập, tránh phụ thuộc vào trạng thái/schema notification.
+        Queue::fake();
 
         $this->superAdmin = User::where('username', 'test-super-admin')->firstOrFail();
         $this->superAdminToken = JWTAuth::fromUser($this->superAdmin);
@@ -153,5 +158,48 @@ class RbacCacheInvalidationTest extends TestCase
         $fresh = User::query()->find($user->user_id);
         $this->assertFalse($fresh->hasPermission('rbac_cache.reassign_probe_old'));
         $this->assertTrue($fresh->hasPermission('rbac_cache.reassign_probe_new'));
+    }
+
+    /**
+     * IamRolePermissionScreen (IAM-01 tab "Vai trò & ma trận quyền") không đọc
+     * enforcement (hasPermission) — nó đọc lại GET /roles/{id} (RoleRepository,
+     * cache domain 'auth.role', TTL rbac) để hiển thị đúng những gì vừa lưu.
+     * assignPermissions() ghi qua $role->permissions()->sync() thẳng trên Eloquent
+     * relation, bỏ qua RoleRepository::update() — nếu quên forgetCache() thì GET
+     * /roles/{id} vẫn trả permission set CŨ tới hết TTL dù DB/enforcement đã đúng,
+     * khiến UI trông như "lưu không ăn".
+     */
+    public function test_get_role_detail_reflects_permission_reassignment_immediately(): void
+    {
+        [$role] = $this->makeSubjectWithPermission('rbac_cache.detail_probe_old');
+
+        // Warm cache 'auth.role:detail' qua đúng đường FE dùng thật.
+        $this->getJson("/api/v1/roles/{$role->role_id}", [
+            'Authorization' => "Bearer {$this->superAdminToken}",
+        ])->assertOk()->assertJsonPath('data.permissions.0.permission_key', 'rbac_cache.detail_probe_old');
+
+        $newPermission = Permission::firstOrCreate(
+            ['permission_key' => 'rbac_cache.detail_probe_new'],
+            ['permission_name' => 'new', 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
+        );
+
+        $this->postJson("/api/v1/roles/{$role->role_id}/permissions", [
+            'permission_ids' => [$newPermission->permission_id],
+        ], ['Authorization' => "Bearer {$this->superAdminToken}"])->assertOk();
+
+        $keys = fn ($permissions) => collect($permissions)->pluck('permission_key')->all();
+
+        $this->getJson("/api/v1/roles/{$role->role_id}", [
+            'Authorization' => "Bearer {$this->superAdminToken}",
+        ])->assertOk()
+            ->assertJsonPath('data.permissions', fn ($permissions) => $keys($permissions) === ['rbac_cache.detail_probe_new']);
+
+        $this->getJson('/api/v1/roles?per_page=100', [
+            'Authorization' => "Bearer {$this->superAdminToken}",
+        ])->assertOk()->assertJsonPath('data', function ($roles) use ($role, $keys) {
+            $match = collect($roles)->firstWhere('role_id', $role->role_id);
+
+            return $match !== null && $keys($match['permissions']) === ['rbac_cache.detail_probe_new'];
+        });
     }
 }

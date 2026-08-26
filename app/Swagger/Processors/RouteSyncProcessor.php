@@ -633,26 +633,46 @@ class RouteSyncProcessor
         // bắt buộc của updatePvAdminResource không được khai trong OpenAPI và ma
         // trận endpoint — FE/QA đọc contract sẽ tưởng PATCH không cần If-Match rồi
         // ăn 428 lúc chạy thật.
-        $seen = [$method => true];
-        $pending = [$source];
+        //
+        // Phải đi theo cả `parent::action()`: adapter mỏng kiểu
+        // BaM1OutboundFlowController::postIssue() chỉ `return parent::postIssue(...)`,
+        // nên quét-một-lớp đọc ra "không chạm If-Match/Idempotency-Key" trong khi
+        // runtime vẫn ném 428 — OpenAPI công bố sai đúng bốn action đổi tồn
+        // (cùng lớp lỗi BE266-D01, tái phát ở tầng kế thừa thay vì tầng helper).
+        $seen = [$class.'::'.$method => true];
+        $pending = [[$class, $source]];
         // Giữ RIÊNG từng thân method bên cạnh bản nối, vì phép kiểm If-Match bên
         // dưới cần biết hai dấu hiệu có nằm trong CÙNG một thân hay không.
         $bodies = [$source];
         while ($pending !== []) {
-            $current = array_pop($pending);
-            preg_match_all('/\$this->([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $current, $matches);
-            foreach (array_unique($matches[1] ?? []) as $helper) {
-                if (isset($seen[$helper]) || ! method_exists($class, $helper)) {
+            [$currentClass, $current] = array_pop($pending);
+
+            $targets = [];
+            preg_match_all('/\$this->([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $current, $thisCalls);
+            foreach (array_unique($thisCalls[1] ?? []) as $helper) {
+                $targets[] = [$currentClass, $helper];
+            }
+            $parentClass = get_parent_class($currentClass);
+            if ($parentClass !== false) {
+                preg_match_all('/parent::([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $current, $parentCalls);
+                foreach (array_unique($parentCalls[1] ?? []) as $inherited) {
+                    $targets[] = [$parentClass, $inherited];
+                }
+            }
+
+            foreach ($targets as [$targetClass, $targetMethod]) {
+                $key = $targetClass.'::'.$targetMethod;
+                if (isset($seen[$key]) || ! method_exists($targetClass, $targetMethod)) {
                     continue;
                 }
-                $seen[$helper] = true;
-                $helperSource = $this->methodSource($class, $helper);
+                $seen[$key] = true;
+                $helperSource = $this->methodSource($targetClass, $targetMethod);
                 if ($helperSource === null) {
                     continue;
                 }
                 $source .= "\n".$helperSource;
                 $bodies[] = $helperSource;
-                $pending[] = $helperSource;
+                $pending[] = [$targetClass, $helperSource];
             }
         }
 

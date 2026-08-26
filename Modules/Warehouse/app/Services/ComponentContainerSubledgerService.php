@@ -4,9 +4,12 @@ namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
 use Illuminate\Support\Facades\DB;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 
 class ComponentContainerSubledgerService
 {
+    use ResolvesActorOrNull { actorIdOrNull as actorId; }
+
     private const STOCK_BEARING_BOX_STATUSES = [
         'IN_STOCK',
         'PARTIAL',
@@ -148,10 +151,4 @@ class ComponentContainerSubledgerService
         ]);
     }
 
-    private function actorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
-    }
 }

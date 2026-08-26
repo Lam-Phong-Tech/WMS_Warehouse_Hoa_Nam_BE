@@ -49,7 +49,7 @@ class AgencyController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->agencies->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->agencies->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 
@@ -65,7 +65,7 @@ class AgencyController extends Controller
                 required: ['agency_code', 'agency_name'],
                 properties: [
                     new OA\Property(property: 'agency_code', type: 'string', maxLength: 50, example: 'DL-0001'),
-                    new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Đại lý Hoà Nam Q1'),
+                    new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Đại lý Hoa Nam Q1'),
                     new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
                     new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
                     new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),
@@ -126,7 +126,7 @@ class AgencyController extends Controller
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
                 new OA\Property(property: 'agency_code', type: 'string', maxLength: 50, example: 'DL-0001'),
-                new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Đại lý Hòa Nam Miền Bắc'),
+                new OA\Property(property: 'agency_name', type: 'string', maxLength: 255, example: 'Đại lý Hoa Nam Miền Bắc'),
                 new OA\Property(property: 'contact_name', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
                 new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
                 new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),

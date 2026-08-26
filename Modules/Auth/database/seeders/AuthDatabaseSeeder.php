@@ -5,6 +5,7 @@ namespace Modules\Auth\Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Modules\Auth\Models\Department;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
@@ -237,12 +238,20 @@ class AuthDatabaseSeeder extends Seeder
         ],
     ];
 
+    /**
+     * 'department' (department_code, xem DepartmentSeeder) chỉ khai cho user có vai
+     * trò khớp tự nhiên với một phòng ban thật — tránh gán bừa để không tạo dữ liệu
+     * tổ chức sai lệch. Warehouse Staff/Approver/Keeper/Manager đều trực tiếp vận
+     * hành kho nên thuộc "Phòng quản lý kho"; các user còn lại (test-*, viewer01)
+     * chưa có vai trò kinh doanh/bảo hành tương ứng nên để trống (null), hiển thị
+     * "—" ở cột Phòng ban cho tới khi được gán tay qua UI.
+     */
     private const USERS = [
-        ['username' => 'staff01', 'display_name' => 'Warehouse Staff 01', 'email' => 'staff01@gmail.com', 'role' => 'WAREHOUSE_STAFF'],
-        ['username' => 'approver01', 'display_name' => 'Warehouse Approver 01', 'email' => 'approver01@gmail.com', 'role' => 'WAREHOUSE_APPROVER'],
-        ['username' => 'keeper01', 'display_name' => 'Warehouse Keeper 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER'],
+        ['username' => 'staff01', 'display_name' => 'Warehouse Staff 01', 'email' => 'staff01@gmail.com', 'role' => 'WAREHOUSE_STAFF', 'department' => 'QUAN_LY_KHO'],
+        ['username' => 'approver01', 'display_name' => 'Warehouse Approver 01', 'email' => 'approver01@gmail.com', 'role' => 'WAREHOUSE_APPROVER', 'department' => 'QUAN_LY_KHO'],
+        ['username' => 'keeper01', 'display_name' => 'Warehouse Keeper 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER', 'department' => 'QUAN_LY_KHO'],
         ['username' => 'viewer01', 'display_name' => 'Viewer 01', 'email' => 'viewer01@gmail.com', 'role' => 'VIEWER'],
-        ['username' => 'manager01', 'display_name' => 'Warehouse Manager 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER'],
+        ['username' => 'manager01', 'display_name' => 'Warehouse Manager 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER', 'department' => 'QUAN_LY_KHO'],
         ['username' => 'test-sku-manage', 'display_name' => 'Test SKU Manage', 'email' => 'test-sku-manage@hoanam.com', 'role' => 'SKU_MANAGER'],
         ['username' => 'test-master-manage', 'display_name' => 'Test Master Manage', 'email' => 'test-master-manage@hoanam.com', 'role' => 'MASTER_MANAGER'],
         ['username' => 'test-no-permission', 'display_name' => 'Test No Permission', 'email' => 'test-no-permission@hoanam.com', 'role' => 'NO_PERMISSION'],
@@ -303,6 +312,8 @@ class AuthDatabaseSeeder extends Seeder
         }
 
         $this->call(WmsPermissionCompatibilitySeeder::class);
+        $this->call(DepartmentSeeder::class);
+        $departmentIdByCode = Department::query()->pluck('department_id', 'department_code')->all();
 
         if (! $withFixtures) {
             $this->command?->warn(
@@ -323,6 +334,7 @@ class AuthDatabaseSeeder extends Seeder
                     'password_hash' => Hash::make($this->fixturePassword()),
                     'status' => 'ACTIVE',
                     'version' => 1,
+                    'department_id' => isset($u['department']) ? ($departmentIdByCode[$u['department']] ?? null) : null,
                 ]
             );
             $this->attachRole($user, $roleModels[$u['role']]);

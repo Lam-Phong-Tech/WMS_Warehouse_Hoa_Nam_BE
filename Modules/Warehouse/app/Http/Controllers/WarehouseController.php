@@ -15,12 +15,12 @@ use Modules\Warehouse\Repositories\Contracts\WarehouseRepositoryInterface;
 use OpenApi\Attributes as OA;
 
 /**
- * Kho Hoà Nam chỉ vận hành 01 kho tổng ACTIVE.
+ * Kho Hoa Nam chỉ vận hành đúng 01 kho tổng, vĩnh viễn.
  *
  * AC-SRS-001 + §8.1 Warehouse: "cho phép tạo/sửa thông tin, địa chỉ và trạng thái
  * của đúng 01 Warehouse; tạo Warehouse thứ hai bị chặn". POST tồn tại theo Annex C
- * createWarehouse nhưng kho ACTIVE thứ hai bị WarehouseRepository trả 409
- * STATE_CONFLICT. Không có xoá kho.
+ * createWarehouse nhưng bị WarehouseRepository trả 409 STATE_CONFLICT ngay khi đã
+ * có ≥1 dòng warehouse (không riêng gì kho ACTIVE thứ hai). Không có xoá kho.
  */
 class WarehouseController extends Controller
 {
@@ -68,7 +68,7 @@ class WarehouseController extends Controller
     #[OA\Post(
         path: '/api/v1/warehouses',
         operationId: 'warehouse_create',
-        summary: 'Tạo kho tổng (kho ACTIVE thứ hai bị chặn 409)',
+        summary: 'Tạo kho tổng (chặn 409 ngay khi đã tồn tại ≥1 kho)',
         security: [['bearerAuth' => []]],
         tags: ['06. Warehouse'],
         requestBody: new OA\RequestBody(
@@ -77,7 +77,7 @@ class WarehouseController extends Controller
                 required: ['code', 'name'],
                 properties: [
                     new OA\Property(property: 'code', type: 'string', maxLength: 50, example: 'KHO-TONG-HN'),
-                    new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Kho tổng Hoà Nam'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Kho tổng Hoa Nam'),
                     new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),
                     new OA\Property(property: 'contact_person', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
                     new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
@@ -89,7 +89,7 @@ class WarehouseController extends Controller
             new OA\Response(response: 201, description: 'Tạo kho thành công'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền warehouse.manage'),
-            new OA\Response(response: 409, description: 'Đã tồn tại kho ACTIVE khác (REQ-SRS-001 single warehouse)'),
+            new OA\Response(response: 409, description: 'Đã tồn tại kho khác (REQ-SRS-001 chỉ 1 kho tổng duy nhất)'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
         ]
     )]
@@ -148,7 +148,7 @@ class WarehouseController extends Controller
         ],
         requestBody: new OA\RequestBody(
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Kho tổng Hoà Nam'),
+                new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Kho tổng Hoa Nam'),
                 new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),
                 new OA\Property(property: 'contact_person', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
                 new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),

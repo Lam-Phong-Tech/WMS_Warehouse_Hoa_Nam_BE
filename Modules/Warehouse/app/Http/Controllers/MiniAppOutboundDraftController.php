@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 
 /**
  * Mini App adapter for creating an outbound DRAFT without going through Web WMS.
@@ -26,23 +27,47 @@ use Modules\AuditLog\Services\AuditLogger;
  */
 class MiniAppOutboundDraftController extends Controller
 {
+    use ResolvesActorOrNull;
+
+    private function actorId(): string
+    {
+        $id = $this->actorIdOrNull();
+        if ($id === null) {
+            ApiError::abort(401, 'UNAUTHENTICATED', 'Chưa xác thực người dùng Mini App.');
+        }
+
+        return $id;
+    }
+
     public function store(Request $request): JsonResponse
     {
+        // Các field text tự do sau sẽ đi vào json_encode(..., JSON_THROW_ON_ERROR)
+        // để tính source_checksum (xem createDraft()). 'string' của Laravel chỉ
+        // kiểm tra is_string(), không kiểm tra encoding — byte không hợp lệ UTF-8
+        // (vd người dùng dán từ nguồn encoding khác) qua được validate rồi làm
+        // json_encode ném JsonException không ai bắt => 500 thay vì 422. Chặn
+        // ngay tại validation, trước khi chạm business logic.
+        $utf8Rule = function (string $attribute, mixed $value, \Closure $fail): void {
+            if (is_string($value) && ! mb_check_encoding($value, 'UTF-8')) {
+                $fail('Trường :attribute chứa ký tự không hợp lệ (không phải UTF-8).');
+            }
+        };
+
         $validated = $request->validate([
             'warehouse_id' => ['required', 'uuid'],
-            'name' => ['nullable', 'string', 'max:200'],
-            'request_no' => ['nullable', 'string', 'max:80'],
+            'name' => ['nullable', 'string', 'max:200', $utf8Rule],
+            'request_no' => ['nullable', 'string', 'max:80', $utf8Rule],
             'request_date' => ['nullable', 'date_format:Y-m-d'],
-            'recipient_name' => ['required', 'string', 'max:200'],
-            'recipient_address' => ['nullable', 'string', 'max:1000'],
+            'recipient_name' => ['required', 'string', 'max:200', $utf8Rule],
+            'recipient_address' => ['nullable', 'string', 'max:1000', $utf8Rule],
             'recipient_contact_phone' => ['nullable', 'string', 'max:50', 'regex:/^0\d{9}$/'],
-            'note' => ['nullable', 'string', 'max:1000'],
+            'note' => ['nullable', 'string', 'max:1000', $utf8Rule],
             'expected_total_qty' => ['required', 'integer', 'min:1', 'max:1000'],
             'lines' => ['required', 'array', 'min:1', 'max:1000'],
             'lines.*.sku_id' => ['nullable', 'uuid'],
-            'lines.*.sku_code' => ['nullable', 'string', 'max:100'],
+            'lines.*.sku_code' => ['nullable', 'string', 'max:100', $utf8Rule],
             'lines.*.required_qty' => ['required', 'integer', 'min:1', 'max:1000'],
-            'lines.*.note' => ['nullable', 'string', 'max:2000'],
+            'lines.*.note' => ['nullable', 'string', 'max:2000', $utf8Rule],
         ], [
             'recipient_contact_phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
         ]);
@@ -376,17 +401,6 @@ class MiniAppOutboundDraftController extends Controller
         }
 
         return array_values($grouped);
-    }
-
-    private function actorId(): string
-    {
-        $user = auth('api')->user();
-        $id = $user?->getAuthIdentifier();
-        if ($id === null || (string) $id === '') {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Chưa xác thực người dùng Mini App.');
-        }
-
-        return (string) $id;
     }
 
     /** @param array<string,mixed> $data */

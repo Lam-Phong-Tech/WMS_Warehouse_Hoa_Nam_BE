@@ -1,6 +1,6 @@
 {
     "success": false,
-    "message": "Document version mismatch.",
+    "message": "Không thể thực hiện yêu cầu do dữ liệu hoặc trạng thái hiện tại không hợp lệ.",
     "error_code": "STALE_VERSION",
     "errors": {
         "expected_version": 999,
@@ -14,7 +14,7 @@
         }
     },
     "meta": {
-        "request_id": "bed45d0d-9fbd-427b-9128-8f77e130d5a5",
-        "timestamp": "2026-08-20T11:24:51+07:00"
+        "request_id": "415bf399-8852-4ec8-b531-b22c99bcbc89",
+        "timestamp": "2026-08-26T16:27:34+07:00"
     }
 }

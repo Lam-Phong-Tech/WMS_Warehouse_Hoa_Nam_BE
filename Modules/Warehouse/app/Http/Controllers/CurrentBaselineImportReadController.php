@@ -31,7 +31,7 @@ class CurrentBaselineImportReadController extends Controller
     {
         $import = DB::table('outbound_request_imports')->where('id', $id)->first();
         if ($import === null) {
-            return $this->respondNotFound('Import not found.');
+            return $this->respondNotFound('Không tìm thấy Import.');
         }
 
         $rows = DB::table('outbound_request_import_rows')
@@ -72,7 +72,7 @@ class CurrentBaselineImportReadController extends Controller
     {
         $import = DB::table('outbound_request_imports')->where('id', $id)->first();
         if ($import === null) {
-            return $this->respondNotFound('Import not found.');
+            return $this->respondNotFound('Không tìm thấy Import.');
         }
 
         $errors = DB::table('outbound_request_import_rows')

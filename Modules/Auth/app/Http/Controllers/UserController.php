@@ -48,7 +48,7 @@ class UserController extends Controller
     public function index(Request $request)
     {
         return $this->respondPaginated(
-            $this->users->paginate($request->all(), (int) $request->input('per_page', 15))
+            $this->users->paginate($request->all(), (int) $request->input('per_page', 10))
         );
     }
 
@@ -97,6 +97,8 @@ class UserController extends Controller
             requestId: $request->attributes->get('request_id'),
             afterData: $user->makeHidden('password_hash')->toArray(),
         );
+
+        event(new \Modules\Auth\Events\UserAccountChanged($user->user_id, 'CREATE', $request->user()?->user_id));
 
         return $this->respondCreated($user, 'Tạo người dùng thành công');
     }
@@ -183,6 +185,8 @@ class UserController extends Controller
             beforeData: $beforeData,
             afterData: $user->makeHidden('password_hash')->toArray(),
         );
+
+        event(new \Modules\Auth\Events\UserAccountChanged($id, 'UPDATE', $request->user()?->user_id));
 
         return $this->respondSuccess($user, 'Cập nhật người dùng thành công');
     }

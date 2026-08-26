@@ -11,6 +11,7 @@ use Illuminate\Testing\TestResponse;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -44,6 +45,7 @@ use Tests\TestCase;
  */
 class Wwhn289StockInvariantProofTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -731,30 +733,27 @@ class Wwhn289StockInvariantProofTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => $warehouse->id,
+        // Contract GĐ1 scan-driven: header-only + component-lines + Box + đếm thực tế.
+        $document = $this->createInboundHeader($headers, (string) $warehouse->id, [
             'source_name' => 'WWHN-289 stock invariant fixture',
-            'lines' => [['product_id' => $sku->sku_id, 'qty_planned' => $qty]],
-        ], $headers);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineId = (string) $create->json('data.lines.0.id');
+        ]);
+        $documentId = $document['document_id'];
 
-        $box = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineId,
-            'box_code' => 'BOX-'.Str::upper(Str::random(8)),
-        ], $headers);
-        $boxId = (string) $box->json('data.container_id');
+        $received = $this->receiveComponentQuantity(
+            $headers,
+            $documentId,
+            (string) $sku->sku_id,
+            $qty,
+            $document['version']
+        );
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineId,
-            'quantity' => $qty,
-            'container_id' => $boxId,
-        ], $headers + ['If-Match' => '1'])->assertOk();
+        // Các test trong file dùng If-Match '2'/'3' tường minh — khoá lại giả định
+        // versioning (create=1, một lượt scan=2) để lệch là đỏ ngay tại fixture.
+        $this->assertSame(2, $received['version'], 'Fixture giả định version=2 sau một lượt scan.');
 
         return [
             'document_id' => $documentId,
-            'line_id' => $lineId,
+            'line_id' => $received['line_id'],
             'sku_id' => (string) $sku->sku_id,
             'warehouse_id' => (string) $warehouse->id,
             'qty' => $qty,
@@ -783,6 +782,6 @@ class Wwhn289StockInvariantProofTest extends TestCase
 
     private function canonicalWarehouse(): Warehouse
     {
-        return $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hòa Nam');
+        return $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
     }
 }

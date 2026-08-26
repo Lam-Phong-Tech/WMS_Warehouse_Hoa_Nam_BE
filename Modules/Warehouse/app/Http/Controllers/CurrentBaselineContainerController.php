@@ -10,10 +10,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 
 class CurrentBaselineContainerController extends Controller
 {
     use ApiResponse;
+    use ResolvesActorOrNull { actorIdOrNull as actorId; }
 
     public function update(Request $request, string $id)
     {
@@ -92,7 +94,7 @@ class CurrentBaselineContainerController extends Controller
             ];
         }, 3);
 
-        return $this->respondSuccess($result, 'Container updated.');
+        return $this->respondSuccess($result, 'Cập nhật container thành công.');
     }
 
     private function expectedVersion(Request $request, mixed $bodyVersion): int
@@ -112,10 +114,4 @@ class CurrentBaselineContainerController extends Controller
         ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match/version là bắt buộc.');
     }
 
-    private function actorId(): ?string
-    {
-        $id = auth('api')->id();
-
-        return $id === null ? null : (string) $id;
-    }
 }

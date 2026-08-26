@@ -1,6 +1,6 @@
 {
     "success": false,
-    "message": "Chưa xác thực",
+    "message": "Chưa đăng nhập hoặc phiên đăng nhập đã hết hạn.",
     "error_code": "UNAUTHENTICATED",
     "errors": [],
     "error": {
@@ -8,7 +8,7 @@
         "details": []
     },
     "meta": {
-        "request_id": "03f50c02-45cd-4970-8663-d626e4c08f1c",
-        "timestamp": "2026-08-20T11:24:51+07:00"
+        "request_id": "4732896d-b735-47d6-9b5a-01e2bf2f09a1",
+        "timestamp": "2026-08-26T16:27:34+07:00"
     }
 }

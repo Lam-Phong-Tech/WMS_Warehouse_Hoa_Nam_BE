@@ -14,6 +14,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -29,6 +30,7 @@ use Tests\TestCase;
  */
 class Wwhn234P1P2ClosureTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -77,7 +79,7 @@ class Wwhn234P1P2ClosureTest extends TestCase
     {
         return Warehouse::firstOrCreate(
             ['code' => 'KHO-TONG-HN'],
-            ['name' => 'Kho tổng Hòa Nam', 'status' => 'ACTIVE']
+            ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
         );
     }
 
@@ -246,34 +248,19 @@ class Wwhn234P1P2ClosureTest extends TestCase
         [$firstSkuId, $secondSkuId] = [(string) $skuA->sku_id, (string) $skuB->sku_id];
         [$lowerSkuId, $higherSkuId] = $firstSkuId < $secondSkuId ? [$firstSkuId, $secondSkuId] : [$secondSkuId, $firstSkuId];
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => (string) $warehouse->id,
+        // Contract GĐ1 scan-driven: header-only; line 1 = sku LỚN HƠN (materialize
+        // trước), line 2 = sku NHỎ HƠN — cố tình ngược thứ tự chuỗi.
+        $document = $this->createInboundHeader($admin, (string) $warehouse->id, [
             'source_name' => 'NCC WWHN-234-F04',
-            // line 1 = sku LỚN HƠN, line 2 = sku NHỎ HƠN — cố tình ngược thứ tự chuỗi.
-            'lines' => [
-                ['product_id' => $higherSkuId, 'qty_planned' => 2],
-                ['product_id' => $lowerSkuId, 'qty_planned' => 2],
-            ],
-        ], $admin);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineHigher = (string) $create->json('data.lines.0.id');
-        $lineLower = (string) $create->json('data.lines.1.id');
+        ]);
+        $documentId = $document['document_id'];
 
-        // Dòng nhập COMPONENT bắt buộc gắn BOX trước khi scan (EnsureInboundComponentBox).
-        $boxHigher = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineHigher, 'box_code' => 'BOX-234-H-'.Str::upper(Str::random(6)),
-        ], $admin);
-        $boxLower = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineLower, 'box_code' => 'BOX-234-L-'.Str::upper(Str::random(6)),
-        ], $admin);
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineHigher, 'quantity' => 2, 'container_id' => (string) $boxHigher->json('data.container_id'),
-        ], $admin + ['If-Match' => '1'])->assertOk();
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineLower, 'quantity' => 2, 'container_id' => (string) $boxLower->json('data.container_id'),
-        ], $admin + ['If-Match' => '2'])->assertOk();
+        $receivedHigher = $this->receiveComponentQuantity(
+            $admin, $documentId, $higherSkuId, 2, $document['version'], 'BOX-234-H-'.Str::upper(Str::random(6))
+        );
+        $receivedLower = $this->receiveComponentQuantity(
+            $admin, $documentId, $lowerSkuId, 2, $receivedHigher['version'], 'BOX-234-L-'.Str::upper(Str::random(6))
+        );
 
         $captured = [];
         Event::listen(function (QueryExecuted $event) use (&$captured): void {
@@ -283,10 +270,8 @@ class Wwhn234P1P2ClosureTest extends TestCase
             }
         });
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $admin + [
-            'If-Match' => '3',
-            'Idempotency-Key' => 'w234-f04-'.Str::random(8),
-        ])->assertOk();
+        $this->postInboundReceipt($admin, $documentId, $receivedLower['version'], 'w234-f04-'.Str::random(8))
+            ->assertOk();
 
         Event::forget(QueryExecuted::class);
 
@@ -333,37 +318,22 @@ class Wwhn234P1P2ClosureTest extends TestCase
         [$firstSkuId, $secondSkuId] = [(string) $skuA->sku_id, (string) $skuB->sku_id];
         [$lowerSkuId, $higherSkuId] = $firstSkuId < $secondSkuId ? [$firstSkuId, $secondSkuId] : [$secondSkuId, $firstSkuId];
 
-        $create = $this->postJson('/api/v1/inbound-documents', [
-            'dst_warehouse_id' => (string) $warehouse->id,
+        // Contract GĐ1 scan-driven: header-only + component-lines, line 1 = sku lớn hơn.
+        $document = $this->createInboundHeader($admin, (string) $warehouse->id, [
             'source_name' => 'NCC WWHN-234-F04R',
-            'lines' => [
-                ['product_id' => $higherSkuId, 'qty_planned' => 2],
-                ['product_id' => $lowerSkuId, 'qty_planned' => 2],
-            ],
-        ], $admin);
-        $create->assertCreated();
-        $documentId = (string) $create->json('data.id');
-        $lineHigher = (string) $create->json('data.lines.0.id');
-        $lineLower = (string) $create->json('data.lines.1.id');
+        ]);
+        $documentId = $document['document_id'];
 
-        $boxHigher = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineHigher, 'box_code' => 'BOX-234R-H-'.Str::upper(Str::random(6)),
-        ], $admin);
-        $boxLower = $this->postJson("/api/v1/inbound-documents/{$documentId}/boxes", [
-            'line_id' => $lineLower, 'box_code' => 'BOX-234R-L-'.Str::upper(Str::random(6)),
-        ], $admin);
+        $receivedHigher = $this->receiveComponentQuantity(
+            $admin, $documentId, $higherSkuId, 2, $document['version'], 'BOX-234R-H-'.Str::upper(Str::random(6))
+        );
+        $receivedLower = $this->receiveComponentQuantity(
+            $admin, $documentId, $lowerSkuId, 2, $receivedHigher['version'], 'BOX-234R-L-'.Str::upper(Str::random(6))
+        );
 
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineHigher, 'quantity' => 2, 'container_id' => (string) $boxHigher->json('data.container_id'),
-        ], $admin + ['If-Match' => '1'])->assertOk();
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/scan", [
-            'line_id' => $lineLower, 'quantity' => 2, 'container_id' => (string) $boxLower->json('data.container_id'),
-        ], $admin + ['If-Match' => '2'])->assertOk();
-
-        $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $admin + [
-            'If-Match' => '3',
-            'Idempotency-Key' => 'w234-f04r-post-'.Str::random(8),
-        ])->assertOk();
+        $post = $this->postInboundReceipt($admin, $documentId, $receivedLower['version'], 'w234-f04r-post-'.Str::random(8));
+        $post->assertOk();
+        $postedVersion = (int) ($post->json('data.version') ?? ($receivedLower['version'] + 1));
 
         $movementHigher = (string) DB::table('stock_movements')->where('stock_document_id', $documentId)->where('product_id', $higherSkuId)->value('id');
         $movementLower = (string) DB::table('stock_movements')->where('stock_document_id', $documentId)->where('product_id', $lowerSkuId)->value('id');
@@ -386,7 +356,7 @@ class Wwhn234P1P2ClosureTest extends TestCase
                 ['movement_id' => $movementLower, 'quantity' => 2],
             ],
         ], $admin + [
-            'If-Match' => '4',
+            'If-Match' => (string) $postedVersion,
             'Idempotency-Key' => 'w234-f04r-'.Str::random(8),
         ]);
         $reverse->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');

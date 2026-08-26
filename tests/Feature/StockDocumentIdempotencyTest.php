@@ -51,7 +51,7 @@ class StockDocumentIdempotencyTest extends TestCase
         $this->assertStringContainsString('source_key', $import);
         $this->assertStringContainsString('SOURCE_KEY_CONFLICT', $import);
         $this->assertStringContainsString('source_checksum', $base);
-        $this->assertStringContainsString('Duplicate checksum replayed', $base);
+        $this->assertStringContainsString('File trùng nội dung với lần import trước', $base);
         $this->assertStringContainsString('outbound_document_ids', $import);
     }
 

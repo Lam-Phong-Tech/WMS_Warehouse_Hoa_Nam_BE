@@ -77,11 +77,11 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
                     continue;
                 }
 
+                // completion_type/shortage_reason đã bị gỡ khỏi schema (migration
+                // 2026_08_10_000620) — ghi vào sẽ nổ SQL trên mọi DB đã migrate.
                 DB::table('stock_document_lines')->where('id', $line->id)->update([
                     'qty_planned' => $actual,
                     'qty_actual' => $actual,
-                    'completion_type' => 'full',
-                    'shortage_reason' => null,
                     'updated_at' => now(),
                 ]);
             }
@@ -162,16 +162,22 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
                         $lineNo = ((int) DB::table('stock_document_lines')
                             ->where('stock_document_id', $documentId)
                             ->max('line_no')) + 1;
+                        // chk_stock_document_line_integer_positive (PostgreSQL) đòi
+                        // qty_planned > 0 AND qty_actual > 0 ngay tại thời điểm INSERT —
+                        // đây là CHECK tức thời, không hoãn được tới UPDATE sau. Line mới
+                        // "capacity exactly equal to the next actual scan" (docblock trên)
+                        // nên qty_actual phải bằng $quantity giống qty_planned, không phải
+                        // 0; scanned_qty=0 vẫn hợp lệ (0 <= qty_planned). Trước đây insert
+                        // qty_actual=0 khiến MỌI lần scan đầu tiên của một SKU mới trên
+                        // phiếu nhập scan-driven ném QueryException 23514 -> 500.
                         DB::table('stock_document_lines')->insert([
                             'id' => $lineId,
                             'stock_document_id' => $documentId,
                             'line_no' => $lineNo,
                             'product_id' => $skuId,
                             'qty_planned' => $quantity,
-                            'qty_actual' => 0,
+                            'qty_actual' => $quantity,
                             'scanned_qty' => 0,
-                            'completion_type' => 'full',
-                            'shortage_reason' => null,
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);

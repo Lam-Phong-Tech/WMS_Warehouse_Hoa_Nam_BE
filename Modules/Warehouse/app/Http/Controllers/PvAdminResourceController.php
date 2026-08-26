@@ -82,8 +82,39 @@ class PvAdminResourceController extends Controller
         path: '/api/v1/pv-admin/resources/{resourceType}',
         operationId: 'createPvAdminResource',
         summary: 'PV Admin — tạo master App PV',
+        description: 'Field body thay đổi theo resourceType: industries/tags cần industry_code|tag_code, '
+            .'industry_name|tag_name, status, sort_order (tags có thêm tag_type); rules cần industry_id, priority, '
+            .'status (kèm tuỳ chọn sku_id/category_id/tag_id); profiles cần sku_id, display_name, industry_ids[], '
+            .'tag_ids[], sort_order (không nhận published).',
         security: [['bearerAuth' => []]],
         tags: ['12. App PV'],
+        parameters: [
+            new OA\Parameter(name: 'resourceType', in: 'path', required: true, schema: new OA\Schema(type: 'string', enum: self::RESOURCE_TYPES)),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: 'object',
+                properties: [
+                    new OA\Property(property: 'industry_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'tag_code', type: 'string', maxLength: 80, nullable: true),
+                    new OA\Property(property: 'industry_name', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'tag_name', type: 'string', maxLength: 200, nullable: true),
+                    new OA\Property(property: 'tag_type', type: 'string', nullable: true),
+                    new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, default: 'ACTIVE'),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: 2147483647, nullable: true),
+                    new OA\Property(property: 'industry_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'category_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'tag_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'priority', type: 'integer', minimum: 0, maximum: 2147483647, nullable: true),
+                    new OA\Property(property: 'display_name', type: 'string', nullable: true),
+                    new OA\Property(property: 'description', type: 'string', nullable: true),
+                    new OA\Property(property: 'industry_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true),
+                    new OA\Property(property: 'tag_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true),
+                ]
+            )
+        ),
         responses: [
             new OA\Response(response: 201, description: 'PVAdminResource'),
             new OA\Response(response: 403, description: 'Không có quyền pv.master.manage'),
@@ -111,8 +142,18 @@ class PvAdminResourceController extends Controller
         path: '/api/v1/pv-admin/resources/{resourceType}/{id}',
         operationId: 'updatePvAdminResource',
         summary: 'PV Admin — cập nhật master App PV (bắt buộc If-Match)',
+        description: 'Field body thay đổi theo resourceType — xem mô tả tại POST /pv-admin/resources/{resourceType}.',
         security: [['bearerAuth' => []]],
         tags: ['12. App PV'],
+        parameters: [
+            new OA\Parameter(name: 'resourceType', in: 'path', required: true, schema: new OA\Schema(type: 'string', enum: self::RESOURCE_TYPES)),
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(type: 'object', description: 'Field tuỳ resourceType, tất cả tuỳ chọn — xem POST cùng path.')
+        ),
         responses: [
             new OA\Response(response: 200, description: 'PVAdminResource'),
             new OA\Response(response: 403, description: 'Không có quyền pv.master.manage'),
@@ -275,8 +316,8 @@ class PvAdminResourceController extends Controller
         if (! in_array($status, ['ACTIVE', 'INACTIVE'], true)) {
             $errors['status'] = ['status chỉ nhận ACTIVE hoặc INACTIVE.'];
         }
-        if (! is_numeric($sortOrderRaw) || (int) $sortOrderRaw < 0) {
-            $errors['sort_order'] = ['sort_order phải là số nguyên không âm.'];
+        if (! is_numeric($sortOrderRaw) || (int) $sortOrderRaw < 0 || (int) $sortOrderRaw > 2147483647) {
+            $errors['sort_order'] = ['sort_order phải là số nguyên không âm, tối đa 2147483647.'];
         }
 
         if ($errors === [] && $code !== '') {
@@ -442,8 +483,8 @@ class PvAdminResourceController extends Controller
         if (! in_array($status, ['ACTIVE', 'INACTIVE'], true)) {
             $errors['status'] = ['status chỉ nhận ACTIVE hoặc INACTIVE.'];
         }
-        if (! is_numeric($priorityRaw) || (int) $priorityRaw < 0) {
-            $errors['priority'] = ['priority phải là số nguyên không âm.'];
+        if (! is_numeric($priorityRaw) || (int) $priorityRaw < 0 || (int) $priorityRaw > 2147483647) {
+            $errors['priority'] = ['priority phải là số nguyên không âm, tối đa 2147483647.'];
         }
         if ($errors !== []) {
             ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu rule gợi ý không hợp lệ.', $errors);
@@ -653,8 +694,8 @@ class PvAdminResourceController extends Controller
         }
 
         $sortOrderRaw = $request->input('sort_order', 0);
-        if (! is_numeric($sortOrderRaw) || (int) $sortOrderRaw < 0) {
-            $errors['sort_order'] = ['sort_order phải là số nguyên không âm.'];
+        if (! is_numeric($sortOrderRaw) || (int) $sortOrderRaw < 0 || (int) $sortOrderRaw > 2147483647) {
+            $errors['sort_order'] = ['sort_order phải là số nguyên không âm, tối đa 2147483647.'];
         }
 
         $industryIds = $this->uuidListInput($request, 'industry_ids', $errors);
@@ -870,7 +911,7 @@ class PvAdminResourceController extends Controller
 
     private function adminPageSize(Request $request): int
     {
-        $perPage = (int) $request->query('per_page', 20);
+        $perPage = (int) $request->query('per_page', 10);
 
         return max(1, min($perPage, 100));
     }

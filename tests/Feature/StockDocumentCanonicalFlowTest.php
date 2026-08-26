@@ -30,11 +30,22 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
     public function test_inbound_openapi_source_has_no_legacy_partial_or_approval_flow(): void
     {
+        // 26/08: contract OpenAPI của inbound giờ tách sang nhiều controller —
+        // InboundDocumentController giữ list/detail/cancel/scan/unscan/reverse
+        // (dead-code shim, annotation vẫn có giá trị tham chiếu); update() đã
+        // chuyển hẳn sang BaM1InboundDocumentController (handler thật, route đã
+        // bị Flow06AlignmentServiceProvider ghi đè) và post-receipt() sang
+        // CurrentBaselineStockFlowController (handler thật, không bị override) —
+        // xem config/l5-swagger.php để biết vì sao 2 annotation cũ bị gỡ khỏi
+        // InboundDocumentController (trùng path+method gây l5-swagger:generate
+        // crash "Unable to merge").
         $openApiSource = $this->source('Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php');
+        $postReceiptSource = $this->source('Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php');
+        $updateSource = $this->source('Modules/Warehouse/app/Http/Controllers/BaM1InboundDocumentController.php');
 
         $this->assertStringContainsString('DRAFT -> SCANNING -> POSTED/CANCELLED', $openApiSource);
-        $this->assertStringContainsString('Full Post Receipt SCANNING -> POSTED', $openApiSource);
-        $this->assertStringContainsString('Sửa phiếu DRAFT/SCANNING và hiệu chỉnh Expected an toàn', $openApiSource);
+        $this->assertStringContainsString('SCANNING → POSTED', $postReceiptSource);
+        $this->assertStringContainsString('Cập nhật thông tin đầu phiếu nhập (DRAFT/SCANNING; scan-driven, không sửa SKU/số lượng qua đây)', $updateSource);
         $this->assertStringNotContainsString('/submit', $openApiSource);
         $this->assertStringNotContainsString('/approve', $openApiSource);
         $this->assertStringNotContainsString('/reject', $openApiSource);

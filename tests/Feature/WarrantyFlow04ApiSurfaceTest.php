@@ -220,16 +220,18 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         $caseId = $this->createTempOnlyCase($headers);
 
         $report = $this->getJson('/api/v1/reports/warranty-defects', $headers);
+        // GĐ1 2026-08-25: route trỏ BaM1ReportController::warrantyDefects (multi-defect).
+        // Cờ mask nằm ở từng row (rows.*.pii_masked), không còn data.pii_included;
+        // case TEMP_ONLY hiển thị model = manual_product_description thay vì UNKNOWN_MODEL.
         $report->assertOk()
-            ->assertJsonPath('data.pii_included', false)
             ->assertJsonPath('data.summary.total', 1)
             ->assertJsonPath('data.summary.temp_only', 1)
-            ->assertJsonPath('data.rows.0.model', 'UNKNOWN_MODEL')
+            ->assertJsonPath('data.rows.0.model', 'May khoan mau xanh')
             ->assertJsonPath('data.rows.0.components_issued', 'Chưa xuất');
         // §13.8 + §13.10 RPT-WAR-01: "customer/address masked by default" — cột vẫn
         // có trên báo cáo nhưng nội dung luôn ở dạng mask, kể cả với SUPER_ADMIN.
         $row = $report->json('data.rows.0');
-        $this->assertTrue($report->json('data.pii_masked'));
+        $this->assertTrue($report->json('data.rows.0.pii_masked'));
         $this->assertArrayHasKey('customer_name', $row);
         $this->assertArrayHasKey('customer_phone', $row);
         $this->assertStringContainsString('***', (string) $row['customer_name']);

@@ -370,7 +370,7 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
     public function test_create_warehouse_is_available_but_second_active_warehouse_is_rejected(): void
     {
         $headers = $this->adminHeaders();
-        $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoà Nam');
+        $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
 
         $this->postJson('/api/v1/warehouses', [
             'code' => 'KHO-PHU',

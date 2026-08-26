@@ -40,6 +40,11 @@ services:
       - AWS_BUCKET=${AWS_BUCKET:-wms-hoanam}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      # .env mặc định REVERB_HOST=localhost cho máy host chạy FE; trong mạng
+      # docker container này phải trỏ tới service `reverb` theo tên container.
+      - REVERB_HOST=reverb
+      - REVERB_PORT=6001
+      - REVERB_SCHEME=http
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,6 +87,44 @@ services:
       - AWS_BUCKET=${AWS_BUCKET:-wms-hoanam}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      # Listener của Notification module broadcast NotificationPushed từ worker
+      # này — phải trỏ tới service `reverb`, không phải REVERB_HOST=localhost
+      # mặc định trong .env (dành cho FE chạy trên máy host).
+      - REVERB_HOST=reverb
+      - REVERB_PORT=6001
+      - REVERB_SCHEME=http
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - wms
+
+  # Notification bell real-time: Reverb là WebSocket server first-party của
+  # Laravel (BROADCAST_CONNECTION=reverb), FE (Echo) kết nối trực tiếp cổng này.
+  reverb:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    # Cổng 8080 đã bị service `nginx` chiếm — dùng 6001 (mặc định phổ biến của
+    # Reverb) để tránh đụng cổng trên host.
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=6001"]
+    volumes:
+      - .:/var/www/html:delegated
+      - wms_vendor:/var/www/html/vendor
+    environment:
+      - AUTO_MIGRATE=false
+      - REVERB_HOST=0.0.0.0
+      - REVERB_PORT=6001
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=${DB_DATABASE:-wms_hoanam}
+      - DB_USERNAME=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - REDIS_HOST=valkey
+      - REDIS_PORT=6379
+    ports:
+      - "6001:6001"
     depends_on:
       backend:
         condition: service_healthy

@@ -77,6 +77,29 @@ class RoleManagementTest extends TestCase
         $this->assertTrue($role->fresh()->permissions()->where('permission.permission_id', $permission->permission_id)->exists());
     }
 
+    /**
+     * Phát hiện 26/08 qua báo cáo người dùng: rule 'required' coi permission_ids=[]
+     * là "thiếu trường" và trả 422 — chặn đúng thao tác hợp lệ "gỡ hết quyền của
+     * role về 0" (role "No Permission Test" tồn tại chính để test trạng thái này).
+     */
+    public function test_role_permissions_can_be_cleared_to_empty(): void
+    {
+        $headers = $this->authHeaders();
+        $role = Role::create(['role_code' => 'PERM_CLEAR_TEST', 'role_name' => 'Perm clear test', 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']);
+        $permission = Permission::firstOrCreate(
+            ['permission_key' => 'warehouse.view'],
+            ['permission_name' => 'Xem kho', 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
+        );
+        $role->permissions()->attach($permission->permission_id, ['role_permission_id' => (string) Str::uuid()]);
+
+        $response = $this->postJson("/api/v1/roles/{$role->role_id}/permissions", [
+            'permission_ids' => [],
+        ], $headers);
+
+        $response->assertOk();
+        $this->assertSame(0, $role->fresh()->permissions()->count());
+    }
+
     public function test_role_delete_is_blocked_when_assigned_to_user(): void
     {
         $headers = $this->authHeaders();
