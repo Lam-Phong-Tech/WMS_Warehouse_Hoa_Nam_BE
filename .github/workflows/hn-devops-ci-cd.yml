@@ -22,12 +22,12 @@ on:
       runner_labels:
         description: JSON runner labels for CI. Use ["self-hosted","Linux","X64","hoa-nam-uat"] when hosted runners are unavailable.
         required: false
-        default: '["ubuntu-latest"]'
+        default: '["self-hosted","Linux","X64","hoa-nam-uat"]'
         type: string
       uat_runner_labels:
         description: JSON runner labels for UAT deploy. Use ["self-hosted","Linux","X64","hoa-nam-uat"] when hosted runners are unavailable.
         required: false
-        default: '["ubuntu-latest"]'
+        default: '["self-hosted","Linux","X64","hoa-nam-uat"]'
         type: string
   push:
     branches:
@@ -233,7 +233,7 @@ jobs:
     needs: ci
     if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true'
     runs-on: ${{ fromJSON(inputs.uat_runner_labels || vars.UAT_RUNNER_LABELS || '["ubuntu-latest"]') }}
-    environment: uat
+    environment: staging
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -245,7 +245,6 @@ jobs:
         with:
           host: ${{ secrets.UAT_SSH_HOST }}
           username: ${{ secrets.UAT_SSH_USER }}
-          key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
           password: ${{ secrets.UAT_SSH_PASSWORD }}
           source: "artifact/*"
           target: "${{ vars.UAT_ARTIFACT_ROOT || '/tmp' }}/hn-${{ github.sha }}"
@@ -266,7 +265,6 @@ jobs:
         with:
           host: ${{ secrets.UAT_SSH_HOST }}
           username: ${{ secrets.UAT_SSH_USER }}
-          key: ${{ secrets.UAT_SSH_PRIVATE_KEY }}
           password: ${{ secrets.UAT_SSH_PASSWORD }}
           envs: RUN_UAT_SEED,RELEASE_SHA,IMAGE_NAME,IMAGE_TAR,UAT_APP_PATH,UAT_ARTIFACT_ROOT,UAT_BACKUP_DIR,UAT_DB_USERNAME,UAT_DB_DATABASE
           script: |
@@ -293,7 +291,7 @@ jobs:
 
       - name: UAT smoke
         env:
-          UAT_APP_URL: ${{ secrets.UAT_APP_URL }}
+          UAT_APP_URL: ${{ vars.UAT_APP_URL || secrets.UAT_APP_URL }}
           UAT_SMOKE_USERNAME: ${{ secrets.UAT_SMOKE_USERNAME }}
           UAT_SMOKE_PASSWORD: ${{ secrets.UAT_SMOKE_PASSWORD }}
         run: |
@@ -303,3 +301,20 @@ jobs:
             -d "{\"username\":\"$UAT_SMOKE_USERNAME\",\"password\":\"$UAT_SMOKE_PASSWORD\"}" | jq -r '.data.access_token')
           test -n "$TOKEN"
           curl --fail -H "Authorization: Bearer $TOKEN" "$UAT_APP_URL/api/v1/warehouses?keyword=KHO-TONG-HN"
+
+      - name: Purge Cloudflare cache for staging
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+          UAT_APP_URL: ${{ vars.UAT_APP_URL || secrets.UAT_APP_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ZONE_ID"
+          host="${UAT_APP_URL#*://}"
+          host="${host%%/*}"
+          payload="$(printf '{"hosts":["%s"]}' "$host")"
+          curl --fail -sS -X POST "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$payload"
