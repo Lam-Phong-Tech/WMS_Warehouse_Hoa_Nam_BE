@@ -760,6 +760,32 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             ? DB::table('defect_catalogs')->where('defect_id', $case->defect_id)->first()
             : null;
 
+        // GĐ1-REQ-009: chi tiết case phải trả đủ multi-defect, không chỉ defect_id đơn legacy —
+        // khớp cách enrich của CanonicalMvpController::listWarrantyCases (WAR-01).
+        $defects = Schema::hasTable('warranty_case_defects')
+            ? DB::table('warranty_case_defects as wcd')
+                ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
+                ->where('wcd.warranty_case_id', $id)
+                ->orderByDesc('wcd.is_primary')
+                ->orderBy('wcd.created_at')
+                ->get(['wcd.defect_id', 'wcd.is_primary', 'dc.defect_code', 'dc.defect_name'])
+                ->map(fn (object $row): array => [
+                    'defect_id' => (string) $row->defect_id,
+                    'defect_code' => (string) $row->defect_code,
+                    'defect_name' => (string) $row->defect_name,
+                    'is_primary' => (bool) $row->is_primary,
+                ])
+            : collect();
+        if ($defects->isEmpty() && $defect !== null) {
+            $defects = collect([[
+                'defect_id' => (string) $case->defect_id,
+                'defect_code' => $defect->defect_code,
+                'defect_name' => $defect->defect_name,
+                'is_primary' => true,
+            ]]);
+        }
+        $defectIds = $defects->pluck('defect_id')->values()->all();
+
         $customerName = (string) ($case->customer_name ?? '');
         $customerPhone = (string) ($case->customer_phone ?? '');
         $customerAddress = (string) ($case->customer_address ?? '');
@@ -789,10 +815,13 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'defect_id' => $case->defect_id,
             'defect_code' => $defect?->defect_code,
             'defect_name' => $defect?->defect_name,
+            'defects' => $defects->all(),
+            'defect_ids' => $defectIds,
             'customer_name' => $customerName,
             'customer_phone' => $customerPhone,
             'customer_address' => $customerAddress,
             'purchase_date' => $case->purchase_date,
+            'estimated_completion_date' => $case->estimated_completion_date ?? null,
             'status' => (string) $case->status,
             'condition_status' => $case->condition_status,
             'description' => $case->description,

@@ -23,7 +23,7 @@ class Sku extends Model
         'brand_id', 'category_id', 'model_id', 'power_source_id', 'package_variant_id',
         'power_or_voltage', 'package_variant', 'version', 'version_code',
         'warranty_applicable', 'specification', 'published_to_app', 'status',
-        'code', 'name',
+        'code', 'name', 'min_stock', 'max_stock',
     ];
 
     protected $casts = [
@@ -32,6 +32,8 @@ class Sku extends Model
         'published_to_app' => 'boolean',
         'specification' => 'array',
         'version' => 'integer',
+        'min_stock' => 'float',
+        'max_stock' => 'float',
     ];
 
     protected $appends = ['id', 'code', 'name'];

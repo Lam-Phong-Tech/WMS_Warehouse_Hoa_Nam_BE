@@ -42,7 +42,7 @@
                 true
             ],
             "conflict_http": 409,
-            "single_stock_effect": 9
+            "single_stock_effect": 7
         },
         "TC-REV-CI-06": {
             "dimension": "PERMISSION + PRECONDITION (BR-REV-02 \/ §8.2)",

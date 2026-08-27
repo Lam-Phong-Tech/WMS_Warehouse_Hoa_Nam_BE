@@ -33,8 +33,8 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
 
     private const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-    /** WAR-02: video tách khỏi 10 ảnh, tối đa 2 video ACTIVE mỗi case, <=300MB/file, <=5 phút. */
-    private const MAX_ACTIVE_VIDEOS = 2;
+    /** WAR-02: video tách khỏi 10 ảnh, tối đa 1 video ACTIVE mỗi case, <=300MB/file, <=5 phút. */
+    private const MAX_ACTIVE_VIDEOS = 1;
 
     private const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
 
@@ -89,7 +89,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
                     type: 'object',
                     required: ['file'],
                     properties: [
-                        new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Ảnh jpg/jpeg/png/webp <=10MB (Annex D SCR-WAR-01, tối đa 10 tệp ACTIVE mỗi case) HOẶC video mp4/mov/webm <=300MB và <=5 phút (WAR-02, tối đa 2 video ACTIVE mỗi case, đếm riêng khỏi ảnh).'),
+                        new OA\Property(property: 'file', type: 'string', format: 'binary', description: 'Ảnh jpg/jpeg/png/webp <=10MB (Annex D SCR-WAR-01, tối đa 10 tệp ACTIVE mỗi case) HOẶC video mp4/mov/webm <=300MB và <=5 phút (WAR-02, tối đa 1 video ACTIVE mỗi case, đếm riêng khỏi ảnh).'),
                         new OA\Property(property: 'attachment_type', type: 'string', enum: ['INTAKE', 'DIAGNOSTIC', 'RETURN', 'OTHER'], nullable: true, description: 'Mặc định INTAKE.', example: 'INTAKE'),
                     ]
                 )
@@ -223,7 +223,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         return null;
     }
 
-    /** WAR-02: <=2 video ACTIVE mỗi case, <=300MB/file, <=5 phút — đo bằng getID3. */
+    /** WAR-02: <=1 video ACTIVE mỗi case, <=300MB/file, <=5 phút — đo bằng getID3. */
     private function validateVideo(string $caseId, $file): int
     {
         if ($file->getSize() > self::MAX_VIDEO_BYTES) {

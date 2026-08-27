@@ -2,10 +2,19 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
+use Modules\Auth\Models\Role;
+use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class VietnameseValidationEnvelopeTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_form_request_validation_keeps_error_contract_and_returns_vietnamese_messages(): void
     {
         $response = $this->postJson('/api/v1/auth/login', []);
@@ -27,6 +36,70 @@ class VietnameseValidationEnvelopeTest extends TestCase
                 "Validation message còn tiếng Anh: {$message}"
             );
         }
+    }
+
+    /**
+     * Thông báo lỗi phải nói rõ chuyện gì xảy ra ở ô nào, không được lùi về
+     * kiểu mô tả cấu trúc dữ liệu ("Giá trị trường email đã tồn tại", "Trường
+     * display_name là bắt buộc") — người dùng cuối không hiểu khái niệm
+     * "trường" lẫn tên field snake_case của API.
+     */
+    public function test_validation_messages_are_written_for_end_users_not_for_developers(): void
+    {
+        $this->seed(AuthDatabaseSeeder::class);
+
+        $existing = User::create([
+            'username' => 'nguoidungcu',
+            'display_name' => 'Nguoi Dung Cu',
+            'email' => 'nguoidungcu@gmail.com',
+            'password_hash' => Hash::make('Cntt@1234'),
+            'status' => 'ACTIVE',
+            'version' => 1,
+        ]);
+
+        $response = $this->postJson('/api/v1/users', [
+            'username' => 'nguoidungmoi',
+            'email' => $existing->email,
+            'phone' => '123',
+            'password' => 'abc',
+        ], ['Authorization' => 'Bearer '.JWTAuth::fromUser($this->superAdmin())]);
+
+        $response->assertStatus(422)
+            // Email trùng: phải nói rõ email đã có người dùng, kèm hướng xử lý.
+            ->assertJsonPath('errors.email.0', 'Email này đã được dùng cho một tài khoản khác. Vui lòng nhập email khác.')
+            // Thiếu bắt buộc: gọi đúng tên tiếng Việt của ô, không phải "display_name".
+            ->assertJsonPath('errors.display_name.0', 'Vui lòng nhập họ và tên.')
+            ->assertJsonPath('errors.phone.0', 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.')
+            ->assertJsonPath('errors.password.0', 'Mật khẩu phải có ít nhất 8 ký tự.');
+
+        foreach ($this->flattenStrings($response->json('errors', [])) as $message) {
+            $this->assertStringNotContainsString(
+                'Giá trị trường',
+                $message,
+                "Thông báo lỗi lùi về kiểu mô tả cấu trúc dữ liệu: {$message}"
+            );
+            $this->assertDoesNotMatchRegularExpression(
+                '/\b[a-z]+_[a-z_]+\b/',
+                $message,
+                "Thông báo lỗi lộ tên field snake_case của API ra UI: {$message}"
+            );
+        }
+    }
+
+    private function superAdmin(): User
+    {
+        $role = Role::where('role_code', 'SUPER_ADMIN')->firstOrFail();
+        $admin = User::create([
+            'username' => 'admin-kiem-tra-message',
+            'display_name' => 'Admin Kiem Tra',
+            'email' => 'admin-kiem-tra@gmail.com',
+            'password_hash' => Hash::make('Cntt@1234'),
+            'status' => 'ACTIVE',
+            'version' => 1,
+        ]);
+        $admin->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
+
+        return $admin;
     }
 
     /** @return list<string> */

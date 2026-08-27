@@ -197,6 +197,15 @@ class Wwhn328DashboardQuickContractTest extends TestCase
             'warranty_cases_by_status',
             'reconciliation_warning_count',
             'reconciliation_warnings',
+            // GĐ1 (2026-08-27): BA ký bổ sung "tồn dưới/vượt định mức" — định mức
+            // theo SKU, toàn hệ thống (không theo kho).
+            'below_min_stock_count',
+            'below_min_stock_skus',
+            'above_max_stock_count',
+            'above_max_stock_skus',
+            // GĐ1 (2026-08-27): BA ký bổ sung chart Dashboard "Nhập/Xuất theo ngày" +
+            // "Xu hướng bảo hành" — daily[] gộp theo ngày trên cùng period/scope KPI.
+            'daily',
         ], array_keys($data), 'Field set của dashboard-quick đã được BA/Tech ký; thêm/bớt field phải qua sign-off lại.');
     }
 

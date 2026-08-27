@@ -3,7 +3,9 @@
 namespace Modules\Auth\Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Department;
 use Modules\Auth\Models\Permission;
@@ -41,7 +43,9 @@ class AuthDatabaseSeeder extends Seeder
         ['inbound.cancel', 'Cancel inbound drafts'],
         ['outbound.view', 'View outbound documents'],
         ['outbound.import', 'Import outbound requests from Excel'],
-        ['outbound.create', 'Create and edit outbound drafts'],
+        // outbound.create đã thu hồi: §8.1 gỡ POST /outbound-documents trực tiếp
+        // từ lâu (phiếu xuất chỉ sinh qua Confirm yêu cầu xuất), nên mã này không
+        // còn route nào đọc. Vai trò tạo yêu cầu xuất dùng outbound.request.*.
         ['outbound.scan', 'Scan and match outbound items'],
         ['outbound.post', 'Post outbound issue atomically'],
         ['outbound.cancel', 'Cancel outbound drafts'],
@@ -62,6 +66,11 @@ class AuthDatabaseSeeder extends Seeder
         ['report.view', 'View reports'],
         ['report.export', 'Export reports'],
         ['audit_log.view', 'View audit logs'],
+        // Mục 6 (audit log theo module): audit_log.view giờ bị giới hạn theo
+        // module/quyền của actor (xem AuditLogController::allowedModulesFor).
+        // audit_log.view_all là cờ bypass — chỉ cấp cho các role vốn đã được
+        // xem audit log không giới hạn từ trước, để KHÔNG đổi hành vi hiện có.
+        ['audit_log.view_all', 'View audit logs across all modules (bypass per-module scope)'],
 
         ['putaway.view', 'View putaway tasks (Annex C)'],
         ['putaway.manage', 'Create/confirm/cancel putaway tasks (Annex C)'],
@@ -76,27 +85,25 @@ class AuthDatabaseSeeder extends Seeder
         ['outbound.request.manual_create', 'Create outbound request manually (Annex C)'],
         ['pv.master.manage', 'Manage PV industry/tag/mapping/recommendation'],
 
-        ['product.view', 'Legacy alias: view SKUs/products'],
-        ['product.manage', 'Legacy alias: manage SKUs/products'],
-        ['master.manage', 'Legacy alias: manage master data'],
-        ['stock_document.view', 'Legacy alias: view stock documents'],
-        ['stock_document.create', 'Legacy alias: create stock documents'],
-        ['stock_document.post', 'Legacy alias: post stock documents'],
-        ['stock_document.scan', 'Legacy alias: scan stock documents'],
-        ['stock_document.cancel', 'Legacy alias: cancel stock documents'],
-        ['stock_document.reverse', 'Legacy alias: reverse stock documents'],
         ['warranty.temp_only', 'Legacy warranty temporary intake permission'],
-        ['user.view', 'Legacy IAM user view'],
-        ['user.manage', 'Legacy IAM user manage'],
-        ['role.view', 'Legacy IAM role view'],
-        ['role.manage', 'Legacy IAM role manage'],
-        ['permission.view', 'Legacy IAM permission view'],
-        ['defect_catalog.view', 'Legacy defect catalog view'],
-        ['defect_catalog.manage', 'Legacy defect catalog manage'],
-        ['product_master.view', 'Legacy catalog master view'],
-        ['product_master.manage', 'Legacy catalog master manage'],
-        ['physical_code.view', 'View physical codes'],
-        ['physical_code.manage', 'Manage physical codes'],
+
+        // 21 mã cũ (user.*, role.*, permission.view, product.*, product_master.*,
+        // master.manage, defect_catalog.*, physical_code.view/manage,
+        // stock_document.*, outbound.create) ĐÃ ĐƯỢC THU HỒI — xem migration
+        // 2026_08_27_170000_retire_unenforced_legacy_permissions và
+        // Modules/Auth/app/Support/PermissionEnforcementMap.
+        //
+        // Chúng chưa bao giờ có cổng chặn nào đọc tới: mọi route dùng mã canonical
+        // (iam.user.manage, sku.view, inbound.scan, ...). Giữ chúng ACTIVE trong
+        // danh mục chỉ tạo ra "quyền ma" trên ma trận IAM-01 — quản trị viên tick
+        // `user.manage` tưởng đã cấp quyền quản lý người dùng trong khi không cấp
+        // gì cả. Mọi role đang giữ mã cũ đều đã giữ sẵn mã canonical tương ứng nên
+        // việc thu hồi KHÔNG đổi quyền hiệu dụng của bất kỳ ai (ngoại lệ duy nhất
+        // là physical_code.view -> bù bằng inventory.trace, xem VIEWER/WAREHOUSE_STAFF).
+        //
+        // KHÔNG thêm mã mới vào đây mà không có route/`hasPermission()` đọc tới:
+        // AuthorizationCoverageInvariantTest sẽ đỏ.
+
         ['import_batch.view', 'View import batches'],
         ['import_batch.manage', 'Manage import batches'],
         ['container.view', 'View containers'],
@@ -113,12 +120,16 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'warehouse.manage', 'catalog.view', 'catalog.manage', 'sku.view', 'sku.manage',
                 'agency.view', 'agency.manage', 'defect.view', 'defect.manage',
                 'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
-                'outbound.view', 'outbound.import', 'outbound.create', 'outbound.scan', 'outbound.post', 'outbound.cancel',
+                'outbound.view', 'outbound.import', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
                 'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',
                 'warranty.manage', 'warranty.component_issue', 'warranty.pii.view', 'warranty.pii.export',
-                'scan.classify', 'pv.publish', 'report.view', 'report.export', 'audit_log.view',
-                'physical_code.view', 'physical_code.manage', 'import_batch.view', 'import_batch.manage',
+                // Ghi chú kiểm tra 27/08: ADMIN KHÔNG có warranty.temp_only trong khi
+                // WAREHOUSE_MANAGER có — lệch giữa hai vai quản trị. Cố ý KHÔNG tự thêm
+                // ở đây: mở rộng quyền là quyết định nghiệp vụ, không phải việc của một
+                // đợt siết bảo mật. Chờ BA chốt rồi bổ sung.
+                'scan.classify', 'pv.publish', 'report.view', 'report.export', 'audit_log.view', 'audit_log.view_all',
+                'import_batch.view', 'import_batch.manage',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
                 'putaway.view', 'putaway.manage', 'warranty.view', 'scan.execute',
                 'packing_label.preview', 'packing_label.ready', 'packing_label.print', 'packing_label.reprint',
@@ -131,12 +142,16 @@ class AuthDatabaseSeeder extends Seeder
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'inbound.create', 'inbound.scan',
-                'outbound.view', 'outbound.create', 'outbound.scan',
+                'outbound.view', 'outbound.scan',
                 'inventory.view', 'report.view',
+                // inventory.trace thay cho physical_code.view đã thu hồi: màn SCAN/
+                // tra cứu mã vật lý (GET /physical-codes, /inventory/trace/{code})
+                // cưỡng chế bằng inventory.trace. Trước đây vai này vào được màn nhờ
+                // scan.execute nhưng mọi lời gọi danh sách đều 403 — physical_code.view
+                // mà họ đang giữ không có cổng nào đọc tới.
+                'inventory.trace',
                 'agency.view', 'defect.view',
-                'physical_code.view', 'import_batch.view', 'container.view', 'item_instance.view',
-                'product.view', 'stock_document.view', 'stock_document.create', 'stock_document.scan',
-                'product_master.view',
+                'import_batch.view', 'container.view', 'item_instance.view',
                 'putaway.view', 'putaway.manage', 'scan.execute',
                 'packing_label.preview', 'packing_label.ready', 'packing_label.print',
                 'outbound.request.import', 'outbound.request.confirm', 'outbound.request.manual_create',
@@ -150,8 +165,7 @@ class AuthDatabaseSeeder extends Seeder
                 'outbound.view', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'report.view',
                 'agency.view', 'defect.view',
-                'physical_code.view', 'import_batch.view', 'container.view', 'item_instance.view',
-                'product.view', 'stock_document.view',
+                'import_batch.view', 'container.view', 'item_instance.view',
                 'putaway.view', 'warranty.view',
             ],
         ],
@@ -164,10 +178,8 @@ class AuthDatabaseSeeder extends Seeder
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
                 'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',
                 'warranty.manage', 'warranty.component_issue', 'report.view',
-                'physical_code.view', 'physical_code.manage', 'import_batch.view',
+                'import_batch.view',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
-                'product.view', 'stock_document.view', 'stock_document.post', 'stock_document.scan',
-                'stock_document.cancel', 'stock_document.reverse', 'product_master.view',
                 'putaway.view', 'putaway.manage', 'warranty.view', 'scan.execute',
                 'packing_label.preview', 'packing_label.ready', 'packing_label.print', 'packing_label.reprint',
                 'outbound.request.import', 'outbound.request.confirm', 'outbound.request.manual_create',
@@ -179,7 +191,7 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inventory.view', 'inventory.trace',
                 'warranty.manage', 'warranty.component_issue',
-                'scan.classify', 'physical_code.view', 'item_instance.view',
+                'scan.classify', 'item_instance.view',
                 'warranty.view', 'scan.execute',
             ],
         ],
@@ -188,7 +200,7 @@ class AuthDatabaseSeeder extends Seeder
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inventory.view', 'inventory.trace', 'report.view',
-                'agency.view', 'defect.view', 'audit_log.view',
+                'agency.view', 'defect.view', 'audit_log.view', 'audit_log.view_all',
                 'putaway.view', 'warranty.view',
             ],
         ],
@@ -197,9 +209,16 @@ class AuthDatabaseSeeder extends Seeder
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'outbound.view', 'inventory.view', 'report.view', 'audit_log.view',
-                'agency.view', 'defect.view', 'physical_code.view', 'import_batch.view',
+                // audit_log.view_all ĐÃ GỠ khỏi VIEWER: cờ này bỏ qua toàn bộ giới hạn
+                // audit theo module của actor (AuditLogController::allowedModulesFor),
+                // tức một vai "chỉ xem" lại đọc được nhật ký thao tác của MỌI module và
+                // MỌI người dùng, kể cả IAM. Giữ lại cho LEADERSHIP/ADMIN/WAREHOUSE_MANAGER
+                // là các vai giám sát thật sự. VIEWER vẫn có audit_log.view (xem nhật ký
+                // trong phạm vi module mà chính họ có quyền nghiệp vụ).
+                'agency.view', 'defect.view', 'import_batch.view',
                 'container.view', 'item_instance.view',
-                'product.view', 'stock_document.view', 'product_master.view',
+                // inventory.trace: xem ghi chú ở WAREHOUSE_STAFF — thay physical_code.view.
+                'inventory.trace',
             ],
         ],
         'WAREHOUSE_MANAGER' => [
@@ -209,32 +228,41 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'warehouse.manage', 'catalog.view', 'catalog.manage', 'sku.view', 'sku.manage',
                 'agency.view', 'agency.manage', 'defect.view', 'defect.manage',
                 'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
-                'outbound.view', 'outbound.import', 'outbound.create', 'outbound.scan', 'outbound.post', 'outbound.cancel',
+                'outbound.view', 'outbound.import', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
                 'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint', 'pv.publish',
                 'pv.master.manage',
                 'warranty.manage', 'warranty.component_issue', 'warranty.pii.view', 'warranty.pii.export',
-                'scan.classify', 'report.view', 'report.export', 'audit_log.view',
-                'physical_code.view', 'physical_code.manage', 'import_batch.view', 'import_batch.manage',
+                'warranty.temp_only',
+                'scan.classify', 'report.view', 'report.export', 'audit_log.view', 'audit_log.view_all',
+                'import_batch.view', 'import_batch.manage',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
-                'product.view', 'product.manage', 'master.manage',
-                'stock_document.view', 'stock_document.create', 'stock_document.post',
-                'stock_document.scan', 'stock_document.cancel', 'stock_document.reverse',
-                'warranty.temp_only', 'user.view', 'user.manage', 'role.view', 'role.manage', 'permission.view',
-                'defect_catalog.view', 'defect_catalog.manage', 'product_master.view', 'product_master.manage',
             ],
         ],
         'SKU_MANAGER' => [
             'name' => 'SKU Manager Test',
-            'permissions' => ['catalog.view', 'sku.view', 'sku.manage', 'product.view', 'product.manage'],
+            'permissions' => ['catalog.view', 'sku.view', 'sku.manage'],
         ],
         'MASTER_MANAGER' => [
             'name' => 'Master Data Manager Test',
-            'permissions' => ['catalog.view', 'catalog.manage', 'master.manage', 'product_master.view', 'product_master.manage'],
+            'permissions' => ['catalog.view', 'catalog.manage'],
         ],
         'NO_PERMISSION' => [
             'name' => 'No Permission Test',
             'permissions' => [],
+        ],
+        'INBOUND_ONLY_TEST' => [
+            'name' => 'Inbound Only Test',
+            'permissions' => [
+                'warehouse.view', 'catalog.view', 'sku.view',
+                'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
+                'inventory.view', 'inventory.trace', 'inventory.reversal.post',
+                'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',
+                'report.view',
+                'import_batch.view',
+                'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
+                'putaway.view', 'putaway.manage', 'scan.execute',
+            ],
         ],
     ];
 
@@ -256,9 +284,10 @@ class AuthDatabaseSeeder extends Seeder
         ['username' => 'test-master-manage', 'display_name' => 'Test Master Manage', 'email' => 'test-master-manage@hoanam.com', 'role' => 'MASTER_MANAGER'],
         ['username' => 'test-no-permission', 'display_name' => 'Test No Permission', 'email' => 'test-no-permission@hoanam.com', 'role' => 'NO_PERMISSION'],
         ['username' => 'test-super-admin', 'display_name' => 'Test Super Admin', 'email' => 'test-super-admin@hoanam.com', 'role' => 'SUPER_ADMIN'],
+        ['username' => 'inbound-tester01', 'display_name' => 'Inbound Only Tester', 'email' => 'inbound-tester01@hoanam.com', 'role' => 'INBOUND_ONLY_TEST'],
     ];
 
-    private const NON_PRODUCTION_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION'];
+    private const NON_PRODUCTION_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION', 'INBOUND_ONLY_TEST'];
 
     private const DEFAULT_PASSWORD = 'Cntt@1234';
 
@@ -339,6 +368,39 @@ class AuthDatabaseSeeder extends Seeder
             );
             $this->attachRole($user, $roleModels[$u['role']]);
         }
+
+        $this->seedSampleUserPermissionGrant($permissionsByKey, $adminUser);
+    }
+
+    /**
+     * Demo tính năng "quyền cấp riêng cho tài khoản" (User::grantedPermissions(),
+     * bảng user_permission — mới thêm 27/08) — trước đây bảng này luôn rỗng sau
+     * db:seed dù UI/BE đã hỗ trợ, không có dữ liệu mẫu nào để kiểm thử.
+     * keeper01 (WAREHOUSE_KEEPER) vốn không có report.export qua role, cấp thêm
+     * riêng để minh hoạ đúng ngữ nghĩa "cộng thêm, không thay thế quyền role".
+     */
+    private function seedSampleUserPermissionGrant(array $permissionsByKey, User $adminUser): void
+    {
+        if (! Schema::hasTable('user_permission')) {
+            return;
+        }
+
+        $keeper = User::where('username', 'keeper01')->first();
+        $reportExport = $permissionsByKey['report.export'] ?? null;
+        if ($keeper === null || $reportExport === null) {
+            return;
+        }
+
+        DB::table('user_permission')->updateOrInsert(
+            ['user_id' => $keeper->user_id, 'permission_id' => $reportExport->permission_id],
+            [
+                'user_permission_id' => (string) Str::uuid(),
+                'granted_by' => $adminUser->user_id,
+                'granted_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
     }
 
     private function attachRole(User $user, Role $role): void

@@ -4,6 +4,7 @@ namespace Modules\Notification\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Auth\Models\User;
 use Modules\Notification\Events\NotificationPushed;
 use Modules\Notification\Models\Notification;
 use Modules\Notification\Models\NotificationRecipient;
@@ -28,14 +29,22 @@ class NotificationService
         ?string $subjectType = null,
         ?string $subjectId = null,
         array $payload = [],
+        ?string $actorId = null,
     ): ?Notification {
         $userIds = array_values(array_unique(array_filter($userIds)));
         if ($userIds === []) {
             return null;
         }
 
+        // Snapshot tên hiển thị NGAY tại thời điểm tạo thông báo (bảng append-only):
+        // nếu sau này actor đổi tên hoặc bị xoá tài khoản, thông báo cũ vẫn giữ
+        // đúng tên đã hiển thị cho người nhận lúc đó.
+        $actorName = $actorId !== null
+            ? User::query()->whereKey($actorId)->value('display_name')
+            : null;
+
         $notification = DB::transaction(function () use (
-            $eventKey, $title, $body, $userIds, $severity, $sourceModule, $subjectType, $subjectId, $payload
+            $eventKey, $title, $body, $userIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName
         ): Notification {
             $notification = Notification::create([
                 'id' => (string) Str::uuid(),
@@ -46,6 +55,8 @@ class NotificationService
                 'source_module' => $sourceModule,
                 'subject_type' => $subjectType,
                 'subject_id' => $subjectId,
+                'actor_id' => $actorId,
+                'actor_name' => $actorName,
                 'payload' => $payload,
                 'created_at' => now(),
             ]);

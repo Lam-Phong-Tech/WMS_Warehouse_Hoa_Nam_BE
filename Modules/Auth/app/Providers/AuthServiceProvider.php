@@ -3,6 +3,7 @@
 namespace Modules\Auth\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Modules\Auth\Console\Commands\LockExpiredFirstLoginAccounts;
 use Modules\Auth\Repositories\Contracts\PermissionRepositoryInterface;
 use Modules\Auth\Repositories\Contracts\RoleRepositoryInterface;
 use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
@@ -28,7 +29,9 @@ class AuthServiceProvider extends ModuleServiceProvider
      *
      * @var string[]
      */
-    // protected array $commands = [];
+    protected array $commands = [
+        LockExpiredFirstLoginAccounts::class,
+    ];
 
     /**
      * Provider classes to register.
@@ -52,10 +55,18 @@ class AuthServiceProvider extends ModuleServiceProvider
     /**
      * Define module schedules.
      *
+     * Cấp tài khoản nhân viên: quét mỗi giờ để tài khoản quá hạn 7 ngày chưa
+     * đăng nhập lần đầu bị khoá sớm nhất có thể, không phải chờ ai đó chủ động
+     * mở danh sách user hoặc thử đăng nhập mới lộ ra.
+     *
      * @param  $schedule
      */
-    // protected function configureSchedules(Schedule $schedule): void
-    // {
-    //     $schedule->command('inspire')->hourly();
-    // }
+    protected function configureSchedules(Schedule $schedule): void
+    {
+        $schedule->command('auth:lock-expired-first-login')
+            ->hourly()
+            ->withoutOverlapping()
+            ->onOneServer()
+            ->runInBackground();
+    }
 }

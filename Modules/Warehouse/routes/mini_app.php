@@ -5,11 +5,13 @@ use Modules\Warehouse\Http\Controllers\CanonicalMvpController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentIssueQueryController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyAttachmentController;
+use Modules\Warehouse\Http\Controllers\DocumentAttachmentController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundDraftController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundStagingController;
+use Modules\Warehouse\Http\Controllers\MiniAppProductController;
 use Modules\Warehouse\Http\Controllers\MiniAppWarrantyController;
 use Modules\Warehouse\Http\Middleware\EnforceComponentIssueWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnforceInboundWarehouseScope;
@@ -31,6 +33,15 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
     // ── Shared Mini App support ──────────────────────────────────────────
     Route::get('printer-configs', [CanonicalMvpController::class, 'listPrinterConfigs'])
         ->middleware('permission:label.print');
+
+    // ── Product lookup ───────────────────────────────────────────────────
+    // Read-only tra cứu SKU cho Mini App (dùng chung permission sku.view với
+    // ProductController canonical). Trả kèm available_qty tại Kho tổng Hoa Nam
+    // vì Mini App chỉ vận hành trên đúng 1 kho.
+    Route::get('products', [MiniAppProductController::class, 'index'])
+        ->middleware('permission:sku.view');
+    Route::get('products/{id}', [MiniAppProductController::class, 'show'])
+        ->middleware('permission:sku.view');
 
     // ── Inbound ──────────────────────────────────────────────────────────
     Route::post('inbound/resolve-code', [MiniAppInboundStagingController::class, 'resolveCode'])
@@ -73,6 +84,13 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
 
     Route::post('inbound-documents/{id}/post-receipt', [MiniAppInboundController::class, 'approve'])
         ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
+
+    // "Chứng từ nhập/xuất/hoàn trả": cùng route/permission với api.php (chỉ khác
+    // prefix v1/mini-app) — DocumentAttachmentController dùng chung cho cả 2 kênh.
+    Route::get('inbound-documents/{id}/attachments', [DocumentAttachmentController::class, 'indexInbound'])
+        ->middleware(['permission:inbound.view', EnforceInboundWarehouseScope::class]);
+    Route::post('inbound-documents/{id}/attachments', [DocumentAttachmentController::class, 'storeInbound'])
+        ->middleware(['permission:inbound.create|inbound.scan', EnforceInboundWarehouseScope::class]);
 
     // ── Outbound ─────────────────────────────────────────────────────────
     // Preferred Mini App UX mirrors inbound: keep the camera batch local,
@@ -131,6 +149,22 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
     // This is the only Mini App outbound endpoint that decreases inventory.
     Route::post('outbound-documents/{id}/post-issue', [MiniAppOutboundController::class, 'postIssue'])
         ->middleware(['permission:outbound.post', EnforceOutboundWarehouseScope::class]);
+
+    // "Chứng từ nhập/xuất/hoàn trả": xem ghi chú ở nhóm inbound-documents/attachments
+    // phía trên — cùng route/permission với api.php.
+    Route::get('outbound-documents/{id}/attachments', [DocumentAttachmentController::class, 'indexOutbound'])
+        ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
+    Route::post('outbound-documents/{id}/attachments', [DocumentAttachmentController::class, 'storeOutbound'])
+        ->middleware(['permission:outbound.scan|outbound.post', EnforceOutboundWarehouseScope::class]);
+
+    // Route phẳng theo attachmentId, dùng chung inbound/outbound (reversal không có
+    // màn hình Mini App) — cùng route/permission với nhóm tương ứng trong api.php.
+    Route::get('document-attachments/pending-evidence', [DocumentAttachmentController::class, 'pendingEvidence'])
+        ->middleware('permission:inventory.view');
+    Route::get('document-attachments/{attachmentId}/download', [DocumentAttachmentController::class, 'download'])
+        ->middleware('permission:inbound.view|outbound.view|inventory.view');
+    Route::delete('document-attachments/{attachmentId}', [DocumentAttachmentController::class, 'destroy'])
+        ->middleware('permission:inbound.create|inbound.scan|outbound.scan|outbound.post');
 
     // â”€â”€ Warranty â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     Route::post('warranty/resolve-code', [MiniAppWarrantyController::class, 'resolveCode'])

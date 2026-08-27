@@ -4,7 +4,9 @@ namespace Modules\Notification\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Modules\Auth\Models\User;
 
 class Notification extends Model
 {
@@ -16,7 +18,7 @@ class Notification extends Model
 
     protected $fillable = [
         'event_key', 'title', 'body', 'severity', 'source_module',
-        'subject_type', 'subject_id', 'payload', 'created_at',
+        'subject_type', 'subject_id', 'actor_id', 'actor_name', 'payload', 'created_at',
     ];
 
     protected $casts = [
@@ -34,5 +36,10 @@ class Notification extends Model
     public function recipients(): HasMany
     {
         return $this->hasMany(NotificationRecipient::class, 'notification_id');
+    }
+
+    public function actor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actor_id', 'user_id');
     }
 }

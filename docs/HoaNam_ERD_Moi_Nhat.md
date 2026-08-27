@@ -2776,6 +2776,55 @@ Row/field error cho migration. **\[BASELINE + TECH-PROPOSAL\]**
 
   ------------------------------------------------------------------------------------------------------------------------------------------
 
+### 60. document_attachments
+
+"Chứng từ nhập/xuất/hoàn trả": ảnh/scan/PDF đính kèm phiếu nhập, phiếu xuất, hoàn
+trả/điều chỉnh để phục vụ đối soát sau này, dùng chung một bảng cho cả 3 loại phiếu
+(cùng khuôn warranty_attachments §47). **\[BASELINE + TECH-PROPOSAL\]**
+
+  ------------------------------------------------------------------------------------------------------------------------------------------------
+  **Field**              **PostgreSQL type**   **Null**       **Key / Default**                                        **Mô tả / Rule**
+  ---------------------- --------------------- -------------- -------------------------------------------------------- --------------------------
+  **id**                 uuid                  No             PK                                                       Định danh.
+
+  **document_type**      varchar(20)           No             INBOUND/OUTBOUND/REVERSAL                                Loại phiếu.
+
+  **document_id**        uuid                  No             Polymorphic — không FK vật lý (xem docblock migration)   stock_documents.id (INBOUND/OUTBOUND) hoặc reversal_document.reversal_document_id (REVERSAL).
+
+  **attachment_type**    varchar(30)           No             DEFAULT SOURCE_DOCUMENT; CHECK SOURCE_DOCUMENT/INVOICE/DELIVERY_NOTE/PHOTO/OTHER   Loại chứng từ.
+
+  **file_name**          varchar(255)          No                                                                      Tên.
+
+  **content_type**       varchar(100)          No                                                                      MIME.
+
+  **file_size_bytes**    bigint                No                                                                      Kích thước.
+
+  **storage_disk**       varchar(30)           No             DEFAULT local                                            Disk lưu (local/s3/r2).
+
+  **storage_key**        varchar(500)          No             UNIQUE                                                   Private object key.
+
+  **checksum**           char(64)              Yes                                                                     Integrity (sha256).
+
+  **status**             varchar(20)           No             DEFAULT ACTIVE; CHECK ACTIVE/DELETED/QUARANTINED        Trạng thái.
+
+  **note**               varchar(500)          Yes                                                                     Ghi chú.
+
+  **uploaded_at**        timestamptz           No             DEFAULT now()                                            Upload.
+
+  **uploaded_by**        uuid                  Yes            FK app_users.id                                          Actor.
+
+  **deleted_at**         timestamptz           Yes                                                                     Logical delete.
+
+  **deleted_by**         uuid                  Yes            FK app_users.id                                          Actor.
+  ------------------------------------------------------------------------------------------------------------------------------------------------
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  **Constraint chính**                                                                                                                                                **Index khuyến nghị**
+  ---------------------------------------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------
+  Private/signed access; magic-byte + malware scan trước khi lưu; audit upload/download/delete; log attachment_id only. REVERSAL luôn bắt buộc ≥1 ACTIVE trước Post (DocumentEvidenceGuard); INBOUND bắt buộc khi thiếu source_name; OUTBOUND tuỳ chọn (đã bắt buộc outbound_request_id ở tầng khác).   UX(storage_key); IDX(document_type,document_id,status); IDX(checksum).
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 # 4. CROSS-TABLE TRANSACTION VÀ CONSTRAINT BẮT BUỘC
 
   -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

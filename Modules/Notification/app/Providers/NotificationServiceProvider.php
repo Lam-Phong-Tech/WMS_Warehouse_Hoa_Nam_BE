@@ -4,6 +4,7 @@ namespace Modules\Notification\Providers;
 
 use Nwidart\Modules\Support\ModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
+use Modules\Notification\Console\Commands\BackfillNotificationActorsCommand;
 
 class NotificationServiceProvider extends ModuleServiceProvider
 {
@@ -22,7 +23,9 @@ class NotificationServiceProvider extends ModuleServiceProvider
      *
      * @var string[]
      */
-    // protected array $commands = [];
+    protected array $commands = [
+        BackfillNotificationActorsCommand::class,
+    ];
 
     /**
      * Provider classes to register.

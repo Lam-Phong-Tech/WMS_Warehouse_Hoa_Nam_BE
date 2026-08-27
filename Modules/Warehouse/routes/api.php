@@ -25,6 +25,7 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineStockFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyAttachmentController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController;
 use Modules\Warehouse\Http\Controllers\DefectCatalogController;
+use Modules\Warehouse\Http\Controllers\DocumentAttachmentController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusHistoryController;
 use Modules\Warehouse\Http\Controllers\ImportBatchController;
 use Modules\Warehouse\Http\Controllers\InboundDocumentController;
@@ -81,8 +82,11 @@ Route::prefix('v1')->group(function (): void {
         Route::post('products', [ProductController::class, 'store'])->middleware('permission:sku.manage');
         Route::get('products/{id}', [ProductController::class, 'show'])->middleware('permission:sku.view');
         Route::patch('products/{id}', [ProductController::class, 'update'])->middleware('permission:sku.manage');
-        Route::patch('products/{id}/enable', [ProductController::class, 'enable'])->middleware('permission:sku.manage');
-        Route::patch('products/{id}/disable', [ProductController::class, 'disable'])->middleware('permission:sku.manage');
+        // products/{id}/enable|disable KHÔNG khai ở đây: chúng đã được đăng ký tại
+        // routes/governance.php (ProductStatusCompatibilityController), file nạp SAU
+        // file này nên bản khai ở đây bị ghi đè hoàn toàn — code chết nhưng đọc như
+        // đang có hiệu lực. Bất biến "không có route trùng" nay được chốt bằng
+        // AuthorizationCoverageInvariantTest::test_khong_co_route_bi_khai_trung.
 
         // WWHN-289 (DEV289-P1-04): luồng nhập kho phải chịu data scope như luồng xuất
         // (SRS §8.1 enforcement standard = permission + data scope trên MỌI endpoint
@@ -117,6 +121,14 @@ Route::prefix('v1')->group(function (): void {
             ->middleware(['permission:inbound.post', EnforceInboundWarehouseScope::class]);
         Route::post('inbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseInbound'])
             ->middleware(['permission:inventory.reversal.post', EnforceInboundWarehouseScope::class]);
+
+        // "Chứng từ nhập/xuất/hoàn trả": ảnh/scan/PDF đính kèm phiếu nhập (source
+        // document) để đối soát sau này. EnforceInboundWarehouseScope đọc route `id`
+        // giống các route mutate khác của luồng này nên tái dùng được nguyên trạng.
+        Route::get('inbound-documents/{id}/attachments', [DocumentAttachmentController::class, 'indexInbound'])
+            ->middleware(['permission:inbound.view', EnforceInboundWarehouseScope::class]);
+        Route::post('inbound-documents/{id}/attachments', [DocumentAttachmentController::class, 'storeInbound'])
+            ->middleware(['permission:inbound.create|inbound.scan', EnforceInboundWarehouseScope::class]);
 
         // SRS §3: "Putaway task list/create/confirm/cancel" -> permission key
         // `putaway.manage` (NV kho = A*). Path legacy /putaway/* phải nhận cùng bộ
@@ -153,6 +165,14 @@ Route::prefix('v1')->group(function (): void {
         Route::post('outbound-documents/{id}/reverse', [CurrentBaselineStockFlowController::class, 'reverseOutbound'])
             ->middleware(['permission:inventory.reversal.post', EnforceOutboundWarehouseScope::class]);
 
+        // "Chứng từ nhập/xuất/hoàn trả": phiếu xuất luôn có outbound_request_imports
+        // (Excel) làm chứng từ nguồn bắt buộc; endpoint này chỉ mở thêm để lưu biên
+        // bản giao nhận/ảnh khi cần đối soát, không chặn Post.
+        Route::get('outbound-documents/{id}/attachments', [DocumentAttachmentController::class, 'indexOutbound'])
+            ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
+        Route::post('outbound-documents/{id}/attachments', [DocumentAttachmentController::class, 'storeOutbound'])
+            ->middleware(['permission:outbound.scan|outbound.post', EnforceOutboundWarehouseScope::class]);
+
         // §8.1 Enforcement standard: "exact x-permission + data scope". Middleware
         // dưới đây chặn đọc/truy vết ngoài warehouse scope, không thay thế permission.
         Route::get('inventory/balances', [InventoryBalanceController::class, 'index'])
@@ -182,6 +202,23 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reversal-documents/{id}/lines', [ReversalDocumentController::class, 'lines'])
             ->middleware(['permission:inventory.view', EnforceReversalWarehouseScope::class]);
 
+        // "Chứng từ nhập/xuất/hoàn trả": hoàn trả/điều chỉnh LUÔN bắt buộc chứng từ
+        // (DocumentEvidenceGuard) — gate thật nằm ở POST .../post, đây chỉ là nơi lưu
+        // chứng từ trước khi Post.
+        Route::get('reversal-documents/{id}/attachments', [DocumentAttachmentController::class, 'indexReversal'])
+            ->middleware(['permission:inventory.view', EnforceReversalWarehouseScope::class]);
+        Route::post('reversal-documents/{id}/attachments', [DocumentAttachmentController::class, 'storeReversal'])
+            ->middleware(['permission:inventory.reversal.post', EnforceReversalWarehouseScope::class]);
+
+        // Route phẳng theo attachmentId (không có {id} phiếu trong path) — warehouse
+        // scope tự kiểm thủ công trong DocumentAttachmentController::assertWarehouseScope().
+        Route::get('document-attachments/pending-evidence', [DocumentAttachmentController::class, 'pendingEvidence'])
+            ->middleware('permission:inventory.view');
+        Route::get('document-attachments/{attachmentId}/download', [DocumentAttachmentController::class, 'download'])
+            ->middleware('permission:inbound.view|outbound.view|inventory.view');
+        Route::delete('document-attachments/{attachmentId}', [DocumentAttachmentController::class, 'destroy'])
+            ->middleware('permission:inbound.create|inbound.scan|outbound.scan|outbound.post|inventory.reversal.post');
+
         Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:inventory.view');
 
         // Flow 06 · Báo cáo: read và export là hai quyền độc lập, BE enforce authoritative.
@@ -192,6 +229,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reports/inventory-xnt/export-excel', [OperationalReportController::class, 'inventoryXntExport'])->middleware('permission:report.export');
         Route::get('reports/inventory-xnt-enhanced', [OperationalReportController::class, 'inventoryXntEnhanced'])->middleware('permission:report.view');
         Route::get('reports/inventory-xnt-enhanced/export-excel', [OperationalReportController::class, 'inventoryXntEnhancedExport'])->middleware('permission:report.export');
+        // GĐ1 chart FE: chuỗi Nhập/Xuất/Tồn cuối theo ngày (không có time-series
+        // nào khác trong hệ thống) — đăng ký trước catch-all như mọi route cụ thể khác.
+        Route::get('reports/inventory-xnt-daily', [OperationalReportController::class, 'inventoryXntDaily'])->middleware('permission:report.view');
         Route::get('reports/document-history', [OperationalReportController::class, 'documentHistory'])->middleware('permission:report.view');
         Route::get('reports/document-history/export-excel', [OperationalReportController::class, 'documentHistoryExport'])->middleware('permission:report.export');
         Route::get('reports/movement-trace', [OperationalReportController::class, 'movementTrace'])->middleware('permission:report.view');
@@ -211,6 +251,10 @@ Route::prefix('v1')->group(function (): void {
         // "reports/{report_code}" catch-all thì không bao giờ được match tới.
         Route::get('reports/outbound-by-recipient', [BaM1ReportController::class, 'outboundByRecipient'])->middleware('permission:report.view');
         Route::get('reports/warranty-defect-sku-breakdown', [BaM1ReportController::class, 'defectSkuBreakdown'])->middleware('permission:report.view');
+        // GĐ1 chart FE: top linh kiện đã xuất trong sửa chữa bảo hành (component
+        // issue POSTED, join warranty_case theo received_at/created_at cùng quy ước
+        // với defectSkuBreakdown/warrantyDefects ở trên).
+        Route::get('reports/warranty-component-usage', [BaM1ReportController::class, 'componentUsage'])->middleware('permission:report.view');
         Route::get('reports/inventory-reconciliation', [OperationalReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');
         Route::get('reports/dashboard-quick', [OperationalReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
         // RPT-WAR-01/RPT-WAR-COMP-01 (GĐ1-REQ-003/009): BaM1ReportController đếm theo
@@ -224,6 +268,11 @@ Route::prefix('v1')->group(function (): void {
         // đăng ký sau mọi route reports/* cụ thể ở trên.
         Route::get('reports/inventory-ledger', [OperationalReportController::class, 'inventoryLedger'])->middleware('permission:report.view');
         Route::post('reports/export', [OperationalReportController::class, 'createExport'])->middleware('permission:report.export');
+        // Poll/download của job nền tạo bởi createExport() — cùng lý do phải đứng TRƯỚC
+        // catch-all reports/{report_code} dù về mặt số segment không thực sự đụng nhau
+        // (WWHN-195 shadow-route: giữ nguyên convention "mọi reports/* cụ thể đứng trước").
+        Route::get('reports/export/{export_job_id}', [OperationalReportController::class, 'exportStatus'])->middleware('permission:report.export');
+        Route::get('reports/export/{export_job_id}/download', [OperationalReportController::class, 'exportDownload'])->middleware('permission:report.export');
         Route::get('reports/{report_code}', [OperationalReportController::class, 'byCode'])->middleware('permission:report.view');
 
         // GĐ1-REQ-001: master "nơi nhận" 4 loại (DISTRIBUTOR/AGENCY/PROJECT_CUSTOMER/

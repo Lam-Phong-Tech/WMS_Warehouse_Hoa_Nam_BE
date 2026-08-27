@@ -104,6 +104,7 @@ class LedgerReconciliationService
                 'p.name as product_name',
                 'p.category_id',
                 'pc.category_name',
+                'p.sku_type',
             );
     }
 

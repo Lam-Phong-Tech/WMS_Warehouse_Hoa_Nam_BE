@@ -32,6 +32,7 @@ class SendWarrantyCaseCreatedNotification implements ShouldQueue
             subjectType: 'warranty_case',
             subjectId: $event->caseId,
             payload: ['case_id' => $event->caseId, 'case_code' => $event->caseCode],
+            actorId: $event->actorId,
         );
     }
 }

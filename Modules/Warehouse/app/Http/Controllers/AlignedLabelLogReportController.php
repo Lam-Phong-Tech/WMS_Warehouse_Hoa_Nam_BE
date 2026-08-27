@@ -59,6 +59,33 @@ class AlignedLabelLogReportController extends Controller
             : $this->exportXlsx($request, 'Label Log', $headers, $rows, ReportExportFileName::stamp('flow06-label-log.xlsx'));
     }
 
+    /**
+     * Job-facing tương đương export(): cùng build/headers/rows, chỉ khác điểm cuối trả
+     * bytes thay vì HTTP response. Dùng bởi `GenerateReportExportJob` qua
+     * `OperationalReportController::exportBytesFor()` — xem checklist "Hiệu năng và triển
+     * khai" 27/08 (export chạy nền thay vì đồng bộ).
+     *
+     * @return array{bytes: string, fileName: string, rowCount: int, contentType: string}
+     */
+    public function exportPayload(Request $request): array
+    {
+        $report = $this->build($request);
+        $rows = collect($report['rows'])->map(fn (array $row): array => [
+            $row['outbound_no'], $row['label_code'], $row['id'], $row['outbound_date'], $row['recipient'], $this->maskPhone((string) ($row['customer_phone'] ?? '')),
+            $row['label_count'], $row['item_count'], $row['sku_count'], $row['sku_summary'],
+            $row['status'], $row['applied'] ? 'YES' : 'NO', $row['printer_code'], $row['printer_name'], $row['printed_by_name'], $row['total_attempts'],
+            $row['failed_count'], $row['reprint_count'], $row['last_attempt_at'], $row['created_at'],
+        ])->all();
+        $headers = ['Outbound', 'Packing Label', 'Label Snapshot', 'Date', 'Recipient', 'Phone', 'Label count', 'Item count', 'SKU count', 'SKU summary', 'Status', 'Applied', 'Printer code', 'Printer', 'Printed by', 'Attempts', 'Failed', 'Reprint', 'Last attempt', 'Created at'];
+        $format = strtolower((string) $request->query('format', 'xlsx'));
+        $this->assertLimit($rows);
+        $this->audit($request, count($rows), $format);
+
+        return $format === 'pdf'
+            ? ['bytes' => $this->exportPdfBytes('Packing Label / Print Log', $headers, $rows), 'fileName' => ReportExportFileName::stamp('flow06-label-log.pdf'), 'rowCount' => count($rows), 'contentType' => 'application/pdf']
+            : ['bytes' => $this->exportXlsxBytes('Label Log', $headers, $rows), 'fileName' => ReportExportFileName::stamp('flow06-label-log.xlsx'), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    }
+
     private function build(Request $request): array
     {
         [$from, $to] = $this->period($request);
@@ -260,17 +287,10 @@ class AlignedLabelLogReportController extends Controller
     private function exportXlsx(Request $request, string $sheetTitle, array $headers, array $rows, string $fileName)
     {
         $this->assertLimit($rows);
-        $spreadsheet = new Spreadsheet;
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle(mb_substr($sheetTitle, 0, 31));
-        $sheet->fromArray($headers, null, 'A1');
-        foreach ($rows as $index => $row) {
-            $sheet->fromArray(array_map([$this, 'excelSafe'], $row), null, 'A'.($index + 2));
-        }
+        $bytes = $this->exportXlsxBytes($sheetTitle, $headers, $rows);
         $this->audit($request, count($rows), 'xlsx');
-        $writer = new Xlsx($spreadsheet);
 
-        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+        return response()->streamDownload(fn () => print $bytes, $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
@@ -278,6 +298,35 @@ class AlignedLabelLogReportController extends Controller
     private function exportPdf(Request $request, string $title, array $headers, array $rows, string $fileName)
     {
         $this->assertLimit($rows);
+        $bytes = $this->exportPdfBytes($title, $headers, $rows);
+        $this->audit($request, count($rows), 'pdf');
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+        ]);
+    }
+
+    /** Phần dựng bytes dùng chung giữa response HTTP (exportXlsx()) và job nền (exportPayload()). */
+    private function exportXlsxBytes(string $sheetTitle, array $headers, array $rows): string
+    {
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle(mb_substr($sheetTitle, 0, 31));
+        $sheet->fromArray($headers, null, 'A1');
+        foreach ($rows as $index => $row) {
+            $sheet->fromArray(array_map([$this, 'excelSafe'], $row), null, 'A'.($index + 2));
+        }
+        $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+
+        return (string) ob_get_clean();
+    }
+
+    /** Phần dựng bytes dùng chung giữa response HTTP (exportPdf()) và job nền (exportPayload()). */
+    private function exportPdfBytes(string $title, array $headers, array $rows): string
+    {
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
         $dompdf = new Dompdf($options);
@@ -298,12 +347,8 @@ class AlignedLabelLogReportController extends Controller
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
-        $this->audit($request, count($rows), 'pdf');
 
-        return response($dompdf->output(), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
-        ]);
+        return $dompdf->output();
     }
 
     private function assertLimit(array $rows): void

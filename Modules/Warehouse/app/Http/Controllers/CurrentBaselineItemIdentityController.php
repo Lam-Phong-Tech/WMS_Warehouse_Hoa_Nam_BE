@@ -212,10 +212,14 @@ class CurrentBaselineItemIdentityController extends Controller
                         : $this->generateUniqueSerialNumber($skuCode);
 
                     if (DB::table('physical_codes')->where('code_value', $codeValue)->exists()) {
-                        ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu đầu vào không hợp lệ.', ['code_value' => ['code_value đã tồn tại.']]);
+                        ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu đầu vào không hợp lệ.', [
+                            'code_value' => ['Mã "'.$codeValue.'" đã được gán cho một đối tượng khác trong hệ thống. Vui lòng dùng mã khác.'],
+                        ]);
                     }
                     if (DB::table('item_instances')->where('serial_number', $serial)->exists()) {
-                        ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu đầu vào không hợp lệ.', ['serial_number' => ['serial_number đã tồn tại.']]);
+                        ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu đầu vào không hợp lệ.', [
+                            'serial_number' => ['Số serial "'.$serial.'" đã tồn tại trong hệ thống. Vui lòng dùng số khác.'],
+                        ]);
                     }
 
                     $itemId = (string) Str::uuid();

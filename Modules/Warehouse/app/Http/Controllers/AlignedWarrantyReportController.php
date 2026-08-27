@@ -96,6 +96,56 @@ class AlignedWarrantyReportController extends Controller
             : $this->xlsx($headers, $rows, ReportExportFileName::stamp("{$stem}.xlsx"));
     }
 
+    /**
+     * Job-facing tương đương export(): cùng gating PII/reason, cùng build/limit/audit,
+     * chỉ khác điểm cuối trả bytes thay vì HTTP response. Dùng bởi
+     * `GenerateReportExportJob` qua `OperationalReportController::exportBytesFor()` — xem
+     * checklist "Hiệu năng và triển khai" 27/08 (export chạy nền thay vì đồng bộ).
+     *
+     * @return array{bytes: string, fileName: string, rowCount: int, contentType: string}
+     */
+    public function exportPayload(Request $request): array
+    {
+        $reason = trim((string) $request->query('reason', ''));
+        $hasPiiPermission = (bool) $request->user()?->hasPermission('warranty.pii.export');
+        if ($reason !== '' && ! $hasPiiPermission) {
+            ApiError::abort(403, 'PERMISSION_DENIED', 'Xuất PII bảo hành cần quyền warranty.pii.export.', [
+                'required_permission' => 'warranty.pii.export',
+            ]);
+        }
+        if ($reason !== '' && mb_strlen($reason) < self::PII_REASON_MIN_LENGTH) {
+            ApiError::abort(422, 'PII_EXPORT_REASON_INVALID', 'Lý do xuất PII phải có ít nhất '.self::PII_REASON_MIN_LENGTH.' ký tự.', [
+                'field' => 'reason',
+                'min_length' => self::PII_REASON_MIN_LENGTH,
+            ]);
+        }
+        $includePii = $hasPiiPermission && $reason !== '';
+
+        $report = $this->build($request, $includePii);
+        $headers = [
+            'Case', 'Nhận diện', 'SKU/Model', 'Bệnh/lỗi', 'Linh kiện đã xuất', 'Trạng thái',
+            'Ngày mua', 'Ngày nhận', 'Ngày trả khách', 'Turnaround (ngày)', 'Ngày cập nhật',
+            'Khách hàng', 'SĐT', 'Địa chỉ',
+        ];
+        $rows = array_map(fn (array $row): array => [
+            $row['case_no'], $row['identification_status'], $row['model'], $row['defect'],
+            $row['components_issued'], $row['status'], $row['purchase_date'] ?? '',
+            $row['received_at'], $row['returned_at'] ?? '', $row['turnaround_days'] ?? '',
+            $row['updated_at'],
+            $row['customer_name'] ?? '', $row['customer_phone'] ?? '', $row['customer_address'] ?? '',
+        ], $report['rows']);
+
+        $this->assertLimit($rows);
+        $format = strtolower((string) $request->query('format', 'xlsx'));
+        $this->auditExport($request, count($rows), $includePii, $format, $reason);
+
+        $stem = sprintf('bao-cao-bao-hanh-%s-den-%s', $report['period']['from_date'], $report['period']['to_date']);
+
+        return $format === 'pdf'
+            ? ['bytes' => $this->pdfBytes($headers, $rows), 'fileName' => ReportExportFileName::stamp("{$stem}.pdf"), 'rowCount' => count($rows), 'contentType' => 'application/pdf']
+            : ['bytes' => $this->xlsxBytes($headers, $rows), 'fileName' => ReportExportFileName::stamp("{$stem}.xlsx"), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    }
+
     /** §13.10 RPT-WAR-01 "turnaround": số ngày từ tiếp nhận tới trả khách/hoàn tất sửa. */
     private function turnaroundDays(string $receivedAt, mixed $closedAt): ?int
     {
@@ -278,6 +328,21 @@ class AlignedWarrantyReportController extends Controller
 
     private function xlsx(array $headers, array $rows, string $fileName)
     {
+        $bytes = $this->xlsxBytes($headers, $rows);
+
+        return response()->streamDownload(fn () => print $bytes, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function pdf(array $headers, array $rows, string $fileName)
+    {
+        return response($this->pdfBytes($headers, $rows), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'attachment; filename="'.$fileName.'"']);
+    }
+
+    /** Phần dựng bytes dùng chung giữa response HTTP (xlsx()) và job nền (exportPayload()). */
+    private function xlsxBytes(array $headers, array $rows): string
+    {
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Bao hanh');
@@ -286,13 +351,14 @@ class AlignedWarrantyReportController extends Controller
             $sheet->fromArray(array_map([$this, 'excelSafe'], $row), null, 'A'.($index + 2));
         }
         $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
 
-        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+        return (string) ob_get_clean();
     }
 
-    private function pdf(array $headers, array $rows, string $fileName)
+    /** Phần dựng bytes dùng chung giữa response HTTP (pdf()) và job nền (exportPayload()). */
+    private function pdfBytes(array $headers, array $rows): string
     {
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
@@ -315,7 +381,7 @@ class AlignedWarrantyReportController extends Controller
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
 
-        return response($dompdf->output(), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'attachment; filename="'.$fileName.'"']);
+        return $dompdf->output();
     }
 
     private function excelSafe(mixed $value): mixed

@@ -171,11 +171,19 @@ class AuthController extends Controller
                 "Tài khoản {$user->username} bị từ chối đăng nhập vì đang ở trạng thái {$user->status}.",
             ));
 
-            return $this->respondError('Tài khoản đang bị khoá hoặc ngừng hoạt động.', [], 403, 'ACCESS_DENIED');
+            // Cấp tài khoản nhân viên: phân biệt khoá do admin với tự khoá vì quá
+            // 7 ngày chưa đăng nhập lần đầu (LockExpiredFirstLoginAccounts) để
+            // người dùng biết cần liên hệ ai thay vì thấy message chung chung.
+            $lockMessage = ($user->status === 'LOCKED' && $user->must_change_password && $user->last_login_at === null)
+                ? 'Tài khoản đã bị khoá do không đăng nhập lần đầu trong vòng 7 ngày kể từ khi được cấp. Vui lòng liên hệ quản trị viên để được cấp lại mật khẩu.'
+                : 'Tài khoản đang bị khoá hoặc ngừng hoạt động.';
+
+            return $this->respondError($lockMessage, [], 403, 'ACCESS_DENIED');
         }
 
         // Đăng nhập thành công xoá bộ đếm để người dùng hợp lệ không bị phạt oan.
         RateLimiter::clear($throttleKey);
+        $user->forceFill(['last_login_at' => now()])->save();
 
         $refreshToken = $this->refreshTokens->issue($user, $request);
         $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
@@ -331,6 +339,7 @@ class AuthController extends Controller
 
         $user->forceFill([
             'password_hash' => Hash::make($data['new_password']),
+            'must_change_password' => false,
             'version' => ((int) $user->version) + 1,
         ])->save();
         $this->refreshTokens->revokeAllForUser($user->user_id);

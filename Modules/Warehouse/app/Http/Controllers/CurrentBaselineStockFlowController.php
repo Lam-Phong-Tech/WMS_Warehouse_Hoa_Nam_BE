@@ -582,6 +582,13 @@ class CurrentBaselineStockFlowController extends Controller
                     if ($document->status !== 'SCANNING') {
                         ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ SCANNING mới được Post.');
                     }
+                    // "Chứng từ nhập/xuất/hoàn trả": phiếu nhập không có source_name
+                    // (chứng từ nguồn) mà cũng chưa đính kèm chứng từ nào được hiển thị
+                    // ở GET .../attachments (evidence_status=PENDING) và trong
+                    // GET /document-attachments/pending-evidence để bổ sung — cố ý
+                    // KHÔNG chặn cứng ở đây (không giống Reversal) vì phần lớn phiếu
+                    // nhập hiện có được tạo trước khi tính năng này tồn tại, chặn cứng
+                    // sẽ khoá luôn các luồng nhập tay hợp lệ đã chạy production.
                     if ($type === 'issue') {
                         if ($document->outbound_request_id === null) {
                             ApiError::abort(422, 'OUTBOUND_REQUEST_REQUIRED', 'Outbound phải liên kết toa/request nguồn.');

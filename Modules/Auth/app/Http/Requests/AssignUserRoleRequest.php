@@ -24,6 +24,8 @@ class AssignUserRoleRequest extends FormRequest
             'roles.*.scope_ref' => ['nullable', 'uuid'],
             'roles.*.effective_from' => ['nullable', 'date'],
             'roles.*.effective_to' => ['nullable', 'date', 'after_or_equal:roles.*.effective_from'],
+            // Yêu cầu nghiệp vụ: mọi thay đổi role của người dùng phải ghi lại lý do để truy vết.
+            'reason' => ['required', 'string', 'min:5', 'max:2000'],
         ];
     }
 }

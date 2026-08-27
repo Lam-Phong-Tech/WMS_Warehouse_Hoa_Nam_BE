@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Modules\Auth\Models\Role;
@@ -24,11 +26,18 @@ use Tests\TestCase;
  * Runbook yêu cầu: tiêm lỗi hạ tầng SAU khi movement REVERSAL đã INSERT nhưng
  * TRƯỚC khi transaction commit, rồi chứng minh "rollback sạch (chain/XNT trở
  * về nguyên trạng)". `Wwhn234PostIssueRollbackProofTest` (G-01) đã chứng minh
- * đúng cơ chế này cho Post Issue; đây là bản tương đương cho reversal — điểm
- * khác quan trọng: trong `CurrentBaselineReversalService::execute()`,
- * `reversal_document` + `reversal_line` được INSERT **trước** `stock_movements`
- * trong CÙNG một transaction, nên injection tại INSERT movement còn chứng minh
- * được cả hai bảng chứng từ đó cuốn theo rollback (bằng chứng mạnh hơn G-01).
+ * đúng cơ chế này cho Post Issue; đây là bản tương đương cho reversal.
+ *
+ * "Chứng từ nhập/xuất/hoàn trả" (fix bug bypass evidence) đổi kiến trúc:
+ * `reversal_document`/`reversal_line` giờ luôn INSERT ở request Create (DRAFT,
+ * transaction RIÊNG, đã commit xong) — chỉ `stock_movements`/`posting_event`
+ * cùng cập nhật `reversal_document.status`→POSTED/`reversal_line.posted_movement_id`
+ * mới nằm trong transaction của request Post riêng
+ * (`CurrentBaselineReversalService::postReversalDocument()`). Nên injection tại
+ * INSERT movement giờ chứng minh transaction CỦA POST rollback sạch — header/line
+ * DRAFT đã tồn tại từ trước KHÔNG bị xoá (đúng ra phải vậy: DRAFT còn nguyên,
+ * chưa Post được, thử lại được), chứ không còn "cả header lẫn line cũng bị cuốn
+ * theo" như kiến trúc atomic create+post cũ.
  *
  * Oracle "nguyên trạng" lấy từ chính hai bề mặt WWHN-240 đã đóng:
  *   - GET /stock-movements/{id}/trace-source (net_effect + correction_chain)
@@ -189,12 +198,23 @@ class Wwhn240ForcedRollbackInjectionTest extends TestCase
 
     public function test_qa240_20_injected_failure_after_reversal_movement_insert_rolls_back_chain_xnt_and_ledger(): void
     {
+        Storage::fake('local');
         $headers = $this->adminHeaders();
         $fixture = $this->postedSerialReceipt($headers, $this->skuCode, 2);
         $itemId = $fixture['item_ids'][0];
         $idempotencyKey = 'wwhn240-qa20-injected-key-001';
 
-        // ---- Snapshot "nguyên trạng" trước khi tiêm lỗi ----
+        // "Chứng từ nhập/xuất/hoàn trả": Create luôn dừng ở DRAFT (transaction riêng,
+        // đã commit) — chỉ INSERT reversal_document + reversal_line, chưa chạm
+        // stock_movements. Đính kèm chứng từ để có thể gọi Post ngay sau.
+        $created = $this->reverseItem($headers, $fixture, $itemId, 'wwhn240-qa20-create-001');
+        $created->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        $reversalId = (string) $created->json('data.reversal_document_id');
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('wwhn240-bien-ban.jpg'),
+        ], $headers)->assertCreated();
+
+        // ---- Snapshot "nguyên trạng" trước khi tiêm lỗi (DRAFT đã tồn tại) ----
         $movementsBefore = DB::table('stock_movements')->count();
         $reversalDocsBefore = DB::table('reversal_document')->count();
         $reversalLinesBefore = DB::table('reversal_line')->count();
@@ -211,9 +231,9 @@ class Wwhn240ForcedRollbackInjectionTest extends TestCase
         $this->assertSame(['gross' => 2, 'reversal' => 0, 'net' => 2, 'closing' => 2, 'reversal_net' => 0], $xntBefore);
         $this->assertSame(2, $this->ledgerNet($fixture));
 
-        // ---- Tiêm lỗi hạ tầng đúng tại INSERT stock_movements (movement REVERSAL).
-        // reversal_document + reversal_line đã được INSERT trước đó trong cùng
-        // transaction, nên rollback phải cuốn theo cả hai. ----
+        // ---- Tiêm lỗi hạ tầng đúng tại INSERT stock_movements (movement REVERSAL)
+        // trong request Post — đây là nơi duy nhất còn ghi movement từ khi Create
+        // tách khỏi Post (xem docblock lớp). ----
         $injected = false;
         Event::listen(function (QueryExecuted $event) use (&$injected): void {
             if ($injected) {
@@ -226,7 +246,10 @@ class Wwhn240ForcedRollbackInjectionTest extends TestCase
             }
         });
 
-        $failed = $this->reverseItem($headers, $fixture, $itemId, $idempotencyKey);
+        $failed = $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => '1',
+            'Idempotency-Key' => $idempotencyKey,
+        ]);
 
         Event::forget(QueryExecuted::class);
 
@@ -238,11 +261,15 @@ class Wwhn240ForcedRollbackInjectionTest extends TestCase
             $this->assertStringNotContainsStringIgnoringCase($leak, $body, "Phản hồi 500 không được lộ chi tiết nội bộ: {$leak}");
         }
 
-        // ---- Rollback sạch: chứng từ + movement + tồn + item + posting_event ----
+        // ---- Rollback sạch của transaction Post: movement + posting_event + status
+        // transition. reversal_document/reversal_line DRAFT đã commit từ Create
+        // KHÔNG bị xoá — đúng ra phải vậy: còn nguyên để thử Post lại. ----
         $this->assertSame($movementsBefore, DB::table('stock_movements')->count(), 'Movement REVERSAL phải bị rollback.');
-        $this->assertSame($reversalDocsBefore, DB::table('reversal_document')->count(), 'reversal_document (INSERT trước movement, cùng transaction) phải cuốn theo rollback.');
-        $this->assertSame($reversalLinesBefore, DB::table('reversal_line')->count(), 'reversal_line phải cuốn theo rollback.');
+        $this->assertSame($reversalDocsBefore, DB::table('reversal_document')->count(), 'reversal_document DRAFT (đã commit ở Create) phải còn nguyên, không bị xoá bởi rollback của Post.');
+        $this->assertSame($reversalLinesBefore, DB::table('reversal_line')->count(), 'reversal_line DRAFT phải còn nguyên.');
         $this->assertSame($postingEventsBefore, DB::table('posting_event')->count(), 'posting_event phải cuốn theo rollback.');
+        $this->assertSame('DRAFT', (string) DB::table('reversal_document')->where('reversal_document_id', $reversalId)->value('status'), 'reversal_document phải trở lại/giữ nguyên DRAFT, không bị nửa-vời POSTED.');
+        $this->assertNull(DB::table('reversal_line')->where('reversal_document_id', $reversalId)->value('posted_movement_id'), 'reversal_line chưa được gắn posted_movement_id sau rollback.');
         $this->assertSame(2, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']), 'Tồn không được thay đổi sau rollback.');
         $this->assertSame(
             $itemStatusBefore,
@@ -260,14 +287,17 @@ class Wwhn240ForcedRollbackInjectionTest extends TestCase
         $this->assertSame($xntBefore, $this->xntLine($headers, $fixture), 'XNT gross/reversal/net/closing phải trở về nguyên trạng.');
         $this->assertSame(2, $this->ledgerNet($fixture), 'Ledger SUM(qty_delta) phải trở về nguyên trạng.');
 
-        // ---- Sau sự cố, lease idempotency phải được nhả: CÙNG key phải reverse
+        // ---- Sau sự cố, lease idempotency phải được nhả: CÙNG key Post phải retry
         // lại được (không kẹt vĩnh viễn), và lần này đi tới cùng ----
-        $recovered = $this->reverseItem($headers, $fixture, $itemId, $idempotencyKey);
+        $recovered = $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => '1',
+            'Idempotency-Key' => $idempotencyKey,
+        ]);
         $recovered->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $this->assertSame($movementsBefore + 1, DB::table('stock_movements')->count());
-        $this->assertSame($reversalDocsBefore + 1, DB::table('reversal_document')->count());
-        $this->assertSame($reversalLinesBefore + 1, DB::table('reversal_line')->count());
+        $this->assertSame($reversalDocsBefore, DB::table('reversal_document')->count(), 'Recovery Post cùng reversal DRAFT có sẵn, không tạo thêm header.');
+        $this->assertSame($reversalLinesBefore, DB::table('reversal_line')->count(), 'Recovery Post không tạo thêm line.');
         $this->assertSame(1, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']));
 
         $traceFinal = $this->getJson("/api/v1/stock-movements/{$fixture['movement_id']}/trace-source", $headers);

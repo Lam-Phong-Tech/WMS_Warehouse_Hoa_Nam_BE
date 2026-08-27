@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Modules\Warehouse\Models\Sku;
@@ -345,14 +347,20 @@ class Wwhn289StockInvariantProofTest extends TestCase
      */
     public function test_concurrent_dimension_duplicate_reversal_of_the_same_movement_is_blocked(): void
     {
+        Storage::fake('local');
         $headers = $this->superAdminHeaders();
         $fixture = $this->postedReceipt($headers, 'WWHN289-DUPREV-01', 5);
 
+        // Chặn "duplicate reversal" bên dưới (REVERSAL_QTY_EXCEEDED ở createDraft())
+        // chỉ tính trên reversal đã POSTED nên lần đầu phải đính kèm chứng từ rồi
+        // Post thật sự, không dừng ở DRAFT.
         $first = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
             'reason' => 'WWHN-289 duplicate reversal guard - lần 1',
             'lines' => [['movement_id' => $fixture['movement_id'], 'quantity' => 5]],
         ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'wwhn289-dup-reversal-1']);
-        $first->assertOk();
+        $first->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        $this->attachEvidenceThenPost($headers, (string) $first->json('data.reversal_document_id'), 1, 'wwhn289-dup-reversal-1-post')
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $balanceAfterFirst = (int) DB::table('inventory_balances')
             ->where('warehouse_id', $fixture['warehouse_id'])
@@ -402,8 +410,25 @@ class Wwhn289StockInvariantProofTest extends TestCase
      * và projection (inventory_balances) phải khớp tuyệt đối — mismatch = 0. Đây là
      * số liệu mà review đòi "movement/balance reconcile ... mismatch=0".
      */
+    /**
+     * "Chứng từ nhập/xuất/hoàn trả": Create luôn dừng ở DRAFT (stock_effect=NONE);
+     * đính kèm chứng từ rồi Post riêng mới thật sự ghi movement/tồn.
+     */
+    private function attachEvidenceThenPost(array $headers, string $reversalId, int $version, string $idempotencyKey): TestResponse
+    {
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('w289-bien-ban-'.Str::lower(Str::random(6)).'.jpg'),
+        ], $headers)->assertCreated();
+
+        return $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => (string) $version,
+            'Idempotency-Key' => $idempotencyKey,
+        ]);
+    }
+
     public function test_reconcile_dimension_ledger_and_balance_have_zero_mismatch_after_full_cycle(): void
     {
+        Storage::fake('local');
         $headers = $this->superAdminHeaders();
 
         // Vòng đời đầy đủ chỉ bằng stock effect THẬT (không seed balance tay):
@@ -412,10 +437,13 @@ class Wwhn289StockInvariantProofTest extends TestCase
         $receipt = $this->postedReceipt($headers, 'WWHN289-RECON-01', 5);
         $this->postedReceipt($headers, 'WWHN289-RECON-02', 8);
 
-        $this->postJson("/api/v1/inbound-documents/{$receipt['document_id']}/reverse", [
+        $reverse = $this->postJson("/api/v1/inbound-documents/{$receipt['document_id']}/reverse", [
             'reason' => 'WWHN-289 reconcile cycle - trả lại 2',
             'lines' => [['movement_id' => $receipt['movement_id'], 'quantity' => 2]],
-        ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'wwhn289-recon-reverse-001'])->assertOk();
+        ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'wwhn289-recon-reverse-001']);
+        $reverse->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        $this->attachEvidenceThenPost($headers, (string) $reverse->json('data.reversal_document_id'), 1, 'wwhn289-recon-reverse-post-001')
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $report = $this->getJson('/api/v1/reports/inventory-reconciliation', $headers);
         $report->assertOk();
@@ -488,6 +516,7 @@ class Wwhn289StockInvariantProofTest extends TestCase
      */
     public function test_negative_stock_dimension_no_path_can_drive_balance_below_zero(): void
     {
+        Storage::fake('local');
         $headers = $this->superAdminHeaders();
         $fixture = $this->postedReceipt($headers, 'WWHN289-NEG-01', 4);
 
@@ -516,11 +545,16 @@ class Wwhn289StockInvariantProofTest extends TestCase
             'on_hand_after' => $this->balanceQuantity($fixture),
         ];
 
-        // (2) Đảo đúng 4 (hợp lệ) rồi đảo thêm 1 khi tồn đã bằng 0.
-        $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
+        // (2) Đảo đúng 4 (hợp lệ) rồi đảo thêm 1 khi tồn đã bằng 0. Chặn ở (3) bên
+        // dưới chỉ tính trên reversal đã POSTED nên phải đính kèm chứng từ rồi Post
+        // thật sự, không dừng ở DRAFT.
+        $exactReverse = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
             'reason' => 'WWHN-289 negative stock guard - dao dung 4',
             'lines' => [['movement_id' => $fixture['movement_id'], 'quantity' => 4]],
-        ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'wwhn289-neg-exact-reversal'])->assertOk();
+        ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'wwhn289-neg-exact-reversal']);
+        $exactReverse->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        $this->attachEvidenceThenPost($headers, (string) $exactReverse->json('data.reversal_document_id'), 1, 'wwhn289-neg-exact-reversal-post')
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
         $this->assertSame(0, $this->balanceQuantity($fixture), 'Đảo hết phải về đúng 0.');
 
         $movementsAtZero = DB::table('stock_movements')->count();

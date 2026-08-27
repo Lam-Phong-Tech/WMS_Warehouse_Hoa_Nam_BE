@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
@@ -309,6 +311,7 @@ class Wwhn234P1P2ClosureTest extends TestCase
      */
     public function test_f04_reversal_locks_inventory_balances_in_global_sku_order_not_line_order(): void
     {
+        Storage::fake('local');
         $admin = $this->superAdminHeaders();
         $warehouse = $this->canonicalWarehouse();
 
@@ -349,6 +352,11 @@ class Wwhn234P1P2ClosureTest extends TestCase
         // Khai reversal line theo thứ tự NGƯỢC với thứ tự chuỗi sku_id (line_no=1 là
         // SKU lớn hơn) — giống hệt cách test_f04_receipt dựng chứng từ gốc, để chứng
         // minh postDraft() không còn khoá inventory_balances theo thứ tự line của payload.
+        // "Chứng từ nhập/xuất/hoàn trả": Create dừng ở DRAFT (chỉ chạy Pha 1
+        // assertQuantityDependency() của createDraft()) — phải đính kèm chứng từ rồi
+        // gọi POST .../post riêng (chạy Pha 2 mutateBalance() của postDraft()) mới đủ
+        // 4 lượt khoá. Event listener bắc cầu qua cả hai request để vẫn đối chiếu
+        // được đúng một chuỗi thứ tự khoá liên tục.
         $reverse = $this->postJson("/api/v1/inbound-documents/{$documentId}/reverse", [
             'reason' => 'WWHN-234 F-04 reversal lock order',
             'lines' => [
@@ -359,7 +367,16 @@ class Wwhn234P1P2ClosureTest extends TestCase
             'If-Match' => (string) $postedVersion,
             'Idempotency-Key' => 'w234-f04r-'.Str::random(8),
         ]);
-        $reverse->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
+        $reverse->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        $reversalId = (string) $reverse->json('data.reversal_document_id');
+
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('w234-f04r-bien-ban.jpg'),
+        ], $admin)->assertCreated();
+        $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $admin + [
+            'If-Match' => '1',
+            'Idempotency-Key' => 'w234-f04r-post-'.Str::random(8),
+        ])->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         Event::forget(QueryExecuted::class);
 

@@ -27,9 +27,16 @@ class User extends Model implements AuthenticatableContract, JWTSubject
 
     protected $fillable = [
         'username', 'display_name', 'email', 'phone', 'department_id', 'password_hash', 'status', 'version',
+        'must_change_password', 'first_login_deadline_at', 'last_login_at',
     ];
 
     protected $hidden = ['password_hash'];
+
+    protected $casts = [
+        'must_change_password' => 'boolean',
+        'first_login_deadline_at' => 'datetime',
+        'last_login_at' => 'datetime',
+    ];
 
     private ?EloquentCollection $activeRolesMemo = null;
 
@@ -48,6 +55,14 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     {
         return $this->belongsToMany(Role::class, 'user_role', 'user_id', 'role_id', 'user_id', 'role_id')
             ->withPivot(['scope_ref', 'effective_from', 'effective_to']);
+    }
+
+    /** Quyền cấp riêng cho tài khoản, cộng thêm vào quyền theo role (chỉ cấp thêm, không thu hồi quyền của role). */
+    public function grantedPermissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'user_permission', 'user_id', 'permission_id', 'user_id', 'permission_id')
+            ->withPivot(['user_permission_id', 'granted_by', 'granted_at'])
+            ->withTimestamps();
     }
 
     public function activeRoles(): BelongsToMany
@@ -105,10 +120,14 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             $roles->loadMissing([
                 'permissions' => fn ($query) => $query->where('permission.status', 'ACTIVE'),
             ]);
+            $this->loadMissing([
+                'grantedPermissions' => fn ($query) => $query->where('permission.status', 'ACTIVE'),
+            ]);
 
             return $roles
                 ->pluck('permissions')
                 ->flatten()
+                ->merge($this->grantedPermissions)
                 ->pluck('permission_key')
                 ->unique()
                 ->sortBy(fn (string $key): string => ($key === 'audit_log.view' ? '0:' : '1:').$key)

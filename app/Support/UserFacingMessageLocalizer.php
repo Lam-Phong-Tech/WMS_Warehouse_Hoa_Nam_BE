@@ -103,7 +103,7 @@ final class UserFacingMessageLocalizer
             '/^The (.+) may not be greater than ([0-9]+) characters\.$/i' => 'Trường $1 không được vượt quá $2 ký tự.',
             '/^The (.+) must be greater than ([^\.]+)\.$/i' => 'Trường $1 phải lớn hơn $2.',
             '/^The selected (.+) is invalid\.$/i' => 'Giá trị đã chọn cho trường $1 không hợp lệ.',
-            '/^The (.+) has already been taken\.$/i' => 'Giá trị trường $1 đã tồn tại.',
+            '/^The (.+) has already been taken\.$/i' => '$1 này đã tồn tại trong hệ thống. Vui lòng nhập giá trị khác.',
             '/^The (.+) format is invalid\.$/i' => 'Định dạng trường $1 không hợp lệ.',
             '/^The (.+) field has a duplicate value\.$/i' => 'Trường $1 có giá trị bị trùng.',
             '/Scan quantity exceeds remaining quantity on line\s+([^\.]+)\./i' => 'Số lượng quét vượt quá số lượng còn lại ở dòng $1.',

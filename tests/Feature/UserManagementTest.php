@@ -81,6 +81,7 @@ class UserManagementTest extends TestCase
 
         $response = $this->postJson("/api/v1/users/{$target->user_id}/roles", [
             'role_ids' => [$targetRole->role_id],
+            'reason' => 'Test reason for audit',
         ], $headers);
 
         $response->assertOk();
@@ -105,6 +106,7 @@ class UserManagementTest extends TestCase
 
         $response = $this->postJson("/api/v1/users/{$actor->user_id}/roles", [
             'role_ids' => [$grantedRole->role_id],
+            'reason' => 'Test reason for audit',
         ], $headers);
 
         $response->assertStatus(409)->assertJsonPath('error.code', 'SELF_ESCALATION_DENIED');

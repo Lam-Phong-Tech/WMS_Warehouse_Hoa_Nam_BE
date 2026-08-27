@@ -18,10 +18,13 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Jobs\GenerateReportExportJob;
+use Modules\Warehouse\Models\ReportExportJob;
 use Modules\Warehouse\Services\LedgerReconciliationService;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
@@ -209,7 +212,7 @@ class OperationalReportController extends Controller
      * Idempotency-Key, trả ExportJob. BR-EXP-01: export dùng đúng filter/scope của
      * màn hình nên job giữ nguyên filter đã gửi; BR-EXP-02: mọi export đều audit.
      */
-    #[OA\Post(path: '/api/v1/reports/export', operationId: 'createReportExport', summary: 'Annex C createReportExport — tạo job xuất báo cáo', description: 'REQ-SRS-032 / BR-EXP-01..05. Bắt buộc Idempotency-Key; retry cùng key trả lại đúng job cũ (Idempotent-Replay: true). Export dùng đúng filter/scope của màn hình và luôn được audit; tên file trả về có timestamp. §13.8: với report_code=warranty-defects, filters.reason kèm quyền thiếu warranty.pii.export → 403 PERMISSION_DENIED và filters.reason ngắn hơn 5 ký tự → 422 PII_EXPORT_REASON_INVALID, kiểm ngay khi tạo job nên không sinh ExportJob lẫn audit; bỏ trống reason thì file vẫn xuất ở dạng đã mask.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 200))], requestBody: new OA\RequestBody(required: true, description: 'ReportExportRequest', content: new OA\JsonContent(required: ['report_code'], properties: [new OA\Property(property: 'report_code', type: 'string', enum: ['inventory-balance', 'inventory-ledger', 'inventory-xnt', 'document-history', 'movement-trace', 'import-match', 'label-log', 'warranty-defects', 'outbound-by-agency'], example: 'inventory-balance'), new OA\Property(property: 'format', type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx', example: 'xlsx'), new OA\Property(property: 'filters', type: 'object', description: 'Bộ lọc y hệt màn hình đang xem', additionalProperties: true, example: ['from_date' => '2026-08-01', 'to_date' => '2026-08-21'])])), responses: [new OA\Response(response: 201, description: 'ExportJob', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'message', type: 'string'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'export_job_id', type: 'string', format: 'uuid'), new OA\Property(property: 'report_code', type: 'string'), new OA\Property(property: 'format', type: 'string'), new OA\Property(property: 'status', type: 'string', enum: ['READY']), new OA\Property(property: 'row_count', type: 'integer'), new OA\Property(property: 'download_url', type: 'string'), new OA\Property(property: 'requested_at', type: 'string', format: 'date-time')], type: 'object')])), new OA\Response(response: 401, description: 'Chưa xác thực'), new OA\Response(response: 403, description: 'PERMISSION_DENIED — thiếu warranty.pii.export khi export warranty-defects kèm filters.reason'), new OA\Response(response: 422, description: 'VALIDATION_ERROR (report_code/format không hợp lệ, Idempotency-Key sai độ dài), hoặc PII_EXPORT_REASON_INVALID (filters.reason ngắn hơn 5 ký tự)'), new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key')])]
+    #[OA\Post(path: '/api/v1/reports/export', operationId: 'createReportExport', summary: 'Annex C createReportExport — tạo job xuất báo cáo', description: 'REQ-SRS-032 / BR-EXP-01..05. Bắt buộc Idempotency-Key; retry cùng key trả lại đúng job cũ (Idempotent-Replay: true). Export dùng đúng filter/scope của màn hình và luôn được audit; tên file trả về có timestamp. §13.8: với report_code=warranty-defects, filters.reason kèm quyền thiếu warranty.pii.export → 403 PERMISSION_DENIED và filters.reason ngắn hơn 5 ký tự → 422 PII_EXPORT_REASON_INVALID, kiểm ngay khi tạo job nên không sinh ExportJob lẫn audit; bỏ trống reason thì file vẫn xuất ở dạng đã mask. Checklist "Hiệu năng và triển khai" 27/08: job chạy NỀN qua GenerateReportExportJob (không còn READY giả) — client poll GET /reports/export/{export_job_id} (status_url) tới khi status=READY (có download_url) hoặc FAILED (có error_code/error_message).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', maxLength: 200))], requestBody: new OA\RequestBody(required: true, description: 'ReportExportRequest', content: new OA\JsonContent(required: ['report_code'], properties: [new OA\Property(property: 'report_code', type: 'string', enum: ['inventory-balance', 'inventory-ledger', 'inventory-xnt', 'document-history', 'movement-trace', 'import-match', 'label-log', 'warranty-defects', 'outbound-by-agency'], example: 'inventory-balance'), new OA\Property(property: 'format', type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx', example: 'xlsx'), new OA\Property(property: 'filters', type: 'object', description: 'Bộ lọc y hệt màn hình đang xem', additionalProperties: true, example: ['from_date' => '2026-08-01', 'to_date' => '2026-08-21'])])), responses: [new OA\Response(response: 202, description: 'ExportJob (PENDING) — poll status_url', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'message', type: 'string'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'export_job_id', type: 'string', format: 'uuid'), new OA\Property(property: 'report_code', type: 'string'), new OA\Property(property: 'format', type: 'string'), new OA\Property(property: 'status', type: 'string', enum: ['PENDING', 'PROCESSING', 'READY', 'FAILED']), new OA\Property(property: 'row_count', type: 'integer', nullable: true), new OA\Property(property: 'status_url', type: 'string'), new OA\Property(property: 'download_url', type: 'string', nullable: true), new OA\Property(property: 'requested_at', type: 'string', format: 'date-time')], type: 'object')])), new OA\Response(response: 401, description: 'Chưa xác thực'), new OA\Response(response: 403, description: 'PERMISSION_DENIED — thiếu warranty.pii.export khi export warranty-defects kèm filters.reason'), new OA\Response(response: 422, description: 'VALIDATION_ERROR (report_code/format không hợp lệ, Idempotency-Key sai độ dài), hoặc PII_EXPORT_REASON_INVALID (filters.reason ngắn hơn 5 ký tự)'), new OA\Response(response: 428, description: 'Thiếu header Idempotency-Key')])]
     public function createExport(Request $request)
     {
         $validated = $request->validate([
@@ -225,42 +228,53 @@ class OperationalReportController extends Controller
         // dòng trên TOÀN bộ dữ liệu (và báo cáo yêu cầu from_date sẽ 422 oan).
         $filters = $this->exportFilters($validated['filters'] ?? []);
         $this->assertPiiExportAllowed($request, $reportCode, $filters);
-        $request->merge($filters);
-        $downloadUrl = self::EXPORT_DOWNLOAD_PATHS[$reportCode].'?'.http_build_query($filters + ['format' => $format]);
+        $actorId = $this->currentActorId();
 
         [$code, $body, $replay] = IdempotencyStore::handle(
             $key,
             'report_export_'.$reportCode,
-            $this->currentActorId(),
+            $actorId,
             IdempotencyStore::requestHash($request),
-            function () use ($request, $reportCode, $format, $filters, $downloadUrl): array {
+            function () use ($request, $reportCode, $format, $filters, $actorId): array {
                 $jobId = (string) Str::uuid();
-                $rowCount = $this->exportRowCount($request, $reportCode);
 
                 AuditLogger::record(
                     action: 'REPORT_EXPORT_REQUESTED',
                     objectType: 'report_export',
                     objectId: $jobId,
-                    actorId: $this->currentActorId(),
+                    actorId: $actorId,
                     requestId: $request->attributes->get('request_id'),
-                    afterData: ['report_code' => $reportCode, 'format' => $format, 'row_count' => $rowCount, 'filters' => $filters],
+                    afterData: ['report_code' => $reportCode, 'format' => $format, 'filters' => $filters],
                 );
 
-                return [201, [
+                // Hiệu năng và triển khai (checklist 27/08): trước đây row_count được tính
+                // NGAY ở đây bằng cách chạy builder đồng bộ (một trong hai lần chạy builder
+                // của cùng một export, lần còn lại là lúc GET download_url) — đúng nguồn
+                // chậm mà checklist mô tả. Giờ toàn bộ builder + render chỉ chạy MỘT lần,
+                // trong GenerateReportExportJob; row_count/download_url có ở GET status bên
+                // dưới khi job xong.
+                ReportExportJob::query()->create([
+                    'export_job_id' => $jobId,
+                    'report_code' => $reportCode,
+                    'format' => $format,
+                    'filters' => $filters,
+                    'requested_by' => $actorId,
+                    'status' => 'PENDING',
+                ]);
+                GenerateReportExportJob::dispatch($jobId, $reportCode, $format, $filters, $actorId);
+
+                return [202, [
                     'success' => true,
-                    'message' => 'Đã tạo yêu cầu export; tải file qua download_url.',
+                    'message' => 'Đã tạo yêu cầu export; theo dõi qua status_url rồi tải qua download_url khi status=READY.',
                     'data' => [
                         'export_job_id' => $jobId,
                         'report_code' => $reportCode,
                         'format' => $format,
-                        // Export chạy đồng bộ (không có queue worker trong MVP) nên job
-                        // ở trạng thái READY ngay và download_url trỏ endpoint stream sẵn có.
-                        'status' => 'READY',
-                        'row_count' => $rowCount,
+                        'status' => 'PENDING',
+                        'row_count' => null,
                         'filters' => $filters,
-                        // download_url mang theo đúng filter đã gửi để file tải về không
-                        // bao giờ rộng hơn phạm vi người dùng đang xem.
-                        'download_url' => $downloadUrl,
+                        'status_url' => "/api/v1/reports/export/{$jobId}",
+                        'download_url' => null,
                         'requested_at' => now()->toIso8601String(),
                     ],
                 ]];
@@ -268,6 +282,59 @@ class OperationalReportController extends Controller
         );
 
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
+    }
+
+    #[OA\Get(path: '/api/v1/reports/export/{export_job_id}', operationId: 'getReportExportStatus', summary: 'Trạng thái job export báo cáo nền', description: 'Poll tới khi status=READY (có download_url) hoặc FAILED (có error_code/error_message). `filters` trả lại đúng bộ lọc đã gửi khi tạo job (BR-EXP-01: file luôn dùng đúng filter/scope của lần request đó). Chỉ actor đã tạo job mới đọc được — job của người khác trả 404 y hệt job không tồn tại (fail-closed).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'export_job_id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Trạng thái job'), new OA\Response(response: 404, description: 'Không tìm thấy job (hoặc job của actor khác)')])]
+    public function exportStatus(string $exportJobId)
+    {
+        $job = $this->ownedExportJob($exportJobId);
+        if ($job === null) {
+            return $this->respondNotFound('Không tìm thấy export job.');
+        }
+
+        return $this->respondSuccess([
+            'export_job_id' => $job->export_job_id,
+            'report_code' => $job->report_code,
+            'format' => $job->format,
+            'status' => $job->status,
+            'row_count' => $job->row_count,
+            'filters' => $job->filters,
+            'download_url' => $job->status === 'READY' ? "/api/v1/reports/export/{$job->export_job_id}/download" : null,
+            'error_code' => $job->error_code,
+            'error_message' => $job->error_message,
+        ]);
+    }
+
+    #[OA\Get(path: '/api/v1/reports/export/{export_job_id}/download', operationId: 'downloadReportExport', summary: 'Tải file export báo cáo đã READY', description: 'Chỉ hợp lệ khi job status=READY và chưa quá expires_at (24h); ngoài ra trả 404 y hệt job không tồn tại.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'export_job_id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF'), new OA\Response(response: 404, description: 'Job không tồn tại, chưa READY, hoặc đã hết hạn')])]
+    public function exportDownload(string $exportJobId)
+    {
+        $job = $this->ownedExportJob($exportJobId);
+        if ($job === null || $job->status !== 'READY' || $job->file_path === null) {
+            return $this->respondNotFound('Không tìm thấy file export (job chưa sẵn sàng hoặc không tồn tại).');
+        }
+        if ($job->expires_at !== null && now()->greaterThan($job->expires_at)) {
+            return $this->respondNotFound('File export này đã hết hạn.');
+        }
+
+        $disk = Storage::disk('local');
+        if (! $disk->exists($job->file_path)) {
+            return $this->respondNotFound('Không tìm thấy file export (có thể đã bị dọn dẹp).');
+        }
+
+        return $disk->download($job->file_path, $job->file_name ?? ($job->export_job_id.'.'.($job->format === 'pdf' ? 'pdf' : 'xlsx')));
+    }
+
+    /** Fail-closed như ImportReportController::scopedQuery(): job của actor khác = không tồn tại. */
+    private function ownedExportJob(string $exportJobId): ?ReportExportJob
+    {
+        if (! Str::isUuid($exportJobId)) {
+            return null;
+        }
+
+        return ReportExportJob::query()
+            ->where('export_job_id', $exportJobId)
+            ->where('requested_by', $this->currentActorId())
+            ->first();
     }
 
     /**
@@ -333,30 +400,6 @@ class OperationalReportController extends Controller
         return $normalized;
     }
 
-    /** Số dòng sẽ nằm trong file export, dùng đúng filter client gửi. */
-    private function exportRowCount(Request $request, string $reportCode): int
-    {
-        if (isset(self::ALIGNED_REPORTS[$reportCode])) {
-            $payload = app(self::ALIGNED_REPORTS[$reportCode])->index($request)->getData(true);
-
-            return count($this->reportRows($payload['data'] ?? []));
-        }
-
-        return count($this->reportRows($this->{self::REPORT_BUILDERS[$reportCode]}($request)));
-    }
-
-    /** @param array<string, mixed> $report */
-    private function reportRows(array $report): array
-    {
-        foreach (['rows', 'lines'] as $key) {
-            if (isset($report[$key]) && is_array($report[$key])) {
-                return $report[$key];
-            }
-        }
-
-        return [];
-    }
-
     // ── Inventory Balance ────────────────────────────────────
 
     #[OA\Get(path: '/api/v1/reports/inventory-balance', operationId: 'report_inventory_balance', summary: 'RPT-INV-01 tồn kho hiện tại kèm đối soát ledger', description: '§13.10 RPT-INV-01. Filter SKU/category/status + as_of (inclusive). Khi as_of ở quá khứ, báo cáo là ảnh chụp theo ledger và reconciliation_status = NOT_APPLICABLE. DATA-SCOPE (WWHN-254 DEV254-P1-03): kết quả bị cắt theo warehouse data-scope của người gọi (cùng nguồn scope_ref với /inventory/balances); payload trả data_scope=GLOBAL|WAREHOUSE_SCOPED và scope_warehouse_ids. warehouse_id nằm ngoài scope trả 403 ACCESS_DENIED. Export dùng đúng scope này (BR-EXP-01).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'as_of', in: 'query', description: 'Mốc chốt số liệu, inclusive (Asia/Ho_Chi_Minh)', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'Tồn kho hiện tại')])]
@@ -407,6 +450,12 @@ class OperationalReportController extends Controller
     public function inventoryXntEnhancedExport(Request $request)
     {
         return $this->exportXnt($request, 'xnt-chitiet');
+    }
+
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-daily', operationId: 'report_inventory_xnt_daily', summary: 'RPT-XNT-02 chuỗi Nhập/Xuất/Tồn cuối theo ngày', description: 'Cùng bộ filter (from_date/to_date/warehouse_id/category_id/keyword) và cùng data-scope với /reports/inventory-xnt-enhanced, nhưng gộp theo ngày trên toàn bộ tập lọc (không tách theo SKU) để vẽ chart xu hướng. closing_qty là số dư luỹ kế tính từ opening_before_period — không giới hạn per_page vì mỗi ngày chỉ 1 dòng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'Chuỗi ngày kèm inbound_qty/outbound_qty/reversal_net/closing_qty'), new OA\Response(response: 403, description: 'warehouse_id ngoài data scope (ACCESS_DENIED)', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')), new OA\Response(response: 422, description: 'from_date/to_date không hợp lệ', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope'))])]
+    public function inventoryXntDaily(Request $request)
+    {
+        return $this->respondSuccess($this->buildXntDaily($request));
     }
 
     // ── Document History ─────────────────────────────────────
@@ -561,12 +610,21 @@ class OperationalReportController extends Controller
 
     // ── Dashboard Quick ──────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/dashboard-quick', operationId: 'report_dashboard_quick', summary: 'Số liệu nhanh cho dashboard (WWHN-328: endpoint tổng hợp KPI, tái sử dụng — không tạo route mới)', description: 'Aggregate 1 lần gọi: KPI tồn/nhập/xuất theo occurred_at, số ca bảo hành theo status, cảnh báo đối soát. Mặc định period là [hôm nay - 30 ngày, hôm nay], inclusive hai đầu (= 31 ngày) khi bỏ trống from_date/to_date. DATA-SCOPE (WWHN-328 DEV328-P1-01): dashboard chịu đúng warehouse data-scope của người gọi, cùng nguồn scope_ref với /inventory/balances và /stock-movements — người dùng không bị giới hạn kho nhận GLOBAL, người dùng bị giới hạn chỉ nhận số liệu các kho trong scope. Ngoại lệ đã ghi nhận: warranty_cases_by_status luôn GLOBAL vì ERD warranty_case không có warehouse_id.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', description: 'Mặc định: hôm nay trừ 30 ngày (Asia/Ho_Chi_Minh)', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', description: 'Phải >= from_date (422 BUSINESS_RULE_ERROR nếu vi phạm). Mặc định: hôm nay', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', description: 'Thu hẹp KPI về 1 kho. Phải nằm trong data-scope của người gọi, nếu không trả 403 ACCESS_DENIED.', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Dashboard KPIs', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'period', properties: [new OA\Property(property: 'from_date', type: 'string', format: 'date'), new OA\Property(property: 'to_date', type: 'string', format: 'date')], type: 'object'), new OA\Property(property: 'data_scope', type: 'string', enum: ['GLOBAL', 'WAREHOUSE_SCOPED'], description: 'GLOBAL = không giới hạn kho; WAREHOUSE_SCOPED = đã lọc theo scope_warehouse_ids'), new OA\Property(property: 'scope_warehouse_ids', type: 'array', nullable: true, description: 'null khi data_scope=GLOBAL; danh sách kho đã áp dụng khi WAREHOUSE_SCOPED', items: new OA\Items(type: 'string', format: 'uuid')), new OA\Property(property: 'available_qty', type: 'number', description: 'SUM(inventory_balances.available_qty WHERE stock_status=AVAILABLE) trong data-scope, snapshot hiện tại — không lọc theo period'), new OA\Property(property: 'receipt_qty', type: 'number', description: 'max(0, SUM(qty_delta)) của stock_movements.movement_type=RECEIPT trong [from_date 00:00:00, to_date 23:59:59] theo occurred_at, trong data-scope'), new OA\Property(property: 'issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=ISSUE trong period, trong data-scope'), new OA\Property(property: 'component_issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=COMPONENT_ISSUE trong period, trong data-scope'), new OA\Property(property: 'reversal_net', type: 'number', description: 'SUM(qty_delta) của movement_type=REVERSAL trong period, trong data-scope, có thể âm'), new OA\Property(property: 'warranty_cases_by_status', type: 'object', description: 'Map status → COUNT(*), toàn bộ warranty_case: KHÔNG lọc theo period và KHÔNG lọc theo kho (warranty_case không có warehouse_id trong ERD)', additionalProperties: new OA\AdditionalProperties(type: 'integer')), new OA\Property(property: 'reconciliation_warning_count', type: 'integer', description: 'Tổng số dòng RPT-INV-01 reconciliation_status=MISMATCH trong data-scope — đây là con số dùng để hiển thị và đối soát'), new OA\Property(property: 'reconciliation_warnings', type: 'array', description: 'Tối đa 50 dòng MISMATCH đầu tiên (mẫu để soi nhanh). Dùng reconciliation_warning_count cho tổng số; xem đầy đủ tại /reports/inventory-balance.', items: new OA\Items(type: 'object'))], type: 'object'), new OA\Property(property: 'meta', properties: [new OA\Property(property: 'request_id', type: 'string', format: 'uuid'), new OA\Property(property: 'timestamp', type: 'string', format: 'date-time')], type: 'object')])), new OA\Response(response: 401, description: 'UNAUTHENTICATED'), new OA\Response(response: 403, description: 'ACCESS_DENIED — thiếu permission report.view, hoặc warehouse_id nằm ngoài data-scope của người gọi'), new OA\Response(response: 422, description: 'BUSINESS_RULE_ERROR — from_date/to_date/warehouse_id không hợp lệ hoặc to_date < from_date')])]
+    #[OA\Get(path: '/api/v1/reports/dashboard-quick', operationId: 'report_dashboard_quick', summary: 'Số liệu nhanh cho dashboard (WWHN-328: endpoint tổng hợp KPI, tái sử dụng — không tạo route mới)', description: 'Aggregate 1 lần gọi: KPI tồn/nhập/xuất theo occurred_at, số ca bảo hành theo status, cảnh báo đối soát. Mặc định period là [hôm nay - 30 ngày, hôm nay], inclusive hai đầu (= 31 ngày) khi bỏ trống from_date/to_date. DATA-SCOPE (WWHN-328 DEV328-P1-01): dashboard chịu đúng warehouse data-scope của người gọi, cùng nguồn scope_ref với /inventory/balances và /stock-movements — người dùng không bị giới hạn kho nhận GLOBAL, người dùng bị giới hạn chỉ nhận số liệu các kho trong scope. Ngoại lệ đã ghi nhận: warranty_cases_by_status luôn GLOBAL vì ERD warranty_case không có warehouse_id.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', description: 'Mặc định: hôm nay trừ 30 ngày (Asia/Ho_Chi_Minh)', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', description: 'Phải >= from_date (422 BUSINESS_RULE_ERROR nếu vi phạm). Mặc định: hôm nay', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', description: 'Thu hẹp KPI về 1 kho. Phải nằm trong data-scope của người gọi, nếu không trả 403 ACCESS_DENIED.', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Dashboard KPIs', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'period', properties: [new OA\Property(property: 'from_date', type: 'string', format: 'date'), new OA\Property(property: 'to_date', type: 'string', format: 'date')], type: 'object'), new OA\Property(property: 'data_scope', type: 'string', enum: ['GLOBAL', 'WAREHOUSE_SCOPED'], description: 'GLOBAL = không giới hạn kho; WAREHOUSE_SCOPED = đã lọc theo scope_warehouse_ids'), new OA\Property(property: 'scope_warehouse_ids', type: 'array', nullable: true, description: 'null khi data_scope=GLOBAL; danh sách kho đã áp dụng khi WAREHOUSE_SCOPED', items: new OA\Items(type: 'string', format: 'uuid')), new OA\Property(property: 'available_qty', type: 'number', description: 'SUM(inventory_balances.available_qty WHERE stock_status=AVAILABLE) trong data-scope, snapshot hiện tại — không lọc theo period'), new OA\Property(property: 'receipt_qty', type: 'number', description: 'max(0, SUM(qty_delta)) của stock_movements.movement_type=RECEIPT trong [from_date 00:00:00, to_date 23:59:59] theo occurred_at, trong data-scope'), new OA\Property(property: 'issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=ISSUE trong period, trong data-scope'), new OA\Property(property: 'component_issue_qty', type: 'number', description: 'abs(min(0, SUM(qty_delta))) của movement_type=COMPONENT_ISSUE trong period, trong data-scope'), new OA\Property(property: 'reversal_net', type: 'number', description: 'SUM(qty_delta) của movement_type=REVERSAL trong period, trong data-scope, có thể âm'), new OA\Property(property: 'warranty_cases_by_status', type: 'object', description: 'Map status → COUNT(*), toàn bộ warranty_case: KHÔNG lọc theo period và KHÔNG lọc theo kho (warranty_case không có warehouse_id trong ERD)', additionalProperties: new OA\AdditionalProperties(type: 'integer')), new OA\Property(property: 'reconciliation_warning_count', type: 'integer', description: 'Tổng số dòng RPT-INV-01 reconciliation_status=MISMATCH trong data-scope — đây là con số dùng để hiển thị và đối soát'), new OA\Property(property: 'reconciliation_warnings', type: 'array', description: 'Tối đa 50 dòng MISMATCH đầu tiên (mẫu để soi nhanh). Dùng reconciliation_warning_count cho tổng số; xem đầy đủ tại /reports/inventory-balance.', items: new OA\Items(type: 'object')), new OA\Property(property: 'below_min_stock_count', type: 'integer', description: 'GĐ1 (2026-08-27): số SKU có min_stock đã đặt và tổng available_qty (mọi kho) < min_stock. SKU chưa đặt min_stock không tính.'), new OA\Property(property: 'below_min_stock_skus', type: 'array', description: 'Tối đa 50 SKU đầu tiên (mẫu). Dùng below_min_stock_count cho tổng số.', items: new OA\Items(type: 'object', properties: [new OA\Property(property: 'sku_code', type: 'string'), new OA\Property(property: 'sku_name', type: 'string'), new OA\Property(property: 'available_qty', type: 'number'), new OA\Property(property: 'min_stock', type: 'number')])), new OA\Property(property: 'above_max_stock_count', type: 'integer', description: 'GĐ1 (2026-08-27): số SKU có max_stock đã đặt và tổng available_qty (mọi kho) > max_stock. SKU chưa đặt max_stock không tính.'), new OA\Property(property: 'above_max_stock_skus', type: 'array', description: 'Tối đa 50 SKU đầu tiên (mẫu). Dùng above_max_stock_count cho tổng số.', items: new OA\Items(type: 'object', properties: [new OA\Property(property: 'sku_code', type: 'string'), new OA\Property(property: 'sku_name', type: 'string'), new OA\Property(property: 'available_qty', type: 'number'), new OA\Property(property: 'max_stock', type: 'number')])), new OA\Property(property: 'daily', type: 'array', description: 'GĐ1 (2026-08-27): chuỗi theo ngày trong [from_date,to_date], cùng data-scope/warehouse filter như các KPI trên — dùng cho chart Dashboard "Nhập/Xuất theo ngày" + "Xu hướng bảo hành". warranty_received_count KHÔNG lọc theo kho (cùng lý do warranty_cases_by_status ở trên).', items: new OA\Items(type: 'object', properties: [new OA\Property(property: 'date', type: 'string', format: 'date'), new OA\Property(property: 'receipt_qty', type: 'number'), new OA\Property(property: 'issue_qty', type: 'number'), new OA\Property(property: 'warranty_received_count', type: 'integer')]))], type: 'object'), new OA\Property(property: 'meta', properties: [new OA\Property(property: 'request_id', type: 'string', format: 'uuid'), new OA\Property(property: 'timestamp', type: 'string', format: 'date-time')], type: 'object')])), new OA\Response(response: 401, description: 'UNAUTHENTICATED'), new OA\Response(response: 403, description: 'ACCESS_DENIED — thiếu permission report.view, hoặc warehouse_id nằm ngoài data-scope của người gọi'), new OA\Response(response: 422, description: 'BUSINESS_RULE_ERROR — from_date/to_date/warehouse_id không hợp lệ hoặc to_date < from_date')])]
     public function dashboardQuick(Request $request)
     {
         // period() tự validate/áp default + ném 422 khi to_date < from_date — luôn
         // chạy trước cache, không phụ thuộc cache hit/miss.
         [$from, $to] = $this->period($request);
+
+        // buildDashboardQuick() dựng chart theo-ngày bằng vòng lặp PHP (giống
+        // buildXntDaily()) — chặn range quá lớn cùng ngưỡng 366 ngày để tránh dựng
+        // hàng nghìn điểm dữ liệu vô ích.
+        if (Carbon::parse($from)->diffInDays(Carbon::parse($to)) > 366) {
+            ApiError::abort(422, 'BUSINESS_RULE_ERROR', 'Khoảng ngày cho dashboard tối đa 366 ngày.', [
+                'to_date' => ['Khoảng from_date..to_date vượt quá 366 ngày.'],
+            ]);
+        }
 
         // WWHN-328 DEV328-P1-01/P1-04: data-scope được giải NGAY TẠI ĐÂY, trước cache.
         // Nếu để sau, một cache hit sẽ nuốt mất 403 của warehouse_id ngoài scope.
@@ -665,6 +723,43 @@ class OperationalReportController extends Controller
             ->when($warehouseIds !== null, fn ($q) => $q->whereIn('warehouse_id', $warehouseIds))
             ->sum('available_qty');
 
+        // GĐ1 Dashboard "tồn dưới/vượt định mức": định mức đặt theo SKU, TOÀN HỆ
+        // THỐNG (không theo kho, theo quyết định BA) — SUM available_qty cộng dồn
+        // MỌI kho, không áp $warehouseIds, cùng lý do GLOBAL đã ghi cho
+        // warranty_cases_by_status ở dưới. SKU chưa đặt min_stock/max_stock (NULL)
+        // không tính vào cảnh báo nào cả.
+        $stockByProduct = DB::table('inventory_balances')
+            ->where('stock_status', 'AVAILABLE')
+            ->groupBy('product_id')
+            ->selectRaw('product_id, SUM(available_qty) AS total_available')
+            ->pluck('total_available', 'product_id');
+        $belowMinStock = [];
+        $aboveMaxStock = [];
+        $skuThresholds = DB::table('sku')
+            ->where(fn ($q) => $q->whereNotNull('min_stock')->orWhereNotNull('max_stock'))
+            ->select('sku_id', 'sku_code', 'sku_name', 'min_stock', 'max_stock')
+            ->orderBy('sku_code')
+            ->get();
+        foreach ($skuThresholds as $sku) {
+            $available = (float) ($stockByProduct[$sku->sku_id] ?? 0);
+            if ($sku->min_stock !== null && $available < (float) $sku->min_stock) {
+                $belowMinStock[] = [
+                    'sku_code' => $sku->sku_code,
+                    'sku_name' => $sku->sku_name,
+                    'available_qty' => $available,
+                    'min_stock' => (float) $sku->min_stock,
+                ];
+            }
+            if ($sku->max_stock !== null && $available > (float) $sku->max_stock) {
+                $aboveMaxStock[] = [
+                    'sku_code' => $sku->sku_code,
+                    'sku_name' => $sku->sku_name,
+                    'available_qty' => $available,
+                    'max_stock' => (float) $sku->max_stock,
+                ];
+            }
+        }
+
         // §13.10 RPT-INV-01 là nguồn duy nhất của reconciliation_status; dùng lại đúng
         // builder đó (đã có cache riêng) rồi mới cắt theo data-scope, để dashboard và báo
         // cáo tồn kho không bao giờ lệch định nghĩa MISMATCH.
@@ -684,6 +779,42 @@ class OperationalReportController extends Controller
             ->map(fn ($v) => (int) $v)
             ->all();
 
+        // "Biểu đồ luồng kho theo ngày" + "Xu hướng bảo hành" (Dashboard chart):
+        // cùng scope/period như KPI ở trên, chỉ khác chiều group (theo ngày).
+        // warranty_received theo received_at, không lọc warehouseIds — cùng lý do
+        // GLOBAL đã ghi ở trên.
+        $dailyMovement = DB::table('stock_movements')
+            ->select(DB::raw('DATE(occurred_at) as bucket_date'), 'movement_type')
+            ->selectRaw('SUM(qty_delta) AS total_delta')
+            ->whereBetween('occurred_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
+            ->whereIn('movement_type', self::DASHBOARD_MOVEMENT_TYPES)
+            ->when($warehouseIds !== null, fn ($q) => $q->whereIn('warehouse_id', $warehouseIds))
+            ->groupBy(DB::raw('DATE(occurred_at)'), 'movement_type')
+            ->get()
+            ->groupBy('bucket_date');
+
+        $dailyWarranty = DB::table('warranty_case')
+            ->select(DB::raw('DATE(received_at) as bucket_date'), DB::raw('COUNT(*) AS total'))
+            ->whereBetween('received_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
+            ->groupBy(DB::raw('DATE(received_at)'))
+            ->pluck('total', 'bucket_date');
+
+        $daily = [];
+        $cursor = Carbon::parse($from)->startOfDay();
+        $end = Carbon::parse($to)->startOfDay();
+        while ($cursor->lte($end)) {
+            $dateKey = $cursor->toDateString();
+            $movementsOfDay = $dailyMovement->get($dateKey, collect())->keyBy('movement_type');
+            $sumOfDay = fn (string $type): float => (float) ($movementsOfDay[$type]->total_delta ?? 0);
+            $daily[] = [
+                'date' => $dateKey,
+                'receipt_qty' => max(0, $sumOfDay('RECEIPT')),
+                'issue_qty' => abs(min(0, $sumOfDay('ISSUE'))),
+                'warranty_received_count' => (int) ($dailyWarranty[$dateKey] ?? 0),
+            ];
+            $cursor->addDay();
+        }
+
         return [
             'period' => ['from_date' => $from, 'to_date' => $to],
             'data_scope' => $warehouseIds === null ? 'GLOBAL' : 'WAREHOUSE_SCOPED',
@@ -698,6 +829,15 @@ class OperationalReportController extends Controller
             // count() của mảng KHÔNG còn là tổng số cảnh báo.
             'reconciliation_warning_count' => $warnings->count(),
             'reconciliation_warnings' => $warnings->take(self::DASHBOARD_WARNING_LIMIT)->values()->all(),
+            // GĐ1 (2026-08-27): SKU tồn dưới/vượt định mức — count() là tổng thật,
+            // mảng bên dưới chỉ là mẫu có trần (cùng pattern reconciliation_warnings).
+            'below_min_stock_count' => count($belowMinStock),
+            'below_min_stock_skus' => array_slice($belowMinStock, 0, self::DASHBOARD_WARNING_LIMIT),
+            'above_max_stock_count' => count($aboveMaxStock),
+            'above_max_stock_skus' => array_slice($aboveMaxStock, 0, self::DASHBOARD_WARNING_LIMIT),
+            // GĐ1 chart Dashboard "Nhập/Xuất theo ngày" + "Xu hướng bảo hành" — BA đã
+            // ký bổ sung field này vào hợp đồng dashboard-quick (2026-08-27).
+            'daily' => $daily,
         ];
     }
 
@@ -717,6 +857,10 @@ class OperationalReportController extends Controller
             'stock_status' => ['nullable', 'in:'.implode(',', self::STOCK_STATUSES)],
             'as_of' => ['nullable', 'date'],
             'keyword' => ['nullable', 'string', 'max:200'],
+            // Dashboard/report "Top SKU tồn cao nhất" cần sort thật ở SQL/collection,
+            // không được suy ra top-N từ 1 trang đã phân trang (sai khi có nhiều trang).
+            'sort_by' => ['nullable', 'in:available_qty,on_hand_qty,variance,product_code,warehouse_code'],
+            'sort_dir' => ['nullable', 'in:asc,desc'],
         ]);
 
         // DEV254-P1-03: scope giải trước cache. Nếu giải sau, một cache hit của người
@@ -773,7 +917,7 @@ class OperationalReportController extends Controller
             ->leftJoin('warehouses as w', 'w.id', '=', 'b.warehouse_id')
             ->leftJoin('products as p', 'p.id', '=', 'b.product_id')
             ->leftJoin('product_categories as pc', 'pc.id', '=', 'p.category_id')
-            ->select('b.*', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name', 'p.category_id', 'pc.category_name');
+            ->select('b.*', 'w.code as warehouse_code', 'p.code as product_code', 'p.name as product_name', 'p.category_id', 'pc.category_name', 'p.sku_type');
         // WWHN-231: nhánh ledger đi qua LedgerReconciliationService (aggregate-then-join)
         // thay vì join master data TRƯỚC GROUP BY. Cùng tập dòng, nhưng aggregate chỉ chạm
         // stock_movements nên planner dùng được index dimension thay vì gom theo 8 cột
@@ -884,6 +1028,9 @@ class OperationalReportController extends Controller
                 'product_name' => (string) ($balance->product_name ?? $movement->product_name ?? ''),
                 'category_id' => $balance->category_id ?? $movement->category_id ?? null,
                 'category' => (string) ($balance->category_name ?? $movement->category_name ?? ''),
+                // GĐ1: donut "Cơ cấu tồn theo loại" ở FE cần lát cắt PRODUCT/COMPONENT
+                // thô (khác `category` là nhóm hàng nghiệp vụ chi tiết).
+                'sku_type' => (string) ($balance->sku_type ?? $movement->sku_type ?? ''),
                 'stock_status' => $status,
                 'serial_qty' => (float) ($serialCounts[$productId] ?? 0),
                 'box_qty' => (float) ($boxCounts[$productId] ?? 0),
@@ -901,7 +1048,24 @@ class OperationalReportController extends Controller
                 'reconciliation_status' => $isAsOfSnapshot ? 'NOT_APPLICABLE' : ($isMismatch ? 'MISMATCH' : 'MATCH'),
                 'updated_at' => (string) ($balance->updated_at ?? $movement->movement_updated_at ?? ''),
             ];
-        })->sortBy(['warehouse_code', 'product_code', 'stock_status'])->values();
+        });
+
+        // "Cơ cấu tồn theo loại" (Dashboard/report): tính trên TOÀN BỘ tập đã lọc,
+        // trước khi áp sort_by/sort_dir bên dưới — không được lệch theo trang.
+        $byCategory = $rows
+            ->groupBy(fn (array $r): string => $r['category'] !== '' ? $r['category'] : 'Chưa phân loại')
+            ->map(fn ($items, string $category): array => [
+                'category' => $category,
+                'available_qty' => (float) $items->sum('available_qty'),
+                'on_hand_qty' => (float) $items->sum('on_hand_qty'),
+            ])->values()->all();
+
+        $sortBy = $validated['sort_by'] ?? null;
+        $sortDir = $validated['sort_dir'] ?? 'desc';
+        $rows = $sortBy !== null
+            ? $rows->sortBy($sortBy, SORT_REGULAR, $sortDir === 'desc')
+            : $rows->sortBy(['warehouse_code', 'product_code', 'stock_status']);
+        $rows = $rows->values();
 
         return $this->withScopeMeta([
             'data_as_of' => now()->toIso8601String(),
@@ -915,6 +1079,7 @@ class OperationalReportController extends Controller
                 'total_available' => $rows->sum('available_qty'),
                 'mismatch_count' => $rows->where('reconciliation_status', 'MISMATCH')->count(),
             ],
+            'by_category' => $byCategory,
             'rows' => $rows->all(),
         ], $scope);
     }
@@ -1113,6 +1278,23 @@ class OperationalReportController extends Controller
             ];
         })->sortBy(['warehouse_code', 'product_code', 'stock_status'])->values()->all();
 
+        // GĐ1 Dashboard/Report "Top sản phẩm nhập/xuất": gộp $lines (đã tính
+        // receipt_net/issue_net) theo SKU, bỏ chiều kho/stock_status — cùng bộ
+        // filter đã áp cho $lines ở trên. FE tự suy "top xuất nhiều" (đầu mảng),
+        // "top xuất ít" (cuối mảng, lọc issue_qty>0), "top nhập nhiều" (tự sort lại
+        // theo receipt_qty) từ đúng 1 mảng này, không cần 3 field riêng.
+        $byProduct = collect($lines)
+            ->groupBy('product_code')
+            ->map(fn ($rows) => [
+                'product_code' => $rows->first()['product_code'],
+                'product_name' => $rows->first()['product_name'],
+                'receipt_qty' => (float) $rows->sum('receipt_net'),
+                'issue_qty' => (float) $rows->sum('issue_net'),
+            ])
+            ->sortByDesc('issue_qty')
+            ->values()
+            ->all();
+
         return $this->withScopeMeta([
             'from_date' => $from,
             'to_date' => $to,
@@ -1120,6 +1302,112 @@ class OperationalReportController extends Controller
             'formula_net' => 'Closing = Opening + Receipt Net - Issue Net - Component Issue Net + Unlinked Reversal Net; Receipt Net = Receipt Gross - Receipt Reversal; Issue Net = Issue Gross - Issue Reversal; Component Issue Net = Component Issue Gross - Component Issue Reversal',
             'column_semantics' => self::XNT_COLUMN_SEMANTICS,
             'lines' => $lines,
+            'by_product' => $byProduct,
+        ], $scope);
+    }
+
+    /**
+     * RPT-XNT-02 — chuỗi Nhập/Xuất/Tồn cuối theo NGÀY, gộp trên toàn bộ tập lọc
+     * (không tách theo SKU/kho) để phục vụ chart xu hướng ở FE. Không có sẵn
+     * time-series nào khác trong hệ thống nên đây là nguồn duy nhất cho chart
+     * "Nhập/Xuất theo ngày" + "Tồn cuối theo ngày" (tab Nhập-Xuất-Tồn).
+     *
+     * `closing_qty` là số dư luỹ kế: opening_before_period cộng dồn qty_delta
+     * thô của TẤT CẢ movement_type (kể cả OPENING hiệu chỉnh nằm trong kỳ) —
+     * khác với "opening" của buildXnt() vốn tách riêng OPENING trong kỳ cho một
+     * bảng tổng cả kỳ; ở đây mỗi ngày là một điểm trên chuỗi nên mọi movement
+     * trong ngày đó đều làm thay đổi số dư của đúng ngày đó, không cần tách.
+     */
+    private function buildXntDaily(Request $request): array
+    {
+        [$from, $to] = $this->period($request, true);
+        // Chart theo ngày — chặn range quá lớn để tránh vòng lặp dựng hàng nghìn
+        // điểm dữ liệu vô ích (không có ca nghiệp vụ nào cần xem quá 1 năm).
+        if (Carbon::parse($from)->diffInDays(Carbon::parse($to)) > 366) {
+            ApiError::abort(422, 'BUSINESS_RULE_ERROR', 'Khoảng ngày cho chart theo ngày tối đa 366 ngày.', [
+                'to_date' => ['Khoảng from_date..to_date vượt quá 366 ngày.'],
+            ]);
+        }
+        $validated = $request->validate([
+            'warehouse_id' => ['nullable', 'uuid'],
+            'category_id' => ['nullable', 'uuid'],
+            'keyword' => ['nullable', 'string', 'max:200'],
+        ]);
+        $scope = $this->reportWarehouseScope($request);
+        $fromTs = "{$from} 00:00:00";
+        $toTs = "{$to} 23:59:59";
+
+        $categoryId = $validated['category_id'] ?? null;
+        $keyword = $request->filled('keyword')
+            ? '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%'
+            : null;
+
+        // Cùng filter/scope với buildXnt() (đoạn 1018-1046) để hai chart trên
+        // cùng tab luôn khớp nhau khi người dùng đổi bộ lọc.
+        $applyFilters = function ($query) use ($request, $scope, $categoryId, $keyword): void {
+            if ($scope !== null) {
+                $query->whereIn('m.warehouse_id', $scope);
+            }
+            if ($request->filled('warehouse_id')) {
+                $query->where('m.warehouse_id', $request->input('warehouse_id'));
+            }
+            if ($categoryId !== null || $keyword !== null) {
+                $query->whereIn('m.product_id', function ($q) use ($categoryId, $keyword): void {
+                    $q->select('id')->from('products');
+                    if ($categoryId !== null) {
+                        $q->where('category_id', $categoryId);
+                    }
+                    if ($keyword !== null) {
+                        $q->where(function ($inner) use ($keyword): void {
+                            $inner->whereRaw('LOWER(code) LIKE ?', [$keyword])
+                                ->orWhereRaw('LOWER(name) LIKE ?', [$keyword]);
+                        });
+                    }
+                });
+            }
+        };
+
+        $openingQuery = DB::table('stock_movements as m')->where('m.occurred_at', '<', $fromTs);
+        $applyFilters($openingQuery);
+        $openingBeforePeriod = (float) $openingQuery->sum('qty_delta');
+
+        // DATE(...) chạy giống nhau trên cả PostgreSQL và SQLite (2 driver gate
+        // của repo này) nên không cần branch theo driver như TO_CHAR/ILIKE.
+        $dailyQuery = DB::table('stock_movements as m')
+            ->whereBetween('m.occurred_at', [$fromTs, $toTs])
+            ->selectRaw('DATE(m.occurred_at) AS bucket_date')
+            ->selectRaw("SUM(CASE WHEN m.movement_type = 'RECEIPT' THEN m.qty_delta ELSE 0 END) AS inbound_qty")
+            ->selectRaw("SUM(CASE WHEN m.movement_type IN ('ISSUE', 'COMPONENT_ISSUE') THEN -m.qty_delta ELSE 0 END) AS outbound_qty")
+            ->selectRaw("SUM(CASE WHEN m.movement_type = 'REVERSAL' THEN m.qty_delta ELSE 0 END) AS reversal_net")
+            ->selectRaw('SUM(m.qty_delta) AS net_change')
+            ->groupBy(DB::raw('DATE(m.occurred_at)'));
+        $applyFilters($dailyQuery);
+        $byDate = $dailyQuery->get()->keyBy(fn ($row): string => (string) $row->bucket_date);
+
+        $days = [];
+        $running = $openingBeforePeriod;
+        $cursor = Carbon::parse($from)->startOfDay();
+        $end = Carbon::parse($to)->startOfDay();
+        while ($cursor->lte($end)) {
+            $dateKey = $cursor->toDateString();
+            $row = $byDate->get($dateKey);
+            $running += (float) ($row->net_change ?? 0);
+            $days[] = [
+                'date' => $dateKey,
+                'inbound_qty' => (float) ($row->inbound_qty ?? 0),
+                'outbound_qty' => (float) ($row->outbound_qty ?? 0),
+                'reversal_net' => (float) ($row->reversal_net ?? 0),
+                'closing_qty' => $running,
+            ];
+            $cursor->addDay();
+        }
+
+        return $this->withScopeMeta([
+            'from_date' => $from,
+            'to_date' => $to,
+            'opening_before_period' => $openingBeforePeriod,
+            'formula' => 'closing_qty[ngày D] = opening_before_period + tổng qty_delta của mọi movement từ đầu kỳ đến hết ngày D',
+            'days' => $days,
         ], $scope);
     }
 
@@ -1489,6 +1777,19 @@ class OperationalReportController extends Controller
                 'sku_count' => $items->pluck('product_code')->unique()->count(),
             ];
         })->values()->all();
+        // "Top SKU xuất ròng" — cùng nguồn $collection (còn _document_id) như
+        // by_agency ở trên, chỉ đổi trục gộp sang SKU.
+        $bySku = $collection->groupBy(fn ($r) => $r['product_code'].'|'.$r['product_name'])->map(function (Collection $items): array {
+            $first = $items->first();
+
+            return [
+                'product_code' => $first['product_code'],
+                'product_name' => $first['product_name'],
+                'document_count' => $items->pluck('_document_id')->unique()->count(),
+                'total_issued_qty' => (float) $items->sum('scanned_qty'),
+                'agency_count' => $items->pluck('agency_code')->unique()->count(),
+            ];
+        })->sortByDesc('total_issued_qty')->values()->all();
         $publicRows = $collection->map(function (array $row): array {
             unset($row['_document_id']);
 
@@ -1503,6 +1804,7 @@ class OperationalReportController extends Controller
                 'total_issued_qty' => (float) $collection->sum('scanned_qty'),
             ],
             'by_agency' => $byAgency,
+            'by_sku' => $bySku,
             'rows' => $publicRows,
         ], $scope);
     }
@@ -1541,6 +1843,20 @@ class OperationalReportController extends Controller
                 });
             }
         }
+        // GĐ1 chart FE: cơ cấu biến động theo movement_type — clone TRƯỚC khi
+        // forPage() cắt trang bên dưới, để luôn phản ánh toàn bộ kỳ giống summary,
+        // không phải chỉ trang hiện tại.
+        $byMovementType = (clone $query)
+            ->reorder()
+            ->groupBy('m.movement_type')
+            ->select('m.movement_type')
+            ->selectRaw('COUNT(*) AS movement_count')
+            ->get()
+            ->map(fn ($row): array => [
+                'movement_type' => (string) $row->movement_type,
+                'movement_count' => (int) $row->movement_count,
+            ])->values()->all();
+
         // stock_movements là ledger append-only nên có thể rất lớn: phân trang ở
         // tầng SQL, còn summary dùng aggregate riêng để vẫn phản ánh toàn bộ kỳ.
         $pagination = null;
@@ -1595,6 +1911,7 @@ class OperationalReportController extends Controller
                 'net_effect' => (float) ($aggregate->net_effect ?? $collection->sum('qty_delta')),
                 'reversal_count' => (int) ($aggregate->reversal_count ?? $collection->where('movement_type', 'REVERSAL')->count()),
             ],
+            'by_movement_type' => $byMovementType,
             'rows' => $rows,
         ], $scope);
         if ($pagination !== null) {
@@ -1677,7 +1994,32 @@ class OperationalReportController extends Controller
     private function exportRows(Request $request, string $sheetTitle, array $headers, array $rows, string $fileName, string $reportKey)
     {
         $fileName = ReportExportFileName::stamp($fileName);
+        $bytes = $this->buildXlsxBytes($sheetTitle, $headers, $rows, $reportKey, $request);
 
+        return response()->streamDownload(fn () => print $bytes, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    private function exportPdf(string $title, array $headers, array $rows, string $filePrefix, string $reportKey, Request $request)
+    {
+        $bytes = $this->buildPdfBytes($title, $headers, $rows, $reportKey, $request);
+        $fileName = ReportExportFileName::stamp("{$filePrefix}.pdf");
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+        ]);
+    }
+
+    /**
+     * Phần dựng bytes (row-limit + audit + render) dùng chung giữa response HTTP
+     * (exportRows(), 6 endpoint GET `*­/export-excel` trực tiếp) và job nền
+     * (exportBytesFor(), dùng bởi GenerateReportExportJob) — xem checklist "Hiệu năng và
+     * triển khai" 27/08.
+     */
+    private function buildXlsxBytes(string $sheetTitle, array $headers, array $rows, string $reportKey, Request $request): string
+    {
         if (count($rows) > self::EXPORT_ROW_LIMIT) {
             ApiError::abort(
                 422,
@@ -1709,13 +2051,14 @@ class OperationalReportController extends Controller
             afterData: ['report' => $reportKey, 'row_count' => count($rows), 'filters' => $request->query()],
         );
         $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
 
-        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+        return (string) ob_get_clean();
     }
 
-    private function exportPdf(string $title, array $headers, array $rows, string $filePrefix, string $reportKey, Request $request)
+    /** Xem docblock buildXlsxBytes() — cùng vai trò, cho nhánh PDF. */
+    private function buildPdfBytes(string $title, array $headers, array $rows, string $reportKey, Request $request): string
     {
         if (count($rows) > self::EXPORT_ROW_LIMIT) {
             ApiError::abort(422, 'REPORT_EXPORT_ROW_LIMIT_EXCEEDED', 'Mỗi file export tối đa 10.000 dòng; hãy thu hẹp bộ lọc.', ['limit' => self::EXPORT_ROW_LIMIT, 'row_count' => count($rows)]);
@@ -1751,12 +2094,132 @@ class OperationalReportController extends Controller
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', count($headers) > 8 ? 'landscape' : 'portrait');
         $dompdf->render();
-        $fileName = ReportExportFileName::stamp("{$filePrefix}.pdf");
 
-        return response($dompdf->output(), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
-        ]);
+        return $dompdf->output();
+    }
+
+    /**
+     * Job-facing: trả bytes + tên file đã sẵn sàng lưu đĩa cho MỘT report_code, dùng bởi
+     * GenerateReportExportJob (qua đúng $request đã "đóng vai" actor — xem job). Với 3
+     * report_code aligned, delegate sang exportPayload() của controller tương ứng — cùng
+     * cơ chế `ALIGNED_REPORTS` mà byCode()/exportFilters() đã dùng.
+     *
+     * @return array{bytes: string, fileName: string, rowCount: int, contentType: string}
+     */
+    public function exportBytesFor(string $reportCode, Request $request, string $format): array
+    {
+        if (isset(self::ALIGNED_REPORTS[$reportCode])) {
+            return app(self::ALIGNED_REPORTS[$reportCode])->exportPayload($request);
+        }
+
+        return match ($reportCode) {
+            'inventory-balance' => $this->exportBytesInventoryBalance($request, $format),
+            'inventory-xnt' => $this->exportBytesXnt($request, $format, 'bao-cao-xnt'),
+            'inventory-ledger', 'movement-trace' => $this->exportBytesMovementTrace($request, $format),
+            'document-history' => $this->exportBytesDocumentHistory($request, $format),
+            'outbound-by-agency' => $this->exportBytesOutboundByAgency($request, $format),
+            default => ApiError::abort(404, 'RESOURCE_NOT_FOUND', "report_code không hỗ trợ export nền: {$reportCode}."),
+        };
+    }
+
+    /** @return array{bytes: string, fileName: string, rowCount: int, contentType: string} */
+    private function exportBytesInventoryBalance(Request $request, string $format): array
+    {
+        $report = $this->buildInventoryBalance($request);
+        $rows = array_map(fn (array $row): array => [
+            $row['warehouse_code'], $row['product_code'], $row['product_name'], $row['category'], $row['stock_status'],
+            $row['on_hand_qty'], $row['available_qty'], $row['serial_qty'], $row['box_qty'], $row['reserved_qty'],
+            $row['location_hint'], $row['ledger_qty'], $row['variance'], $row['reconciliation_status'], $row['updated_at'],
+        ], $report['rows']);
+        $headers = ['Kho', 'Mã SKU', 'Tên SKU', 'Nhóm hàng', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Serial', 'Trong khay/thùng', 'Đã giữ', 'Vị trí gợi ý', 'Ledger', 'Chênh lệch', 'Đối soát', 'Cập nhật'];
+
+        return $format === 'pdf'
+            ? ['bytes' => $this->buildPdfBytes('Tồn kho hiện tại', $headers, $rows, 'inventory-balance', $request), 'fileName' => ReportExportFileName::stamp('bao-cao-ton-kho-hien-tai.pdf'), 'rowCount' => count($rows), 'contentType' => 'application/pdf']
+            : ['bytes' => $this->buildXlsxBytes('Ton kho', $headers, $rows, 'inventory-balance', $request), 'fileName' => ReportExportFileName::stamp('bao-cao-ton-kho-hien-tai.xlsx'), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    }
+
+    /** @return array{bytes: string, fileName: string, rowCount: int, contentType: string} */
+    private function exportBytesXnt(Request $request, string $format, string $prefix): array
+    {
+        $report = $this->buildXnt($request);
+        $rows = array_map(fn (array $row): array => [
+            $row['warehouse_code'], $row['product_code'], $row['product_name'], $row['stock_status'], $row['opening'],
+            $row['receipt_gross'], $row['receipt_reversal'], $row['receipt_net'],
+            $row['issue_gross'], $row['issue_reversal'], $row['issue_net'],
+            $row['component_issue_gross'], $row['component_issue_reversal'], $row['component_issue_net'],
+            $row['reversal_net'], $row['closing'],
+        ], $report['lines']);
+        $headers = [
+            'Kho', 'Mã SKU', 'Tên SKU', 'Trạng thái tồn', 'Đầu kỳ',
+            'Nhập (gross)', 'Đảo nhập', 'Nhập thuần',
+            'Xuất (gross)', 'Đảo xuất', 'Xuất thuần',
+            'Xuất linh kiện (gross)', 'Đảo xuất linh kiện', 'Xuất linh kiện thuần',
+            'Reversal net', 'Cuối kỳ',
+        ];
+        $stem = "{$prefix}-{$report['from_date']}-{$report['to_date']}";
+
+        return $format === 'pdf'
+            ? ['bytes' => $this->buildPdfBytes('Nhập-Xuất-Tồn', $headers, $rows, 'inventory-xnt', $request), 'fileName' => ReportExportFileName::stamp("{$stem}.pdf"), 'rowCount' => count($rows), 'contentType' => 'application/pdf']
+            : ['bytes' => $this->buildXlsxBytes('XNT', $headers, $rows, 'inventory-xnt', $request), 'fileName' => ReportExportFileName::stamp("{$stem}.xlsx"), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    }
+
+    /** @return array{bytes: string, fileName: string, rowCount: int, contentType: string} */
+    private function exportBytesDocumentHistory(Request $request, string $format): array
+    {
+        $report = $this->buildDocumentHistory($request);
+        $rows = [];
+        foreach ($report['rows'] as $row) {
+            $lines = $row['lines'] === [] ? [null] : $row['lines'];
+            foreach ($lines as $line) {
+                $rows[] = [
+                    $row['document_no'], $row['doc_type'], $row['warehouse_code'], $row['counterpart'],
+                    $line['line_no'] ?? '', $line['product_code'] ?? '', $line['product_name'] ?? '',
+                    $line['expected_qty'] ?? '', $line['scanned_qty'] ?? '', $line['posted_qty'] ?? '',
+                    $row['document_date'], $row['status'], $row['posted_at'], $row['cancelled_at'],
+                    $row['created_by_name'], $row['posted_by_name'], $row['note'],
+                ];
+            }
+        }
+        $headers = ['Mã phiếu', 'Loại', 'Kho', 'Đối tác/Nơi nhận', 'Dòng', 'Mã SKU', 'Tên SKU', 'Kế hoạch', 'Đã scan', 'Đã post', 'Ngày phiếu', 'Trạng thái', 'Posted at', 'Cancelled at', 'Người tạo', 'Người post', 'Ghi chú'];
+        $stem = "lich-su-phieu-{$report['period']['from_date']}-{$report['period']['to_date']}";
+
+        return $format === 'pdf'
+            ? ['bytes' => $this->buildPdfBytes('Lịch sử phiếu', $headers, $rows, 'document-history', $request), 'fileName' => ReportExportFileName::stamp("{$stem}.pdf"), 'rowCount' => count($rows), 'contentType' => 'application/pdf']
+            : ['bytes' => $this->buildXlsxBytes('Lich su phieu', $headers, $rows, 'document-history', $request), 'fileName' => ReportExportFileName::stamp("{$stem}.xlsx"), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    }
+
+    /** @return array{bytes: string, fileName: string, rowCount: int, contentType: string} */
+    private function exportBytesOutboundByAgency(Request $request, string $format): array
+    {
+        $report = $this->buildOutboundByAgency($request);
+        $rows = array_map(fn (array $row): array => [
+            $row['source_request_no'], $row['agency_code'], $row['agency_name'], $row['address'], $row['contact_masked'],
+            $row['product_code'], $row['product_name'], $row['outbound_no'],
+            $row['document_date'], $row['posted_at'], $row['required_qty'], $row['scanned_qty'],
+        ], $report['rows']);
+        $headers = ['Phiếu toa', 'Mã nơi nhận', 'Nơi nhận', 'Địa chỉ', 'Liên hệ', 'Mã SKU', 'Tên SKU', 'Phiếu xuất', 'Ngày phiếu', 'Posted at', 'Yêu cầu', 'Đã xuất'];
+        $stem = "xuat-theo-noi-nhan-{$report['period']['from_date']}-{$report['period']['to_date']}";
+
+        return $format === 'pdf'
+            ? ['bytes' => $this->buildPdfBytes('Xuất theo nơi nhận', $headers, $rows, 'outbound-by-agency', $request), 'fileName' => ReportExportFileName::stamp("{$stem}.pdf"), 'rowCount' => count($rows), 'contentType' => 'application/pdf']
+            : ['bytes' => $this->buildXlsxBytes('Xuat noi nhan', $headers, $rows, 'outbound-by-agency', $request), 'fileName' => ReportExportFileName::stamp("{$stem}.xlsx"), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    }
+
+    /** @return array{bytes: string, fileName: string, rowCount: int, contentType: string} */
+    private function exportBytesMovementTrace(Request $request, string $format): array
+    {
+        $report = $this->buildMovementTrace($request);
+        $rows = array_map(fn (array $row): array => [
+            $row['id'], $row['occurred_at'], $row['movement_type'], $row['warehouse_code'], $row['product_code'], $row['product_name'],
+            $row['stock_status'], $row['qty_delta'], $row['item_id'], $row['container_id'], $row['physical_code'],
+            $row['actor'], $row['source_type'], $row['source_id'], $row['original_movement_id'], $row['correction_chain_id'],
+        ], $report['rows']);
+        $headers = ['Movement ID', 'Thời gian', 'Movement', 'Kho', 'Mã SKU', 'Tên SKU', 'Stock status', 'Qty delta', 'Item', 'Container', 'Physical code', 'Người thực hiện', 'Source type', 'Source id', 'Original movement', 'Correction chain'];
+        $stem = "movement-trace-{$report['period']['from_date']}-{$report['period']['to_date']}";
+
+        return $format === 'pdf'
+            ? ['bytes' => $this->buildPdfBytes('Movement Trace', $headers, $rows, 'movement-trace', $request), 'fileName' => ReportExportFileName::stamp("{$stem}.pdf"), 'rowCount' => count($rows), 'contentType' => 'application/pdf']
+            : ['bytes' => $this->buildXlsxBytes('Movement Trace', $headers, $rows, 'movement-trace', $request), 'fileName' => ReportExportFileName::stamp("{$stem}.xlsx"), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
     }
 
     private function excelSafe(mixed $value): mixed

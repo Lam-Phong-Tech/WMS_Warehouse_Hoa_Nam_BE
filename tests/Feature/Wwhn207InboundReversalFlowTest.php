@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
@@ -137,8 +139,25 @@ class Wwhn207InboundReversalFlowTest extends TestCase
         ];
     }
 
+    /**
+     * "Chứng từ nhập/xuất/hoàn trả": Create luôn dừng ở DRAFT (stock_effect=NONE);
+     * đính kèm chứng từ rồi Post riêng mới thật sự ghi movement/tồn.
+     */
+    private function attachEvidenceThenPost(array $headers, string $reversalId, int $version, string $idempotencyKey)
+    {
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('w207-bien-ban-'.Str::lower(Str::random(6)).'.jpg'),
+        ], $headers)->assertCreated();
+
+        return $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => (string) $version,
+            'Idempotency-Key' => $idempotencyKey,
+        ]);
+    }
+
     public function test_reverse_inbound_partial_quantity_decreases_balance_and_creates_reversal_movement(): void
     {
+        Storage::fake('local');
         $headers = $this->authHeaders();
         $fixture = $this->postedComponentReceipt($headers, 'COMP-REV-PARTIAL-01', 5);
 
@@ -161,9 +180,11 @@ class Wwhn207InboundReversalFlowTest extends TestCase
 
         $reverse->assertOk()
             ->assertJsonPath('data.original_document_status', 'POSTED')
-            ->assertJsonPath('data.reversal_status', 'POSTED');
+            ->assertJsonPath('data.reversal_status', 'DRAFT');
         $reversalDocumentId = (string) $reverse->json('data.reversal_document_id');
         $this->assertNotSame('', $reversalDocumentId);
+        $this->attachEvidenceThenPost($headers, $reversalDocumentId, 1, 'reverse-partial-post-'.Str::random(12))
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $balanceAfterReverse = (int) DB::table('inventory_balances')
             ->where('warehouse_id', $fixture['warehouse_id'])
@@ -186,10 +207,11 @@ class Wwhn207InboundReversalFlowTest extends TestCase
 
     public function test_reverse_inbound_full_quantity_then_second_reverse_is_rejected(): void
     {
+        Storage::fake('local');
         $headers = $this->authHeaders();
         $fixture = $this->postedComponentReceipt($headers, 'COMP-REV-FULL-01', 3);
 
-        $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
+        $first = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", [
             'reason' => 'Trả toàn bộ do lỗi NCC',
             'lines' => [[
                 'movement_id' => $fixture['movement_id'],
@@ -198,7 +220,12 @@ class Wwhn207InboundReversalFlowTest extends TestCase
         ], $headers + [
             'If-Match' => (string) $fixture['version'],
             'Idempotency-Key' => 'reverse-full-'.Str::random(12),
-        ])->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
+        ]);
+        $first->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        // REVERSAL_QTY_EXCEEDED bên dưới chỉ tính trên reversal đã POSTED nên phải
+        // đính kèm chứng từ rồi Post thật sự trước khi thử reverse thêm.
+        $this->attachEvidenceThenPost($headers, (string) $first->json('data.reversal_document_id'), 1, 'reverse-full-post-'.Str::random(12))
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $balanceAfterFullReverse = (int) DB::table('inventory_balances')
             ->where('warehouse_id', $fixture['warehouse_id'])
@@ -246,7 +273,10 @@ class Wwhn207InboundReversalFlowTest extends TestCase
         $requestHeaders = $headers + ['If-Match' => (string) $fixture['version'], 'Idempotency-Key' => $idempotencyKey];
 
         $first = $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/reverse", $payload, $requestHeaders);
-        $first->assertOk()->assertHeader('Idempotent-Replay', 'false');
+        // Create luôn dừng ở DRAFT (stock_effect=NONE) — replay ở mức Create được
+        // kiểm ở đây; replay ở mức Post riêng đã có test_reverse_inbound_partial_...
+        // và các TC tương đương ở Wwhn266.
+        $first->assertOk()->assertHeader('Idempotent-Replay', 'false')->assertJsonPath('data.reversal_status', 'DRAFT');
         $firstReversalId = (string) $first->json('data.reversal_document_id');
 
         $movementCountAfterFirst = DB::table('stock_movements')->count();

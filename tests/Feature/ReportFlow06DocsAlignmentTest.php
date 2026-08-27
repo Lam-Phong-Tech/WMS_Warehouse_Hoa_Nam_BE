@@ -247,7 +247,7 @@ class ReportFlow06DocsAlignmentTest extends TestCase
             'Authorization' => "Bearer {$exporterToken}",
             'Idempotency-Key' => 'wwhn258-masked-key-01',
         ])
-            ->assertStatus(201)
+            ->assertStatus(202)
             ->assertJsonPath('data.report_code', 'warranty-defects');
     }
 
@@ -320,8 +320,11 @@ class ReportFlow06DocsAlignmentTest extends TestCase
     // ── Annex C createReportExport ───────────────────────────
 
     /**
-     * BR-EXP-01 "export dùng cùng filter/scope với màn hình": filter nằm trong body
-     * nên job phải áp dụng chúng khi đếm dòng và phải mang chúng vào download_url.
+     * BR-EXP-01 "export dùng cùng filter/scope với màn hình": filter nằm trong body nên
+     * job (GenerateReportExportJob) phải áp dụng chúng khi build file. Trước đây download_url
+     * tự mang filter trong query string (URL tự mô tả); từ khi export chạy nền qua job thật,
+     * download_url chỉ còn là link theo export_job_id — filter được xác nhận qua field
+     * `filters` của status endpoint và qua `row_count` (đúng 1 dòng khớp filter doc_type).
      */
     public function test_export_job_applies_filters_from_request_body(): void
     {
@@ -338,11 +341,17 @@ class ReportFlow06DocsAlignmentTest extends TestCase
             'Idempotency-Key' => (string) Str::uuid(),
         ]);
 
-        $response->assertStatus(201)
-            ->assertJsonPath('data.status', 'READY')
+        $response->assertStatus(202)
+            ->assertJsonPath('data.status', 'PENDING')
+            ->assertJsonPath('data.filters.doc_type', 'outbound');
+        $jobId = $response->json('data.export_job_id');
+
+        // QUEUE_CONNECTION=sync trong test nên job đã chạy xong khi dispatch() được gọi.
+        $status = $this->api("/api/v1/reports/export/{$jobId}")->assertOk();
+        $status->assertJsonPath('data.status', 'READY')
             ->assertJsonPath('data.row_count', 1)
             ->assertJsonPath('data.filters.doc_type', 'outbound');
-        $this->assertStringContainsString('doc_type=outbound', (string) $response->json('data.download_url'));
+        $this->assertStringContainsString("/reports/export/{$jobId}/download", (string) $status->json('data.download_url'));
     }
 
     public function test_export_job_requires_idempotency_key(): void

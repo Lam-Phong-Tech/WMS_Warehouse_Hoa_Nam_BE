@@ -66,7 +66,9 @@ class ReportFlow06IntegrationTest extends TestCase
             ->assertJsonPath('data.rows.0.warehouse_code', 'KHO-RPT')
             ->assertJsonPath('data.rows.0.product_code', 'SP-RPT-A')
             ->assertJsonPath('data.rows.0.on_hand_qty', 10)
-            ->assertJsonPath('data.rows.0.reconciliation_status', 'MATCH');
+            ->assertJsonPath('data.rows.0.reconciliation_status', 'MATCH')
+            // GĐ1 chart FE "Cơ cấu tồn theo loại" — donut PRODUCT/COMPONENT thô.
+            ->assertJsonPath('data.rows.0.sku_type', 'PRODUCT');
     }
 
     public function test_inventory_balance_keyword_filter(): void
@@ -165,6 +167,48 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->api("/api/v1/reports/inventory-xnt/export-excel?from_date={$today}&to_date={$today}")
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    public function test_xnt_daily_computes_running_closing_balance(): void
+    {
+        $day1 = now()->subDays(2)->toDateString();
+        $day2 = now()->subDays(1)->toDateString();
+        $day3 = now()->toDateString();
+
+        // Trước kỳ: số dư 20 (opening_before_period).
+        $this->createMovement('OPENING', $this->productA, 20, now()->subDays(5)->toDateString());
+        // Ngày 1: +5 nhập, -2 xuất → net_change +3 → closing 23.
+        $this->createMovement('RECEIPT', $this->productA, 5, $day1);
+        $this->createMovement('ISSUE', $this->productA, -2, $day1);
+        // Ngày 2: không phát sinh gì → closing giữ nguyên 23.
+        // Ngày 3: -4 xuất linh kiện → closing 19.
+        $this->createMovement('COMPONENT_ISSUE', $this->productA, -4, $day3);
+
+        $response = $this->api("/api/v1/reports/inventory-xnt-daily?from_date={$day1}&to_date={$day3}");
+        $response->assertOk()->assertJsonPath('data.opening_before_period', 20);
+        $days = $response->json('data.days');
+        $this->assertCount(3, $days);
+        $this->assertEquals([$day1, $day2, $day3], array_column($days, 'date'));
+        $this->assertEquals(5, $days[0]['inbound_qty']);
+        $this->assertEquals(2, $days[0]['outbound_qty']);
+        $this->assertEquals(23, $days[0]['closing_qty']);
+        $this->assertEquals(0, $days[1]['inbound_qty']);
+        $this->assertEquals(23, $days[1]['closing_qty']);
+        $this->assertEquals(4, $days[2]['outbound_qty']);
+        $this->assertEquals(19, $days[2]['closing_qty']);
+    }
+
+    public function test_xnt_daily_filters_by_warehouse_and_keyword(): void
+    {
+        $today = now()->toDateString();
+        $this->createMovement('RECEIPT', $this->productA, 10, $today);
+        $this->createMovement('RECEIPT', $this->productB, 6, $today);
+
+        $response = $this->api("/api/v1/reports/inventory-xnt-daily?from_date={$today}&to_date={$today}&keyword=RPT-A");
+        $response->assertOk();
+        $days = $response->json('data.days');
+        $this->assertCount(1, $days);
+        $this->assertEquals(10, $days[0]['inbound_qty']);
     }
 
     // ── 3. Document History ──────────────────────────────────
@@ -422,6 +466,64 @@ class ReportFlow06IntegrationTest extends TestCase
         $response->assertOk()->assertJsonPath('data.summary.total_documents', 1);
     }
 
+    public function test_outbound_by_agency_by_sku_at_top_level(): void
+    {
+        $today = now()->toDateString();
+        $agencyA = Agency::create(['agency_code' => 'DL-SKU-A', 'agency_name' => 'Agency SKU A', 'status' => 'ACTIVE']);
+        $agencyB = Agency::create(['agency_code' => 'DL-SKU-B', 'agency_name' => 'Agency SKU B', 'status' => 'ACTIVE']);
+        $docA = $this->createStockDocument('issue', 'POSTED', $today, 'OUT-SKU-001', $agencyA->agency_id);
+        $this->createDocumentLine($docA, $this->productA->id, 5, 5);
+        $docB = $this->createStockDocument('issue', 'POSTED', $today, 'OUT-SKU-002', $agencyB->agency_id);
+        $this->createDocumentLine($docB, $this->productA->id, 3, 3);
+
+        $response = $this->api("/api/v1/reports/outbound-by-agency?from_date={$today}&to_date={$today}");
+        $response->assertOk();
+        $data = $response->json('data');
+        $this->assertArrayHasKey('by_sku', $data);
+        // Cùng SKU (SP-RPT-A) xuất cho 2 agency khác nhau phải gộp thành 1 dòng, tổng 8.
+        $this->assertCount(1, $data['by_sku']);
+        $this->assertEquals('SP-RPT-A', $data['by_sku'][0]['product_code']);
+        $this->assertEquals(8, $data['by_sku'][0]['total_issued_qty']);
+        $this->assertEquals(2, $data['by_sku'][0]['agency_count']);
+    }
+
+    // ── 7b. Outbound by Recipient (GĐ1 — Theo từng thị trường) ─
+
+    public function test_outbound_by_recipient_counts_direct_recipients_without_agency_master(): void
+    {
+        $today = now()->toDateString();
+        // Phiếu xuất trực tiếp không link agencies (agency_id NULL) — chỉ có
+        // recipient_name snapshot trên chính stock_documents, giống dữ liệu seed
+        // thực tế. COUNT(DISTINCT a.agency_id) sẽ sai về 0 vì cột luôn NULL dù
+        // có 2 nơi nhận phân biệt qua tên.
+        foreach ([['DOC-DIRECT-001', 'Đại lý Hoa Nam Hà Nội'], ['DOC-DIRECT-002', 'Đại lý Hoa Nam Đà Nẵng']] as [$docNo, $recipientName]) {
+            $docId = (string) Str::uuid();
+            DB::table('stock_documents')->insert([
+                'id' => $docId,
+                'doc_type' => 'issue',
+                'doc_no' => $docNo,
+                'doc_date' => $today,
+                'status' => 'POSTED',
+                'src_warehouse_id' => $this->warehouse->id,
+                'agency_id' => null,
+                'recipient_name' => $recipientName,
+                'recipient_address' => 'Địa chỉ RPT',
+                'posted_at' => now(),
+                'posted_by' => $this->user->user_id,
+                'created_by' => $this->user->user_id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $this->createDocumentLine($docId, $this->productA->id, 1, 1);
+        }
+
+        $response = $this->api("/api/v1/reports/outbound-by-recipient?from_date={$today}&to_date={$today}");
+        $response->assertOk()
+            ->assertJsonPath('data.summary.total_recipients', 2)
+            ->assertJsonPath('data.summary.total_agencies', 2);
+        $this->assertCount(2, $response->json('data.by_recipient'));
+    }
+
     // ── 8. Warranty Defects ──────────────────────────────────
 
     public function test_warranty_defects_returns_cases_with_defect_breakdown(): void
@@ -468,6 +570,46 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->api("/api/v1/reports/warranty-defects/export-excel?from_date={$from}&to_date={$today}")
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    public function test_warranty_defects_by_defect_breaks_down_status_per_defect(): void
+    {
+        $defectA = DefectCatalog::create(['defect_code' => 'LH-BD-A', 'defect_name' => 'Bệnh A', 'status' => 'ACTIVE']);
+        $defectB = DefectCatalog::create(['defect_code' => 'LH-BD-B', 'defect_name' => 'Bệnh B', 'status' => 'ACTIVE']);
+        $this->createWarrantyCase('WC-BD-001', 'RECEIVED', $defectA->defect_id);
+        $this->createWarrantyCase('WC-BD-002', 'RETURNED', $defectA->defect_id);
+        $this->createWarrantyCase('WC-BD-003', 'CANCELLED', $defectB->defect_id);
+
+        $today = now()->toDateString();
+        $from = now()->subDays(1)->toDateString();
+        $response = $this->api("/api/v1/reports/warranty-defects?from_date={$from}&to_date={$today}");
+        $response->assertOk();
+        $byDefect = collect($response->json('data.by_defect'))->keyBy('defect_code');
+
+        $this->assertEquals(2, $byDefect['LH-BD-A']['total']);
+        $this->assertEquals(1, $byDefect['LH-BD-A']['processing']);
+        $this->assertEquals(1, $byDefect['LH-BD-A']['returned']);
+        $this->assertEquals(1, $byDefect['LH-BD-B']['total']);
+        $this->assertEquals(1, $byDefect['LH-BD-B']['cancelled']);
+    }
+
+    public function test_warranty_component_usage_returns_totals_per_sku(): void
+    {
+        $caseId = $this->createWarrantyCase('WC-COMP-001', 'COMPLETED');
+        $this->createComponentIssue($caseId, $this->productA, 2);
+        $this->createComponentIssue($caseId, $this->productA, 1);
+        $this->createComponentIssue($caseId, $this->productB, 3);
+        // Chưa POSTED thì không được tính.
+        $this->createComponentIssue($caseId, $this->productB, 99, 'DRAFT');
+
+        $today = now()->toDateString();
+        $from = now()->subDays(1)->toDateString();
+        $response = $this->api("/api/v1/reports/warranty-component-usage?from_date={$from}&to_date={$today}");
+        $response->assertOk();
+        $rows = collect($response->json('data.rows'))->keyBy('sku_code');
+
+        $this->assertEquals(3, $rows['SP-RPT-A']['total_issued_qty']);
+        $this->assertEquals(3, $rows['SP-RPT-B']['total_issued_qty']);
     }
 
     // ── 9. Reconciliation Evidence ──────────────────────────
@@ -745,6 +887,12 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->assertSame(2, $response->json('data.pagination.last_page'));
         $this->assertSame(4, $response->json('data.summary.total_movements'));
         $this->assertEqualsWithDelta(6.0, (float) $response->json('data.summary.net_effect'), 0.001);
+
+        // GĐ1 chart FE: by_movement_type phải gộp trên CẢ 4 movement, không
+        // phải chỉ 2 dòng của trang hiện tại.
+        $byType = collect($response->json('data.by_movement_type'))->keyBy('movement_type');
+        $this->assertSame(3, $byType['RECEIPT']['movement_count']);
+        $this->assertSame(1, $byType['ISSUE']['movement_count']);
     }
 
     // ── 12b. Annex C endpoints (REQ-SRS-031/032) ─────────────
@@ -791,13 +939,25 @@ class ReportFlow06IntegrationTest extends TestCase
         ], [
             'Authorization' => "Bearer {$this->token}",
             'Idempotency-Key' => 'report-export-001',
-        ])->assertCreated();
+        ])->assertStatus(202);
 
         $response->assertJsonPath('data.report_code', 'inventory-balance')
-            ->assertJsonPath('data.status', 'READY')
+            ->assertJsonPath('data.status', 'PENDING')
             ->assertJsonPath('data.format', 'xlsx');
-        $this->assertNotEmpty($response->json('data.export_job_id'));
-        $this->assertStringContainsString('/export-excel', (string) $response->json('data.download_url'));
+        $jobId = $response->json('data.export_job_id');
+        $this->assertNotEmpty($jobId);
+        $this->assertNull($response->json('data.download_url'));
+        $this->assertStringContainsString("/reports/export/{$jobId}", (string) $response->json('data.status_url'));
+
+        // Checklist "Hiệu năng và triển khai" 27/08: export giờ chạy nền qua
+        // GenerateReportExportJob. QUEUE_CONNECTION=sync trong test (phpunit.xml) nên job
+        // đã chạy xong NGAY khi dispatch() được gọi trong createExport() — status endpoint
+        // phải thấy READY kèm download_url thật, và file phải tải được.
+        $status = $this->api("/api/v1/reports/export/{$jobId}")->assertOk();
+        $status->assertJsonPath('data.status', 'READY');
+        $downloadUrl = (string) $status->json('data.download_url');
+        $this->assertStringContainsString("/reports/export/{$jobId}/download", $downloadUrl);
+        $this->api($downloadUrl)->assertOk();
 
         // Replay cùng key/payload trả lại đúng job cũ (AC-GWT-IDEMP-001).
         $replay = $this->postJson('/api/v1/reports/export', [
@@ -806,8 +966,8 @@ class ReportFlow06IntegrationTest extends TestCase
         ], [
             'Authorization' => "Bearer {$this->token}",
             'Idempotency-Key' => 'report-export-001',
-        ])->assertCreated();
-        $this->assertSame($response->json('data.export_job_id'), $replay->json('data.export_job_id'));
+        ])->assertStatus(202);
+        $this->assertSame($jobId, $replay->json('data.export_job_id'));
         $this->assertSame('true', $replay->headers->get('Idempotent-Replay'));
     }
 
@@ -816,7 +976,7 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->postJson('/api/v1/reports/export', ['report_code' => 'movement-trace'], [
             'Authorization' => "Bearer {$this->token}",
             'Idempotency-Key' => 'report-export-audit-001',
-        ])->assertCreated();
+        ])->assertStatus(202);
 
         $this->assertDatabaseHas('audit_log', [
             'object_type' => 'report_export',
@@ -1049,12 +1209,13 @@ class ReportFlow06IntegrationTest extends TestCase
         return $id;
     }
 
-    private function createWarrantyCase(string $code, string $status, ?string $defectId = null): void
+    private function createWarrantyCase(string $code, string $status, ?string $defectId = null): string
     {
         // chk_erd_warranty_identification_shape: IDENTIFIED đòi item_id;
         // report fixture không cần item nên dùng shape TEMP_ONLY đầy đủ.
+        $caseId = (string) Str::uuid();
         DB::table('warranty_case')->insert([
-            'warranty_case_id' => (string) Str::uuid(),
+            'warranty_case_id' => $caseId,
             'warranty_case_code' => $code,
             'identification_status' => 'TEMP_ONLY',
             'temporary_item_code' => 'TEMP-'.Str::upper(Str::random(8)),
@@ -1064,9 +1225,57 @@ class ReportFlow06IntegrationTest extends TestCase
             'customer_name' => 'Khách RPT',
             'customer_phone' => '0900000005',
             'status' => $status,
+            // Cột legacy — giữ để tương thích các báo cáo/consumer cũ vẫn đọc trực
+            // tiếp warranty_case.defect_id.
             'defect_id' => $defectId,
             'version' => 1,
             'created_by' => $this->user->user_id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // BaM1ReportController::warrantyDefects()/defectSkuBreakdown() đọc quan hệ
+        // N:N warranty_case_defects (một case có thể nhiều bệnh/lỗi), không phải
+        // cột defect_id legacy — insert trực tiếp qua DB::table() nên phải tự lo
+        // dòng này, không có trigger nào đồng bộ hộ (migration
+        // 2026_08_25_130000 chỉ backfill dữ liệu lịch sử tại thời điểm chạy migrate).
+        if ($defectId !== null) {
+            DB::table('warranty_case_defects')->insert([
+                'warranty_case_defect_id' => (string) Str::uuid(),
+                'warranty_case_id' => $caseId,
+                'defect_id' => $defectId,
+                'is_primary' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return $caseId;
+    }
+
+    private function createComponentIssue(string $warrantyCaseId, Sku $sku, int $scannedQty, string $status = 'POSTED'): void
+    {
+        $docId = (string) Str::uuid();
+        DB::table('component_issue_documents')->insert([
+            'id' => $docId,
+            'component_issue_no' => 'CI-'.Str::upper(Str::random(8)),
+            'warehouse_id' => $this->warehouse->id,
+            'warranty_case_id' => $warrantyCaseId,
+            'document_date' => now()->toDateString(),
+            'status' => $status,
+            'posted_at' => $status === 'POSTED' ? now() : null,
+            'posted_by' => $status === 'POSTED' ? $this->user->user_id : null,
+            'created_by' => $this->user->user_id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('component_issue_lines')->insert([
+            'id' => (string) Str::uuid(),
+            'component_issue_document_id' => $docId,
+            'line_no' => 1,
+            'sku_id' => $sku->id,
+            'required_qty' => $scannedQty,
+            'scanned_qty' => $scannedQty,
             'created_at' => now(),
             'updated_at' => now(),
         ]);

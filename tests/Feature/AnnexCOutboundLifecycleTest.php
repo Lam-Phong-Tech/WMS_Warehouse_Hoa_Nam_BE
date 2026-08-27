@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -134,6 +136,7 @@ class AnnexCOutboundLifecycleTest extends TestCase
 
     public function test_reversal_confirm_then_post_produces_movement_only_at_post(): void
     {
+        Storage::fake('local');
         [$headers, $documentId, $itemId, $movementId] = $this->postedOutbound('TOA-REV-001', 'PROD-REV-001');
 
         // Tạo DRAFT ở trạng thái chờ hàng về (BR-REV-06).
@@ -156,6 +159,12 @@ class AnnexCOutboundLifecycleTest extends TestCase
             ->assertJsonPath('data.stock_effect', 'NONE');
         $this->assertSame($movementsAfterDraft, DB::table('stock_movements')->count(), 'Confirm không được sinh movement.');
 
+        // "Chứng từ nhập/xuất/hoàn trả": Post reversal bắt buộc có chứng từ đính kèm
+        // (DocumentEvidenceGuard::TYPE_REVERSAL luôn requires_evidence).
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('bien-ban-hoan-tra.jpg'),
+        ], $headers)->assertCreated();
+
         $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
             'If-Match' => '2',
             'Idempotency-Key' => 'rev-post-001',
@@ -163,6 +172,42 @@ class AnnexCOutboundLifecycleTest extends TestCase
 
         $this->assertGreaterThan($movementsAfterDraft, DB::table('stock_movements')->count());
         $this->assertDatabaseHas('reversal_documents', ['id' => $reversalId, 'status' => 'POSTED']);
+    }
+
+    /** "Chứng từ nhập/xuất/hoàn trả": Post reversal phải bị chặn khi chưa đính kèm chứng từ. */
+    public function test_reversal_post_blocked_without_evidence_then_succeeds_after_attachment(): void
+    {
+        Storage::fake('local');
+        [$headers, $documentId, $itemId, $movementId] = $this->postedOutbound('TOA-REV-EVID-001', 'PROD-REV-EVID-001');
+        $draft = $this->postJson("/api/v1/outbound-documents/{$documentId}/reverse", [
+            'reason' => 'Khách trả hàng, chờ nhập lại kho',
+            'condition_status' => 'SELLABLE',
+            'physical_return_confirmed' => false,
+            'lines' => [['movement_id' => $movementId, 'quantity' => 1, 'item_id' => $itemId]],
+        ], $headers + ['If-Match' => '3', 'Idempotency-Key' => 'rev-evid-draft-001'])->assertOk();
+        $reversalId = (string) $draft->json('data.reversal_document_id');
+
+        $this->postJson("/api/v1/reversal-documents/{$reversalId}/confirm", [
+            'return_condition' => 'SELLABLE',
+        ], $headers + ['If-Match' => '1'])->assertOk();
+
+        $blocked = $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => '2',
+            'Idempotency-Key' => 'rev-evid-post-blocked',
+        ]);
+        $blocked->assertStatus(422)->assertJsonPath('error.code', 'EVIDENCE_REQUIRED');
+
+        $listPending = $this->getJson("/api/v1/reversal-documents/{$reversalId}/attachments", $headers)->assertOk();
+        $this->assertSame('PENDING', $listPending->json('meta.evidence_status'));
+
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('bien-ban-hoan-tra.jpg'),
+        ], $headers)->assertCreated();
+
+        $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => '2',
+            'Idempotency-Key' => 'rev-evid-post-ok',
+        ])->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
     }
 
     public function test_reversal_post_requires_if_match_and_idempotency_key(): void

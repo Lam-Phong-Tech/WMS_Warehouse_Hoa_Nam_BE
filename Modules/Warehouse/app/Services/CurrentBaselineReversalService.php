@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
 use App\Support\ConflictCode;
+use App\Support\DocumentEvidenceGuard;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -74,27 +75,29 @@ class CurrentBaselineReversalService
                 $physicalConfirmed
             );
 
-            if ($this->isStockRestoring($documentType) && ! $physicalConfirmed) {
-                $draft = DB::table('reversal_document')->where('reversal_document_id', $reversalId)->first();
-                event(new \Modules\Warehouse\Events\ReversalDraftCreated(
-                    $reversalId,
-                    (string) $draft->document_no,
-                    $draft->warehouse_id !== null ? (string) $draft->warehouse_id : null,
-                    $actorId,
-                ));
+            // "Chứng từ nhập/xuất/hoàn trả": reversal LUÔN dừng ở DRAFT ngay sau khi
+            // tạo, không tự Post trong cùng request — lúc tạo chưa có
+            // reversal_document_id để client đính kèm chứng từ trước, mà
+            // DocumentEvidenceGuard bắt buộc REVERSAL phải có chứng từ ACTIVE trước
+            // khi Post thật sự. Client gọi POST .../attachments rồi POST .../post
+            // (postReversalDocument() bên dưới, qua postDraft() luôn enforce evidence).
+            $draft = DB::table('reversal_document')->where('reversal_document_id', $reversalId)->first();
+            event(new \Modules\Warehouse\Events\ReversalDraftCreated(
+                $reversalId,
+                (string) $draft->document_no,
+                $draft->warehouse_id !== null ? (string) $draft->warehouse_id : null,
+                $actorId,
+            ));
 
-                return [
-                    'original_document_id' => $documentId,
-                    'original_document_status' => 'POSTED',
-                    'reversal_document_id' => $reversalId,
-                    'reversal_status' => 'DRAFT',
-                    'physical_return_status' => 'PENDING_RETURN',
-                    'stock_effect' => 'NONE',
-                    'movement_ids' => [],
-                ];
-            }
-
-            return $this->postDraft($reversalId, $document, $documentType, $actorId, $idempotencyKey, $requestHash);
+            return [
+                'original_document_id' => $documentId,
+                'original_document_status' => 'POSTED',
+                'reversal_document_id' => $reversalId,
+                'reversal_status' => 'DRAFT',
+                'physical_return_status' => $draft->physical_return_status,
+                'stock_effect' => 'NONE',
+                'movement_ids' => [],
+            ];
         }, 3);
     }
 
@@ -320,6 +323,11 @@ class CurrentBaselineReversalService
         return $this->postDraft($reversalId, $document, $documentType, $actorId, $idempotencyKey, $requestHash);
     }
 
+    /**
+     * execute() luôn dừng ở DRAFT sau khi tạo (không còn nhánh auto-post) nên MỌI
+     * lối vào postDraft() đều đã đi qua bước DRAFT, có cửa sổ đính kèm chứng từ
+     * (POST .../attachments) trước khi Post thật sự — evidence luôn được kiểm.
+     */
     private function postDraft(
         string $reversalId,
         object $document,
@@ -334,6 +342,14 @@ class CurrentBaselineReversalService
         }
         if ($this->isStockRestoring($documentType) && $reversal->physical_return_status !== 'CONFIRMED') {
             ApiError::abort(409, 'PHYSICAL_RETURN_REQUIRED', 'Reverse Issue/Component Issue chưa xác nhận hàng về vật lý; stock effect = 0.');
+        }
+        // "Chứng từ nhập/xuất/hoàn trả": hoàn trả/điều chỉnh ghi đè tồn kho thủ công
+        // ngoài scan bình thường nên bắt buộc có chứng từ đính kèm ACTIVE trước khi
+        // thật sự Post (App\Support\DocumentEvidenceGuard) — kiểm sau
+        // PHYSICAL_RETURN_REQUIRED để giữ đúng thứ tự lỗi nghiệp vụ đã có (409 hàng
+        // vật lý chưa về phải báo trước 422 thiếu chứng từ).
+        if (! DocumentEvidenceGuard::hasActiveEvidence(DocumentEvidenceGuard::TYPE_REVERSAL, $reversalId)) {
+            ApiError::abort(422, 'EVIDENCE_REQUIRED', 'Chứng từ hoàn trả/điều chỉnh phải có ít nhất 1 tài liệu đính kèm trước khi Post (đối soát).');
         }
 
         $lines = DB::table('reversal_line')->where('reversal_document_id', $reversalId)->orderBy('line_no')->lockForUpdate()->get();

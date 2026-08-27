@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Role;
@@ -208,6 +210,27 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
         ];
     }
 
+    /**
+     * "Chứng từ nhập/xuất/hoàn trả": sau khi khoá lỗ hổng bypass evidence
+     * (CurrentBaselineReversalService::execute() không còn auto-post ngay trong
+     * request Create nữa — kể cả physical_return_confirmed=true), MỌI reversal đều
+     * dừng ở DRAFT sau khi tạo. Test trong file này viết theo hành vi auto-post cũ;
+     * helper này đóng vai bước "đính kèm chứng từ rồi Post riêng" dùng chung cho các
+     * TC vốn đã set physical_return_confirmed=true (không cần confirm trước, DRAFT
+     * đã ở physical_return_status=CONFIRMED nên Post ngay được, version vẫn là 1).
+     */
+    private function attachEvidenceThenPost(array $headers, string $reversalId, int $version, string $idempotencyKey)
+    {
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('bien-ban-w266-'.Str::lower(Str::random(6)).'.jpg'),
+        ], $headers)->assertCreated();
+
+        return $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => (string) $version,
+            'Idempotency-Key' => $idempotencyKey,
+        ]);
+    }
+
     private function record(string $tc, array $data): void
     {
         self::$evidence[$tc] = $data;
@@ -234,6 +257,7 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
      */
     public function test_tc_rev_ci_01_positive_reversal_restores_stock_and_keeps_original_immutable(): void
     {
+        Storage::fake('local');
         $fixture = $this->postedComponentIssue(10, 3);
         $before = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
         $this->assertSame(7, $before);
@@ -245,8 +269,12 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
             'Idempotency-Key' => 'w266r-tc01',
         ]);
 
-        $response->assertCreated()->assertJsonPath('data.status', 'POSTED');
+        // "Chứng từ nhập/xuất/hoàn trả": Create luôn dừng ở DRAFT — Post thật sự
+        // (và evidence guard) chỉ chạy ở bước riêng dưới đây.
+        $response->assertCreated()->assertJsonPath('data.status', 'DRAFT');
         $reversalId = (string) $response->json('data.id');
+        $this->attachEvidenceThenPost($fixture['headers'], $reversalId, 1, 'w266r-tc01-post')
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $after = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
         $this->assertSame(9, $after, 'Reversal SELLABLE phải cộng lại đúng reversal_qty.');
@@ -307,6 +335,7 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
      */
     public function test_tc_rev_ci_02_pending_return_holds_stock_until_confirm_then_post(): void
     {
+        Storage::fake('local');
         $fixture = $this->postedComponentIssue(10, 3);
         $before = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
 
@@ -330,6 +359,11 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
             'If-Match' => '1',
         ])->assertOk();
 
+        // "Chứng từ nhập/xuất/hoàn trả": Post reversal bắt buộc có chứng từ đính kèm.
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('bien-ban-tra-linh-kien.jpg'),
+        ], $fixture['headers'])->assertCreated();
+
         $post = $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $fixture['headers'] + [
             'If-Match' => '2',
             'Idempotency-Key' => 'w266r-tc02-post',
@@ -352,6 +386,7 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
      */
     public function test_tc_rev_ci_03_defective_return_does_not_restore_available_bucket(): void
     {
+        Storage::fake('local');
         $fixture = $this->postedComponentIssue(10, 3);
         $availableBefore = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
 
@@ -359,12 +394,14 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
             'If-Match' => (string) $fixture['doc_version'],
             'Idempotency-Key' => 'w266r-tc03',
         ]);
-        $response->assertCreated()->assertJsonPath('data.status', 'POSTED');
+        $response->assertCreated()->assertJsonPath('data.status', 'DRAFT');
+        $reversalId = (string) $response->json('data.id');
+        $this->attachEvidenceThenPost($fixture['headers'], $reversalId, 1, 'w266r-tc03-post')
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $this->assertSame($availableBefore, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']), 'DEFECTIVE không được cộng bucket AVAILABLE.');
         $this->assertSame(1, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id'], 'DEFECTIVE'), 'Hàng lỗi phải nằm ở bucket DEFECTIVE.');
 
-        $reversalId = (string) $response->json('data.id');
         $movement = DB::table('stock_movements')->where('source_id', $reversalId)->first();
         $this->assertSame('DEFECTIVE', (string) $movement->stock_status);
 
@@ -381,12 +418,19 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
      */
     public function test_tc_rev_ci_04_over_reversal_is_rejected(): void
     {
+        Storage::fake('local');
         $fixture = $this->postedComponentIssue(10, 3);
 
-        $this->postJson('/api/v1/reversal-documents', $this->reversalPayload($fixture, 3), $fixture['headers'] + [
+        // Giới hạn REVERSAL_QTY_EXCEEDED chỉ tính trên reversal đã POSTED
+        // (CurrentBaselineReversalService::createDraft() sum theo rd.status='POSTED')
+        // nên reversal đầu phải Post thật sự, không dừng ở DRAFT.
+        $first = $this->postJson('/api/v1/reversal-documents', $this->reversalPayload($fixture, 3), $fixture['headers'] + [
             'If-Match' => (string) $fixture['doc_version'],
             'Idempotency-Key' => 'w266r-tc04-a',
-        ])->assertCreated();
+        ]);
+        $first->assertCreated()->assertJsonPath('data.status', 'DRAFT');
+        $this->attachEvidenceThenPost($fixture['headers'], (string) $first->json('data.id'), 1, 'w266r-tc04-a-post')
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $balance = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
         $movementCount = (int) DB::table('stock_movements')->count();
@@ -422,15 +466,18 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
         ];
 
         $first = $this->postJson('/api/v1/reversal-documents', $payload, $headers);
-        $first->assertCreated()->assertHeader('Idempotent-Replay', 'false');
+        // "Chứng từ nhập/xuất/hoàn trả": Create luôn dừng ở DRAFT, chưa sinh movement
+        // — Post riêng (có evidence guard) mới thật sự ghi tồn, xem TC-01/02.
+        $first->assertCreated()->assertHeader('Idempotent-Replay', 'false')->assertJsonPath('data.status', 'DRAFT');
         $reversalId = (string) $first->json('data.id');
         $balanceAfterFirst = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
 
         $replay = $this->postJson('/api/v1/reversal-documents', $payload, $headers);
         $replay->assertCreated()->assertHeader('Idempotent-Replay', 'true');
         $this->assertSame($reversalId, (string) $replay->json('data.id'), 'Replay phải trả đúng reversal cũ.');
-        $this->assertSame($balanceAfterFirst, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']), 'Replay không được cộng tồn lần hai.');
-        $this->assertSame(1, (int) DB::table('stock_movements')->where('source_id', $reversalId)->count());
+        $this->assertSame($balanceAfterFirst, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']), 'Replay không được tạo DRAFT thứ hai / đổi tồn.');
+        $this->assertSame(1, (int) DB::table('reversal_document')->where('reversal_document_id', $reversalId)->count(), 'Replay không được tạo thêm reversal_document.');
+        $this->assertSame(0, (int) DB::table('stock_movements')->where('source_id', $reversalId)->count(), 'DRAFT chưa sinh movement.');
 
         $conflict = $this->postJson('/api/v1/reversal-documents', $this->reversalPayload($fixture, 1), $headers);
         $conflict->assertStatus(409)->assertJsonPath('error_code', 'IDEMPOTENCY_CONFLICT');
@@ -488,15 +535,21 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
      */
     public function test_tc_rev_ci_07_reversal_movement_is_not_a_reversible_source(): void
     {
+        Storage::fake('local');
         $fixture = $this->postedComponentIssue(10, 3);
 
         $created = $this->postJson('/api/v1/reversal-documents', $this->reversalPayload($fixture, 2), $fixture['headers'] + [
             'If-Match' => (string) $fixture['doc_version'],
             'Idempotency-Key' => 'w266r-tc07-a',
         ]);
-        $created->assertCreated();
+        $created->assertCreated()->assertJsonPath('data.status', 'DRAFT');
+        $reversalId = (string) $created->json('data.id');
+        // Movement REVERSAL chỉ tồn tại sau khi Post thật sự — cần đính kèm chứng từ
+        // rồi Post trước khi lấy id để làm reference_document_id ở bước sau.
+        $this->attachEvidenceThenPost($fixture['headers'], $reversalId, 1, 'w266r-tc07-a-post')
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
         $reversalMovementId = (string) DB::table('stock_movements')
-            ->where('source_id', (string) $created->json('data.id'))
+            ->where('source_id', $reversalId)
             ->value('id');
 
         $attempt = $this->postJson('/api/v1/reversal-documents', [
@@ -524,12 +577,16 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
      */
     public function test_tc_rev_ci_08_ledger_reconciles_with_balance_after_reversal(): void
     {
+        Storage::fake('local');
         $fixture = $this->postedComponentIssue(10, 3);
 
-        $this->postJson('/api/v1/reversal-documents', $this->reversalPayload($fixture, 2), $fixture['headers'] + [
+        $created = $this->postJson('/api/v1/reversal-documents', $this->reversalPayload($fixture, 2), $fixture['headers'] + [
             'If-Match' => (string) $fixture['doc_version'],
             'Idempotency-Key' => 'w266r-tc08',
-        ])->assertCreated();
+        ]);
+        $created->assertCreated()->assertJsonPath('data.status', 'DRAFT');
+        $this->attachEvidenceThenPost($fixture['headers'], (string) $created->json('data.id'), 1, 'w266r-tc08-post')
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $ledgerSum = (int) DB::table('stock_movements')
             ->where('warehouse_id', $fixture['warehouse_id'])

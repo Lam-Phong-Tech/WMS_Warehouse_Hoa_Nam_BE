@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Modules\Auth\Models\Permission;
@@ -173,18 +175,36 @@ class Wwhn239ReversalItemLevelClosureTest extends TestCase
         ]);
     }
 
+    /**
+     * "Chứng từ nhập/xuất/hoàn trả": Create luôn dừng ở DRAFT (stock_effect=NONE);
+     * đính kèm chứng từ rồi Post riêng mới thật sự ghi movement/tồn.
+     */
+    private function attachEvidenceThenPost(array $headers, string $reversalId, int $version, string $idempotencyKey): TestResponse
+    {
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('w239-bien-ban-'.Str::lower(Str::random(6)).'.jpg'),
+        ], $headers)->assertCreated();
+
+        return $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => (string) $version,
+            'Idempotency-Key' => $idempotencyKey,
+        ]);
+    }
+
     /** DEV239-P1-04 · double-reverse + duplicate movement = 0. */
     public function test_double_reverse_of_the_same_serial_item_is_blocked_and_creates_no_duplicate_movement(): void
     {
+        Storage::fake('local');
         $headers = $this->adminHeaders();
         $fixture = $this->postedSerialReceipt($headers, 'PRD-REV-DUP-01', 2);
         $itemId = $fixture['item_ids'][0];
 
         $this->assertSame(2, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']));
 
-        $this->reverseItem($headers, $fixture, $itemId)
-            ->assertOk()
-            ->assertJsonPath('data.reversal_status', 'POSTED');
+        $created = $this->reverseItem($headers, $fixture, $itemId);
+        $created->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        $this->attachEvidenceThenPost($headers, (string) $created->json('data.reversal_document_id'), 1, 'w239-dup-post-'.Str::random(8))
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
         $this->assertSame(1, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']));
 
         $movementsAfterFirst = DB::table('stock_movements')->count();
@@ -235,13 +255,16 @@ class Wwhn239ReversalItemLevelClosureTest extends TestCase
     /** DEV239-P1-04 · same-key replay không có second write. */
     public function test_same_key_replay_returns_the_first_result_without_second_write(): void
     {
+        Storage::fake('local');
         $headers = $this->adminHeaders();
         $fixture = $this->postedSerialReceipt($headers, 'PRD-REV-IDEMP-01', 2);
         $key = 'wwhn239-replay-'.Str::random(12);
 
         $first = $this->reverseItem($headers, $fixture, $fixture['item_ids'][0], $key);
-        $first->assertOk()->assertHeader('Idempotent-Replay', 'false');
+        $first->assertOk()->assertHeader('Idempotent-Replay', 'false')->assertJsonPath('data.reversal_status', 'DRAFT');
         $reversalId = (string) $first->json('data.reversal_document_id');
+        $this->attachEvidenceThenPost($headers, $reversalId, 1, 'w239-replay-post-'.Str::random(8))
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $movementsAfterFirst = DB::table('stock_movements')->count();
         $balanceAfterFirst = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
@@ -369,11 +392,21 @@ class Wwhn239ReversalItemLevelClosureTest extends TestCase
     /** DEV239-P1-04 · no-negative + ledger = balance + orphan = 0. */
     public function test_ledger_reconciles_with_balance_and_leaves_no_orphan_after_reversals(): void
     {
+        Storage::fake('local');
         $headers = $this->adminHeaders();
         $fixture = $this->postedSerialReceipt($headers, 'PRD-REV-REC-01', 3);
 
-        $this->reverseItem($headers, $fixture, $fixture['item_ids'][0])->assertOk();
-        $this->reverseItem($headers, $fixture, $fixture['item_ids'][1])->assertOk();
+        // Chặn "vượt reversible_qty" bên dưới chỉ tính trên reversal đã POSTED nên cả
+        // hai lượt đảo đầu phải đính kèm chứng từ rồi Post thật sự, không dừng ở DRAFT.
+        $firstReverse = $this->reverseItem($headers, $fixture, $fixture['item_ids'][0]);
+        $firstReverse->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        $this->attachEvidenceThenPost($headers, (string) $firstReverse->json('data.reversal_document_id'), 1, 'w239-rec-post-1-'.Str::random(8))
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
+
+        $secondReverse = $this->reverseItem($headers, $fixture, $fixture['item_ids'][1]);
+        $secondReverse->assertOk()->assertJsonPath('data.reversal_status', 'DRAFT');
+        $this->attachEvidenceThenPost($headers, (string) $secondReverse->json('data.reversal_document_id'), 1, 'w239-rec-post-2-'.Str::random(8))
+            ->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $this->assertSame(1, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']));
 

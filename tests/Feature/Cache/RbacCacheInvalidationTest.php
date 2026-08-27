@@ -110,7 +110,10 @@ class RbacCacheInvalidationTest extends TestCase
             'scope_type' => 'FUNCTION',
             'status' => 'ACTIVE',
         ]);
-        $this->postJson("/api/v1/users/{$user->user_id}/roles", ['role_ids' => [$emptyRole->role_id]], [
+        $this->postJson("/api/v1/users/{$user->user_id}/roles", [
+            'role_ids' => [$emptyRole->role_id],
+            'reason' => 'Test reason for audit',
+        ], [
             'Authorization' => "Bearer {$this->superAdminToken}",
         ])->assertOk();
 
@@ -153,6 +156,7 @@ class RbacCacheInvalidationTest extends TestCase
 
         $this->postJson("/api/v1/roles/{$role->role_id}/permissions", [
             'permission_ids' => [$newPermission->permission_id],
+            'reason' => 'Test reason for audit',
         ], ['Authorization' => "Bearer {$this->superAdminToken}"])->assertOk();
 
         $fresh = User::query()->find($user->user_id);
@@ -185,6 +189,7 @@ class RbacCacheInvalidationTest extends TestCase
 
         $this->postJson("/api/v1/roles/{$role->role_id}/permissions", [
             'permission_ids' => [$newPermission->permission_id],
+            'reason' => 'Test reason for audit',
         ], ['Authorization' => "Bearer {$this->superAdminToken}"])->assertOk();
 
         $keys = fn ($permissions) => collect($permissions)->pluck('permission_key')->all();

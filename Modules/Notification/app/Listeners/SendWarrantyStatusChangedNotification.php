@@ -32,6 +32,7 @@ class SendWarrantyStatusChangedNotification implements ShouldQueue
             subjectType: 'warranty_case',
             subjectId: $event->caseId,
             payload: ['case_id' => $event->caseId, 'from_status' => $event->fromStatus, 'to_status' => $event->toStatus],
+            actorId: $event->actorId,
         );
     }
 }

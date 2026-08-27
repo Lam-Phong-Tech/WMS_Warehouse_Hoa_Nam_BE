@@ -34,6 +34,7 @@ class SendUserAccountChangedNotification implements ShouldQueue
             subjectType: 'user',
             subjectId: $event->userId,
             payload: ['user_id' => $event->userId, 'action' => $event->action],
+            actorId: $event->actorId,
         );
     }
 }

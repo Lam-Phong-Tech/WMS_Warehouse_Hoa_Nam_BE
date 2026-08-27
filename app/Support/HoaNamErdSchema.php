@@ -13,7 +13,7 @@ final class HoaNamErdSchema
 
     public const DOCUMENT_ID = 'HN-WMS-ERD-DD-001';
 
-    public const TABLE_COUNT = 59;
+    public const TABLE_COUNT = 60;
 
     /**
      * @return array<string, array{section:string,fields:array<string,array{type:string,nullable:bool,key:string}>}>

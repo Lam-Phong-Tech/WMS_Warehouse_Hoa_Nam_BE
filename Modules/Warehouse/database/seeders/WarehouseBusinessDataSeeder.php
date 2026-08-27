@@ -106,6 +106,13 @@ class WarehouseBusinessDataSeeder extends Seeder
 
     public function run(): void
     {
+        // Backfill riêng, ĐỨNG TRƯỚC guard "đã tồn tại thì bỏ qua" bên dưới —
+        // các trường mới thêm sau này (vd warranty_case_defects, 27/08) phải
+        // vẫn được vá cho dữ liệu mẫu đã seed từ trước, không chỉ cho lần seed
+        // đầu tiên trên DB trống. Không gọi CurrentBaselineStockService nên an
+        // toàn để chạy lại bất kỳ lúc nào.
+        $this->backfillWarrantyCaseDefectsPivot();
+
         if (DB::table('stock_documents')->where('doc_no', self::RECEIPT_PRODUCT_NO)->exists()) {
             $this->command?->info('WarehouseBusinessDataSeeder: dữ liệu nghiệp vụ mẫu đã tồn tại, bỏ qua.');
 
@@ -144,6 +151,50 @@ class WarehouseBusinessDataSeeder extends Seeder
         $this->seedExtraBusinessData();
 
         $this->command?->info('WarehouseBusinessDataSeeder: đã tạo dữ liệu nghiệp vụ inbound/outbound/putaway/warranty.');
+    }
+
+    /**
+     * Vá bảng pivot `warranty_case_defects` cho MỌI warranty_case đã tồn tại từ
+     * trước (kể cả seed cũ chạy trước khi có cột này) mà chưa có dòng pivot nào
+     * — không chỉ case mới tạo trong lần seed này (seedWarrantyCase() tự lo
+     * phần đó). WC-SEED-0004 được gán thêm 1 defect phụ để có ví dụ multi-defect
+     * thật trong dữ liệu mẫu, khớp đúng ý đồ ở seedExtraBusinessData().
+     */
+    private function backfillWarrantyCaseDefectsPivot(): void
+    {
+        if (! Schema::hasTable('warranty_case_defects')) {
+            return;
+        }
+
+        $cases = DB::table('warranty_case')->whereNotNull('defect_id')->get(['warranty_case_id', 'warranty_case_code', 'defect_id']);
+        foreach ($cases as $case) {
+            if (DB::table('warranty_case_defects')->where('warranty_case_id', $case->warranty_case_id)->exists()) {
+                continue;
+            }
+
+            DB::table('warranty_case_defects')->insert([
+                'warranty_case_defect_id' => (string) Str::uuid(),
+                'warranty_case_id' => $case->warranty_case_id,
+                'defect_id' => $case->defect_id,
+                'is_primary' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if ($case->warranty_case_code === self::WARRANTY_CASE_CODE_4) {
+                $extraDefectId = DB::table('defect_catalogs')->where('defect_code', 'DEF-002')->value('defect_id');
+                if ($extraDefectId !== null && $extraDefectId !== $case->defect_id) {
+                    DB::table('warranty_case_defects')->insert([
+                        'warranty_case_defect_id' => (string) Str::uuid(),
+                        'warranty_case_id' => $case->warranty_case_id,
+                        'defect_id' => $extraDefectId,
+                        'is_primary' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -313,10 +364,23 @@ class WarehouseBusinessDataSeeder extends Seeder
      * Warranty case cho item đã xuất cho khách (item_status=ISSUED) — đúng guard
      * WARRANTY_ITEM_NOT_ELIGIBLE của CurrentBaselineWarrantyController.
      */
-    private function seedWarrantyCase(string $itemId, string $skuId, string $caseCode = self::WARRANTY_CASE_CODE, string $defectCode = 'DEF-004'): string
+    /**
+     * @param  array<int, string>  $additionalDefectCodes  Đồng bộ vào pivot
+     *     `warranty_case_defects` cùng $defectCode (là defect chính, is_primary=true) —
+     *     khớp `syncWarrantyDefects()` thật của CurrentBaselineWarrantyController,
+     *     seeder trước đây chỉ set `warranty_case.defect_id` (cột legacy) nên
+     *     bảng pivot multi-defect luôn rỗng dù tính năng đã có UI.
+     */
+    private function seedWarrantyCase(string $itemId, string $skuId, string $caseCode = self::WARRANTY_CASE_CODE, string $defectCode = 'DEF-004', array $additionalDefectCodes = []): string
     {
         $existingId = DB::table('warranty_case')->where('warranty_case_code', $caseCode)->value('warranty_case_id');
         if ($existingId !== null) {
+            // Case đã tồn tại từ lần seed trước (trước khi có tham số
+            // $additionalDefectCodes) — vẫn backfill pivot nếu còn thiếu, để
+            // `db:seed` chạy lại trên DB đã seed cũ cũng đạt đủ dữ liệu mẫu mà
+            // không cần migrate:fresh.
+            $this->syncSeedWarrantyDefects((string) $existingId, $defectCode, $additionalDefectCodes);
+
             return (string) $existingId;
         }
 
@@ -382,7 +446,42 @@ class WarehouseBusinessDataSeeder extends Seeder
             afterData: ['status' => 'CHECKING', 'item_id' => $itemId, 'stock_effect' => 'NONE'],
         );
 
+        $this->syncSeedWarrantyDefects($caseId, $defectCode, $additionalDefectCodes);
+
         return $caseId;
+    }
+
+    /** @param  array<int, string>  $additionalDefectCodes */
+    private function syncSeedWarrantyDefects(string $caseId, string $defectCode, array $additionalDefectCodes): void
+    {
+        if (! Schema::hasTable('warranty_case_defects')) {
+            return;
+        }
+
+        $defectId = DB::table('defect_catalogs')->where('defect_code', $defectCode)->value('defect_id');
+        if ($defectId === null) {
+            return;
+        }
+
+        $defectIds = array_values(array_unique(array_filter([
+            $defectId,
+            ...DB::table('defect_catalogs')->whereIn('defect_code', $additionalDefectCodes)->pluck('defect_id')->all(),
+        ])));
+
+        $existing = DB::table('warranty_case_defects')->where('warranty_case_id', $caseId)->pluck('defect_id')->all();
+        foreach ($defectIds as $index => $id) {
+            if (in_array($id, $existing, true)) {
+                continue;
+            }
+            DB::table('warranty_case_defects')->insert([
+                'warranty_case_defect_id' => (string) Str::uuid(),
+                'warranty_case_id' => $caseId,
+                'defect_id' => $id,
+                'is_primary' => $index === 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -416,7 +515,9 @@ class WarehouseBusinessDataSeeder extends Seeder
 
         $this->seedWarrantyCase($issuedItem2, $productSku2, self::WARRANTY_CASE_CODE_2, 'DEF-001');
         $this->seedWarrantyCase($issuedItem3, $productSku3, self::WARRANTY_CASE_CODE_3, 'DEF-002');
-        $this->seedWarrantyCase($issuedItem4, $productSku4, self::WARRANTY_CASE_CODE_4, 'DEF-005');
+        // WC-SEED-0004: demo thật tính năng multi-defect (1 case nhiều lỗi) —
+        // các case khác chỉ có 1 defect chính để không đổi hành vi/số liệu cũ.
+        $this->seedWarrantyCase($issuedItem4, $productSku4, self::WARRANTY_CASE_CODE_4, 'DEF-005', ['DEF-002']);
         $this->seedWarrantyCase($issuedItem5, $productSku4, self::WARRANTY_CASE_CODE_5, 'DEF-003');
         $warrantyCaseId4 = DB::table('warranty_case')->where('warranty_case_code', self::WARRANTY_CASE_CODE_4)->value('warranty_case_id');
 

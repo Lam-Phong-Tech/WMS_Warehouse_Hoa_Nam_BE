@@ -4,19 +4,19 @@
     "error_code": "BUSINESS_RULE_ERROR",
     "errors": {
         "dst_warehouse_id": [
-            "Trường kho đích là bắt buộc."
+            "Vui lòng nhập kho đích."
         ]
     },
     "error": {
         "code": "BUSINESS_RULE_ERROR",
         "details": {
             "dst_warehouse_id": [
-                "Trường kho đích là bắt buộc."
+                "Vui lòng nhập kho đích."
             ]
         }
     },
     "meta": {
-        "request_id": "43a2a306-db8e-4093-bf4f-ee3e392b2e50",
-        "timestamp": "2026-08-26T16:27:35+07:00"
+        "request_id": "784ec3d2-3aad-4e73-9aaf-f7907a81f244",
+        "timestamp": "2026-08-27T18:59:51+07:00"
     }
 }

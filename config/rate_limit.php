@@ -23,4 +23,10 @@ return [
 
     // Refresh token: chống quay vòng token bị đánh cắp.
     'auth_refresh_per_minute' => (int) env('RATE_LIMIT_AUTH_REFRESH_PER_MINUTE', 30),
+
+    // Quên mật khẩu: chặn dò email/spam gửi OTP, khoá theo (IP + email).
+    'password_reset_request_per_minute' => (int) env('RATE_LIMIT_PASSWORD_RESET_REQUEST_PER_MINUTE', 3),
+
+    // Xác thực OTP: chặn brute-force mã 6 số, khoá theo (IP + email).
+    'otp_verify_per_minute' => (int) env('RATE_LIMIT_OTP_VERIFY_PER_MINUTE', 10),
 ];

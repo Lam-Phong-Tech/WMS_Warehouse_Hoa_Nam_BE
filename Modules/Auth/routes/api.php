@@ -3,18 +3,27 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\DepartmentController;
+use Modules\Auth\Http\Controllers\PasswordResetController;
 use Modules\Auth\Http\Controllers\PermissionController;
 use Modules\Auth\Http\Controllers\RoleController;
 use Modules\Auth\Http\Controllers\UserController;
 use Modules\Auth\Http\Middleware\EnsureMutableRole;
 use Modules\Auth\Http\Middleware\PersistRefreshTokenCookie;
 use Modules\Auth\Http\Middleware\PreventSelfRoleAssignment;
+use Modules\Auth\Http\Middleware\PreventSuperAdminRoleGrant;
+use Modules\Auth\Http\Middleware\ProtectSuperAdminTarget;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])
         ->middleware(PersistRefreshTokenCookie::class);
     Route::post('auth/refresh', [AuthController::class, 'refresh'])
         ->middleware([PersistRefreshTokenCookie::class, 'throttle:auth-refresh']);
+
+    // Quên mật khẩu bằng OTP email — public, không cần auth:api. Gọi lại
+    // forgot-password để "gửi lại mã" (không có endpoint resend riêng).
+    Route::post('auth/forgot-password', [PasswordResetController::class, 'forgotPassword']);
+    Route::post('auth/verify-otp', [PasswordResetController::class, 'verifyOtp']);
+    Route::post('auth/reset-password', [PasswordResetController::class, 'resetPassword']);
 
     Route::middleware('auth:api')->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout'])
@@ -27,9 +36,27 @@ Route::prefix('v1')->group(function (): void {
         Route::get('users', [UserController::class, 'index'])->middleware('permission:iam.user.view');
         Route::post('users', [UserController::class, 'store'])->middleware('permission:iam.user.manage');
         Route::get('users/{id}', [UserController::class, 'show'])->middleware('permission:iam.user.view');
-        Route::patch('users/{id}', [UserController::class, 'update'])->middleware('permission:iam.user.manage');
+        // SCR-IAM-03: sửa tài khoản đang giữ SUPER_ADMIN (đặt lại mật khẩu, khoá
+        // tài khoản) là đường leo thang trực tiếp — chỉ super admin khác mới được.
+        Route::patch('users/{id}', [UserController::class, 'update'])
+            ->middleware(['permission:iam.user.manage', ProtectSuperAdminTarget::class]);
+        // SCR-IAM-01 chặn tự đổi role của mình; SCR-IAM-04 chặn đường vòng "tạo
+        // tài khoản mới rồi cấp SUPER_ADMIN cho nó và đăng nhập bằng nó".
         Route::post('users/{id}/roles', [UserController::class, 'assignRoles'])
-            ->middleware(['permission:iam.user.manage', PreventSelfRoleAssignment::class]);
+            ->middleware([
+                'permission:iam.user.manage',
+                PreventSelfRoleAssignment::class,
+                ProtectSuperAdminTarget::class,
+                PreventSuperAdminRoleGrant::class,
+            ]);
+
+        // Quyền cấp riêng theo tài khoản: cộng thêm vào quyền theo role (grant-only).
+        Route::get('users/{id}/permissions', [UserController::class, 'listPermissionOverrides'])
+            ->middleware('permission:iam.user.view');
+        Route::post('users/{id}/permissions', [UserController::class, 'grantPermission'])
+            ->middleware(['permission:iam.user.manage', PreventSelfRoleAssignment::class, ProtectSuperAdminTarget::class]);
+        Route::delete('users/{id}/permissions/{permissionId}', [UserController::class, 'revokePermission'])
+            ->middleware(['permission:iam.user.manage', PreventSelfRoleAssignment::class, ProtectSuperAdminTarget::class]);
 
         // GĐ1 REQ-011: department is a managed master, not a hard-coded enum.
         Route::get('departments', [DepartmentController::class, 'index'])

@@ -15,8 +15,10 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
+use Modules\Warehouse\Services\SkuAggregateService;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use Modules\Warehouse\Support\ProductQrPayload;
+use Throwable;
 
 /**
  * Mini App local-staging boundary for inbound PRODUCT intake.
@@ -57,6 +59,7 @@ class MiniAppInboundStagingController extends Controller
         private readonly ProductQrPayloadParser $parser,
         private readonly ProductIdentityResolver $identityResolver,
         private readonly CurrentBaselineStockService $stock,
+        private readonly SkuAggregateService $skuAggregate,
     ) {}
 
     /**
@@ -71,7 +74,11 @@ class MiniAppInboundStagingController extends Controller
         ]);
 
         $this->assertCanonicalWarehouse((string) $validated['warehouse_id']);
-        $resolved = $this->resolveRawCode((string) $validated['raw_code'], true);
+        // Preview thuần đọc: KHÔNG tự tạo SKU ở đây (giữ đúng cam kết "chưa ghi
+        // nhận vào WMS" của resolve-code). Nếu QR hợp lệ nhưng sku_code chưa
+        // tồn tại, resolveRawCode() trả về resolution_status=NEW_SKU_CANDIDATE
+        // thay vì abort — SKU thật sự chỉ được tạo khi record() chạy.
+        $resolved = $this->resolveRawCode((string) $validated['raw_code'], true, false);
 
         return $this->respondSuccess([
             ...$resolved,
@@ -294,7 +301,12 @@ class MiniAppInboundStagingController extends Controller
 
         foreach (array_values($items) as $index => $item) {
             $rawCode = trim((string) $item['raw_code']);
-            $resolved = $this->resolveRawCode($rawCode, true);
+            // record() thực sự ghi dữ liệu: cho phép tự tạo SKU tối thiểu khi
+            // mã QR composite hợp lệ nhưng sku_code chưa từng đăng ký (BA
+            // 2026-08-25, mirror BaM1StockService::scanStockDocument — trước
+            // đây requireActiveSkuByCode() chặn cứng ngay bước này nên
+            // logic tự tạo SKU ở tầng scan không bao giờ được chạm tới).
+            $resolved = $this->resolveRawCode($rawCode, true, true);
             if (($resolved['sku_type'] ?? null) !== 'PRODUCT') {
                 ApiError::abort(422, 'MINI_APP_COMPONENT_FLOW_REQUIRES_BOX', 'Luồng atomic local-staging hiện áp dụng cho PRODUCT; COMPONENT phải đi theo luồng BOX.', [
                     'row_no' => $index + 1,
@@ -351,14 +363,14 @@ class MiniAppInboundStagingController extends Controller
             return;
         }
 
-        ApiError::abort(422, 'VALIDATION_ERROR', 'Payload inbound/record chi duoc gui cac field da khai bao trong contract.', [
+        ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu gửi lên chứa trường không được khai báo trong hợp đồng inbound/record.', [
             'unexpected_fields' => array_values(array_unique($unexpected)),
             'allowed_fields' => self::RECORD_FIELDS,
             'allowed_item_fields' => self::RECORD_ITEM_FIELDS,
         ]);
     }
 
-    private function resolveRawCode(string $rawCode, bool $checkOpenReceiving): array
+    private function resolveRawCode(string $rawCode, bool $checkOpenReceiving, bool $allowAutoCreateSku = false): array
     {
         $rawCode = trim($rawCode);
         $parsed = $this->parser->parse($rawCode);
@@ -373,7 +385,12 @@ class MiniAppInboundStagingController extends Controller
         }
 
         if ($parsed->isComposite()) {
-            $sku = $this->identityResolver->requireActiveSkuByCode((string) $parsed->skuCode);
+            $sku = $this->resolveOrCreateSku((string) $parsed->skuCode, $allowAutoCreateSku);
+            if ($sku === null) {
+                // Preview: mã hợp lệ nhưng sku_code chưa tồn tại và ta không
+                // được phép tạo gì ở bước đọc — báo trước cho FE, không abort.
+                return $this->newSkuCandidatePayload($rawCode, $parsed);
+            }
             $item = $this->identityResolver->findItemByUnique((string) $parsed->itemUnique);
 
             if ($item !== null) {
@@ -416,6 +433,75 @@ class MiniAppInboundStagingController extends Controller
         }
 
         return $this->resolvedPayload($rawCode, $parsed, $sku, $item, 'LEGACY_ITEM');
+    }
+
+    /**
+     * BA 2026-08-25: mã QR composite hợp lệ nhưng sku_code chưa từng đăng ký
+     * thì tự tạo SKU tối thiểu (mirror BaM1StockService::scanStockDocument)
+     * thay vì abort SKU_NOT_FOUND — tên/loại đầy đủ được bổ sung sau qua màn
+     * quản trị SKU. Preview (resolve-code) không được phép ghi gì nên trả null
+     * để caller báo NEW_SKU_CANDIDATE thay vì tạo tại đây.
+     */
+    private function resolveOrCreateSku(string $skuCode, bool $allowAutoCreateSku): ?object
+    {
+        $normalized = strtoupper(trim($skuCode));
+        $sku = DB::table('sku')->where('sku_code', $skuCode)->first()
+            ?? DB::table('sku')->whereRaw('UPPER(sku_code) = ?', [$normalized])->first();
+
+        if ($sku !== null) {
+            if (strtoupper((string) $sku->status) !== 'ACTIVE') {
+                ApiError::abort(422, 'SKU_INACTIVE', 'SKU trong QR đang không ACTIVE.', [
+                    'sku_code' => $skuCode,
+                    'status' => (string) $sku->status,
+                ]);
+            }
+
+            return $sku;
+        }
+
+        if (! $allowAutoCreateSku) {
+            return null;
+        }
+
+        try {
+            $this->skuAggregate->create([
+                'sku_code' => $normalized,
+                'sku_name' => $normalized,
+                'sku_type' => 'PRODUCT',
+                'status' => 'ACTIVE',
+            ], $this->actorId(), request()?->attributes->get('request_id'));
+        } catch (Throwable $exception) {
+            // Hai lần quét đầu tiên đồng thời của cùng 1 SKU mới có thể đụng
+            // unique constraint sku_code; nếu transaction khác đã thắng thì
+            // tiếp tục với bản ghi đó thay vì để lỗi che mất kết quả thật.
+            $sku = DB::table('sku')->whereRaw('UPPER(sku_code) = ?', [$normalized])->first();
+            if ($sku === null) {
+                throw $exception;
+            }
+
+            return $sku;
+        }
+
+        return DB::table('sku')->whereRaw('UPPER(sku_code) = ?', [$normalized])->first();
+    }
+
+    private function newSkuCandidatePayload(string $rawCode, ProductQrPayload $parsed): array
+    {
+        return [
+            'raw_code' => $rawCode,
+            'payload_format' => $parsed->format,
+            'payload_version' => $parsed->payloadVersion,
+            'sku_id' => null,
+            'sku_code' => strtoupper(trim((string) $parsed->skuCode)),
+            'sku_name' => null,
+            'sku_type' => null,
+            'item_id' => null,
+            'item_unique' => (string) $parsed->itemUnique,
+            'serial_number' => $parsed->serialNumber,
+            'normalized_code_value' => $parsed->normalizedCodeValue,
+            'item_status' => null,
+            'resolution_status' => 'NEW_SKU_CANDIDATE',
+        ];
     }
 
     private function resolvedPayload(string $rawCode, ProductQrPayload $parsed, object $sku, ?object $item, string $resolutionStatus): array

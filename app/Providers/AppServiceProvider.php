@@ -2,12 +2,15 @@
 
 namespace App\Providers;
 
+use App\Support\Cache\CacheAutoInvalidator;
 use App\Support\Cache\CacheService;
 use App\Support\RateLimitResponse;
 use App\Swagger\Processors\MiniAppTagProcessor;
 use App\Swagger\Processors\RouteSyncProcessor;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -42,6 +45,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerSwaggerProcessors();
         $this->registerRateLimiters();
+        $this->registerCacheAutoInvalidation();
     }
 
     /**
@@ -107,5 +111,21 @@ class AppServiceProvider extends ServiceProvider
                     'Vượt quá giới hạn làm mới phiên đăng nhập. Vui lòng thử lại sau.',
                 ));
         });
+    }
+
+    /**
+     * Tắt trong môi trường testing: PHPUnit RefreshDatabase gọi `migrate:fresh`
+     * lại nhiều lần mỗi test, tự động Artisan::call('wms:cache:clear') mỗi lần sẽ
+     * chỉ tốn thời gian chạy suite mà không phản ánh tình huống thật (dev DB bị
+     * seed lại ngoài luồng HTTP). Logic khớp-lệnh thật sự nằm ở CacheAutoInvalidator
+     * (unit test riêng, không phụ thuộc guard môi trường này).
+     */
+    private function registerCacheAutoInvalidation(): void
+    {
+        if ($this->app->environment('testing')) {
+            return;
+        }
+
+        Event::listen(CommandFinished::class, CacheAutoInvalidator::handle(...));
     }
 }

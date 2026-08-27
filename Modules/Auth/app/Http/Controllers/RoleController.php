@@ -13,6 +13,7 @@ use Modules\Auth\Http\Requests\StoreRoleRequest;
 use Modules\Auth\Http\Requests\UpdateRoleRequest;
 use Modules\Auth\Repositories\Contracts\RoleRepositoryInterface;
 use Modules\Auth\Support\AuthCache;
+use Modules\Auth\Support\PermissionDelegation;
 use OpenApi\Attributes as OA;
 
 class RoleController extends Controller
@@ -219,19 +220,20 @@ class RoleController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['permission_ids'],
+                required: ['permission_ids', 'reason'],
                 properties: [
                     new OA\Property(property: 'permission_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6', '7c9e6679-7425-40de-944b-e07fc1f90ae7']),
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000, example: 'Bổ sung quyền theo yêu cầu nghiệp vụ phòng Kho'),
                 ]
             )
         ),
         responses: [
             new OA\Response(response: 200, description: 'Gán permission thành công'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền role.manage'),
+            new OA\Response(response: 403, description: 'Không có quyền role.manage, hoặc PERMISSION_DELEGATION_DENIED — phần thay đổi chứa quyền mà chính người thao tác không có (SCR-IAM-02)'),
             new OA\Response(response: 404, description: 'Không tìm thấy role'),
             new OA\Response(response: 409, description: 'SYSTEM_ROLE_IMMUTABLE — role SUPER_ADMIN không được sửa permission'),
-            new OA\Response(response: 422, description: 'permission_ids không hợp lệ'),
+            new OA\Response(response: 422, description: 'permission_ids không hợp lệ hoặc thiếu reason'),
         ]
     )]
     #[OA\Put(
@@ -244,16 +246,17 @@ class RoleController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['permission_ids'],
+                required: ['permission_ids', 'reason'],
                 properties: [
                     new OA\Property(property: 'permission_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6', '7c9e6679-7425-40de-944b-e07fc1f90ae7']),
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000, example: 'Bổ sung quyền theo yêu cầu nghiệp vụ phòng Kho'),
                 ]
             )
         ),
         responses: [
             new OA\Response(response: 200, description: 'Gán permission thành công'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền role.manage'),
+            new OA\Response(response: 403, description: 'Không có quyền role.manage, hoặc PERMISSION_DELEGATION_DENIED — phần thay đổi chứa quyền mà chính người thao tác không có (SCR-IAM-02)'),
             new OA\Response(response: 404, description: 'Không tìm thấy role'),
             new OA\Response(response: 409, description: 'SYSTEM_ROLE_IMMUTABLE — role SUPER_ADMIN không được sửa permission'),
             new OA\Response(response: 422, description: 'permission_ids không hợp lệ'),
@@ -273,6 +276,18 @@ class RoleController extends Controller
         foreach ($request->validated()['permission_ids'] as $permissionId) {
             $pivotData[$permissionId] = ['role_permission_id' => (string) Str::uuid()];
         }
+
+        // SCR-IAM-02: `iam.role.manage` trước đây cho gán BẤT KỲ quyền nào trong
+        // danh mục, kể cả cho chính role mà người thao tác đang giữ — tức tự nâng
+        // mình lên toàn quyền chỉ bằng màn IAM-01. Chỉ soi phần THAY ĐỔI (thêm ∪
+        // bớt) để quản trị viên cấp dưới vẫn lưu được ma trận mà không vô tình
+        // thu hồi mất quyền cao hơn phạm vi của mình.
+        PermissionDelegation::assertMayReplaceRolePermissions(
+            $request->user(),
+            array_map('strval', $beforePermissionIds),
+            array_map('strval', array_keys($pivotData)),
+        );
+
         $role->permissions()->sync($pivotData);
 
         // RoleRepository bật cache (domain 'auth.role', TTL rbac) cho find()/paginate(),
@@ -296,6 +311,7 @@ class RoleController extends Controller
             requestId: $request->attributes->get('request_id'),
             beforeData: ['permission_ids' => $beforePermissionIds],
             afterData: ['permission_ids' => array_keys($pivotData)],
+            reason: $request->validated()['reason'],
         );
 
         event(new \Modules\Auth\Events\RolePermissionsChanged($id, (string) $role->role_code, $request->user()?->user_id));

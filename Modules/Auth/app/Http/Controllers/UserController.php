@@ -11,9 +11,13 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Http\Requests\AssignUserRoleRequest;
+use Modules\Auth\Http\Requests\GrantUserPermissionRequest;
+use Modules\Auth\Http\Requests\RevokeUserPermissionRequest;
 use Modules\Auth\Http\Requests\StoreUserRequest;
 use Modules\Auth\Http\Requests\UpdateUserRequest;
 use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
+use Modules\Auth\Support\AuthCache;
+use Modules\Auth\Support\PermissionDelegation;
 use OpenApi\Attributes as OA;
 
 /**
@@ -86,6 +90,12 @@ class UserController extends Controller
         unset($data['password']);
         $data['status'] = $data['status'] ?? 'ACTIVE';
         $data['version'] = 1;
+
+        // Cấp tài khoản nhân viên: admin đặt mật khẩu ban đầu -> bắt buộc đổi
+        // ngay lần đăng nhập đầu, và tự khoá nếu quá 7 ngày chưa đăng nhập lần
+        // nào (xem EnforcePasswordChangeRequired + LockExpiredFirstLoginAccounts).
+        $data['must_change_password'] = true;
+        $data['first_login_deadline_at'] = now()->addDays(7);
 
         $user = $this->users->create($data);
 
@@ -232,9 +242,10 @@ class UserController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['role_ids'],
+                required: ['role_ids', 'reason'],
                 properties: [
                     new OA\Property(property: 'role_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6', '9b2e8f14-6c3a-4b7d-8e1f-2a5c9d3b7e4f']),
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000, example: 'Điều chuyển nhân sự sang phòng ban khác'),
                 ]
             )
         ),
@@ -244,7 +255,7 @@ class UserController extends Controller
             new OA\Response(response: 403, description: 'Không có quyền user.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy người dùng'),
             new OA\Response(response: 409, description: 'Không được phép tự thay đổi vai trò của chính mình (SCR-IAM-01, no self-escalation)'),
-            new OA\Response(response: 422, description: 'role_ids không hợp lệ'),
+            new OA\Response(response: 422, description: 'role_ids không hợp lệ hoặc thiếu reason'),
         ]
     )]
     public function assignRoles(AssignUserRoleRequest $request, string $id)
@@ -292,8 +303,164 @@ class UserController extends Controller
             requestId: $request->attributes->get('request_id'),
             beforeData: ['role_ids' => $beforeRoleIds, 'version' => $beforeVersion],
             afterData: ['role_ids' => array_keys($pivotData), 'version' => (int) $user->version],
+            reason: $validated['reason'],
         );
 
         return $this->respondSuccess($user->load('roles'), 'Gán role cho người dùng thành công');
+    }
+
+    #[OA\Get(
+        path: '/api/v1/users/{id}/permissions',
+        operationId: 'user_list_permission_overrides',
+        summary: 'Danh sách quyền cấp riêng (ngoài role) cho người dùng',
+        security: [['bearerAuth' => []]],
+        tags: ['02. Users'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách quyền cấp riêng'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền user.view'),
+            new OA\Response(response: 404, description: 'Không tìm thấy người dùng'),
+        ]
+    )]
+    public function listPermissionOverrides(string $id)
+    {
+        $user = $this->users->find($id);
+
+        if (! $user) {
+            return $this->respondNotFound('Không tìm thấy người dùng.');
+        }
+
+        return $this->respondSuccess($user->grantedPermissions()->get());
+    }
+
+    #[OA\Post(
+        path: '/api/v1/users/{id}/permissions',
+        operationId: 'user_grant_permission',
+        summary: 'Cấp thêm một quyền riêng cho người dùng, ngoài quyền theo role (chỉ cấp thêm, không thu hồi quyền của role)',
+        security: [['bearerAuth' => []]],
+        tags: ['02. Users'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['permission_id', 'reason'],
+                properties: [
+                    new OA\Property(property: 'permission_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000, example: 'Hỗ trợ tạm thời cho dự án X'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Cấp quyền thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền user.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy người dùng hoặc permission'),
+            new OA\Response(response: 409, description: 'Không được phép tự cấp quyền cho chính mình (SCR-IAM-01, no self-escalation)'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc quyền đã được cấp trước đó'),
+        ]
+    )]
+    public function grantPermission(GrantUserPermissionRequest $request, string $id)
+    {
+        $user = $this->users->find($id);
+
+        if (! $user) {
+            return $this->respondNotFound('Không tìm thấy người dùng.');
+        }
+
+        $validated = $request->validated();
+
+        if ($user->grantedPermissions()->where('permission.permission_id', $validated['permission_id'])->exists()) {
+            ApiError::abort(422, 'PERMISSION_ALREADY_GRANTED', 'Quyền này đã được cấp riêng cho người dùng.');
+        }
+
+        // SCR-IAM-02: quyền cấp riêng là đường cấp phát thứ hai, phải chịu đúng
+        // ràng buộc "không cấp được thứ mình không có" như ma trận role.
+        PermissionDelegation::assertMayDelegatePermissionIds(
+            $request->user(),
+            [(string) $validated['permission_id']],
+        );
+
+        $userPermissionId = (string) Str::uuid();
+        $user->grantedPermissions()->attach($validated['permission_id'], [
+            'user_permission_id' => $userPermissionId,
+            'granted_by' => $request->user()?->user_id,
+            'granted_at' => now(),
+        ]);
+
+        AuthCache::bumpVersionForUser($user);
+
+        AuditLogger::record(
+            action: 'GRANT_USER_PERMISSION',
+            objectType: 'user',
+            objectId: $id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            afterData: ['permission_id' => $validated['permission_id']],
+            reason: $validated['reason'],
+        );
+
+        return $this->respondCreated($user->grantedPermissions()->get(), 'Cấp quyền riêng cho người dùng thành công');
+    }
+
+    #[OA\Delete(
+        path: '/api/v1/users/{id}/permissions/{permissionId}',
+        operationId: 'user_revoke_permission',
+        summary: 'Thu hồi một quyền đã cấp riêng cho người dùng',
+        security: [['bearerAuth' => []]],
+        tags: ['02. Users'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'permissionId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['reason'],
+                properties: [
+                    new OA\Property(property: 'reason', type: 'string', minLength: 5, maxLength: 2000, example: 'Kết thúc dự án X, thu hồi quyền tạm thời'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Thu hồi quyền thành công'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền user.manage'),
+            new OA\Response(response: 404, description: 'Không tìm thấy người dùng hoặc quyền cấp riêng này chưa được cấp'),
+            new OA\Response(response: 409, description: 'Không được phép tự thu hồi quyền của chính mình (SCR-IAM-01, no self-escalation)'),
+            new OA\Response(response: 422, description: 'Thiếu reason'),
+        ]
+    )]
+    public function revokePermission(RevokeUserPermissionRequest $request, string $id, string $permissionId)
+    {
+        $user = $this->users->find($id);
+
+        if (! $user) {
+            return $this->respondNotFound('Không tìm thấy người dùng.');
+        }
+
+        if (! $user->grantedPermissions()->where('permission.permission_id', $permissionId)->exists()) {
+            return $this->respondNotFound('Quyền cấp riêng này chưa được cấp cho người dùng.');
+        }
+
+        // SCR-IAM-02: thu hồi cũng nằm trong phạm vi uỷ quyền — không cho người
+        // có quyền thấp hơn gỡ mất quyền cao hơn mình khỏi tài khoản khác.
+        PermissionDelegation::assertMayDelegatePermissionIds($request->user(), [$permissionId]);
+
+        $user->grantedPermissions()->detach($permissionId);
+
+        AuthCache::bumpVersionForUser($user);
+
+        AuditLogger::record(
+            action: 'REVOKE_USER_PERMISSION',
+            objectType: 'user',
+            objectId: $id,
+            actorId: $request->user()?->user_id,
+            requestId: $request->attributes->get('request_id'),
+            beforeData: ['permission_id' => $permissionId],
+            reason: $request->validated()['reason'],
+        );
+
+        return $this->respondSuccess($user->grantedPermissions()->get(), 'Thu hồi quyền cấp riêng thành công');
     }
 }

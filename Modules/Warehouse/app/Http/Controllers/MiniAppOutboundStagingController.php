@@ -490,7 +490,7 @@ class MiniAppOutboundStagingController extends Controller
             return;
         }
 
-        ApiError::abort(422, 'VALIDATION_ERROR', 'Payload outbound/record chi duoc gui cac field da khai bao trong contract.', [
+        ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu gửi lên chứa trường không được khai báo trong hợp đồng outbound/record.', [
             'unexpected_fields' => array_values(array_unique($unexpected)),
             'allowed_fields' => self::RECORD_FIELDS,
             'allowed_item_fields' => self::RECORD_ITEM_FIELDS,

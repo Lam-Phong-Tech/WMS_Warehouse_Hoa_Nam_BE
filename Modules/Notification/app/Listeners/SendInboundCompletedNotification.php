@@ -31,6 +31,7 @@ class SendInboundCompletedNotification implements ShouldQueue
             subjectType: 'stock_document',
             subjectId: $event->documentId,
             payload: ['document_id' => $event->documentId, 'doc_no' => $event->docNo, 'warehouse_id' => $event->warehouseId],
+            actorId: $event->actorId,
         );
     }
 }

@@ -12,6 +12,20 @@ use Modules\Auth\Models\Role;
  * Compatibility permission catalog. API middleware stays on canonical
  * permissions; FE aliases are additive only. `sku.manage` is retained as a
  * legacy API contract permission for the dedicated /skus aggregate endpoints.
+ *
+ * LƯU Ý (audit phân quyền 27/08): trong 8 mã ở ALIASES, ba mã `scan.inbound`,
+ * `scan.outbound`, `scan.warranty` KHÔNG có cổng chặn nào đọc tới — không route
+ * nào khai `permission:scan.inbound|...`, và FE cũng không gate bằng chúng
+ * (WMS_ACTION_PERMISSIONS.SCAN_INBOUND trỏ về `inbound.scan`). Chúng được giữ
+ * ACTIVE vì hợp đồng WWHN-180 ghim, nên bắt buộc phải khai trong
+ * PermissionEnforcementMap::DEPRECATED để `GET /permissions` trả
+ * `is_enforced=false` + `replaced_by`, và ma trận IAM-01 hiển thị "Ngừng hiệu lực"
+ * thay vì bày ra như một quyền dùng được.
+ *
+ * 21 mã cũ còn lại (user.*, role.*, product.*, stock_document.*, ...) đã bị thu
+ * hồi hẳn — xem migration 2026_08_27_170000_retire_unenforced_legacy_permissions.
+ * KHÔNG thêm alias mới ở đây nếu không có route nào đọc tới:
+ * AuthorizationCoverageInvariantTest sẽ đỏ.
  */
 class WmsPermissionCompatibilitySeeder extends Seeder
 {

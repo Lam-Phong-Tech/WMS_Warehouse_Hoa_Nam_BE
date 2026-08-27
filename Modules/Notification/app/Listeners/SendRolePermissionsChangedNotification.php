@@ -34,6 +34,7 @@ class SendRolePermissionsChangedNotification implements ShouldQueue
             subjectType: 'role',
             subjectId: $event->roleId,
             payload: ['role_id' => $event->roleId, 'role_code' => $event->roleCode],
+            actorId: $event->actorId,
         );
     }
 }

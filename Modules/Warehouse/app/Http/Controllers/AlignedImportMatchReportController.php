@@ -61,6 +61,43 @@ class AlignedImportMatchReportController extends Controller
             : $this->exportXlsx($request, 'Import Match', $headers, $rows, ReportExportFileName::stamp('flow06-import-match.xlsx'), 'import-match');
     }
 
+    /**
+     * Job-facing tương đương export(): cùng build/headers/rows, chỉ khác điểm cuối trả
+     * bytes thay vì HTTP response. Dùng bởi `GenerateReportExportJob` qua
+     * `OperationalReportController::exportBytesFor()` — xem checklist "Hiệu năng và triển
+     * khai" 27/08 (export chạy nền thay vì đồng bộ).
+     *
+     * @return array{bytes: string, fileName: string, rowCount: int, contentType: string}
+     */
+    public function exportPayload(Request $request): array
+    {
+        $report = $this->build($request);
+        $rows = collect($report['rows'])->map(fn (array $row): array => [
+            $row['source_request_no'], $row['source_version'], $row['row_no'], $row['sku_code'], $row['sku_name'],
+            $row['required_qty'], $row['matched_qty'], $row['scanned_qty'], $row['posted_qty'],
+            $row['validation_status'], $row['error_code'], $row['error_message'],
+            $row['outbound_no'], $row['outbound_status'],
+            $row['import_no'], $row['source_file_name'], $row['import_status'],
+            $row['uploaded_at'], $row['uploaded_by_name'], $row['validated_at'],
+            $row['consumed_at'], $row['consumed_by_name'],
+        ])->all();
+        $headers = [
+            'Phiếu toa', 'Source version', 'Dòng', 'Mã SKU', 'Tên SKU',
+            'Required', 'Matched', 'Scanned', 'Posted',
+            'Validation', 'Error code', 'Error message',
+            'Phiếu xuất', 'Trạng thái phiếu xuất',
+            'Import', 'Source file', 'Trạng thái import',
+            'Uploaded at', 'Uploaded by', 'Validated at', 'Consumed at', 'Consumed by',
+        ];
+        $format = strtolower((string) $request->query('format', 'xlsx'));
+        $this->assertExportLimit($rows);
+        $this->auditExport($request, 'import-match', count($rows), $format);
+
+        return $format === 'pdf'
+            ? ['bytes' => $this->exportPdfBytes('Excel Import Match', $headers, $rows), 'fileName' => ReportExportFileName::stamp('flow06-import-match.pdf'), 'rowCount' => count($rows), 'contentType' => 'application/pdf']
+            : ['bytes' => $this->exportXlsxBytes('Import Match', $headers, $rows), 'fileName' => ReportExportFileName::stamp('flow06-import-match.xlsx'), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    }
+
     private function build(Request $request): array
     {
         [$from, $to] = $this->period($request);
@@ -462,17 +499,10 @@ class AlignedImportMatchReportController extends Controller
     private function exportXlsx(Request $request, string $sheetTitle, array $headers, array $rows, string $fileName, string $reportKey)
     {
         $this->assertExportLimit($rows);
-        $spreadsheet = new Spreadsheet;
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle(mb_substr($sheetTitle, 0, 31));
-        $sheet->fromArray($headers, null, 'A1');
-        foreach ($rows as $index => $row) {
-            $sheet->fromArray(array_map([$this, 'excelSafe'], $row), null, 'A'.($index + 2));
-        }
+        $bytes = $this->exportXlsxBytes($sheetTitle, $headers, $rows);
         $this->auditExport($request, $reportKey, count($rows), 'xlsx');
-        $writer = new Xlsx($spreadsheet);
 
-        return response()->streamDownload(fn () => $writer->save('php://output'), $fileName, [
+        return response()->streamDownload(fn () => print $bytes, $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
@@ -480,6 +510,35 @@ class AlignedImportMatchReportController extends Controller
     private function exportPdf(Request $request, string $title, array $headers, array $rows, string $fileName, string $reportKey)
     {
         $this->assertExportLimit($rows);
+        $bytes = $this->exportPdfBytes($title, $headers, $rows);
+        $this->auditExport($request, $reportKey, count($rows), 'pdf');
+
+        return response($bytes, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
+        ]);
+    }
+
+    /** Phần dựng bytes dùng chung giữa response HTTP (exportXlsx()) và job nền (exportPayload()). */
+    private function exportXlsxBytes(string $sheetTitle, array $headers, array $rows): string
+    {
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle(mb_substr($sheetTitle, 0, 31));
+        $sheet->fromArray($headers, null, 'A1');
+        foreach ($rows as $index => $row) {
+            $sheet->fromArray(array_map([$this, 'excelSafe'], $row), null, 'A'.($index + 2));
+        }
+        $writer = new Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+
+        return (string) ob_get_clean();
+    }
+
+    /** Phần dựng bytes dùng chung giữa response HTTP (exportPdf()) và job nền (exportPayload()). */
+    private function exportPdfBytes(string $title, array $headers, array $rows): string
+    {
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
         $dompdf = new Dompdf($options);
@@ -501,12 +560,8 @@ class AlignedImportMatchReportController extends Controller
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
-        $this->auditExport($request, $reportKey, count($rows), 'pdf');
 
-        return response($dompdf->output(), 200, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$fileName.'"',
-        ]);
+        return $dompdf->output();
     }
 
     private function assertExportLimit(array $rows): void

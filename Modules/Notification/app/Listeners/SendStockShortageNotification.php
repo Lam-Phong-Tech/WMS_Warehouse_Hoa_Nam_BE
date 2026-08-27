@@ -35,6 +35,7 @@ class SendStockShortageNotification implements ShouldQueue
             subjectType: 'stock_document',
             subjectId: $event->documentId,
             payload: ['document_id' => $event->documentId, 'warehouse_id' => $event->warehouseId, 'product_code' => $event->productCode],
+            actorId: $event->actorId,
         );
     }
 }

@@ -19,9 +19,11 @@ use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 /**
- * Alignment 2026-08-15:
- * Scan -> aggregate -> preview/print/apply ONE Packing Label per outbound document -> Post Issue.
- * RFID is optional for PRODUCT outbound and never blocks Post Issue.
+ * Alignment 2026-08-15, superseded by GĐ1-REQ-012 (2026-08-25):
+ * Scan -> full match -> Post Issue (commits stock, independent of the label) ->
+ * prepare/preview/print ONE Packing Label per outbound document.
+ * Label preparation failure never rolls back Post Issue; RFID is optional for
+ * PRODUCT outbound and never blocks Post Issue.
  */
 class AlignedOutboundFlowController extends Controller
 {

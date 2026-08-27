@@ -50,6 +50,10 @@ class StoreProductRequest extends FormRequest
             'warranty_applicable' => ['nullable', 'boolean'],
             'specification' => ['nullable', 'array'],
             'published_to_app' => ['nullable', 'boolean'],
+            // GĐ1 Dashboard: định mức tồn kho theo SKU, toàn hệ thống (không theo
+            // kho). NULL = chưa đặt định mức, không tính cảnh báo.
+            'min_stock' => ['nullable', 'numeric', 'min:0'],
+            'max_stock' => ['nullable', 'numeric', 'min:0', 'gte:min_stock'],
         ];
     }
 }

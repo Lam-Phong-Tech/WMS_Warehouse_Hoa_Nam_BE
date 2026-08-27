@@ -11,10 +11,10 @@ php vendor/bin/phpunit tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php
 
 | Thuộc tính | Giá trị |
 |---|---|
-| Thời điểm chạy | 2026-08-26T16:42:12+07:00 |
+| Thời điểm chạy | 2026-08-27T19:28:52+07:00 |
 | PHP | 8.3.33 |
 | OS | Linux |
-| `memory_limit` | 1G |
+| `memory_limit` | 2G |
 | DB driver | `sqlite` |
 | DB connection | `sqlite` (:memory:) |
 | Hạn mức đang áp dụng | 1,000 dòng dữ liệu; upload 10,240 KB |
@@ -25,14 +25,14 @@ php vendor/bin/phpunit tests/Feature/Wwhn330ImportPerformanceBenchmarkTest.php
 
 | Case | Dòng dữ liệu | Kích thước file | Thời gian | Peak memory | HTTP |
 |---|---:|---:|---:|---:|---:|
-| dry_run/100 rows | 100 | 8.0 KB | 256 ms | 203.00 MB | 200 |
-| dry_run/500 rows | 500 | 15.7 KB | 255 ms | 203.00 MB | 200 |
-| dry_run/1000 rows | 1,000 | 25.0 KB | 234 ms | 203.00 MB | 200 |
-| reject/1001 rows (limit 1000) | 1,001 | 25.1 KB | 223 ms | 205.00 MB | 422 |
-| sparse dry_run/1000 rows (2x dòng vật lý) | 1,000 | 24.3 KB | 506 ms | 205.00 MB | 200 |
-| commit/1000 rows | 1,000 | 25.1 KB | 3,791 ms | 207.00 MB | 200 |
-| reject/20000 rows (limit 1000) | 20,000 | 379.6 KB | 870 ms | 240.56 MB | 422 |
-| reject/oversize upload (cap 11 KB) | 300 | 11.9 KB | 69 ms | 240.00 MB | 422 |
+| dry_run/100 rows | 100 | 8.0 KB | 200 ms | 227.00 MB | 200 |
+| dry_run/500 rows | 500 | 15.7 KB | 280 ms | 227.00 MB | 200 |
+| dry_run/1000 rows | 1,000 | 25.0 KB | 323 ms | 227.00 MB | 200 |
+| reject/1001 rows (limit 1000) | 1,001 | 25.1 KB | 305 ms | 229.00 MB | 422 |
+| sparse dry_run/1000 rows (2x dòng vật lý) | 1,000 | 24.3 KB | 436 ms | 229.00 MB | 200 |
+| commit/1000 rows | 1,000 | 25.1 KB | 3,228 ms | 231.00 MB | 200 |
+| reject/20000 rows (limit 1000) | 20,000 | 379.6 KB | 950 ms | 264.56 MB | 422 |
+| reject/oversize upload (cap 11 KB) | 300 | 11.9 KB | 66 ms | 262.00 MB | 422 |
 
 ## Ngân sách hiệu năng đã duyệt (DEC-IMP-001 §4)
 

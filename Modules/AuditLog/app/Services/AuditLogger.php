@@ -27,6 +27,20 @@ use Throwable;
  */
 class AuditLogger
 {
+    /**
+     * Nhãn module hợp lệ — đúng 5 luồng theo yêu cầu vận hành (mục 6): hệ
+     * thống & danh mục, nhập kho, xuất kho, bảo hành, kiểm kê/đối soát.
+     */
+    public const MODULE_SYSTEM = 'SYSTEM';
+
+    public const MODULE_INBOUND = 'INBOUND';
+
+    public const MODULE_OUTBOUND = 'OUTBOUND';
+
+    public const MODULE_WARRANTY = 'WARRANTY';
+
+    public const MODULE_STOCKTAKE = 'STOCKTAKE';
+
     public static function record(
         string $action,
         string $objectType,
@@ -39,6 +53,7 @@ class AuditLogger
         ?string $result = null,
         ?string $errorCode = null,
         ?string $idempotencyKey = null,
+        ?string $module = null,
     ): void {
         $payload = self::payload(
             $action,
@@ -52,6 +67,7 @@ class AuditLogger
             $result,
             $errorCode,
             $idempotencyKey,
+            $module,
         );
 
         try {
@@ -127,8 +143,9 @@ class AuditLogger
         ?string $result = null,
         ?string $errorCode = null,
         ?string $idempotencyKey = null,
+        ?string $module = null,
     ): void {
-        static::record($action, $objectType, $objectId, $actorId, $requestId, $beforeData, $afterData, $reason, $result, $errorCode, $idempotencyKey);
+        static::record($action, $objectType, $objectId, $actorId, $requestId, $beforeData, $afterData, $reason, $result, $errorCode, $idempotencyKey, $module);
     }
 
     public static function sanitize(array $data): array
@@ -171,6 +188,7 @@ class AuditLogger
         ?string $result = null,
         ?string $errorCode = null,
         ?string $idempotencyKey = null,
+        ?string $module = null,
     ): array {
         return [
             'actor_id' => $actorId,
@@ -182,10 +200,83 @@ class AuditLogger
             'idempotency_key' => $idempotencyKey,
             'result' => $result,
             'error_code' => $errorCode,
+            'module' => $module ?? self::classifyModule($objectType),
+            'ip_address' => self::resolveIpAddress(),
             'before_data' => $beforeData === [] ? null : self::sanitize($beforeData),
             'after_data' => $afterData === [] ? null : self::sanitize($afterData),
             'created_at' => now(),
         ];
+    }
+
+    /**
+     * Suy module/luồng từ `object_type` khi caller không truyền tường minh — cho
+     * phép gắn module vào toàn bộ 130+ call site `AuditLogger::record()` hiện có
+     * mà KHÔNG phải sửa từng chỗ (rủi ro hồi quy rất cao trên diện rộng đó).
+     * Bậc 1: object_type tự thân đã rõ nghĩa (vd 'warranty_case',
+     * 'inbound-documents' từ DenyAuditRecorder::inferEntity). Bậc 2 (fallback):
+     * tên class gọi trực tiếp AuditLogger::record() — hầu hết controller trong
+     * codebase này đặt tên rõ theo luồng (BaM1InboundDocumentController,
+     * AlignedOutboundFlowController...). Không suy được -> SYSTEM (an toàn hơn
+     * đoán sai vào 1 luồng nghiệp vụ cụ thể).
+     */
+    private static function classifyModule(string $objectType): string
+    {
+        $needle = strtolower($objectType);
+
+        $rules = [
+            self::MODULE_WARRANTY => ['warranty', 'component_issue'],
+            self::MODULE_STOCKTAKE => ['reversal', 'stocktake', 'variance', 'reconciliation'],
+            self::MODULE_INBOUND => ['inbound', 'putaway', 'receipt'],
+            self::MODULE_OUTBOUND => ['outbound', 'stock_request'],
+        ];
+
+        foreach ($rules as $module => $keywords) {
+            foreach ($keywords as $keyword) {
+                if (str_contains($needle, $keyword)) {
+                    return $module;
+                }
+            }
+        }
+
+        $callerClass = self::callerClass();
+        if ($callerClass !== null) {
+            $needleClass = strtolower($callerClass);
+            foreach ($rules as $module => $keywords) {
+                foreach ($keywords as $keyword) {
+                    if (str_contains($needleClass, $keyword)) {
+                        return $module;
+                    }
+                }
+            }
+        }
+
+        return self::MODULE_SYSTEM;
+    }
+
+    /** Class đầu tiên bên ngoài AuditLogger/DenyAuditRecorder trong call stack hiện tại. */
+    private static function callerClass(): ?string
+    {
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 6);
+
+        foreach ($trace as $frame) {
+            $class = $frame['class'] ?? null;
+            if ($class !== null && $class !== self::class && $class !== DenyAuditRecorder::class) {
+                return $class;
+            }
+        }
+
+        return null;
+    }
+
+    private static function resolveIpAddress(): ?string
+    {
+        try {
+            $current = function_exists('request') ? request() : null;
+
+            return $current?->ip();
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     /**

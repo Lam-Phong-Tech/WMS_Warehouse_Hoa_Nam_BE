@@ -71,6 +71,7 @@ class RoleManagementTest extends TestCase
 
         $response = $this->postJson("/api/v1/roles/{$role->role_id}/permissions", [
             'permission_ids' => [$permission->permission_id],
+            'reason' => 'Test reason for audit',
         ], $headers);
 
         $response->assertOk();
@@ -94,6 +95,7 @@ class RoleManagementTest extends TestCase
 
         $response = $this->postJson("/api/v1/roles/{$role->role_id}/permissions", [
             'permission_ids' => [],
+            'reason' => 'Test reason for audit',
         ], $headers);
 
         $response->assertOk();

@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use OpenApi\Attributes as OA;
 
 /**
  * GĐ1 operational reporting contract.
@@ -82,8 +83,48 @@ class BaM1ReportController extends Controller
 
         $total = (clone $query)->count();
         $totalQty = (float) ((clone $query)->sum(DB::raw('COALESCE(l.scanned_qty, l.qty_actual, 0)')) ?? 0);
-        $totalRecipients = (clone $query)->distinct('a.agency_id')->count('a.agency_id');
         $totalDocuments = (clone $query)->distinct('d.id')->count('d.id');
+
+        // "SL xuất theo SKU" + "Top nơi nhận" (tab Theo từng thị trường): gộp trên
+        // TOÀN BỘ tập đã lọc (clone trước forPage), không suy ra từ 1 trang.
+        $bySku = (clone $query)
+            ->groupBy('s.sku_id', 's.sku_code', 's.sku_name')
+            ->orderByDesc(DB::raw('SUM(COALESCE(l.scanned_qty, l.qty_actual, 0))'))
+            ->get([
+                's.sku_id',
+                's.sku_code as product_code',
+                's.sku_name as product_name',
+                DB::raw('SUM(COALESCE(l.scanned_qty, l.qty_actual, 0)) as issued_qty'),
+            ])
+            ->map(fn (object $row): array => [
+                'sku_id' => (string) $row->sku_id,
+                'product_code' => (string) $row->product_code,
+                'product_name' => (string) $row->product_name,
+                'issued_qty' => (float) $row->issued_qty,
+            ])->values()->all();
+
+        $byRecipient = (clone $query)
+            ->groupBy('a.agency_id', 'a.agency_code', 'a.agency_name', 'd.recipient_name')
+            ->orderByDesc(DB::raw('SUM(COALESCE(l.scanned_qty, l.qty_actual, 0))'))
+            ->get([
+                'a.agency_id',
+                'a.agency_code',
+                DB::raw("COALESCE(a.agency_name, d.recipient_name, 'Chưa xác định') as agency_name"),
+                DB::raw('COUNT(DISTINCT d.id) as document_count'),
+                DB::raw('SUM(COALESCE(l.scanned_qty, l.qty_actual, 0)) as issued_qty'),
+            ])
+            ->map(fn (object $row): array => [
+                'recipient_id' => $row->agency_id !== null ? (string) $row->agency_id : null,
+                'agency_code' => $row->agency_code,
+                'agency_name' => $row->agency_name,
+                'document_count' => (int) $row->document_count,
+                'issued_qty' => (float) $row->issued_qty,
+            ])->values()->all();
+        // Đếm theo cùng nhóm đã dựng ở $byRecipient (agency_id, hoặc fallback
+        // agency_name/recipient_name khi phiếu không link master data thật) —
+        // COUNT(DISTINCT a.agency_id) trả 0 sai khi mọi dòng đều agency_id NULL
+        // dù có nhiều nơi nhận phân biệt qua recipient_name.
+        $totalRecipients = count($byRecipient);
 
         $rows = $query
             ->orderByDesc('d.doc_date')
@@ -151,6 +192,8 @@ class BaM1ReportController extends Controller
                 ],
                 'pagination' => $this->pagination($page, $perPage, $total),
                 'recipient_types' => self::RECIPIENT_TYPES,
+                'by_sku' => $bySku,
+                'by_recipient' => $byRecipient,
             ],
             'meta' => ['request_id' => $request->attributes->get('request_id')],
         ]);
@@ -288,6 +331,57 @@ class BaM1ReportController extends Controller
         $summaryBase = DB::table('warranty_case as wc')
             ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
 
+        // RPT-WAR-DEFECT-BREAKDOWN: chart "Top bệnh/lỗi" ở FE. Đi qua
+        // warranty_case_defects (N:N) như $query ở trên chứ KHÔNG group theo
+        // wc.defect_id (cột legacy 1 bệnh/case) — nếu không sẽ đếm thiếu case
+        // nhiều lỗi, đúng lý do BaM1ReportController thay AlignedWarrantyReportController
+        // làm nguồn sống cho route này (xem comment ở routes/api.php).
+        $byDefectQuery = DB::table('warranty_case_defects as wcd')
+            ->join('warranty_case as wc', 'wc.warranty_case_id', '=', 'wcd.warranty_case_id')
+            ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
+            ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
+            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+        if (! empty($validated['status'])) {
+            $byDefectQuery->where('wc.status', $validated['status']);
+        }
+        if (! empty($validated['identification_status'])) {
+            $byDefectQuery->where('wc.identification_status', $validated['identification_status']);
+        }
+        if ($filterDefects !== []) {
+            // Cùng ngữ nghĩa whereIn trên wcd.defect_id như defectSkuBreakdown():
+            // đã chọn bệnh/lỗi nào thì chart chỉ hiện đúng các bệnh/lỗi đó.
+            $byDefectQuery->whereIn('wcd.defect_id', $filterDefects);
+        }
+        if (! empty($validated['model'])) {
+            $like = '%'.mb_strtolower(trim((string) $validated['model'])).'%';
+            $byDefectQuery->where(function ($nested) use ($like): void {
+                $nested->whereRaw("LOWER(COALESCE(s.sku_code, '')) LIKE ?", [$like])
+                    ->orWhereRaw("LOWER(COALESCE(s.sku_name, '')) LIKE ?", [$like])
+                    ->orWhereRaw("LOWER(COALESCE(wc.manual_product_description, '')) LIKE ?", [$like]);
+            });
+        }
+        $byDefect = $byDefectQuery
+            ->groupBy('wcd.defect_id', 'dc.defect_code', 'dc.defect_name')
+            ->selectRaw('wcd.defect_id, dc.defect_code, dc.defect_name')
+            ->selectRaw('COUNT(DISTINCT wc.warranty_case_id) AS total')
+            ->selectRaw("COUNT(DISTINCT CASE WHEN wc.status IN ('RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED') THEN wc.warranty_case_id END) AS processing")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN wc.status = 'RETURNED' THEN wc.warranty_case_id END) AS returned")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN wc.status = 'CANCELLED' THEN wc.warranty_case_id END) AS cancelled")
+            ->selectRaw("COUNT(DISTINCT CASE WHEN wc.identification_status = 'TEMP_ONLY' THEN wc.warranty_case_id END) AS temp_only")
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn (object $row): array => [
+                'defect_id' => (string) $row->defect_id,
+                'defect_code' => (string) $row->defect_code,
+                'defect_name' => (string) $row->defect_name,
+                'defect' => trim($row->defect_code.' · '.$row->defect_name),
+                'total' => (int) $row->total,
+                'processing' => (int) $row->processing,
+                'returned' => (int) $row->returned,
+                'cancelled' => (int) $row->cancelled,
+                'temp_only' => (int) $row->temp_only,
+            ])->values()->all();
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -300,6 +394,12 @@ class BaM1ReportController extends Controller
                     'cancelled' => (clone $summaryBase)->where('wc.status', 'CANCELLED')->count(),
                     'temp_only' => (clone $summaryBase)->where('wc.identification_status', 'TEMP_ONLY')->count(),
                 ],
+                'by_defect' => $byDefect,
+                // §13.8: mọi dòng luôn qua WarrantyPiiMasker (không có nhánh actor
+                // xem PII thô ở endpoint đọc này — chỉ export mới xét quyền/reason),
+                // nên cờ tóm tắt ở top-level luôn true, khớp pii_masked từng dòng.
+                'pii_included' => false,
+                'pii_masked' => true,
                 'pagination' => $this->pagination($page, $perPage, $total),
             ],
             'meta' => ['request_id' => $request->attributes->get('request_id')],
@@ -345,6 +445,62 @@ class BaM1ReportController extends Controller
             ->groupBy('wc.product_id', 's.sku_code', 's.sku_name', 'wcd.defect_id', 'dc.defect_code', 'dc.defect_name')
             ->orderByDesc('case_count')
             ->selectRaw('wc.product_id AS sku_id, s.sku_code, s.sku_name, wcd.defect_id, dc.defect_code, dc.defect_name, COUNT(DISTINCT wc.warranty_case_id) AS case_count')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'period' => ['from_date' => $from, 'to_date' => $to],
+                'rows' => $rows,
+            ],
+            'meta' => ['request_id' => $request->attributes->get('request_id')],
+        ]);
+    }
+
+    /**
+     * GĐ1 chart FE "Top linh kiện sử dụng trong bảo hành" — trước đây chỉ có
+     * `components_issued` dạng chuỗi text nối bằng "; " trên mỗi case
+     * (warrantyDefects(), field `components_issued`), không parse tin cậy được
+     * thành số liệu. Đi thẳng component_issue_documents/lines (POSTED) join
+     * warranty_case theo cùng quy ước COALESCE(received_at, created_at) như
+     * warrantyDefects()/defectSkuBreakdown() ở trên.
+     */
+    #[OA\Get(path: '/api/v1/reports/warranty-component-usage', operationId: 'report_warranty_component_usage', summary: 'GĐ1 chart FE — top linh kiện sử dụng trong sửa chữa bảo hành', description: 'Gộp theo SKU linh kiện từ component_issue_documents/lines đã POSTED, join warranty_case theo COALESCE(received_at, created_at) — cùng quy ước ngày với /reports/warranty-defects và /reports/warranty-defect-sku-breakdown. Không phân trang, luôn trả toàn bộ tập lọc trong kỳ (an toàn để vẽ chart Top-N).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Top linh kiện theo tổng SL đã xuất, sắp giảm dần')])]
+    public function componentUsage(Request $request)
+    {
+        $validated = $request->validate([
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
+            'defect_id' => ['nullable', 'uuid'],
+            'defect_ids' => ['nullable', 'array'],
+            'defect_ids.*' => ['uuid', 'distinct'],
+        ]);
+        $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
+        $to = (string) ($validated['to_date'] ?? now()->toDateString());
+        $filterDefects = array_values(array_unique(array_filter(array_merge(
+            (array) ($validated['defect_ids'] ?? []),
+            ! empty($validated['defect_id']) ? [(string) $validated['defect_id']] : []
+        ))));
+
+        $query = DB::table('component_issue_documents as cid')
+            ->join('component_issue_lines as cil', 'cil.component_issue_document_id', '=', 'cid.id')
+            ->join('sku as cs', 'cs.sku_id', '=', 'cil.sku_id')
+            ->join('warranty_case as wc', 'wc.warranty_case_id', '=', 'cid.warranty_case_id')
+            ->where('cid.status', 'POSTED')
+            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+        if ($filterDefects !== []) {
+            $query->whereExists(function ($sub) use ($filterDefects): void {
+                $sub->selectRaw('1')
+                    ->from('warranty_case_defects as wcd')
+                    ->whereColumn('wcd.warranty_case_id', 'wc.warranty_case_id')
+                    ->whereIn('wcd.defect_id', $filterDefects);
+            });
+        }
+
+        $rows = $query
+            ->groupBy('cs.sku_id', 'cs.sku_code', 'cs.sku_name')
+            ->orderByDesc('total_issued_qty')
+            ->selectRaw('cs.sku_id, cs.sku_code, cs.sku_name, SUM(cil.scanned_qty) AS total_issued_qty, COUNT(DISTINCT cid.warranty_case_id) AS case_count')
             ->get();
 
         return response()->json([

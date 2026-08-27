@@ -55,6 +55,19 @@ Schedule::command('import:purge-error-files')
     ->runInBackground();
 
 /*
+ * Checklist "Hiệu năng và triển khai" 27/08: file export báo cáo (GenerateReportExportJob)
+ * lưu trên đĩa 24h rồi hết hạn (report_export_jobs.expires_at) — không có cron thì đĩa
+ * phình vô hạn theo số lần export. Chạy 01:00, lệch giờ khỏi import:purge-error-files
+ * (dòng 50-55) và warranty:purge-pii để không cạnh tranh I/O.
+ */
+Schedule::command('report-export:purge')
+    ->dailyAt('01:00')
+    ->timezone(config('app.timezone'))
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();
+
+/*
  * WWHN-309 (cùng lớp lỗi với DEV219-P1-04R và DEV330-P1-01): `warranty:purge-pii` hiện
  * thực hóa SRS §13.8 / DR-PRIV-001 — sau retention 5 năm kể từ khi đóng case, PII phải
  * được anonymize nếu không có legal hold. Lệnh đã có, `retention_until` đã được ghi khi

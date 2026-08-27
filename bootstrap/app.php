@@ -14,6 +14,8 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Modules\Auth\Http\Middleware\CheckPermission;
+use Modules\Auth\Http\Middleware\EnforceActiveAccountStatus;
+use Modules\Auth\Http\Middleware\EnforcePasswordChangeRequired;
 use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
@@ -49,6 +51,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // outside the six WWHN-211 read/trace endpoints. Registering centrally
         // prevents a future route refactor from silently dropping data-scope.
         $middleware->append(EnforceInventoryWarehouseScope::class);
+        // Global, cheap early-exit: chặn tài khoản bị khoá/vô hiệu hoá ngay từ
+        // request kế tiếp, kể cả khi access token đang dùng vẫn còn hiệu lực
+        // (login/refresh chỉ chặn được token MỚI, không thu hồi token cũ).
+        $middleware->append(EnforceActiveAccountStatus::class);
+        // Cấp tài khoản nhân viên: bắt buộc đổi mật khẩu lần đầu trước khi
+        // dùng bất kỳ endpoint nào khác (trừ change-password/logout).
+        $middleware->append(EnforcePasswordChangeRequired::class);
 
         $middleware->alias([
             'permission' => CheckPermission::class,

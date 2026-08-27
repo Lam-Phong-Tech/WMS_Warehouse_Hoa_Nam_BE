@@ -30,6 +30,7 @@ class SendReversalCancelledNotification implements ShouldQueue
             subjectType: 'reversal_document',
             subjectId: $event->reversalId,
             payload: ['reversal_id' => $event->reversalId, 'doc_no' => $event->docNo, 'warehouse_id' => $event->warehouseId],
+            actorId: $event->actorId,
         );
     }
 }

@@ -135,6 +135,8 @@ class NotificationController extends Controller
             'source_module' => $notification?->source_module,
             'subject_type' => $notification?->subject_type,
             'subject_id' => $notification?->subject_id,
+            'actor_id' => $notification?->actor_id,
+            'actor_name' => $notification?->actor_name,
             'payload' => $notification?->payload,
             'read_at' => $recipient->read_at?->toIso8601String(),
             'created_at' => $recipient->created_at?->toIso8601String(),

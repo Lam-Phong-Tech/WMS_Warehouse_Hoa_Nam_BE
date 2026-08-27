@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
@@ -284,6 +286,7 @@ class Wwhn202OutboundBalanceEvidenceTest extends TestCase
 
     public function test_reverse_restores_stock_and_every_read_surface_reflects_the_net_effect(): void
     {
+        Storage::fake('local');
         $headers = $this->superAdminHeaders();
         $doc = $this->readyToPostIssueDocumentLedgerBacked($headers, 'WWHN202-REV-001');
 
@@ -301,7 +304,9 @@ class Wwhn202OutboundBalanceEvidenceTest extends TestCase
         $this->assertSame(0.0, $before['balance_on_hand_qty']);
         $this->assertSame('ISSUED', $before['item_statuses'][$doc['item_id']]);
 
-        $this->postJson("/api/v1/outbound-documents/{$doc['document_id']}/reverse", [
+        // "Chứng từ nhập/xuất/hoàn trả": Create luôn dừng ở DRAFT (stock_effect=NONE);
+        // phải đính kèm chứng từ rồi Post riêng mới thật sự ghi movement/tồn.
+        $reverse = $this->postJson("/api/v1/outbound-documents/{$doc['document_id']}/reverse", [
             'reason' => 'WWHN-202 QA retest — khách trả hàng',
             'condition_status' => 'SELLABLE',
             'physical_return_confirmed' => true,
@@ -309,7 +314,19 @@ class Wwhn202OutboundBalanceEvidenceTest extends TestCase
         ], $headers + [
             'If-Match' => '3',
             'Idempotency-Key' => 'wwhn202-reverse-doc-001',
-        ])->assertOk()->assertJsonPath('data.original_document_status', 'POSTED');
+        ]);
+        $reverse->assertOk()
+            ->assertJsonPath('data.original_document_status', 'POSTED')
+            ->assertJsonPath('data.reversal_status', 'DRAFT');
+        $reversalId = (string) $reverse->json('data.reversal_document_id');
+
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('wwhn202-bien-ban-hoan-tra.jpg'),
+        ], $headers)->assertCreated();
+        $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => '1',
+            'Idempotency-Key' => 'wwhn202-reverse-post-002',
+        ])->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $after = $this->snapshotStock($doc['warehouse_id'], $doc['sku_id']);
         $this->recordEvidence('reverse', $before, $after);

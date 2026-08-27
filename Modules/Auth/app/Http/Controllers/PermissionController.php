@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Modules\Auth\Repositories\Contracts\PermissionRepositoryInterface;
+use Modules\Auth\Support\PermissionEnforcementMap;
 use OpenApi\Attributes as OA;
 
 /**
@@ -37,9 +38,11 @@ class PermissionController extends Controller
     )]
     public function index(Request $request)
     {
-        return $this->respondPaginated(
-            $this->permissions->paginate($request->all(), (int) $request->input('per_page', 10))
-        );
+        $page = $this->permissions->paginate($request->all(), (int) $request->input('per_page', 10));
+
+        $page->getCollection()->transform(fn ($permission): array => $this->decorate($permission));
+
+        return $this->respondPaginated($page);
     }
 
     #[OA\Get(
@@ -59,6 +62,32 @@ class PermissionController extends Controller
     {
         $permission = $this->permissions->find($id);
 
-        return $permission ? $this->respondSuccess($permission) : $this->respondNotFound('Không tìm thấy permission.');
+        return $permission
+            ? $this->respondSuccess($this->decorate($permission))
+            : $this->respondNotFound('Không tìm thấy permission.');
+    }
+
+    /**
+     * Bổ sung `is_enforced` / `replaced_by` vào DTO permission.
+     *
+     * Ma trận IAM-01 trước đây vẽ mọi dòng trong bảng `permission` như nhau, kể cả
+     * những mã không có cổng chặn nào đọc tới — tick vào cũng không cấp gì. Hai
+     * trường này để FE phân biệt được "quyền dùng được" với "mã còn giữ vì hợp
+     * đồng cũ, đã ngừng hiệu lực", thay vì bắt người dùng đoán.
+     *
+     * Nguồn dữ liệu là bảng route lúc chạy (PermissionEnforcementMap), không phải
+     * một danh sách khai tay thứ hai — thêm/bớt route là cờ tự cập nhật.
+     *
+     * @return array<string, mixed>
+     */
+    private function decorate(mixed $permission): array
+    {
+        $data = is_array($permission) ? $permission : $permission->toArray();
+        $key = (string) ($data['permission_key'] ?? '');
+
+        $data['is_enforced'] = $key !== '' && PermissionEnforcementMap::isEnforced($key);
+        $data['replaced_by'] = $key !== '' ? PermissionEnforcementMap::replacementFor($key) : null;
+
+        return $data;
     }
 }

@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\HoaNamErdSchema;
+use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -432,6 +433,10 @@ class StockMovementController extends Controller
                 ->get();
         }
 
+        $warrantyHistory = $resolvedType === 'ITEM'
+            ? $this->traceWarrantyHistory($resolvedId, $request)
+            : collect();
+
         return $this->respondSuccess([
             'physical_code' => $physicalCode,
             'resolved_type' => $resolvedType,
@@ -440,7 +445,61 @@ class StockMovementController extends Controller
             'resolved_object' => $resolvedObject,
             'movements' => $movements,
             'container_items' => $containerItems,
+            'warranty_history' => $warrantyHistory,
         ]);
+    }
+
+    /**
+     * Mục 6 (yêu cầu vận hành): "mã sản phẩm/ID quét phải đi xuyên suốt từ nhập
+     * đến xuất, bảo hành, hoàn trả để tra cứu được vòng đời sản phẩm". Nối tiếp
+     * `movements` (nhập/xuất/điều chỉnh) bằng lịch sử bảo hành của CÙNG item —
+     * liên kết thật là `warranty_case.item_id` (bảng CurrentBaselineWarrantyController
+     * dùng để tạo case), KHÔNG phải `inventory_serial_id` (cột base cũ, luôn NULL ở
+     * flow tạo case hiện hành — xem createWarrantyCase()). Mỗi case kèm timeline
+     * warranty_event riêng để FE vẽ được diễn biến trong ca đó.
+     *
+     * PII (customer_name/phone) bị mask khi actor thiếu warranty.pii.view — cùng
+     * quy tắc BR-TRACE/§13.8 đã áp dụng cho outbound-by-agency.
+     */
+    private function traceWarrantyHistory(string $itemId, Request $request): Collection
+    {
+        $cases = DB::table('warranty_case')
+            ->leftJoin('defect_catalog', 'warranty_case.defect_id', '=', 'defect_catalog.defect_id')
+            ->where('warranty_case.item_id', $itemId)
+            ->orderByDesc('warranty_case.received_at')
+            ->select(
+                'warranty_case.warranty_case_id', 'warranty_case.warranty_case_code',
+                'warranty_case.status', 'warranty_case.identification_status',
+                'warranty_case.customer_name', 'warranty_case.customer_phone',
+                'warranty_case.description', 'warranty_case.confirmed_defect',
+                'warranty_case.received_at', 'warranty_case.completed_at', 'warranty_case.returned_at',
+                'warranty_case.created_at', 'defect_catalog.defect_name'
+            )
+            ->get();
+
+        if ($cases->isEmpty()) {
+            return collect();
+        }
+
+        $showContact = (bool) $request->user()?->hasPermission('warranty.pii.view');
+        $events = DB::table('warranty_event')
+            ->whereIn('warranty_case_id', $cases->pluck('warranty_case_id'))
+            ->orderBy('event_at')
+            ->get()
+            ->groupBy('warranty_case_id');
+
+        return $cases->map(function ($case) use ($events, $showContact) {
+            $case = (array) $case;
+            $case['customer_name'] = $showContact || empty($case['customer_name'])
+                ? $case['customer_name']
+                : WarrantyPiiMasker::name((string) $case['customer_name']);
+            $case['customer_phone'] = $showContact || empty($case['customer_phone'])
+                ? $case['customer_phone']
+                : WarrantyPiiMasker::phone((string) $case['customer_phone']);
+            $case['events'] = ($events->get($case['warranty_case_id']) ?? collect())->values();
+
+            return $case;
+        });
     }
 
     /**

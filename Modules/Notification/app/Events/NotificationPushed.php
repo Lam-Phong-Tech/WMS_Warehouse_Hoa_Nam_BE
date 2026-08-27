@@ -42,6 +42,8 @@ class NotificationPushed implements ShouldBroadcastNow
             'source_module' => $this->notification->source_module,
             'subject_type' => $this->notification->subject_type,
             'subject_id' => $this->notification->subject_id,
+            'actor_id' => $this->notification->actor_id,
+            'actor_name' => $this->notification->actor_name,
             'payload' => $this->notification->payload,
             'created_at' => $this->notification->created_at?->toIso8601String(),
         ];

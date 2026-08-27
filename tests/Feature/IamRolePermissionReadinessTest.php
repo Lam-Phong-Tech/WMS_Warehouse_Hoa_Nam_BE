@@ -93,22 +93,18 @@ class IamRolePermissionReadinessTest extends TestCase
 
     public function test_role_manager_can_create_update_and_atomically_sync_permissions(): void
     {
+        // SCR-IAM-02 (27/08): người thao tác chỉ được cấp/thu hồi quyền mà CHÍNH HỌ
+        // đang có. Trước đây fixture này chỉ giữ nhóm iam.* rồi gán inbound.* cho một
+        // role khác — đúng kịch bản tự nâng quyền mà PermissionDelegation nay chặn.
+        // Cấp inbound.view/inbound.create cho chính actor để test quay lại đo đúng thứ
+        // nó muốn đo (sync ma trận là atomic). Kịch bản "gán quyền vượt tầm bị chặn"
+        // được đo riêng ở PrivilegeEscalationGuardTest.
         $headers = $this->authHeaders(
-            ['iam.role.view', 'iam.role.manage', 'iam.permission.view'],
+            ['iam.role.view', 'iam.role.manage', 'iam.permission.view', 'inbound.view', 'inbound.create'],
             'role_manager'
         );
-        $p1 = Permission::create([
-            'permission_key' => 'inbound.view',
-            'permission_name' => 'View inbound',
-            'scope_type' => 'FUNCTION',
-            'status' => 'ACTIVE',
-        ]);
-        $p2 = Permission::create([
-            'permission_key' => 'inbound.create',
-            'permission_name' => 'Create inbound',
-            'scope_type' => 'FUNCTION',
-            'status' => 'ACTIVE',
-        ]);
+        $p1 = Permission::query()->where('permission_key', 'inbound.view')->firstOrFail();
+        $p2 = Permission::query()->where('permission_key', 'inbound.create')->firstOrFail();
 
         $create = $this->postJson('/api/v1/roles', [
             'role_code' => 'INBOUND_OPERATOR',
@@ -121,11 +117,13 @@ class IamRolePermissionReadinessTest extends TestCase
 
         $this->postJson("/api/v1/roles/{$roleId}/permissions", [
             'permission_ids' => [$p1->permission_id, $p2->permission_id],
+            'reason' => 'Test reason for audit',
         ], $headers)->assertOk()
             ->assertJsonCount(2, 'data.permissions');
 
         $this->postJson("/api/v1/roles/{$roleId}/permissions", [
             'permission_ids' => [$p1->permission_id],
+            'reason' => 'Test reason for audit',
         ], $headers)->assertOk()
             ->assertJsonCount(1, 'data.permissions')
             ->assertJsonPath('data.permissions.0.permission_key', 'inbound.view');

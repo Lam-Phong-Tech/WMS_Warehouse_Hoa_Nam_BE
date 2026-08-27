@@ -206,6 +206,16 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         $headers = $this->authHeaders();
         $caseId = $this->createTempOnlyCase($headers);
 
+        // Video >5 phút bị chặn, không lưu ra storage. Kiểm tra trước khi có video
+        // active nào để guard thời lượng chạy được (guard đếm cap chạy trước guard
+        // thời lượng trong validateVideo(), nếu case đã đủ cap thì mọi upload sau đều
+        // dừng lại ở ATTACHMENT_LIMIT_EXCEEDED bất kể thời lượng).
+        $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
+            'file' => $this->fakeMp4UploadedFile('qua-dai.mp4', 400),
+        ], $headers)
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'ATTACHMENT_VIDEO_TOO_LONG');
+
         $upload = $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
             'file' => $this->fakeMp4UploadedFile('tiep-nhan.mp4', 30),
         ], $headers);
@@ -214,26 +224,14 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             ->assertJsonPath('data.duration_seconds', 30)
             ->assertJsonPath('data.stock_effect', 'NONE');
 
-        // Video >5 phút bị chặn, không lưu ra storage.
-        $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
-            'file' => $this->fakeMp4UploadedFile('qua-dai.mp4', 400),
-        ], $headers)
-            ->assertStatus(422)
-            ->assertJsonPath('error.code', 'ATTACHMENT_VIDEO_TOO_LONG');
-
-        // Video thứ 2 hợp lệ vẫn được nhận (cap = 2 video/case).
+        // Video thứ 2 vượt cap 1 video/case.
         $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
             'file' => $this->fakeMp4UploadedFile('video-2.mp4', 20),
-        ], $headers)->assertCreated();
-
-        // Video thứ 3 vượt cap 2 video/case.
-        $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
-            'file' => $this->fakeMp4UploadedFile('video-3.mp4', 15),
         ], $headers)
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'ATTACHMENT_LIMIT_EXCEEDED');
 
-        // Video không tính vào cap 10 ảnh: vẫn tải được đủ 10 ảnh sau khi đã có 2 video.
+        // Video không tính vào cap 10 ảnh: vẫn tải được đủ 10 ảnh sau khi đã có 1 video.
         for ($i = 0; $i < 10; $i++) {
             $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
                 'file' => UploadedFile::fake()->image("anh-{$i}.jpg"),
@@ -242,7 +240,7 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
 
         $list = $this->getJson("/api/v1/warranty-cases/{$caseId}/attachments?per_page=100", $headers);
         $list->assertOk();
-        $this->assertCount(12, $list->json('data'));
+        $this->assertCount(11, $list->json('data'));
     }
 
     public function test_component_issue_detail_route_and_warranty_case_filter(): void
