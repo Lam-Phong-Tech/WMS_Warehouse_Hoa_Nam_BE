@@ -97,6 +97,46 @@ class AppServiceProvider extends ServiceProvider
                 ));
         });
 
+        // Storefront công khai `/api/v1/public/*` — nhóm ĐỌC. Limiter riêng chứ
+        // không dùng chung 'pv-public': hai mặt API có tải và đối tượng khác
+        // nhau, gộp chung thì lưu lượng của app này làm cạn hạn mức của app kia.
+        RateLimiter::for('public-api', static function (Request $request) {
+            $perMinute = (int) config('rate_limit.public_api_per_minute', 180);
+            if ($perMinute <= 0) {
+                return Limit::none();
+            }
+
+            return Limit::perMinute($perMinute)
+                ->by('public-api:'.$request->ip())
+                ->response(static fn (Request $throttled, array $headers) => RateLimitResponse::make(
+                    $throttled,
+                    $headers,
+                    'Bạn thao tác quá nhanh. Vui lòng thử lại sau ít phút.',
+                ));
+        });
+
+        // Nhóm GHI (POST /quote-requests): ngưỡng thấp hơn hẳn nhóm đọc. Đây là
+        // form lead-gen ẩn danh — bề mặt spam kinh điển — nên khoá theo (IP + số
+        // điện thoại): một IP dùng chung (quán net, 4G NAT) không tự khoá lẫn
+        // nhau, nhưng một người spam nhiều lần với cùng số thì bị chặn.
+        RateLimiter::for('public-quote-request', static function (Request $request) {
+            $perMinute = (int) config('rate_limit.public_quote_request_per_minute', 5);
+            if ($perMinute <= 0) {
+                return Limit::none();
+            }
+
+            $phone = (string) $request->input('phone', '');
+            $subject = $phone !== '' ? sha1($phone) : 'anonymous';
+
+            return Limit::perMinute($perMinute)
+                ->by('public-quote-request:'.$request->ip().':'.$subject)
+                ->response(static fn (Request $throttled, array $headers) => RateLimitResponse::make(
+                    $throttled,
+                    $headers,
+                    'Bạn đã gửi quá nhiều yêu cầu tư vấn. Vui lòng thử lại sau ít phút.',
+                ));
+        });
+
         RateLimiter::for('auth-refresh', static function (Request $request) {
             $perMinute = (int) config('rate_limit.auth_refresh_per_minute', 30);
             if ($perMinute <= 0) {

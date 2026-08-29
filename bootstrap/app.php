@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ApiConventionMiddleware;
+use App\Http\Middleware\EnsurePublicApiEnvelope;
 use App\Http\Middleware\NoStoreApiResponses;
 use App\Http\Middleware\Wwhn172AggregateLock;
 use App\Support\UserFacingMessageLocalizer;
@@ -44,6 +45,14 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->prepend(Wwhn172AggregateLock::class);
         $middleware->prepend(ApiConventionMiddleware::class);
+        // Vị trí CÓ Ý NGHĨA: phải nằm NGOÀI ApiConventionMiddleware. Middleware
+        // đó có hai nhánh RETURN SỚM (payload không phải UTF-8, JSON hỏng) trả
+        // response ngay mà không gọi $next — đặt bên trong thì hai nhánh ấy
+        // thoát ra với envelope nội bộ. Nằm ngoài thì mọi response của
+        // api/v1/public, kể cả 405/404 lúc khớp route và 429 của throttle, đều
+        // đi qua đây đúng một lần.
+        // No-op ngoài tiền tố api/v1/public — xem EnsurePublicApiEnvelope.
+        $middleware->prepend(EnsurePublicApiEnvelope::class);
         // Keep this outermost so every successful API response is forced to
         // no-store after downstream middleware/controllers finish processing.
         $middleware->prepend(NoStoreApiResponses::class);

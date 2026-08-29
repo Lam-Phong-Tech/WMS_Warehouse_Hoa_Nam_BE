@@ -224,7 +224,7 @@ class WarehouseSupplementalDataSeeder extends Seeder
                 'priority' => $index + 1,
                 'created_at' => now(),
                 'created_by' => $this->actorId,
-                'note' => 'Seed demo compatibility',
+                'note' => 'Dữ liệu mẫu về khả năng tương thích phụ kiện',
                 'status' => 'ACTIVE',
             ]);
         }
@@ -668,7 +668,7 @@ class WarehouseSupplementalDataSeeder extends Seeder
                 'request_hash' => 'v2:'.hash('sha256', $idemKey),
                 'status' => 'done',
                 'response_code' => 200,
-                'response_body' => json_encode(['success' => true, 'message' => 'Seed replay', 'data' => []], JSON_UNESCAPED_UNICODE),
+                'response_body' => json_encode(['success' => true, 'message' => 'Phát lại dữ liệu mẫu', 'data' => []], JSON_UNESCAPED_UNICODE),
                 'locked_until' => null,
                 'completed_at' => now(),
                 'created_at' => now(),
@@ -739,11 +739,11 @@ class WarehouseSupplementalDataSeeder extends Seeder
         }
 
         $errorRows = [
-            ['dataset' => 'opening_balances', 'row_no' => 3, 'field_name' => 'quantity', 'error_code' => 'INVALID_QUANTITY', 'severity' => 'ERROR', 'message' => 'Seed demo error row 1.'],
-            ['dataset' => 'opening_balances', 'row_no' => 4, 'field_name' => 'sku_code', 'error_code' => 'SKU_NOT_FOUND', 'severity' => 'CRITICAL', 'message' => 'Seed demo error row 2.'],
-            ['dataset' => 'agencies', 'row_no' => 1, 'field_name' => 'phone', 'error_code' => 'INVALID_FORMAT', 'severity' => 'WARNING', 'message' => 'Seed demo error row 3.'],
-            ['dataset' => 'agencies', 'row_no' => 2, 'field_name' => null, 'error_code' => 'DUPLICATE_ROW', 'severity' => 'WARNING', 'message' => 'Seed demo error row 4.'],
-            ['dataset' => 'warehouses', 'row_no' => 1, 'field_name' => 'code', 'error_code' => 'DUPLICATE_CODE', 'severity' => 'ERROR', 'message' => 'Seed demo error row 5.'],
+            ['dataset' => 'opening_balances', 'row_no' => 3, 'field_name' => 'quantity', 'error_code' => 'INVALID_QUANTITY', 'severity' => 'ERROR', 'message' => 'Dòng lỗi dữ liệu mẫu số 1.'],
+            ['dataset' => 'opening_balances', 'row_no' => 4, 'field_name' => 'sku_code', 'error_code' => 'SKU_NOT_FOUND', 'severity' => 'CRITICAL', 'message' => 'Dòng lỗi dữ liệu mẫu số 2.'],
+            ['dataset' => 'agencies', 'row_no' => 1, 'field_name' => 'phone', 'error_code' => 'INVALID_FORMAT', 'severity' => 'WARNING', 'message' => 'Dòng lỗi dữ liệu mẫu số 3.'],
+            ['dataset' => 'agencies', 'row_no' => 2, 'field_name' => null, 'error_code' => 'DUPLICATE_ROW', 'severity' => 'WARNING', 'message' => 'Dòng lỗi dữ liệu mẫu số 4.'],
+            ['dataset' => 'warehouses', 'row_no' => 1, 'field_name' => 'code', 'error_code' => 'DUPLICATE_CODE', 'severity' => 'ERROR', 'message' => 'Dòng lỗi dữ liệu mẫu số 5.'],
         ];
 
         foreach ($errorRows as $row) {

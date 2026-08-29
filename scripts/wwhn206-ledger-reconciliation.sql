@@ -134,46 +134,67 @@ FROM (
     --    OperationalReportController::inventoryReconciliation() đang chạy thật
     --    (serialSubledgerCounts/boxSubledgerCounts), để đối soát tay và báo cáo
     --    trong sản phẩm không thể kết luận khác nhau.
+    --
+    --    Cả ba check gom Ở CẤP SKU: item_instances / container_items không có
+    --    warehouse_id lẫn stock_status, nên so tổng-toàn-SKU với một dòng
+    --    (kho, SKU, trạng thái) sẽ đếm lệch giả khi SKU nằm ở nhiều bucket.
     UNION ALL SELECT 14, 'serial_subledger_mismatch_count',
            (SELECT count(*) FROM (
-                SELECT b.warehouse_id, COALESCE(b.sku_id, b.product_id) AS sku_id
-                  FROM inventory_balances b
+                SELECT agg.sku_id
+                  FROM (
+                        SELECT COALESCE(sku_id, product_id) AS sku_id,
+                               SUM(available_qty)::numeric AS available_qty
+                          FROM inventory_balances
+                         WHERE stock_status = 'AVAILABLE'
+                         GROUP BY 1
+                  ) agg
+                  -- Chỉ SKU quản lý theo serial mới có sổ phụ serial để đối soát;
+                  -- SKU quản lý theo số lượng đem so sẽ ra lệch giả.
+                  JOIN skus sk ON sk.id = agg.sku_id AND sk.tracking_mode = 'SERIAL'
                   JOIN LATERAL (
                         SELECT count(*)::numeric AS serial_qty
                           FROM item_instances i
-                         WHERE i.sku_id = COALESCE(b.sku_id, b.product_id)
+                         WHERE i.sku_id = agg.sku_id
                            AND i.item_status = 'IN_STOCK'
                   ) s ON TRUE
-                 WHERE b.stock_status = 'AVAILABLE'
-                   AND s.serial_qty > 0
-                   AND abs(b.available_qty::numeric - s.serial_qty) >= 0.001
+                 WHERE abs(agg.available_qty - s.serial_qty) >= 0.001
            ) z)::bigint, 0,
-           'SRS §7.5 Serial subledger: available_qty = số Item_Instance IN_STOCK của SKU đó'
+           'SRS §7.5 Serial subledger: tổng available_qty của SKU serial = số Item_Instance IN_STOCK của SKU đó'
     UNION ALL SELECT 15, 'quantity_subledger_mismatch_count',
            (SELECT count(*) FROM (
-                SELECT b.warehouse_id, COALESCE(b.sku_id, b.product_id) AS sku_id
-                  FROM inventory_balances b
+                SELECT agg.sku_id
+                  FROM (
+                        SELECT COALESCE(sku_id, product_id) AS sku_id,
+                               SUM(on_hand_qty)::numeric AS on_hand_qty
+                          FROM inventory_balances
+                         GROUP BY 1
+                  ) agg
                   JOIN LATERAL (
                         SELECT COALESCE(sum(c.quantity), 0)::numeric AS box_qty
                           FROM container_items c
-                         WHERE c.sku_id = COALESCE(b.sku_id, b.product_id)
+                         WHERE c.sku_id = agg.sku_id
                            AND c.is_active = TRUE
                   ) q ON TRUE
                  WHERE q.box_qty > 0
-                   AND q.box_qty > b.on_hand_qty::numeric + 0.001
+                   AND q.box_qty > agg.on_hand_qty + 0.001
            ) z)::bigint, 0,
-           'SRS §7.5 Quantity subledger: tổng quantity trong container mapping không vượt on_hand_qty'
+           'SRS §7.5 Quantity subledger: tổng quantity trong container mapping không vượt tổng on_hand_qty của SKU'
     UNION ALL SELECT 16, 'container_integrity_mismatch_count',
            (SELECT count(*) FROM (
-                SELECT b.warehouse_id, COALESCE(b.sku_id, b.product_id) AS sku_id
-                  FROM inventory_balances b
+                SELECT agg.sku_id
+                  FROM (
+                        SELECT COALESCE(sku_id, product_id) AS sku_id,
+                               SUM(on_hand_qty)::numeric AS on_hand_qty
+                          FROM inventory_balances
+                         GROUP BY 1
+                  ) agg
                   JOIN LATERAL (
                         SELECT COALESCE(sum(c.quantity), 0)::numeric AS box_qty
                           FROM container_items c
-                         WHERE c.sku_id = COALESCE(b.sku_id, b.product_id)
+                         WHERE c.sku_id = agg.sku_id
                            AND c.is_active = TRUE
                   ) q ON TRUE
-                 WHERE q.box_qty > b.on_hand_qty::numeric + 0.001
+                 WHERE q.box_qty > agg.on_hand_qty + 0.001
            ) z)::bigint, 0,
            'SRS §7.5 Container integrity: container mapping không tạo thêm bucket tồn'
 ) checks

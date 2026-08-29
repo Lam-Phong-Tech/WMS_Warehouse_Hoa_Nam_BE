@@ -37,6 +37,13 @@ const PUBLIC_ALLOWLIST = new Set([
   "GET /api/v1/health",
   "POST /api/v1/auth/login",
   "POST /api/v1/auth/refresh",
+  // Quên mật khẩu bằng OTP email (commit 368943c). Cùng nhóm bootstrap phiên với
+  // login/refresh: mất mật khẩu thì không có JWT để gọi, nên ba bước này bắt
+  // buộc ẩn danh. forgot-password và verify-otp có limiter theo (IP + email) đặt
+  // trong controller — xem PasswordResetController, config/rate_limit.php.
+  "POST /api/v1/auth/forgot-password",
+  "POST /api/v1/auth/verify-otp",
+  "POST /api/v1/auth/reset-password",
   // WWHN-249 (DEV249-P1-03): 4 operation PUBLIC_ANONYMOUS theo Annex C là
   // listPvProducts / getPvProduct / listPvIndustries / listPvRecommendations;
   // SRS §12 (bảng Security) khai đích danh chúng phải override security: [].
@@ -49,6 +56,22 @@ const PUBLIC_ALLOWLIST = new Set([
   // BA — danh sách này chính là hợp đồng "mặt công khai" của hệ thống.
   "GET /api/v1/pv/catalog",
   "GET /api/v1/pv/tags",
+  // Storefront công khai của App PV (`/api/v1/public/*`). Đây là mặt API RIÊNG,
+  // không phải alias của nhóm `pv/*`: envelope khác (đủ 6 khoá, luôn có
+  // error_code/errors), và chỉ trả sản phẩm PUBLISHED + còn hàng, tuyệt đối
+  // không lộ số tồn. Toàn bộ read-only trừ POST /quote-requests — endpoint GHI
+  // ẩn danh duy nhất CỦA MẶT STOREFRONT (nhóm quên-mật-khẩu ở trên cũng ghi khi
+  // chưa đăng nhập), có limiter riêng (throttle:public-quote-request) và bắt
+  // buộc Idempotency-Key.
+  "GET /api/v1/public/config",
+  "GET /api/v1/public/home",
+  "GET /api/v1/public/health/version",
+  "GET /api/v1/public/categories",
+  "GET /api/v1/public/facets",
+  "GET /api/v1/public/products",
+  "GET /api/v1/public/products/{slug}",
+  "GET /api/v1/public/products/{slug}/related",
+  "POST /api/v1/public/quote-requests",
 ]);
 
 function routeTable() {

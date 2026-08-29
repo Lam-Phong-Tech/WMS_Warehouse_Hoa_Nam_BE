@@ -26,7 +26,7 @@ class WarehouseDatabaseSeeder extends Seeder
 
     private const BASELINE_SKU = [
         'sku_code' => 'HN-PV-BASE-001',
-        'sku_name' => 'SKU baseline Hoa Nam',
+        'sku_name' => 'SKU cơ sở Hoa Nam',
         'sku_type' => 'PRODUCT',
         'unit' => 'cái',
         'is_serial_tracked' => false,

@@ -640,7 +640,17 @@ class CurrentBaselineOperationsController extends Controller
             $query->where('status', strtoupper((string) $request->input('status')));
         }
 
-        return $this->respondPaginated($query->paginate(min(100, max(1, (int) $request->input('per_page', 10)))));
+        $paginator = $query->paginate(min(100, max(1, (int) $request->input('per_page', 10))));
+        // Phẳng hoá lý do in lại (lưu trong metadata jsonb) thành field `reason`
+        // để FE đọc trực tiếp, không phải tự parse metadata.
+        $paginator->through(function ($row) {
+            $meta = is_string($row->metadata ?? null) ? json_decode((string) $row->metadata, true) : ($row->metadata ?? null);
+            $row->reason = is_array($meta) ? ($meta['reason'] ?? null) : null;
+
+            return $row;
+        });
+
+        return $this->respondPaginated($paginator);
     }
 
     #[OA\Post(
@@ -692,7 +702,10 @@ class CurrentBaselineOperationsController extends Controller
             required: true,
             content: new OA\JsonContent(
                 required: ['printer_config_id'],
-                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6')]
+                properties: [
+                    new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 500, nullable: true, description: 'Lý do in lại (hết mực / lỗi máy in / hỏng nhãn...)', example: 'Máy in hết mực'),
+                ]
             )
         ),
         responses: [
@@ -769,7 +782,10 @@ class CurrentBaselineOperationsController extends Controller
             required: true,
             content: new OA\JsonContent(
                 required: ['printer_config_id'],
-                properties: [new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6')]
+                properties: [
+                    new OA\Property(property: 'printer_config_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 500, nullable: true, description: 'Lý do in lại (hết mực / lỗi máy in / hỏng nhãn...)', example: 'Máy in hết mực'),
+                ]
             )
         ),
         responses: [
@@ -1050,7 +1066,13 @@ class CurrentBaselineOperationsController extends Controller
     {
         $validated = $request->validate([
             'printer_config_id' => ['required', 'uuid', 'exists:printer_configs,id'],
+            // Lý do in lại (hết mực / lỗi máy in / hỏng nhãn / in lại chứng từ...).
+            // Nullable ở tầng validate để không phá các client cũ; UI enforce bắt
+            // buộc chọn lý do trước khi reprint. Lưu vào metadata (không đổi schema).
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
+        $reason = isset($validated['reason']) ? trim((string) $validated['reason']) : null;
+        $reason = ($reason === '') ? null : $reason;
 
         $snapshot = DB::table('label_snapshots')->where('id', $id)->first();
         if ($snapshot === null) {
@@ -1059,7 +1081,7 @@ class CurrentBaselineOperationsController extends Controller
         $this->assertLabelPrintable($request, $snapshot, $reprint);
         $printer = DB::table('printer_configs')->where('id', $validated['printer_config_id'])->first();
         if ($printer === null || ($printer->status ?? 'ACTIVE') !== 'ACTIVE' || empty($printer->agent_endpoint)) {
-            return $this->recordPrintFailure($snapshot, $validated['printer_config_id'], 'Máy in chưa được cấu hình hoặc đang ở trạng thái không hoạt động.', $reprint);
+            return $this->recordPrintFailure($snapshot, $validated['printer_config_id'], 'Máy in chưa được cấu hình hoặc đang ở trạng thái không hoạt động.', $reprint, $reason);
         }
 
         $eventId = (string) Str::uuid();
@@ -1092,7 +1114,8 @@ class CurrentBaselineOperationsController extends Controller
         // phải N+2) và ai chạy sau cùng quyết định status cuối, không cảnh báo gì.
         $expectedVersion = (int) ($snapshot->version ?? 0);
         $version = $expectedVersion + 1;
-        DB::transaction(function () use ($eventId, $id, $validated, $status, $error, $version, $expectedVersion): void {
+        $metadata = $reason !== null ? json_encode(['reason' => $reason], JSON_UNESCAPED_UNICODE) : null;
+        DB::transaction(function () use ($eventId, $id, $validated, $status, $error, $version, $expectedVersion, $metadata): void {
             DB::table('label_print_events')->insert([
                 'id' => $eventId,
                 'label_snapshot_id' => $id,
@@ -1100,6 +1123,7 @@ class CurrentBaselineOperationsController extends Controller
                 'status' => $status,
                 'error_message' => $error,
                 'printed_at' => $status === 'PRINTED' ? now() : null,
+                'metadata' => $metadata,
                 'created_at' => now(),
                 'created_by' => $this->actorId(),
                 'updated_at' => now(),
@@ -1178,20 +1202,22 @@ class CurrentBaselineOperationsController extends Controller
         return (int) $header;
     }
 
-    private function recordPrintFailure(object $snapshot, string $printerId, string $message, bool $reprint)
+    private function recordPrintFailure(object $snapshot, string $printerId, string $message, bool $reprint, ?string $reason = null)
     {
         $eventId = (string) Str::uuid();
         // WWHN-234 F-06: cùng CAS như nhánh thành công trong dispatchLabelOnce() —
         // xem chú thích ở đó.
         $expectedVersion = (int) ($snapshot->version ?? 0);
         $version = $expectedVersion + 1;
-        DB::transaction(function () use ($eventId, $snapshot, $printerId, $message, $version, $expectedVersion): void {
+        $metadata = $reason !== null ? json_encode(['reason' => $reason], JSON_UNESCAPED_UNICODE) : null;
+        DB::transaction(function () use ($eventId, $snapshot, $printerId, $message, $version, $expectedVersion, $metadata): void {
             DB::table('label_print_events')->insert([
                 'id' => $eventId,
                 'label_snapshot_id' => $snapshot->id,
                 'printer_config_id' => $printerId,
                 'status' => 'PRINT_FAILED',
                 'error_message' => $message,
+                'metadata' => $metadata,
                 'created_at' => now(),
                 'created_by' => $this->actorId(),
                 'updated_at' => now(),

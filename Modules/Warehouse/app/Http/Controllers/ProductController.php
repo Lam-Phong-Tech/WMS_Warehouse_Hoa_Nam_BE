@@ -74,8 +74,8 @@ class ProductController extends Controller
                     new OA\Property(property: 'warranty_applicable', type: 'boolean', nullable: true, example: true),
                     new OA\Property(property: 'specification', type: 'object', nullable: true, example: ['voltage' => '220V', 'color' => 'Đỏ']),
                     new OA\Property(property: 'published_to_app', type: 'boolean', nullable: true, example: false),
-                    new OA\Property(property: 'min_stock', type: 'number', nullable: true, description: 'Định mức tồn tối thiểu toàn hệ thống (không theo kho); null = chưa đặt', example: 10),
-                    new OA\Property(property: 'max_stock', type: 'number', nullable: true, description: 'Định mức tồn tối đa toàn hệ thống (không theo kho); null = chưa đặt', example: 500),
+                    new OA\Property(property: 'min_stock', type: 'number', format: 'double', minimum: 0, nullable: true, description: 'Định mức tồn tối thiểu theo SKU, toàn hệ thống (không theo kho). Phải >= 0 — 0 là một định mức hợp lệ; null = chưa đặt, không tính cảnh báo.', example: 10),
+                    new OA\Property(property: 'max_stock', type: 'number', format: 'double', minimum: 1, nullable: true, description: 'Định mức tồn tối đa theo SKU, toàn hệ thống (không theo kho). Phải >= 1 VÀ lớn hơn min_stock; null = chưa đặt, không tính cảnh báo.', example: 500),
                 ]
             )
         ),
@@ -152,8 +152,8 @@ class ProductController extends Controller
                 new OA\Property(property: 'specification', type: 'object', nullable: true, example: ['voltage' => '220V', 'color' => 'Đỏ']),
                 new OA\Property(property: 'published_to_app', type: 'boolean', nullable: true, example: false),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
-                new OA\Property(property: 'min_stock', type: 'number', nullable: true, description: 'Định mức tồn tối thiểu toàn hệ thống (không theo kho); null = chưa đặt', example: 10),
-                new OA\Property(property: 'max_stock', type: 'number', nullable: true, description: 'Định mức tồn tối đa toàn hệ thống (không theo kho); null = chưa đặt', example: 500),
+                new OA\Property(property: 'min_stock', type: 'number', format: 'double', minimum: 0, nullable: true, description: 'Định mức tồn tối thiểu theo SKU, toàn hệ thống (không theo kho). Phải >= 0 — 0 là một định mức hợp lệ; null = chưa đặt, không tính cảnh báo.', example: 10),
+                new OA\Property(property: 'max_stock', type: 'number', format: 'double', minimum: 1, nullable: true, description: 'Định mức tồn tối đa theo SKU, toàn hệ thống (không theo kho). Phải >= 1 VÀ lớn hơn min_stock; null = chưa đặt, không tính cảnh báo.', example: 500),
             ])
         ),
         responses: [

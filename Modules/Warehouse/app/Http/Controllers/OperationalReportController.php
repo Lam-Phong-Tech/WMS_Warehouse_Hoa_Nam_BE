@@ -70,6 +70,14 @@ class OperationalReportController extends Controller
     private const DASHBOARD_WARNING_LIMIT = 50;
 
     /**
+     * Trạng thái kết thúc của ca bảo hành — ca đã ở một trong các trạng thái này thì
+     * không thể "quá hạn" nữa dù estimated_completion_date đã lùi về quá khứ.
+     * RETURNED và RETURNED_TO_CUSTOMER cùng nghĩa "đã trả khách": ERD dùng
+     * RETURNED_TO_CUSTOMER, một số bản ghi cũ dùng RETURNED, phải chặn cả hai.
+     */
+    private const WARRANTY_CLOSED_STATUSES = ['COMPLETED', 'RETURNED', 'RETURNED_TO_CUSTOMER', 'CLOSED', 'CANCELLED'];
+
+    /**
      * WWHN-240 / BR-REV-04, BR-REV-08: correction chain là append-only và một Reversal có
      * thể tham chiếu chính một Reversal trước đó. Trần độ sâu để việc đi ngược chuỗi không
      * lặp vô hạn nếu dữ liệu cũ có vòng.
@@ -412,12 +420,16 @@ class OperationalReportController extends Controller
     public function inventoryBalanceExport(Request $request)
     {
         $report = $this->buildInventoryBalance($request);
+        // Cột "Đối soát" phải là verdict TỔNG HỢP như trên màn hình (RPT-INV-01 §2.5).
+        // Trước đây file xuất chỉ in reconciliation_status (Ledger↔Balance) nên một
+        // dòng lệch ở sổ phụ hiện "Có chênh lệch" trên màn hình mà "MATCH" trong file.
         $rows = array_map(fn (array $row): array => [
             $row['warehouse_code'], $row['product_code'], $row['product_name'], $row['category'], $row['stock_status'],
             $row['on_hand_qty'], $row['available_qty'], $row['serial_qty'], $row['box_qty'], $row['reserved_qty'],
-            $row['location_hint'], $row['ledger_qty'], $row['variance'], $row['reconciliation_status'], $row['updated_at'],
-        ], $report['rows']);
-        $headers = ['Kho', 'Mã SKU', 'Tên SKU', 'Nhóm hàng', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Serial', 'Trong khay/thùng', 'Đã giữ', 'Vị trí gợi ý', 'Ledger', 'Chênh lệch', 'Đối soát', 'Cập nhật'];
+            $row['location_hint'], $row['ledger_qty'], $row['variance'],
+            $row['reconciliation_overall'], $this->mismatchChecksLabel($row), $row['updated_at'],
+        ], $this->withSubledgerChecks($request, $report['rows']));
+        $headers = ['Kho', 'Mã SKU', 'Tên SKU', 'Nhóm hàng', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Serial', 'Trong khay/thùng', 'Đã giữ', 'Vị trí gợi ý', 'Ledger', 'Chênh lệch', 'Đối soát', 'Lệch ở', 'Cập nhật'];
 
         if ($request->query('format') === 'pdf') {
             return $this->exportPdf('Tồn kho hiện tại', $headers, $rows, 'bao-cao-ton-kho-hien-tai', 'inventory-balance', $request);
@@ -559,31 +571,7 @@ class OperationalReportController extends Controller
             'only_mismatch' => ['nullable', 'boolean'],
         ]);
         $report = $this->buildInventoryBalance($request);
-        $rows = collect($report['rows'])->map(function (array $row): array {
-            // §7.5: ngoài Ledger↔Balance còn 3 check bắt buộc.
-            // - Serial subledger: available = số Item_Instance IN_STOCK sellable.
-            // - Quantity subledger: available >= tổng quantity trong container mapping
-            //   (container không tạo bucket tồn riêng — Container integrity).
-            $available = (float) $row['available_qty'];
-            $serialQty = (float) $row['serial_qty'];
-            $boxQty = (float) $row['box_qty'];
-            $isSerialDimension = $serialQty > 0;
-
-            $row['serial_subledger_status'] = ! $isSerialDimension || $row['stock_status'] !== 'AVAILABLE'
-                ? 'NOT_APPLICABLE'
-                : (abs($available - $serialQty) < 0.001 ? 'MATCH' : 'MISMATCH');
-            $row['quantity_subledger_status'] = $boxQty <= 0
-                ? 'NOT_APPLICABLE'
-                : ($boxQty <= (float) $row['on_hand_qty'] + 0.001 ? 'MATCH' : 'MISMATCH');
-            $row['container_integrity_status'] = $boxQty > (float) $row['on_hand_qty'] + 0.001
-                ? 'MISMATCH'
-                : 'MATCH';
-
-            $checks = [$row['reconciliation_status'], $row['serial_subledger_status'], $row['quantity_subledger_status'], $row['container_integrity_status']];
-            $row['reconciliation_overall'] = in_array('MISMATCH', $checks, true) ? 'MISMATCH' : 'MATCH';
-
-            return $row;
-        });
+        $rows = collect($this->withSubledgerChecks($request, $report['rows']));
         if ($request->boolean('only_mismatch')) {
             $rows = $rows->where('reconciliation_overall', 'MISMATCH')->values();
         }
@@ -646,6 +634,38 @@ class OperationalReportController extends Controller
             $key,
             CacheTtl::seconds('dashboard'),
             fn (): array => $this->buildDashboardQuick($from, $to, $scope)
+        );
+
+        return $this->respondSuccess($data);
+    }
+
+    #[OA\Get(path: '/api/v1/reports/dashboard-overview', operationId: 'report_dashboard_overview', summary: 'Dashboard tổng quan — 1 lần gọi cho toàn màn hình', description: 'Aggregate phục vụ màn Dashboard tổng quan: KPI tồn/nhập/xuất tách theo sku_type, chuỗi nhập-xuất theo ngày tách 4 chiều, xu hướng tồn, cơ cấu tồn theo trạng thái × loại SKU, tình trạng bảo hành kèm số ca quá hạn, và 4 nhóm vấn đề cần xử lý. Chuỗi thời gian CHỈ phát hành theo NGÀY — client tự gộp sang tuần/tháng/quý/năm (tránh DATE_TRUNC vốn chỉ có trên PostgreSQL trong khi repo gate cả SQLite). DATA-SCOPE: giống dashboard-quick — người dùng bị giới hạn kho chỉ nhận số liệu các kho trong scope. Ngoại lệ đã ghi nhận: mọi số liệu bảo hành luôn GLOBAL vì ERD warranty_case không có warehouse_id.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', description: 'Mặc định: hôm nay trừ 30 ngày (Asia/Ho_Chi_Minh). Áp cho flow_daily, stock_trend, top_sku và các bộ đếm issues.', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', description: 'Phải >= from_date (422 BUSINESS_RULE_ERROR nếu vi phạm). Khoảng tối đa 366 ngày. Mặc định: hôm nay', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', description: 'Thu hẹp về 1 kho. Phải nằm trong data-scope của người gọi, nếu không trả 403 ACCESS_DENIED.', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Dashboard overview', content: new OA\JsonContent(properties: [new OA\Property(property: 'success', type: 'boolean'), new OA\Property(property: 'data', properties: [new OA\Property(property: 'period', properties: [new OA\Property(property: 'from_date', type: 'string', format: 'date'), new OA\Property(property: 'to_date', type: 'string', format: 'date')], type: 'object'), new OA\Property(property: 'data_scope', type: 'string', enum: ['GLOBAL', 'WAREHOUSE_SCOPED']), new OA\Property(property: 'scope_warehouse_ids', type: 'array', nullable: true, items: new OA\Items(type: 'string', format: 'uuid')), new OA\Property(property: 'kpi', description: 'Mỗi KPI tách {product, component, total}. on_hand là snapshot hiện tại (không lọc theo period); receipt_today/issue_today theo hôm nay; receipt_month/issue_month theo tháng dương lịch hiện tại — độc lập với from_date/to_date.', properties: [new OA\Property(property: 'on_hand', ref: '#/components/schemas/DashboardSkuSplit'), new OA\Property(property: 'receipt_today', ref: '#/components/schemas/DashboardSkuSplit'), new OA\Property(property: 'issue_today', ref: '#/components/schemas/DashboardSkuSplit'), new OA\Property(property: 'receipt_month', ref: '#/components/schemas/DashboardSkuSplit'), new OA\Property(property: 'issue_month', ref: '#/components/schemas/DashboardSkuSplit')], type: 'object'), new OA\Property(property: 'warranty_received', description: 'Số ca bảo hành tiếp nhận theo received_at. GLOBAL, không lọc kho.', properties: [new OA\Property(property: 'today', type: 'integer'), new OA\Property(property: 'week', type: 'integer'), new OA\Property(property: 'month', type: 'integer')], type: 'object'), new OA\Property(property: 'top_sku', description: 'SKU xuất nhiều nhất / ít nhất trong period, chỉ tính movement_type=ISSUE và chỉ SKU có issue_qty > 0. null khi kỳ không phát sinh xuất.', properties: [new OA\Property(property: 'best', nullable: true, ref: '#/components/schemas/DashboardTopSku'), new OA\Property(property: 'worst', nullable: true, ref: '#/components/schemas/DashboardTopSku')], type: 'object'), new OA\Property(property: 'flow_daily', type: 'array', description: 'Chuỗi theo ngày, gap-fill đủ mọi ngày trong period. receipt_* tách theo products.sku_type; issue_product = movement_type ISSUE, issue_component = COMPONENT_ISSUE (xuất linh kiện bảo hành).', items: new OA\Items(type: 'object', properties: [new OA\Property(property: 'date', type: 'string', format: 'date'), new OA\Property(property: 'receipt_product', type: 'number'), new OA\Property(property: 'receipt_component', type: 'number'), new OA\Property(property: 'issue_product', type: 'number'), new OA\Property(property: 'issue_component', type: 'number')])), new OA\Property(property: 'stock_trend', type: 'array', description: 'Tồn cuối mỗi ngày = opening_before_period + luỹ kế qty_delta của MỌI movement tới hết ngày đó (cùng công thức closing_qty của /reports/inventory-xnt-daily).', items: new OA\Items(type: 'object', properties: [new OA\Property(property: 'date', type: 'string', format: 'date'), new OA\Property(property: 'closing_qty', type: 'number')])), new OA\Property(property: 'stock_structure', description: 'Ma trận sku_type × stock_status của SUM(on_hand_qty) hiện tại. Dùng on_hand_qty (không phải available_qty) vì available_qty bằng 0 ở các status khác AVAILABLE nên biểu đồ cơ cấu sẽ méo. Luôn phát hành đủ 2 loại × 4 status, thiếu dữ liệu thì bằng 0.', properties: [new OA\Property(property: 'PRODUCT', ref: '#/components/schemas/DashboardStockStatusSplit'), new OA\Property(property: 'COMPONENT', ref: '#/components/schemas/DashboardStockStatusSplit')], type: 'object'), new OA\Property(property: 'warranty', properties: [new OA\Property(property: 'by_status', type: 'object', description: 'Map status → COUNT(*), toàn bộ warranty_case, không lọc period và không lọc kho.', additionalProperties: new OA\AdditionalProperties(type: 'integer')), new OA\Property(property: 'overdue_count', type: 'integer', description: 'TỔNG THẬT số ca quá hạn: estimated_completion_date < hôm nay VÀ status chưa kết thúc. Ca chưa điền ngày dự kiến hoàn thành không tính.'), new OA\Property(property: 'overdue_sample', type: 'array', description: 'Tối đa 50 ca quá hạn (mẫu để soi nhanh), sắp xếp theo hạn cũ nhất trước. Dùng overdue_count cho tổng số — count() của mảng này KHÔNG phải tổng.', items: new OA\Items(type: 'object', properties: [new OA\Property(property: 'warranty_case_code', type: 'string'), new OA\Property(property: 'customer_name', type: 'string', nullable: true), new OA\Property(property: 'status', type: 'string'), new OA\Property(property: 'estimated_completion_date', type: 'string', format: 'date'), new OA\Property(property: 'days_overdue', type: 'integer')]))], type: 'object'), new OA\Property(property: 'issues', description: 'Bộ đếm "vấn đề cần xử lý". import_error = SUM(import_reports.error_rows) trong period. LƯU Ý: không có số "scan lỗi" — scan_record_events chỉ ghi kết quả thành công, quét lỗi ném exception và không lưu dòng nào.', properties: [new OA\Property(property: 'inventory_mismatch', type: 'integer'), new OA\Property(property: 'import_error', type: 'integer'), new OA\Property(property: 'warranty_overdue', type: 'integer'), new OA\Property(property: 'print_failed', type: 'integer')], type: 'object')], type: 'object'), new OA\Property(property: 'meta', properties: [new OA\Property(property: 'request_id', type: 'string', format: 'uuid'), new OA\Property(property: 'timestamp', type: 'string', format: 'date-time')], type: 'object')])), new OA\Response(response: 401, description: 'UNAUTHENTICATED'), new OA\Response(response: 403, description: 'ACCESS_DENIED — thiếu permission report.view, hoặc warehouse_id ngoài data-scope'), new OA\Response(response: 422, description: 'BUSINESS_RULE_ERROR — from_date/to_date không hợp lệ, to_date < from_date, hoặc khoảng > 366 ngày')])]
+    public function dashboardOverview(Request $request)
+    {
+        [$from, $to] = $this->period($request);
+
+        // Cùng ngưỡng 366 ngày như dashboard-quick/xnt-daily: builder gap-fill chuỗi
+        // ngày bằng vòng lặp PHP nên range vô hạn = dựng hàng nghìn điểm vô ích.
+        if (Carbon::parse($from)->diffInDays(Carbon::parse($to)) > 366) {
+            ApiError::abort(422, 'BUSINESS_RULE_ERROR', 'Khoảng ngày cho dashboard tối đa 366 ngày.', [
+                'to_date' => ['Khoảng from_date..to_date vượt quá 366 ngày.'],
+            ]);
+        }
+
+        // Giải data-scope TRƯỚC cache — nếu để sau, một cache hit sẽ nuốt mất 403 của
+        // warehouse_id ngoài scope (cùng lý do đã ghi ở dashboardQuick).
+        $scope = $this->reportWarehouseScope($request);
+
+        $key = CacheKey::of('warehouse:report:dashboard-overview', [
+            'from' => $from,
+            'to' => $to,
+            'scope' => $scope === null ? 'global' : CacheKey::hashFilters($scope),
+        ], $this->cacheService()->currentVersion('stock:version'));
+
+        $data = $this->cacheService()->rememberStampede(
+            $key,
+            CacheTtl::seconds('dashboard'),
+            fn (): array => $this->buildDashboardOverview($from, $to, $scope)
         );
 
         return $this->respondSuccess($data);
@@ -841,6 +861,260 @@ class OperationalReportController extends Controller
         ];
     }
 
+    /**
+     * Dashboard tổng quan — một payload cho cả màn hình.
+     *
+     * Khác dashboard-quick ở hai điểm nghiệp vụ:
+     *  1. Mọi KPI luồng đều tách product/component. Chiều tách của cột NHẬP phải join
+     *     products.sku_type (RECEIPT không tự phân biệt loại SKU); chiều tách của cột
+     *     XUẤT lấy thẳng movement_type vì ERD đã chặn chứng từ ISSUE nhận SKU
+     *     COMPONENT — không cần join, và join thêm sẽ chỉ làm chậm.
+     *  2. Chuỗi thời gian CHỈ phát hành theo ngày. Gộp tuần/tháng/quý/năm là việc của
+     *     client: DATE_TRUNC là PostgreSQL-only trong khi repo gate cả SQLite, còn
+     *     DATE() thì chạy được trên cả hai (cùng lý do đã ghi ở buildXntDaily).
+     *
+     * @param  list<string>|null  $warehouseIds  null = GLOBAL; [] = fail-closed (rỗng).
+     * @return array<string, mixed>
+     */
+    private function buildDashboardOverview(string $from, string $to, ?array $warehouseIds = null): array
+    {
+        $fromTs = "{$from} 00:00:00";
+        $toTs = "{$to} 23:59:59";
+        $today = Carbon::today();
+
+        $scoped = fn ($query) => $query->when(
+            $warehouseIds !== null,
+            fn ($q) => $q->whereIn('m.warehouse_id', $warehouseIds)
+        );
+
+        // Bốn chiều luồng, gộp ngay tại SQL. COALESCE cho sku_type vì `products` là
+        // view trên `sku` và bản ghi master khuyết vẫn phải rơi vào một nhóm xác định
+        // thay vì biến mất khỏi tổng.
+        $flowSelect = fn ($query) => $query
+            ->selectRaw("SUM(CASE WHEN m.movement_type = 'RECEIPT' AND COALESCE(p.sku_type, 'PRODUCT') <> 'COMPONENT' THEN m.qty_delta ELSE 0 END) AS receipt_product")
+            ->selectRaw("SUM(CASE WHEN m.movement_type = 'RECEIPT' AND COALESCE(p.sku_type, 'PRODUCT') = 'COMPONENT' THEN m.qty_delta ELSE 0 END) AS receipt_component")
+            ->selectRaw("SUM(CASE WHEN m.movement_type = 'ISSUE' THEN -m.qty_delta ELSE 0 END) AS issue_product")
+            ->selectRaw("SUM(CASE WHEN m.movement_type = 'COMPONENT_ISSUE' THEN -m.qty_delta ELSE 0 END) AS issue_component");
+
+        /** @return array{product: float, component: float, total: float} */
+        $split = static function (?object $row, string $productKey, string $componentKey): array {
+            $product = max(0, (float) ($row->{$productKey} ?? 0));
+            $component = max(0, (float) ($row->{$componentKey} ?? 0));
+
+            return [
+                'product' => $product,
+                'component' => $component,
+                'total' => $product + $component,
+            ];
+        };
+
+        /** Tổng 4 chiều luồng trong một cửa sổ thời gian bất kỳ. */
+        $flowTotals = function (string $windowFrom, string $windowTo) use ($scoped, $flowSelect): ?object {
+            $query = DB::table('stock_movements as m')
+                ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
+                ->whereBetween('m.occurred_at', [$windowFrom, $windowTo]);
+            $scoped($query);
+
+            return $flowSelect($query)->first();
+        };
+
+        $todayTotals = $flowTotals($today->toDateString().' 00:00:00', $today->toDateString().' 23:59:59');
+        $monthTotals = $flowTotals(
+            $today->copy()->startOfMonth()->toDateString().' 00:00:00',
+            $today->copy()->endOfMonth()->toDateString().' 23:59:59'
+        );
+
+        // Tồn khả dụng hiện tại theo loại SKU — snapshot, KHÔNG lọc theo period.
+        $onHandRows = DB::table('inventory_balances as m')
+            ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
+            ->where('m.stock_status', 'AVAILABLE')
+            ->when($warehouseIds !== null, fn ($q) => $q->whereIn('m.warehouse_id', $warehouseIds))
+            ->select('p.sku_type')
+            ->selectRaw('SUM(m.available_qty) AS total')
+            ->groupBy('p.sku_type')
+            ->get();
+        $onHandProduct = 0.0;
+        $onHandComponent = 0.0;
+        foreach ($onHandRows as $row) {
+            if ((string) ($row->sku_type ?? 'PRODUCT') === 'COMPONENT') {
+                $onHandComponent += (float) $row->total;
+            } else {
+                $onHandProduct += (float) $row->total;
+            }
+        }
+
+        // Cơ cấu tồn: on_hand_qty chứ không phải available_qty — available_qty bằng 0
+        // ở mọi status khác AVAILABLE nên biểu đồ cơ cấu sẽ chỉ còn một cột.
+        $structureRows = DB::table('inventory_balances as m')
+            ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
+            ->when($warehouseIds !== null, fn ($q) => $q->whereIn('m.warehouse_id', $warehouseIds))
+            ->select('p.sku_type', 'm.stock_status')
+            ->selectRaw('SUM(m.on_hand_qty) AS total')
+            ->groupBy('p.sku_type', 'm.stock_status')
+            ->get();
+        $emptyStatuses = ['AVAILABLE' => 0.0, 'NON_SELLABLE' => 0.0, 'DEFECTIVE' => 0.0, 'QUARANTINE' => 0.0];
+        $stockStructure = ['PRODUCT' => $emptyStatuses, 'COMPONENT' => $emptyStatuses];
+        foreach ($structureRows as $row) {
+            $type = (string) ($row->sku_type ?? 'PRODUCT') === 'COMPONENT' ? 'COMPONENT' : 'PRODUCT';
+            $status = (string) ($row->stock_status ?? 'AVAILABLE');
+            if (! array_key_exists($status, $emptyStatuses)) {
+                continue;
+            }
+            $stockStructure[$type][$status] += (float) $row->total;
+        }
+
+        // Chuỗi theo ngày: 4 chiều luồng + net_change để dựng tồn cuối luỹ kế.
+        // net_change KHÔNG lọc movement_type (gồm cả REVERSAL/OPENING) vì tồn cuối là
+        // luỹ kế của mọi biến động, không riêng 4 loại đang vẽ.
+        $dailyQuery = DB::table('stock_movements as m')
+            ->leftJoin('products as p', 'p.id', '=', 'm.product_id')
+            ->whereBetween('m.occurred_at', [$fromTs, $toTs])
+            ->selectRaw('DATE(m.occurred_at) AS bucket_date')
+            ->selectRaw('SUM(m.qty_delta) AS net_change')
+            ->groupBy(DB::raw('DATE(m.occurred_at)'));
+        $scoped($dailyQuery);
+        $byDate = $flowSelect($dailyQuery)->get()->keyBy(fn ($row): string => (string) $row->bucket_date);
+
+        $openingQuery = DB::table('stock_movements as m')->where('m.occurred_at', '<', $fromTs);
+        $scoped($openingQuery);
+        $running = (float) $openingQuery->sum('qty_delta');
+
+        $flowDaily = [];
+        $stockTrend = [];
+        $cursor = Carbon::parse($from)->startOfDay();
+        $end = Carbon::parse($to)->startOfDay();
+        while ($cursor->lte($end)) {
+            $dateKey = $cursor->toDateString();
+            $row = $byDate->get($dateKey);
+            $running += (float) ($row->net_change ?? 0);
+            $flowDaily[] = [
+                'date' => $dateKey,
+                'receipt_product' => max(0, (float) ($row->receipt_product ?? 0)),
+                'receipt_component' => max(0, (float) ($row->receipt_component ?? 0)),
+                'issue_product' => max(0, (float) ($row->issue_product ?? 0)),
+                'issue_component' => max(0, (float) ($row->issue_component ?? 0)),
+            ];
+            $stockTrend[] = ['date' => $dateKey, 'closing_qty' => $running];
+            $cursor->addDay();
+        }
+
+        // SKU xuất nhiều/ít nhất: chỉ ISSUE (hàng bán ra), chỉ SKU thực sự có phát
+        // sinh xuất — SKU không xuất lần nào không phải "bán ế", nó nằm ngoài câu hỏi.
+        $issueBySku = DB::table('stock_movements as m')
+            ->join('products as p', 'p.id', '=', 'm.product_id')
+            ->whereBetween('m.occurred_at', [$fromTs, $toTs])
+            ->where('m.movement_type', 'ISSUE')
+            ->select('p.code AS sku_code', 'p.name AS sku_name')
+            ->selectRaw('SUM(-m.qty_delta) AS issue_qty')
+            ->groupBy('p.code', 'p.name')
+            ->havingRaw('SUM(-m.qty_delta) > 0');
+        $scoped($issueBySku);
+        $issueRanked = $issueBySku->get()
+            ->map(fn ($row): array => [
+                'sku_code' => (string) $row->sku_code,
+                'sku_name' => (string) $row->sku_name,
+                'issue_qty' => (float) $row->issue_qty,
+            ])
+            ->sortByDesc('issue_qty')
+            ->values();
+
+        $warrantyByStatus = DB::table('warranty_case')
+            ->select('status')
+            ->selectRaw('COUNT(*) AS total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->map(fn ($value): int => (int) $value)
+            ->all();
+
+        // "Quá hạn" đọc từ cột hạn THẬT (estimated_completion_date), không phải ngưỡng
+        // tuổi tự chế. Ca chưa điền hạn dự kiến thì không có gì để quá — không tính.
+        $overdueBase = fn () => DB::table('warranty_case')
+            ->whereNotNull('estimated_completion_date')
+            ->whereDate('estimated_completion_date', '<', $today->toDateString())
+            ->whereNotIn('status', self::WARRANTY_CLOSED_STATUSES);
+        $overdueCount = (int) $overdueBase()->count();
+        $overdueSample = $overdueBase()
+            ->orderBy('estimated_completion_date')
+            ->limit(self::DASHBOARD_WARNING_LIMIT)
+            ->get(['warranty_case_code', 'customer_name', 'status', 'estimated_completion_date'])
+            ->map(fn ($row): array => [
+                'warranty_case_code' => (string) $row->warranty_case_code,
+                'customer_name' => $row->customer_name === null ? null : (string) $row->customer_name,
+                'status' => (string) $row->status,
+                'estimated_completion_date' => (string) $row->estimated_completion_date,
+                'days_overdue' => (int) Carbon::parse($row->estimated_completion_date)->diffInDays($today),
+            ])
+            ->all();
+
+        $warrantyReceived = function (string $windowFrom, string $windowTo): int {
+            return (int) DB::table('warranty_case')
+                ->whereBetween('received_at', [$windowFrom, $windowTo])
+                ->count();
+        };
+
+        // §13.10 RPT-INV-01 là nguồn duy nhất của reconciliation_status. Lấy summary
+        // đã tính sẵn thay vì dựng lại mảng rows rồi đếm trong PHP.
+        $balance = $this->buildInventoryBalance(new Request(
+            $warehouseIds !== null && count($warehouseIds) === 1 ? ['warehouse_id' => $warehouseIds[0]] : []
+        ));
+        $mismatchCount = (int) ($balance['summary']['mismatch_count'] ?? 0);
+
+        $importErrors = (int) DB::table('import_reports')
+            ->whereBetween('created_at', [$fromTs, $toTs])
+            ->sum('error_rows');
+
+        $printFailed = (int) DB::table('label_snapshots')
+            ->where('status', 'PRINT_FAILED')
+            ->whereBetween('created_at', [$fromTs, $toTs])
+            ->count();
+
+        return $this->withScopeMeta([
+            'period' => ['from_date' => $from, 'to_date' => $to],
+            'kpi' => [
+                'on_hand' => [
+                    'product' => $onHandProduct,
+                    'component' => $onHandComponent,
+                    'total' => $onHandProduct + $onHandComponent,
+                ],
+                'receipt_today' => $split($todayTotals, 'receipt_product', 'receipt_component'),
+                'issue_today' => $split($todayTotals, 'issue_product', 'issue_component'),
+                'receipt_month' => $split($monthTotals, 'receipt_product', 'receipt_component'),
+                'issue_month' => $split($monthTotals, 'issue_product', 'issue_component'),
+            ],
+            'warranty_received' => [
+                'today' => $warrantyReceived($today->toDateString().' 00:00:00', $today->toDateString().' 23:59:59'),
+                'week' => $warrantyReceived(
+                    $today->copy()->startOfWeek()->toDateString().' 00:00:00',
+                    $today->copy()->endOfWeek()->toDateString().' 23:59:59'
+                ),
+                'month' => $warrantyReceived(
+                    $today->copy()->startOfMonth()->toDateString().' 00:00:00',
+                    $today->copy()->endOfMonth()->toDateString().' 23:59:59'
+                ),
+            ],
+            'top_sku' => [
+                'best' => $issueRanked->first(),
+                'worst' => $issueRanked->last(),
+            ],
+            'flow_daily' => $flowDaily,
+            'stock_trend' => $stockTrend,
+            'stock_structure' => $stockStructure,
+            'warranty' => [
+                'by_status' => $warrantyByStatus,
+                // Tổng thật để hiển thị; mảng bên dưới có trần nên count() của nó
+                // KHÔNG phải tổng số ca quá hạn.
+                'overdue_count' => $overdueCount,
+                'overdue_sample' => $overdueSample,
+            ],
+            'issues' => [
+                'inventory_mismatch' => $mismatchCount,
+                'import_error' => $importErrors,
+                'warranty_overdue' => $overdueCount,
+                'print_failed' => $printFailed,
+            ],
+        ], $warehouseIds);
+    }
+
     // ══════════════════════════════════════════════════════════
     //  PRIVATE BUILDERS
     // ══════════════════════════════════════════════════════════
@@ -985,6 +1259,7 @@ class OperationalReportController extends Controller
         $serialCounts = $this->serialSubledgerCounts($productIds);
         $boxCounts = $this->boxSubledgerCounts($productIds);
         $locationHints = $this->locationHints($productIds);
+        $serialTracked = $this->serialTrackedFlags($productIds);
 
         // §13.10 RPT-INV-01 "as_of inclusive": khi client chốt một mốc quá khứ thì
         // ledger đã bị cắt tới mốc đó còn inventory_balances luôn là hiện tại, nên
@@ -993,7 +1268,7 @@ class OperationalReportController extends Controller
         // Ledger↔Balance được đánh NOT_APPLICABLE thay vì báo MISMATCH giả.
         $isAsOfSnapshot = $asOf !== null && $asOf < now()->toDateString();
 
-        $rows = $keys->map(function (string $key) use ($balances, $movements, $serialCounts, $boxCounts, $locationHints, $isAsOfSnapshot): array {
+        $rows = $keys->map(function (string $key) use ($balances, $movements, $serialCounts, $boxCounts, $locationHints, $serialTracked, $isAsOfSnapshot): array {
             $balance = $balances->get($key);
             $movement = $movements->get($key);
             $balanceExists = $balance !== null;
@@ -1033,6 +1308,8 @@ class OperationalReportController extends Controller
                 'sku_type' => (string) ($balance->sku_type ?? $movement->sku_type ?? ''),
                 'stock_status' => $status,
                 'serial_qty' => (float) ($serialCounts[$productId] ?? 0),
+                // Quyết định check serial subledger có áp dụng hay không (ERD bảng 16).
+                'is_serial_tracked' => (bool) ($serialTracked[$productId] ?? false),
                 'box_qty' => (float) ($boxCounts[$productId] ?? 0),
                 'location_hint' => (string) ($locationHints[$productId] ?? ''),
                 'on_hand_qty' => $onHand,
@@ -1103,6 +1380,143 @@ class OperationalReportController extends Controller
             ->selectRaw('sku_id, COUNT(*) AS total')
             ->pluck('total', 'sku_id')
             ->map(fn ($value): int => (int) $value)
+            ->all();
+    }
+
+    /**
+     * SRS §7.5: bổ sung 3 check sổ phụ vào các dòng RPT-INV-01 rồi chốt
+     * `reconciliation_overall` + `mismatch_checks`.
+     *
+     * Dùng CHUNG cho /reports/inventory-reconciliation và file xuất tồn kho, vì
+     * màn hình đọc verdict tổng hợp còn file xuất trước đây in mỗi
+     * reconciliation_status (chỉ Ledger↔Balance) — cùng một dòng, hai kết luận
+     * ngược nhau giữa màn hình và file tải về.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function withSubledgerChecks(Request $request, array $rows): array
+    {
+        // Hai check sổ phụ là chỉ số Ở CẤP SKU: item_instances và container_items
+        // KHÔNG có warehouse_id/stock_status nên không cắt được theo chiều
+        // (kho, SKU, trạng thái) của dòng báo cáo. Bản cũ đem tổng-toàn-SKU so với
+        // available_qty/on_hand_qty của MỘT dòng, nên SKU nằm ở nhiều kho hoặc
+        // nhiều stock_status luôn bị kết luận lệch giả.
+        //
+        // Tổng phải đọc thẳng từ inventory_balances chứ KHÔNG cộng dồn $rows: $rows
+        // đã bị bộ lọc của người dùng cắt bớt (vd stock_status=AVAILABLE bỏ hết bucket
+        // DEFECTIVE), nên cộng từ đó sẽ ra một verdict đổi theo bộ lọc đang xem.
+        $productIds = collect($rows)->pluck('product_id')->filter()->unique()->values()->all();
+        $skuTotals = $this->skuStockTotals($productIds, $this->reportWarehouseScope($request));
+
+        return array_map(function (array $row) use ($skuTotals): array {
+            $productId = (string) $row['product_id'];
+            $skuAvailable = (float) ($skuTotals['available'][$productId] ?? 0);
+            $skuOnHand = (float) ($skuTotals['on_hand'][$productId] ?? 0);
+            $serialQty = (float) $row['serial_qty'];
+            $boxQty = (float) $row['box_qty'];
+
+            // Sổ phụ serial chỉ có nghĩa với SKU quản lý theo serial (ERD bảng 16,
+            // skus.tracking_mode). Điều kiện cũ suy ra "SKU serial" từ việc CÓ dòng
+            // item_instances (serial_qty > 0): một SKU quản lý theo SỐ LƯỢNG chỉ cần
+            // lỡ có 1 item_instance là bị kết luận lệch (available 25 vs serial 1) dù
+            // sổ cái và tồn kho khớp nhau — đó chính là nguồn "Chênh lệch 0 nhưng
+            // trạng thái vẫn Có chênh lệch" người dùng thấy trên RPT-INV-01.
+            $row['serial_subledger_status'] = ! (bool) ($row['is_serial_tracked'] ?? false) || $row['stock_status'] !== 'AVAILABLE'
+                ? 'NOT_APPLICABLE'
+                : (abs($skuAvailable - $serialQty) < 0.001 ? 'MATCH' : 'MISMATCH');
+            // Quantity subledger: tổng quantity trong container mapping không được
+            // vượt tồn thật; vượt nghĩa là container đang tạo thêm một bucket tồn.
+            $row['quantity_subledger_status'] = $boxQty <= 0
+                ? 'NOT_APPLICABLE'
+                : ($boxQty <= $skuOnHand + 0.001 ? 'MATCH' : 'MISMATCH');
+            $row['container_integrity_status'] = $boxQty > $skuOnHand + 0.001
+                ? 'MISMATCH'
+                : 'MATCH';
+
+            // Badge trạng thái là TỔNG HỢP 4 check, còn cột "Chênh lệch" chỉ là
+            // Ledger↔Balance. Không trả kèm danh sách check hỏng thì hai cột đứng
+            // cạnh nhau đọc như dữ liệu tự mâu thuẫn.
+            $row['mismatch_checks'] = array_values(array_keys(array_filter([
+                'ledger_to_balance' => $row['reconciliation_status'] === 'MISMATCH',
+                'serial_subledger' => $row['serial_subledger_status'] === 'MISMATCH',
+                'quantity_subledger' => $row['quantity_subledger_status'] === 'MISMATCH',
+                'container_integrity' => $row['container_integrity_status'] === 'MISMATCH',
+            ])));
+            $row['reconciliation_overall'] = $row['mismatch_checks'] === [] ? 'MATCH' : 'MISMATCH';
+
+            return $row;
+        }, $rows);
+    }
+
+    /**
+     * Nhãn tiếng Việt của các check đang lệch, dùng cho cột "Lệch ở" trong file xuất.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function mismatchChecksLabel(array $row): string
+    {
+        $labels = [
+            'ledger_to_balance' => 'Sổ cái ↔ số dư',
+            'serial_subledger' => 'Sổ serial',
+            'quantity_subledger' => 'Số lượng trong thùng',
+            'container_integrity' => 'Toàn vẹn thùng chứa',
+        ];
+
+        return implode(', ', array_map(
+            fn (string $check): string => $labels[$check] ?? $check,
+            (array) ($row['mismatch_checks'] ?? [])
+        ));
+    }
+
+    /**
+     * Tổng tồn của từng SKU trên toàn bộ bucket (kho × stock_status) trong data-scope
+     * của người gọi — vế đối chiếu cho hai check sổ phụ, vốn chỉ có chiều SKU.
+     *
+     * Đọc trực tiếp inventory_balances để verdict KHÔNG đổi theo bộ lọc đang xem
+     * trên màn báo cáo.
+     *
+     * @param  list<string>  $productIds
+     * @param  list<string>|null  $scope  null = GLOBAL
+     * @return array{available: array<string, float>, on_hand: array<string, float>}
+     */
+    private function skuStockTotals(array $productIds, ?array $scope): array
+    {
+        if ($productIds === []) {
+            return ['available' => [], 'on_hand' => []];
+        }
+
+        $totals = DB::table('inventory_balances')
+            ->whereIn('product_id', $productIds)
+            ->when($scope !== null, fn ($query) => $query->whereIn('warehouse_id', $scope))
+            ->groupBy('product_id')
+            ->selectRaw('product_id, COALESCE(SUM(available_qty), 0) AS available_total, COALESCE(SUM(on_hand_qty), 0) AS on_hand_total')
+            ->get();
+
+        return [
+            'available' => $totals->pluck('available_total', 'product_id')->map(fn ($value): float => (float) $value)->all(),
+            'on_hand' => $totals->pluck('on_hand_total', 'product_id')->map(fn ($value): float => (float) $value)->all(),
+        ];
+    }
+
+    /**
+     * ERD bảng 16 skus.tracking_mode = 'SERIAL'. Đối soát sổ phụ serial chỉ áp dụng
+     * cho SKU quản lý theo serial; với SKU quản lý theo SỐ LƯỢNG thì số dòng
+     * item_instances không phải là sổ phụ của tồn kho, đem so sẽ ra lệch giả.
+     *
+     * @param  list<string>  $productIds
+     * @return array<string, bool>
+     */
+    private function serialTrackedFlags(array $productIds): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        return DB::table('products')
+            ->whereIn('id', $productIds)
+            ->pluck('is_serial_tracked', 'id')
+            ->map(fn ($value): bool => (bool) $value)
             ->all();
     }
 
@@ -2126,12 +2540,16 @@ class OperationalReportController extends Controller
     private function exportBytesInventoryBalance(Request $request, string $format): array
     {
         $report = $this->buildInventoryBalance($request);
+        // Cột "Đối soát" phải là verdict TỔNG HỢP như trên màn hình (RPT-INV-01 §2.5).
+        // Trước đây file xuất chỉ in reconciliation_status (Ledger↔Balance) nên một
+        // dòng lệch ở sổ phụ hiện "Có chênh lệch" trên màn hình mà "MATCH" trong file.
         $rows = array_map(fn (array $row): array => [
             $row['warehouse_code'], $row['product_code'], $row['product_name'], $row['category'], $row['stock_status'],
             $row['on_hand_qty'], $row['available_qty'], $row['serial_qty'], $row['box_qty'], $row['reserved_qty'],
-            $row['location_hint'], $row['ledger_qty'], $row['variance'], $row['reconciliation_status'], $row['updated_at'],
-        ], $report['rows']);
-        $headers = ['Kho', 'Mã SKU', 'Tên SKU', 'Nhóm hàng', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Serial', 'Trong khay/thùng', 'Đã giữ', 'Vị trí gợi ý', 'Ledger', 'Chênh lệch', 'Đối soát', 'Cập nhật'];
+            $row['location_hint'], $row['ledger_qty'], $row['variance'],
+            $row['reconciliation_overall'], $this->mismatchChecksLabel($row), $row['updated_at'],
+        ], $this->withSubledgerChecks($request, $report['rows']));
+        $headers = ['Kho', 'Mã SKU', 'Tên SKU', 'Nhóm hàng', 'Trạng thái tồn', 'Tồn kho', 'Khả dụng', 'Serial', 'Trong khay/thùng', 'Đã giữ', 'Vị trí gợi ý', 'Ledger', 'Chênh lệch', 'Đối soát', 'Lệch ở', 'Cập nhật'];
 
         return $format === 'pdf'
             ? ['bytes' => $this->buildPdfBytes('Tồn kho hiện tại', $headers, $rows, 'inventory-balance', $request), 'fileName' => ReportExportFileName::stamp('bao-cao-ton-kho-hien-tai.pdf'), 'rowCount' => count($rows), 'contentType' => 'application/pdf']

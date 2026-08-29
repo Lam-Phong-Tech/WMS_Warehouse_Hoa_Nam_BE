@@ -17,6 +17,15 @@ return [
     // Endpoint PV ẩn danh: giới hạn theo IP.
     'pv_public_per_minute' => (int) env('RATE_LIMIT_PV_PUBLIC_PER_MINUTE', 120),
 
+    // Storefront công khai `/api/v1/public/*` — nhóm ĐỌC, khoá theo IP. Cao hơn
+    // pv_public vì một lần mở app đã gọi song song /config + /home rồi mới tới
+    // listing, facets và chi tiết.
+    'public_api_per_minute' => (int) env('RATE_LIMIT_PUBLIC_API_PER_MINUTE', 180),
+
+    // POST /api/v1/public/quote-requests — endpoint GHI ẩn danh duy nhất. Khoá
+    // theo (IP + số điện thoại), ngưỡng thấp vì đây là bề mặt spam lead-gen.
+    'public_quote_request_per_minute' => (int) env('RATE_LIMIT_PUBLIC_QUOTE_REQUEST_PER_MINUTE', 5),
+
     // Đăng nhập: chỉ đếm lần THẤT BẠI, khoá theo (IP + định danh đăng nhập)
     // nên một IP dùng chung (NAT kho) không tự khoá lẫn nhau.
     'auth_login_per_minute' => (int) env('RATE_LIMIT_AUTH_LOGIN_PER_MINUTE', 10),

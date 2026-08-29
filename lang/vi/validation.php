@@ -388,8 +388,8 @@ return [
         'expected_qty' => 'số lượng dự kiến',
         'expected_total_qty' => 'tổng số lượng dự kiến',
         'unit_cost' => 'đơn giá',
-        'min_stock' => 'tồn kho tối thiểu',
-        'max_stock' => 'tồn kho tối đa',
+        'min_stock' => 'định mức tồn tối thiểu',
+        'max_stock' => 'định mức tồn tối đa',
         'below_min_stock_skus' => 'danh sách SKU dưới định mức',
         'above_max_stock_skus' => 'danh sách SKU vượt định mức',
 

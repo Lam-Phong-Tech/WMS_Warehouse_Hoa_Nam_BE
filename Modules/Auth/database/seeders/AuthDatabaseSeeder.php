@@ -19,73 +19,73 @@ class AuthDatabaseSeeder extends Seeder
      * Legacy keys remain additive for backward compatibility only.
      */
     private const PERMISSIONS = [
-        ['iam.user.view', 'View IAM users'],
-        ['iam.user.manage', 'Manage IAM users and assignments'],
-        ['iam.role.view', 'View IAM roles'],
-        ['iam.role.manage', 'Manage IAM roles and permissions'],
-        ['iam.permission.view', 'View IAM permissions'],
+        ['iam.user.view', 'Xem người dùng IAM'],
+        ['iam.user.manage', 'Quản lý người dùng và gán vai trò IAM'],
+        ['iam.role.view', 'Xem vai trò IAM'],
+        ['iam.role.manage', 'Quản lý vai trò và quyền IAM'],
+        ['iam.permission.view', 'Xem danh mục quyền IAM'],
 
-        ['warehouse.view', 'View warehouses'],
-        ['warehouse.manage', 'Manage warehouses'],
-        ['catalog.view', 'View canonical catalog masters'],
-        ['catalog.manage', 'Manage canonical catalog masters'],
-        ['sku.view', 'View SKUs/products'],
-        ['sku.manage', 'Manage SKUs/products'],
-        ['agency.view', 'View agencies'],
-        ['agency.manage', 'Manage agencies'],
-        ['defect.view', 'View defect catalog'],
-        ['defect.manage', 'Manage defect catalog'],
+        ['warehouse.view', 'Xem kho'],
+        ['warehouse.manage', 'Quản lý kho'],
+        ['catalog.view', 'Xem danh mục gốc chuẩn hóa'],
+        ['catalog.manage', 'Quản lý danh mục gốc chuẩn hóa'],
+        ['sku.view', 'Xem SKU/sản phẩm'],
+        ['sku.manage', 'Quản lý SKU/sản phẩm'],
+        ['agency.view', 'Xem đại lý'],
+        ['agency.manage', 'Quản lý đại lý'],
+        ['defect.view', 'Xem danh mục lỗi'],
+        ['defect.manage', 'Quản lý danh mục lỗi'],
 
-        ['inbound.view', 'View inbound documents'],
-        ['inbound.create', 'Create and edit inbound drafts'],
-        ['inbound.scan', 'Scan inbound documents'],
-        ['inbound.post', 'Post inbound receipt atomically'],
-        ['inbound.cancel', 'Cancel inbound drafts'],
-        ['outbound.view', 'View outbound documents'],
-        ['outbound.import', 'Import outbound requests from Excel'],
+        ['inbound.view', 'Xem chứng từ nhập kho'],
+        ['inbound.create', 'Tạo và sửa phiếu nhập nháp'],
+        ['inbound.scan', 'Quét mã chứng từ nhập kho'],
+        ['inbound.post', 'Ghi sổ phiếu nhập nguyên tử'],
+        ['inbound.cancel', 'Hủy phiếu nhập nháp'],
+        ['outbound.view', 'Xem chứng từ xuất kho'],
+        ['outbound.import', 'Nhập yêu cầu xuất kho từ Excel'],
         // outbound.create đã thu hồi: §8.1 gỡ POST /outbound-documents trực tiếp
         // từ lâu (phiếu xuất chỉ sinh qua Confirm yêu cầu xuất), nên mã này không
         // còn route nào đọc. Vai trò tạo yêu cầu xuất dùng outbound.request.*.
-        ['outbound.scan', 'Scan and match outbound items'],
-        ['outbound.post', 'Post outbound issue atomically'],
-        ['outbound.cancel', 'Cancel outbound drafts'],
+        ['outbound.scan', 'Quét và khớp mặt hàng xuất kho'],
+        ['outbound.post', 'Ghi sổ phiếu xuất nguyên tử'],
+        ['outbound.cancel', 'Hủy phiếu xuất nháp'],
 
-        ['inventory.view', 'View inventory balances and movements'],
-        ['inventory.trace', 'Trace inventory movements and item history'],
-        ['inventory.reversal.post', 'Post controlled reversal/correction'],
-        ['physical_code.assign_rfid', 'Assign or revoke RFID physical code'],
-        ['physical_code.create', 'Issue a brand-new item instance with a new Barcode/QR physical code'],
-        ['label.print', 'Print labels'],
-        ['label.reprint', 'Reprint labels'],
-        ['warranty.manage', 'Manage warranty cases and events'],
-        ['warranty.component_issue', 'Issue components for active warranty cases'],
-        ['warranty.pii.view', 'View warranty PII'],
-        ['warranty.pii.export', 'Export warranty PII'],
-        ['scan.classify', 'Classify scans without stock effect'],
-        ['pv.publish', 'Publish PV catalog'],
-        ['report.view', 'View reports'],
-        ['report.export', 'Export reports'],
-        ['audit_log.view', 'View audit logs'],
+        ['inventory.view', 'Xem tồn kho và biến động'],
+        ['inventory.trace', 'Truy vết biến động và lịch sử mặt hàng'],
+        ['inventory.reversal.post', 'Ghi sổ điều chỉnh/đảo bút toán có kiểm soát'],
+        ['physical_code.assign_rfid', 'Gán hoặc thu hồi mã vật lý RFID'],
+        ['physical_code.create', 'Cấp mã vật lý Barcode/QR mới cho mặt hàng'],
+        ['label.print', 'In nhãn'],
+        ['label.reprint', 'In lại nhãn'],
+        ['warranty.manage', 'Quản lý case và sự kiện bảo hành'],
+        ['warranty.component_issue', 'Xuất linh kiện cho case bảo hành đang xử lý'],
+        ['warranty.pii.view', 'Xem dữ liệu cá nhân (PII) bảo hành'],
+        ['warranty.pii.export', 'Xuất dữ liệu cá nhân (PII) bảo hành'],
+        ['scan.classify', 'Phân loại lượt quét không ảnh hưởng tồn kho'],
+        ['pv.publish', 'Công bố danh mục PV'],
+        ['report.view', 'Xem báo cáo'],
+        ['report.export', 'Xuất báo cáo'],
+        ['audit_log.view', 'Xem nhật ký audit'],
         // Mục 6 (audit log theo module): audit_log.view giờ bị giới hạn theo
         // module/quyền của actor (xem AuditLogController::allowedModulesFor).
         // audit_log.view_all là cờ bypass — chỉ cấp cho các role vốn đã được
         // xem audit log không giới hạn từ trước, để KHÔNG đổi hành vi hiện có.
-        ['audit_log.view_all', 'View audit logs across all modules (bypass per-module scope)'],
+        ['audit_log.view_all', 'Xem nhật ký audit của mọi module (bỏ qua giới hạn theo từng module)'],
 
-        ['putaway.view', 'View putaway tasks (Annex C)'],
-        ['putaway.manage', 'Create/confirm/cancel putaway tasks (Annex C)'],
-        ['warranty.view', 'View warranty cases (Annex C)'],
-        ['scan.execute', 'Classify scan batches (Annex C alias of scan.classify)'],
-        ['packing_label.preview', 'Preview packing label before completion'],
-        ['packing_label.ready', 'Freeze packing label snapshot (READY_TO_PRINT)'],
-        ['packing_label.print', 'Print packing label'],
-        ['packing_label.reprint', 'Reprint packing label after completion'],
-        ['outbound.request.import', 'Import outbound request (Annex C)'],
-        ['outbound.request.confirm', 'Confirm outbound request import (Annex C)'],
-        ['outbound.request.manual_create', 'Create outbound request manually (Annex C)'],
-        ['pv.master.manage', 'Manage PV industry/tag/mapping/recommendation'],
+        ['putaway.view', 'Xem tác vụ cất hàng (Annex C)'],
+        ['putaway.manage', 'Tạo/xác nhận/hủy tác vụ cất hàng (Annex C)'],
+        ['warranty.view', 'Xem case bảo hành (Annex C)'],
+        ['scan.execute', 'Phân loại lô quét (Annex C, tương đương scan.classify)'],
+        ['packing_label.preview', 'Xem trước nhãn đóng gói trước khi hoàn tất'],
+        ['packing_label.ready', 'Đóng băng bản chụp nhãn đóng gói (READY_TO_PRINT)'],
+        ['packing_label.print', 'In nhãn đóng gói'],
+        ['packing_label.reprint', 'In lại nhãn đóng gói sau khi hoàn tất'],
+        ['outbound.request.import', 'Nhập yêu cầu xuất kho (Annex C)'],
+        ['outbound.request.confirm', 'Xác nhận import yêu cầu xuất kho (Annex C)'],
+        ['outbound.request.manual_create', 'Tạo thủ công yêu cầu xuất kho (Annex C)'],
+        ['pv.master.manage', 'Quản lý ngành hàng/tag/mapping/gợi ý PV'],
 
-        ['warranty.temp_only', 'Legacy warranty temporary intake permission'],
+        ['warranty.temp_only', 'Quyền tiếp nhận tạm thời bảo hành (legacy)'],
 
         // 21 mã cũ (user.*, role.*, permission.view, product.*, product_master.*,
         // master.manage, defect_catalog.*, physical_code.view/manage,
@@ -104,17 +104,17 @@ class AuthDatabaseSeeder extends Seeder
         // KHÔNG thêm mã mới vào đây mà không có route/`hasPermission()` đọc tới:
         // AuthorizationCoverageInvariantTest sẽ đỏ.
 
-        ['import_batch.view', 'View import batches'],
-        ['import_batch.manage', 'Manage import batches'],
-        ['container.view', 'View containers'],
-        ['container.manage', 'Manage containers'],
-        ['item_instance.view', 'View item instances'],
-        ['item_instance.manage', 'Manage item instances'],
+        ['import_batch.view', 'Xem lô nhập dữ liệu'],
+        ['import_batch.manage', 'Quản lý lô nhập dữ liệu'],
+        ['container.view', 'Xem container'],
+        ['container.manage', 'Quản lý container'],
+        ['item_instance.view', 'Xem instance mặt hàng'],
+        ['item_instance.manage', 'Quản lý instance mặt hàng'],
     ];
 
     private const ROLES = [
         'ADMIN' => [
-            'name' => 'Administrator',
+            'name' => 'Quản trị viên',
             'permissions' => [
                 'iam.user.view', 'iam.user.manage', 'iam.role.view', 'iam.role.manage', 'iam.permission.view',
                 'warehouse.view', 'warehouse.manage', 'catalog.view', 'catalog.manage', 'sku.view', 'sku.manage',
@@ -138,7 +138,7 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'WAREHOUSE_STAFF' => [
-            'name' => 'Warehouse Staff',
+            'name' => 'Nhân viên kho',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'inbound.create', 'inbound.scan',
@@ -158,7 +158,7 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'WAREHOUSE_APPROVER' => [
-            'name' => 'Warehouse Approver',
+            'name' => 'Người duyệt kho',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'inbound.post', 'inbound.cancel',
@@ -170,7 +170,7 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'WAREHOUSE_KEEPER' => [
-            'name' => 'Warehouse Keeper',
+            'name' => 'Thủ kho',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'inbound.scan', 'inbound.post', 'inbound.cancel',
@@ -186,7 +186,7 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'WARRANTY_STAFF' => [
-            'name' => 'Warranty Staff',
+            'name' => 'Nhân viên bảo hành',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inventory.view', 'inventory.trace',
@@ -196,7 +196,7 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'LEADERSHIP' => [
-            'name' => 'Leadership',
+            'name' => 'Ban lãnh đạo',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inventory.view', 'inventory.trace', 'report.view',
@@ -205,7 +205,7 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'VIEWER' => [
-            'name' => 'Viewer',
+            'name' => 'Người xem',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'outbound.view', 'inventory.view', 'report.view', 'audit_log.view',
@@ -222,7 +222,7 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'WAREHOUSE_MANAGER' => [
-            'name' => 'Warehouse Manager',
+            'name' => 'Quản lý kho',
             'permissions' => [
                 'iam.user.view', 'iam.user.manage', 'iam.role.view', 'iam.role.manage', 'iam.permission.view',
                 'warehouse.view', 'warehouse.manage', 'catalog.view', 'catalog.manage', 'sku.view', 'sku.manage',
@@ -240,19 +240,19 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'SKU_MANAGER' => [
-            'name' => 'SKU Manager Test',
+            'name' => 'Quản lý SKU (Test)',
             'permissions' => ['catalog.view', 'sku.view', 'sku.manage'],
         ],
         'MASTER_MANAGER' => [
-            'name' => 'Master Data Manager Test',
+            'name' => 'Quản lý dữ liệu gốc (Test)',
             'permissions' => ['catalog.view', 'catalog.manage'],
         ],
         'NO_PERMISSION' => [
-            'name' => 'No Permission Test',
+            'name' => 'Không có quyền (Test)',
             'permissions' => [],
         ],
         'INBOUND_ONLY_TEST' => [
-            'name' => 'Inbound Only Test',
+            'name' => 'Chỉ nhập kho (Test)',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
@@ -275,16 +275,16 @@ class AuthDatabaseSeeder extends Seeder
      * "—" ở cột Phòng ban cho tới khi được gán tay qua UI.
      */
     private const USERS = [
-        ['username' => 'staff01', 'display_name' => 'Warehouse Staff 01', 'email' => 'staff01@gmail.com', 'role' => 'WAREHOUSE_STAFF', 'department' => 'QUAN_LY_KHO'],
-        ['username' => 'approver01', 'display_name' => 'Warehouse Approver 01', 'email' => 'approver01@gmail.com', 'role' => 'WAREHOUSE_APPROVER', 'department' => 'QUAN_LY_KHO'],
-        ['username' => 'keeper01', 'display_name' => 'Warehouse Keeper 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER', 'department' => 'QUAN_LY_KHO'],
-        ['username' => 'viewer01', 'display_name' => 'Viewer 01', 'email' => 'viewer01@gmail.com', 'role' => 'VIEWER'],
-        ['username' => 'manager01', 'display_name' => 'Warehouse Manager 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER', 'department' => 'QUAN_LY_KHO'],
-        ['username' => 'test-sku-manage', 'display_name' => 'Test SKU Manage', 'email' => 'test-sku-manage@hoanam.com', 'role' => 'SKU_MANAGER'],
-        ['username' => 'test-master-manage', 'display_name' => 'Test Master Manage', 'email' => 'test-master-manage@hoanam.com', 'role' => 'MASTER_MANAGER'],
-        ['username' => 'test-no-permission', 'display_name' => 'Test No Permission', 'email' => 'test-no-permission@hoanam.com', 'role' => 'NO_PERMISSION'],
-        ['username' => 'test-super-admin', 'display_name' => 'Test Super Admin', 'email' => 'test-super-admin@hoanam.com', 'role' => 'SUPER_ADMIN'],
-        ['username' => 'inbound-tester01', 'display_name' => 'Inbound Only Tester', 'email' => 'inbound-tester01@hoanam.com', 'role' => 'INBOUND_ONLY_TEST'],
+        ['username' => 'staff01', 'display_name' => 'Nhân viên kho 01', 'email' => 'staff01@gmail.com', 'role' => 'WAREHOUSE_STAFF', 'department' => 'QUAN_LY_KHO'],
+        ['username' => 'approver01', 'display_name' => 'Người duyệt kho 01', 'email' => 'approver01@gmail.com', 'role' => 'WAREHOUSE_APPROVER', 'department' => 'QUAN_LY_KHO'],
+        ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER', 'department' => 'QUAN_LY_KHO'],
+        ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@gmail.com', 'role' => 'VIEWER'],
+        ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER', 'department' => 'QUAN_LY_KHO'],
+        ['username' => 'test-sku-manage', 'display_name' => 'Test Quản lý SKU', 'email' => 'test-sku-manage@hoanam.com', 'role' => 'SKU_MANAGER'],
+        ['username' => 'test-master-manage', 'display_name' => 'Test Quản lý dữ liệu gốc', 'email' => 'test-master-manage@hoanam.com', 'role' => 'MASTER_MANAGER'],
+        ['username' => 'test-no-permission', 'display_name' => 'Test Không có quyền', 'email' => 'test-no-permission@hoanam.com', 'role' => 'NO_PERMISSION'],
+        ['username' => 'test-super-admin', 'display_name' => 'Test Siêu quản trị', 'email' => 'test-super-admin@hoanam.com', 'role' => 'SUPER_ADMIN'],
+        ['username' => 'inbound-tester01', 'display_name' => 'Test Chỉ nhập kho', 'email' => 'inbound-tester01@hoanam.com', 'role' => 'INBOUND_ONLY_TEST'],
     ];
 
     private const NON_PRODUCTION_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION', 'INBOUND_ONLY_TEST'];
@@ -306,14 +306,14 @@ class AuthDatabaseSeeder extends Seeder
 
         $superAdminRole = Role::firstOrCreate(
             ['role_code' => 'SUPER_ADMIN'],
-            ['role_name' => 'System Administrator', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
+            ['role_name' => 'Quản trị hệ thống', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
         );
         $roleModels = ['SUPER_ADMIN' => $superAdminRole];
 
         $adminUser = User::updateOrCreate(
             ['username' => 'admin'],
             [
-                'display_name' => 'Administrator',
+                'display_name' => 'Quản trị viên',
                 'email' => 'admin@gmail.com',
                 'password_hash' => Hash::make($adminPassword),
                 'status' => 'ACTIVE',

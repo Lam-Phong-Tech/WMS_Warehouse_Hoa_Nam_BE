@@ -658,7 +658,7 @@
                     "15. Audit Log"
                 ],
                 "summary": "Lấy danh sách nhật ký thao tác",
-                "description": "Hỗ trợ phân trang, lọc theo user_id, action, module và tìm kiếm theo mô tả (q). Yêu cầu quyền audit_log.view; không có audit_log.view_all (và không phải super admin) thì kết quả chỉ giới hạn trong các module tương ứng quyền nghiệp vụ hiện có của actor.",
+                "description": "Hỗ trợ phân trang, lọc theo user_id, action, module, khoảng thời gian (date_from/date_to) và tìm kiếm theo mô tả (q). Yêu cầu quyền audit_log.view; không có audit_log.view_all (và không phải super admin) thì kết quả chỉ giới hạn trong các module tương ứng quyền nghiệp vụ hiện có của actor.",
                 "operationId": "audit_log_list",
                 "parameters": [
                     {
@@ -704,6 +704,22 @@
                         "name": "module",
                         "in": "query",
                         "description": "SYSTEM | INBOUND | OUTBOUND | WARRANTY | STOCKTAKE",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "date_from",
+                        "in": "query",
+                        "description": "Lọc created_at >= (Y-m-d hoặc Y-m-d H:i:s)",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "date_to",
+                        "in": "query",
+                        "description": "Lọc created_at <= (Y-m-d hoặc Y-m-d H:i:s)",
                         "schema": {
                             "type": "string"
                         }
@@ -13180,6 +13196,13 @@
                                         "type": "string",
                                         "format": "uuid",
                                         "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                                    },
+                                    "reason": {
+                                        "description": "Lý do in lại (hết mực / lỗi máy in / hỏng nhãn...)",
+                                        "type": "string",
+                                        "example": "Máy in hết mực",
+                                        "nullable": true,
+                                        "maxLength": 500
                                     }
                                 },
                                 "type": "object"
@@ -23736,6 +23759,13 @@
                                         "type": "string",
                                         "format": "uuid",
                                         "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                                    },
+                                    "reason": {
+                                        "description": "Lý do in lại (hết mực / lỗi máy in / hỏng nhãn...)",
+                                        "type": "string",
+                                        "example": "Máy in hết mực",
+                                        "nullable": true,
+                                        "maxLength": 500
                                     }
                                 },
                                 "type": "object"
@@ -31069,16 +31099,20 @@
                                         "nullable": true
                                     },
                                     "min_stock": {
-                                        "description": "Định mức tồn tối thiểu toàn hệ thống (không theo kho); null = chưa đặt",
+                                        "description": "Định mức tồn tối thiểu theo SKU, toàn hệ thống (không theo kho). Phải >= 0 — 0 là một định mức hợp lệ; null = chưa đặt, không tính cảnh báo.",
                                         "type": "number",
+                                        "format": "double",
                                         "example": 10,
-                                        "nullable": true
+                                        "nullable": true,
+                                        "minimum": 0
                                     },
                                     "max_stock": {
-                                        "description": "Định mức tồn tối đa toàn hệ thống (không theo kho); null = chưa đặt",
+                                        "description": "Định mức tồn tối đa theo SKU, toàn hệ thống (không theo kho). Phải >= 1 VÀ lớn hơn min_stock; null = chưa đặt, không tính cảnh báo.",
                                         "type": "number",
+                                        "format": "double",
                                         "example": 500,
-                                        "nullable": true
+                                        "nullable": true,
+                                        "minimum": 1
                                     }
                                 },
                                 "type": "object"
@@ -31451,16 +31485,20 @@
                                         ]
                                     },
                                     "min_stock": {
-                                        "description": "Định mức tồn tối thiểu toàn hệ thống (không theo kho); null = chưa đặt",
+                                        "description": "Định mức tồn tối thiểu theo SKU, toàn hệ thống (không theo kho). Phải >= 0 — 0 là một định mức hợp lệ; null = chưa đặt, không tính cảnh báo.",
                                         "type": "number",
+                                        "format": "double",
                                         "example": 10,
-                                        "nullable": true
+                                        "nullable": true,
+                                        "minimum": 0
                                     },
                                     "max_stock": {
-                                        "description": "Định mức tồn tối đa toàn hệ thống (không theo kho); null = chưa đặt",
+                                        "description": "Định mức tồn tối đa theo SKU, toàn hệ thống (không theo kho). Phải >= 1 VÀ lớn hơn min_stock; null = chưa đặt, không tính cảnh báo.",
                                         "type": "number",
+                                        "format": "double",
                                         "example": 500,
-                                        "nullable": true
+                                        "nullable": true,
+                                        "minimum": 1
                                     }
                                 },
                                 "type": "object"
@@ -31853,6 +31891,1053 @@
                         "bearerAuth": []
                     }
                 ]
+            }
+        },
+        "/api/v1/public/categories": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "GET /api/v1/public/categories - Modules Warehouse Http Controllers PublicApi PublicCatalogController categories",
+                "operationId": "get_api_v1_public_categories",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/api/v1/public/config": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "GET /api/v1/public/config - Modules Warehouse Http Controllers PublicApi PublicAppController config",
+                "operationId": "get_api_v1_public_config",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/api/v1/public/facets": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "GET /api/v1/public/facets - Modules Warehouse Http Controllers PublicApi PublicCatalogController facets",
+                "operationId": "get_api_v1_public_facets",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/api/v1/public/health/version": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "GET /api/v1/public/health/version - Modules Warehouse Http Controllers PublicApi PublicAppController healthVersion",
+                "operationId": "get_api_v1_public_health_version",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/api/v1/public/home": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "GET /api/v1/public/home - Modules Warehouse Http Controllers PublicApi PublicAppController home",
+                "operationId": "get_api_v1_public_home",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/api/v1/public/products": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "GET /api/v1/public/products - Modules Warehouse Http Controllers PublicApi PublicCatalogController products",
+                "operationId": "get_api_v1_public_products",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/api/v1/public/products/{slug}": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "GET /api/v1/public/products/{slug} - Modules Warehouse Http Controllers PublicApi PublicCatalogController product",
+                "operationId": "get_api_v1_public_products_slug",
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/api/v1/public/products/{slug}/related": {
+            "get": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "GET /api/v1/public/products/{slug}/related - Modules Warehouse Http Controllers PublicApi PublicCatalogController related",
+                "operationId": "get_api_v1_public_products_slug_related",
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/api/v1/public/quote-requests": {
+            "post": {
+                "tags": [
+                    "00. Platform"
+                ],
+                "summary": "POST /api/v1/public/quote-requests - Modules Warehouse Http Controllers PublicApi PublicQuoteRequestController store",
+                "operationId": "post_api_v1_public_quote__requests",
+                "parameters": [],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "example": {},
+                                "additionalProperties": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Chưa xác thực",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Không có quyền truy cập",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
             }
         },
         "/api/v1/putaway-tasks": {
@@ -35389,6 +36474,374 @@
                     },
                     "409": {
                         "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/reports/dashboard-overview": {
+            "get": {
+                "tags": [
+                    "12. Dashboard / Report"
+                ],
+                "summary": "Dashboard tổng quan — 1 lần gọi cho toàn màn hình",
+                "description": "Aggregate phục vụ màn Dashboard tổng quan: KPI tồn/nhập/xuất tách theo sku_type, chuỗi nhập-xuất theo ngày tách 4 chiều, xu hướng tồn, cơ cấu tồn theo trạng thái × loại SKU, tình trạng bảo hành kèm số ca quá hạn, và 4 nhóm vấn đề cần xử lý. Chuỗi thời gian CHỈ phát hành theo NGÀY — client tự gộp sang tuần/tháng/quý/năm (tránh DATE_TRUNC vốn chỉ có trên PostgreSQL trong khi repo gate cả SQLite). DATA-SCOPE: giống dashboard-quick — người dùng bị giới hạn kho chỉ nhận số liệu các kho trong scope. Ngoại lệ đã ghi nhận: mọi số liệu bảo hành luôn GLOBAL vì ERD warranty_case không có warehouse_id.",
+                "operationId": "report_dashboard_overview",
+                "parameters": [
+                    {
+                        "name": "from_date",
+                        "in": "query",
+                        "description": "Mặc định: hôm nay trừ 30 ngày (Asia/Ho_Chi_Minh). Áp cho flow_daily, stock_trend, top_sku và các bộ đếm issues.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to_date",
+                        "in": "query",
+                        "description": "Phải >= from_date (422 BUSINESS_RULE_ERROR nếu vi phạm). Khoảng tối đa 366 ngày. Mặc định: hôm nay",
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "warehouse_id",
+                        "in": "query",
+                        "description": "Thu hẹp về 1 kho. Phải nằm trong data-scope của người gọi, nếu không trả 403 ACCESS_DENIED.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Dashboard overview",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "period": {
+                                                    "properties": {
+                                                        "from_date": {
+                                                            "type": "string",
+                                                            "format": "date"
+                                                        },
+                                                        "to_date": {
+                                                            "type": "string",
+                                                            "format": "date"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "data_scope": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "GLOBAL",
+                                                        "WAREHOUSE_SCOPED"
+                                                    ]
+                                                },
+                                                "scope_warehouse_ids": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "format": "uuid"
+                                                    },
+                                                    "nullable": true
+                                                },
+                                                "kpi": {
+                                                    "description": "Mỗi KPI tách {product, component, total}. on_hand là snapshot hiện tại (không lọc theo period); receipt_today/issue_today theo hôm nay; receipt_month/issue_month theo tháng dương lịch hiện tại — độc lập với from_date/to_date.",
+                                                    "properties": {
+                                                        "on_hand": {
+                                                            "$ref": "#/components/schemas/DashboardSkuSplit"
+                                                        },
+                                                        "receipt_today": {
+                                                            "$ref": "#/components/schemas/DashboardSkuSplit"
+                                                        },
+                                                        "issue_today": {
+                                                            "$ref": "#/components/schemas/DashboardSkuSplit"
+                                                        },
+                                                        "receipt_month": {
+                                                            "$ref": "#/components/schemas/DashboardSkuSplit"
+                                                        },
+                                                        "issue_month": {
+                                                            "$ref": "#/components/schemas/DashboardSkuSplit"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "warranty_received": {
+                                                    "description": "Số ca bảo hành tiếp nhận theo received_at. GLOBAL, không lọc kho.",
+                                                    "properties": {
+                                                        "today": {
+                                                            "type": "integer"
+                                                        },
+                                                        "week": {
+                                                            "type": "integer"
+                                                        },
+                                                        "month": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "top_sku": {
+                                                    "description": "SKU xuất nhiều nhất / ít nhất trong period, chỉ tính movement_type=ISSUE và chỉ SKU có issue_qty > 0. null khi kỳ không phát sinh xuất.",
+                                                    "properties": {
+                                                        "best": {
+                                                            "oneOf": [
+                                                                {
+                                                                    "$ref": "#/components/schemas/DashboardTopSku"
+                                                                }
+                                                            ],
+                                                            "nullable": true
+                                                        },
+                                                        "worst": {
+                                                            "oneOf": [
+                                                                {
+                                                                    "$ref": "#/components/schemas/DashboardTopSku"
+                                                                }
+                                                            ],
+                                                            "nullable": true
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "flow_daily": {
+                                                    "description": "Chuỗi theo ngày, gap-fill đủ mọi ngày trong period. receipt_* tách theo products.sku_type; issue_product = movement_type ISSUE, issue_component = COMPONENT_ISSUE (xuất linh kiện bảo hành).",
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "date": {
+                                                                "type": "string",
+                                                                "format": "date"
+                                                            },
+                                                            "receipt_product": {
+                                                                "type": "number"
+                                                            },
+                                                            "receipt_component": {
+                                                                "type": "number"
+                                                            },
+                                                            "issue_product": {
+                                                                "type": "number"
+                                                            },
+                                                            "issue_component": {
+                                                                "type": "number"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "stock_trend": {
+                                                    "description": "Tồn cuối mỗi ngày = opening_before_period + luỹ kế qty_delta của MỌI movement tới hết ngày đó (cùng công thức closing_qty của /reports/inventory-xnt-daily).",
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "date": {
+                                                                "type": "string",
+                                                                "format": "date"
+                                                            },
+                                                            "closing_qty": {
+                                                                "type": "number"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "stock_structure": {
+                                                    "description": "Ma trận sku_type × stock_status của SUM(on_hand_qty) hiện tại. Dùng on_hand_qty (không phải available_qty) vì available_qty bằng 0 ở các status khác AVAILABLE nên biểu đồ cơ cấu sẽ méo. Luôn phát hành đủ 2 loại × 4 status, thiếu dữ liệu thì bằng 0.",
+                                                    "properties": {
+                                                        "PRODUCT": {
+                                                            "$ref": "#/components/schemas/DashboardStockStatusSplit"
+                                                        },
+                                                        "COMPONENT": {
+                                                            "$ref": "#/components/schemas/DashboardStockStatusSplit"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "warranty": {
+                                                    "properties": {
+                                                        "by_status": {
+                                                            "description": "Map status → COUNT(*), toàn bộ warranty_case, không lọc period và không lọc kho.",
+                                                            "type": "object",
+                                                            "additionalProperties": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "overdue_count": {
+                                                            "description": "TỔNG THẬT số ca quá hạn: estimated_completion_date < hôm nay VÀ status chưa kết thúc. Ca chưa điền ngày dự kiến hoàn thành không tính.",
+                                                            "type": "integer"
+                                                        },
+                                                        "overdue_sample": {
+                                                            "description": "Tối đa 50 ca quá hạn (mẫu để soi nhanh), sắp xếp theo hạn cũ nhất trước. Dùng overdue_count cho tổng số — count() của mảng này KHÔNG phải tổng.",
+                                                            "type": "array",
+                                                            "items": {
+                                                                "properties": {
+                                                                    "warranty_case_code": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "customer_name": {
+                                                                        "type": "string",
+                                                                        "nullable": true
+                                                                    },
+                                                                    "status": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "estimated_completion_date": {
+                                                                        "type": "string",
+                                                                        "format": "date"
+                                                                    },
+                                                                    "days_overdue": {
+                                                                        "type": "integer"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "issues": {
+                                                    "description": "Bộ đếm \"vấn đề cần xử lý\". import_error = SUM(import_reports.error_rows) trong period. LƯU Ý: không có số \"scan lỗi\" — scan_record_events chỉ ghi kết quả thành công, quét lỗi ném exception và không lưu dòng nào.",
+                                                    "properties": {
+                                                        "inventory_mismatch": {
+                                                            "type": "integer"
+                                                        },
+                                                        "import_error": {
+                                                            "type": "integer"
+                                                        },
+                                                        "warranty_overdue": {
+                                                            "type": "integer"
+                                                        },
+                                                        "print_failed": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "meta": {
+                                            "properties": {
+                                                "request_id": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "timestamp": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "UNAUTHENTICATED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "ACCESS_DENIED — thiếu permission report.view, hoặc warehouse_id ngoài data-scope",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "BUSINESS_RULE_ERROR — from_date/to_date không hợp lệ, to_date < from_date, hoặc khoảng > 366 ngày",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -51997,6 +53450,74 @@
                     },
                     "meta": {
                         "$ref": "#/components/schemas/ApiMeta"
+                    }
+                },
+                "type": "object"
+            },
+            "DashboardSkuSplit": {
+                "title": "Số liệu tách theo loại SKU",
+                "description": "total luôn bằng product + component. Chiều tách lấy từ products.sku_type, riêng cột xuất thì tách theo movement_type (ISSUE = sản phẩm, COMPONENT_ISSUE = linh kiện bảo hành) vì ERD đã ràng buộc chứng từ xuất chỉ nhận SKU loại PRODUCT.",
+                "required": [
+                    "product",
+                    "component",
+                    "total"
+                ],
+                "properties": {
+                    "product": {
+                        "description": "Schema dùng chung cho `GET /api/v1/reports/dashboard-overview`.\n\nBa khối dưới đây lặp lại nhiều lần trong payload (5 KPI cùng dạng tách\nproduct/component, 2 loại SKU cùng dạng tách theo stock_status). Khai một lần ở\nđây và để controller `$ref` tới, cùng lý do đã ghi ở ReversalNetEffectSchemas:\ncontract không thể lệch khỏi runtime mà không sửa cùng một chỗ.",
+                        "type": "number"
+                    },
+                    "component": {
+                        "type": "number"
+                    },
+                    "total": {
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            },
+            "DashboardStockStatusSplit": {
+                "title": "Tồn hiện tại theo trạng thái",
+                "description": "SUM(inventory_balances.on_hand_qty) theo từng stock_status của ERD bảng 29. Luôn phát hành đủ 4 khoá, thiếu dữ liệu thì bằng 0 — client không phải phòng thủ khoá vắng mặt.",
+                "required": [
+                    "AVAILABLE",
+                    "NON_SELLABLE",
+                    "DEFECTIVE",
+                    "QUARANTINE"
+                ],
+                "properties": {
+                    "AVAILABLE": {
+                        "type": "number"
+                    },
+                    "NON_SELLABLE": {
+                        "type": "number"
+                    },
+                    "DEFECTIVE": {
+                        "type": "number"
+                    },
+                    "QUARANTINE": {
+                        "type": "number"
+                    }
+                },
+                "type": "object"
+            },
+            "DashboardTopSku": {
+                "title": "SKU xuất nhiều / ít nhất trong kỳ",
+                "required": [
+                    "sku_code",
+                    "sku_name",
+                    "issue_qty"
+                ],
+                "properties": {
+                    "sku_code": {
+                        "type": "string"
+                    },
+                    "sku_name": {
+                        "type": "string"
+                    },
+                    "issue_qty": {
+                        "description": "Tổng lượng đã xuất (movement_type=ISSUE) trong period, quy về số dương.",
+                        "type": "number"
                     }
                 },
                 "type": "object"

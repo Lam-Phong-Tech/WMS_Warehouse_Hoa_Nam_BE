@@ -50,7 +50,7 @@ class AuditLogDatabaseSeeder extends Seeder
                 'action' => 'CREATE',
                 'object_type' => 'sku',
                 'object_id' => $skuId,
-                'reason' => 'Seed SKU baseline',
+                'reason' => 'Seed SKU ban dau',
                 'request_id' => 'seed-audit-002',
                 'after_data' => ['sku_code' => 'HN-PV-BASE-001'],
             ],

@@ -257,6 +257,10 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reports/warranty-component-usage', [BaM1ReportController::class, 'componentUsage'])->middleware('permission:report.view');
         Route::get('reports/inventory-reconciliation', [OperationalReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');
         Route::get('reports/dashboard-quick', [OperationalReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
+        // Màn Dashboard tổng quan: một payload cho cả màn hình (KPI tách theo sku_type,
+        // chuỗi nhập-xuất 4 chiều, cơ cấu tồn, bảo hành + quá hạn, vấn đề cần xử lý).
+        // Bổ sung cho dashboard-quick chứ không thay thế — hợp đồng cũ vẫn có consumer.
+        Route::get('reports/dashboard-overview', [OperationalReportController::class, 'dashboardOverview'])->middleware('permission:report.view');
         // RPT-WAR-01/RPT-WAR-COMP-01 (GĐ1-REQ-003/009): BaM1ReportController đếm theo
         // toàn bộ quan hệ warranty_case_defects (multi-defect) và giữ summary theo bộ
         // status §6 — handler Aligned cũ chỉ join defect chính nên đếm thiếu case

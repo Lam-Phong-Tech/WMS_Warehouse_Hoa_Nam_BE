@@ -156,7 +156,7 @@ class LabelSnapshotSeeder extends Seeder
                     'event_type' => $a === 0 ? 'PRINT' : 'REPRINT',
                     'status' => $eventStatus,
                     'attempt_no' => $a + 1,
-                    'error_message' => $eventStatus === 'FAILED' ? 'Printer timeout' : null,
+                    'error_message' => $eventStatus === 'FAILED' ? 'Máy in hết thời gian chờ' : null,
                     'error_code' => $eventStatus === 'FAILED' ? 'TIMEOUT' : null,
                     'requested_at' => $eventAt,
                     'completed_at' => $eventAt->copy()->addSeconds(3),

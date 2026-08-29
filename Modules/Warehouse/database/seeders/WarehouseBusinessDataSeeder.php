@@ -552,11 +552,11 @@ class WarehouseBusinessDataSeeder extends Seeder
 
         // Reversal — sửa sai các phiếu nhập PRODUCT đã POSTED, mỗi phiếu 1 item còn
         // IN_STOCK (chưa Issue/Warranty), qua đúng CurrentBaselineReversalService.
-        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_3, 'SN-HN-SEED-EXT-02-02', 'Seed reversal — hiệu chỉnh mẫu QA/dev #1.');
-        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_4, 'SN-HN-SEED-EXT-03-03', 'Seed reversal — hiệu chỉnh mẫu QA/dev #2.');
-        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_4, 'SN-HN-SEED-EXT-03-06', 'Seed reversal — hiệu chỉnh mẫu QA/dev #3.');
-        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO, 'SN-HN-SEED-0002', 'Seed reversal — hiệu chỉnh mẫu QA/dev #4.');
-        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO, 'SN-HN-SEED-0003', 'Seed reversal — hiệu chỉnh mẫu QA/dev #5.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_3, 'SN-HN-SEED-EXT-02-02', 'Đảo phiếu mẫu — hiệu chỉnh mẫu QA/dev #1.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_4, 'SN-HN-SEED-EXT-03-03', 'Đảo phiếu mẫu — hiệu chỉnh mẫu QA/dev #2.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO_4, 'SN-HN-SEED-EXT-03-06', 'Đảo phiếu mẫu — hiệu chỉnh mẫu QA/dev #3.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO, 'SN-HN-SEED-0002', 'Đảo phiếu mẫu — hiệu chỉnh mẫu QA/dev #4.');
+        $this->seedReversalVariant(self::RECEIPT_PRODUCT_NO, 'SN-HN-SEED-0003', 'Đảo phiếu mẫu — hiệu chỉnh mẫu QA/dev #5.');
 
         // BOX-SEED-0006: nhận COMPONENT rồi POST nhưng CỐ Ý không gọi
         // seedPutawayVariant() — mọi BOX component khác ở trên đều được putaway

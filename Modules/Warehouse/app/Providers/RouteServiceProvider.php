@@ -17,6 +17,7 @@ class RouteServiceProvider extends ServiceProvider
     public function map(): void
     {
         $this->mapApiRoutes();
+        $this->mapPublicApiRoutes();
         $this->mapMiniAppRoutes();
         $this->mapImportRoutes();
         $this->mapGovernanceRoutes();
@@ -31,6 +32,16 @@ class RouteServiceProvider extends ServiceProvider
     protected function mapApiRoutes(): void
     {
         Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/api.php'));
+    }
+
+    /**
+     * Storefront công khai của App PV (`/api/v1/public/*`). File route riêng vì
+     * nhóm này chạy envelope riêng và ẩn danh hoàn toàn — xem
+     * routes/public_api.php.
+     */
+    protected function mapPublicApiRoutes(): void
+    {
+        Route::middleware('api')->prefix('api')->name('api.public.')->group(module_path($this->name, '/routes/public_api.php'));
     }
 
     /**

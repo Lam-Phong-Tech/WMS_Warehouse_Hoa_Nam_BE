@@ -177,9 +177,9 @@ class DemoDataSeeder extends Seeder
     ];
 
     private const IMPORT_BATCHES = [
-        ['import_batch_code' => 'IMP-2026-001', 'shipment_container_code' => 'SHIP-CNT-001', 'supplier_batch_no' => 'SUP-880001', 'import_period' => '2026-Q1', 'supplier_name' => 'Kubota Global Trading'],
-        ['import_batch_code' => 'IMP-2026-002', 'shipment_container_code' => 'SHIP-CNT-002', 'supplier_batch_no' => 'SUP-880012', 'import_period' => '2026-Q2', 'supplier_name' => 'Yanmar Vietnam'],
-        ['import_batch_code' => 'IMP-2026-003', 'shipment_container_code' => 'SHIP-CNT-003', 'supplier_batch_no' => 'SUP-880023', 'import_period' => '2026-Q2', 'supplier_name' => 'Honda Power Equipment'],
+        ['import_batch_code' => 'IMP-2026-001', 'shipment_container_code' => 'SHIP-CNT-001', 'supplier_batch_no' => 'SUP-880001', 'import_period' => '2026-Q1', 'supplier_name' => 'Công ty TNHH Thương Mại Toàn Cầu Kubota'],
+        ['import_batch_code' => 'IMP-2026-002', 'shipment_container_code' => 'SHIP-CNT-002', 'supplier_batch_no' => 'SUP-880012', 'import_period' => '2026-Q2', 'supplier_name' => 'Công ty TNHH Yanmar Việt Nam'],
+        ['import_batch_code' => 'IMP-2026-003', 'shipment_container_code' => 'SHIP-CNT-003', 'supplier_batch_no' => 'SUP-880023', 'import_period' => '2026-Q2', 'supplier_name' => 'Công ty TNHH Thiết Bị Động Lực Honda'],
     ];
 
     public function run(): void

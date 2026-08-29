@@ -70,7 +70,7 @@ class UatScenarioSeeder extends Seeder
                 'shipment_container_code' => 'UAT-SHIPMENT-001',
                 'supplier_batch_no' => 'UAT-SUPPLIER-001',
                 'import_period' => '2026-UAT',
-                'supplier_name' => 'UAT Sample Supplier',
+                'supplier_name' => 'Nhà cung cấp mẫu UAT',
                 'status' => 'ACTIVE',
             ]
         );

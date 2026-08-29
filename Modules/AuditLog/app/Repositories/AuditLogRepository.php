@@ -42,7 +42,20 @@ class AuditLogRepository extends BaseRepository implements AuditLogRepositoryInt
             });
         }
 
-        unset($filters['user_id'], $filters['q']);
+        // Lọc theo khoảng thời gian / khung giờ (mục 13: "trong khung giờ X ai
+        // làm gì"). Nhận datetime dạng "Y-m-d H:i:s" hoặc "Y-m-d"; chỉ có 1 đầu
+        // mút thì lọc mở một phía. Dùng created_at (đã cast datetime).
+        $from = $filters['date_from'] ?? null;
+        if ($from !== null && $from !== '') {
+            $query->where('created_at', '>=', $from);
+        }
+
+        $to = $filters['date_to'] ?? null;
+        if ($to !== null && $to !== '') {
+            $query->where('created_at', '<=', $to);
+        }
+
+        unset($filters['user_id'], $filters['q'], $filters['date_from'], $filters['date_to']);
 
         return parent::applyFilters($query, $filters);
     }

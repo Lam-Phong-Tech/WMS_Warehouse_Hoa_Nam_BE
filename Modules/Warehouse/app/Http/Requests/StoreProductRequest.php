@@ -4,9 +4,12 @@ namespace Modules\Warehouse\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Modules\Warehouse\Http\Requests\Concerns\ValidatesSkuStockThresholds;
 
 class StoreProductRequest extends FormRequest
 {
+    use ValidatesSkuStockThresholds;
+
     public function authorize(): bool
     {
         return true;
@@ -50,10 +53,10 @@ class StoreProductRequest extends FormRequest
             'warranty_applicable' => ['nullable', 'boolean'],
             'specification' => ['nullable', 'array'],
             'published_to_app' => ['nullable', 'boolean'],
-            // GĐ1 Dashboard: định mức tồn kho theo SKU, toàn hệ thống (không theo
-            // kho). NULL = chưa đặt định mức, không tính cảnh báo.
-            'min_stock' => ['nullable', 'numeric', 'min:0'],
-            'max_stock' => ['nullable', 'numeric', 'min:0', 'gte:min_stock'],
+            // Định mức tồn theo SKU, toàn hệ thống (không theo kho) — phục vụ báo
+            // cáo định mức tồn. NULL = chưa đặt, không tính cảnh báo.
+            // min >= 0, max >= 1, max > min: xem ValidatesSkuStockThresholds.
+            ...$this->skuStockThresholdRules(),
         ];
     }
 }

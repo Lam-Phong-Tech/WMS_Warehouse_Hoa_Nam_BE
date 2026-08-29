@@ -131,6 +131,22 @@ const ALIASED_CODE_CONSTANTS = (() => {
   for (const [constant, value] of Object.entries(CONFLICT_CODE_CONSTANTS)) {
     map[`ConflictCode::${constant}`] = value;
   }
+
+  // Storefront công khai (`/api/v1/public/*`) gom TOÀN BỘ mã lỗi của nó vào
+  // App\Support\PublicApiErrorCode thay vì rải string literal ở từng call site.
+  // Không đọc lớp này thì catalog im lặng thiếu cả nhóm mã mà FE App PV
+  // switch-case trực tiếp lên — đúng loại lỗ hổng WWHN-217 đã gặp một lần với
+  // IDEMPOTENCY_CONFLICT. Đọc thẳng từ file hằng để không thành bản chép tay.
+  const publicCodeFile = join(root, "app/Support/PublicApiErrorCode.php");
+  if (existsSync(publicCodeFile)) {
+    const source = readFileSync(publicCodeFile, "utf8");
+    for (const m of source.matchAll(
+      /public const ([A-Z][A-Z0-9_]*)\s*=\s*'([A-Z][A-Z0-9_]{2,60})'/g,
+    )) {
+      map[`PublicApiErrorCode::${m[1]}`] = m[2];
+    }
+  }
+
   return map;
 })();
 
@@ -156,9 +172,23 @@ for (const dir of scanRoots) {
     for (const m of source.matchAll(/\b([A-Z][A-Za-z0-9_]*)::([A-Z][A-Z0-9_]*)\b/g)) {
       const resolved = ALIASED_CODE_CONSTANTS[`${m[1]}::${m[2]}`];
       if (!resolved) continue;
+      // Chấp nhận cả hai cách viết status ngay trước hằng:
+      //   abort(404, PublicApiErrorCode::PRODUCT_NOT_FOUND)   -> dấu phẩy
+      //   match ($status) { 429 => PublicApiErrorCode::RATE_LIMIT_EXCEEDED }
+      // Nhánh `match` là dạng hiện đại thay cho `switch`, và statusFromNearestCase()
+      // chỉ nhận ra `case NNN:`. Thiếu nhánh này thì những mã CHỈ được phát qua
+      // bảng mặc định (RATE_LIMIT_EXCEEDED, INTERNAL_ERROR) rơi khỏi catalog dù
+      // runtime trả chúng thật.
+      // Cửa sổ đủ rộng để bắt cả lời gọi xuống dòng — dạng phổ biến khi hàm có
+      // nhiều tham số:
+      //     PublicApiError::abort(
+      //         400,
+      //         PublicApiErrorCode::INVALID_SORT,
+      // Regex vẫn neo vào `$` ngay trước hằng và CHỈ cho phép khoảng trắng giữa
+      // dấu phẩy và hằng, nên nới cửa sổ không kéo theo tham số ở giữa.
       const inlineStatus = source
-        .slice(Math.max(0, m.index - 12), m.index)
-        .match(/(\d{3})\s*,\s*$/);
+        .slice(Math.max(0, m.index - 96), m.index)
+        .match(/(\d{3})\s*(?:,|=>)\s*$/);
       const status = inlineStatus
         ? Number(inlineStatus[1])
         : statusFromNearestCase(source, m.index);

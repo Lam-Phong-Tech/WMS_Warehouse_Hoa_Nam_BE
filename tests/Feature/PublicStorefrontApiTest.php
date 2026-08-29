@@ -1,0 +1,890 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Support\SqliteUnaccentFunction;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
+use Modules\Warehouse\Models\PublicQuoteRequest;
+use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Support\PvRelations;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Feature\Concerns\PreparesOutboundFixtures;
+use Tests\TestCase;
+
+/**
+ * Hợp đồng mặt storefront công khai `/api/v1/public/*` do đội App PV chốt.
+ *
+ * Bộ test này KHÔNG lặp lại Wwhn252PvContractTest (nhóm `/api/v1/pv/*`). Hai
+ * mặt API cố ý khác nhau ở hai điểm mà bộ test kia đang khoá theo chiều ngược
+ * lại, nên chính chúng là thứ phải được khoá ở đây:
+ *
+ *   1. Chỉ trả sản phẩm PUBLISHED **và còn hàng** — nhóm pv/* thì tồn 0 vẫn hiện.
+ *   2. TUYỆT ĐỐI không lộ số tồn — nhóm pv/* thì trả available_qty.
+ *
+ * Ngoài ra khoá những hành vi mà kiểm thử tay bằng curl không chứng minh nổi:
+ * thứ tự ưu tiên khớp chính xác, phân trang keyset khi dữ liệu thay đổi giữa
+ * hai trang, và bộ lọc `spec.<code>` (tên tham số có dấu chấm bị PHP bóp méo).
+ */
+class PublicStorefrontApiTest extends TestCase
+{
+    use PreparesOutboundFixtures;
+    use RefreshDatabase;
+
+    private const BASE = '/api/v1/public';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // RefreshDatabase dựng PDO mới cho mỗi test; UDF hn_unaccent gắn trên
+        // PDO cũ không còn tồn tại nên cache đăng ký phải được xoá.
+        SqliteUnaccentFunction::forget();
+
+        config()->set('public_api.domains', [
+            'POWER_TOOLS' => ['name' => 'Máy và thiết bị động lực', 'categories' => ['PUMP', 'ENGINE']],
+            'HAND_TOOLS' => ['name' => 'Dụng cụ cầm tay', 'categories' => []],
+            'ACCESSORIES' => ['name' => 'Phụ tùng và phụ kiện', 'categories' => ['SPARE_PART']],
+        ]);
+        config()->set('public_api.privacy.version', '1.0.0');
+        config()->set('public_api.maintenance.enabled', false);
+        config()->set('public_api.feature_flags.quote_request', true);
+    }
+
+    // ==================================================================
+    // Envelope
+    // ==================================================================
+
+    /**
+     * FE parse MỌI response bằng một hàm duy nhất, nên sáu khoá phải luôn có
+     * mặt — kể cả khi giá trị là null. Envelope nội bộ của hệ thống thiếu hẳn
+     * error_code/errors khi thành công và thiếu data khi lỗi; đó chính là lý do
+     * nhóm này có envelope riêng.
+     */
+    public function test_success_envelope_has_exactly_the_six_contract_keys(): void
+    {
+        $body = $this->getJson(self::BASE.'/config')->assertOk()->json();
+
+        $this->assertSame(
+            ['success', 'message', 'data', 'meta', 'error_code', 'errors'],
+            array_keys($body),
+        );
+        $this->assertTrue($body['success']);
+        $this->assertNull($body['error_code']);
+        $this->assertNull($body['errors']);
+        $this->assertIsString($body['message']);
+        $this->assertArrayHasKey('request_id', $body['meta']);
+    }
+
+    public function test_error_envelope_has_the_same_six_keys_with_data_null(): void
+    {
+        $body = $this->getJson(self::BASE.'/products/khong-ton-tai')->assertNotFound()->json();
+
+        $this->assertSame(
+            ['success', 'message', 'data', 'meta', 'error_code', 'errors'],
+            array_keys($body),
+        );
+        $this->assertFalse($body['success']);
+        $this->assertNull($body['data']);
+        $this->assertSame('PRODUCT_NOT_FOUND', $body['error_code']);
+        $this->assertArrayHasKey('request_id', $body['meta']);
+    }
+
+    /**
+     * 405 và 404-không-khớp-route được ném ra TRONG LÚC khớp route, trước mọi
+     * middleware của route group. Đây là lý do EnsurePublicApiEnvelope phải
+     * đăng ký toàn cục; test này là thứ giữ nó ở đúng chỗ.
+     */
+    public function test_framework_level_errors_still_use_the_public_envelope(): void
+    {
+        foreach ([
+            $this->postJson(self::BASE.'/config'),
+            $this->getJson(self::BASE.'/duong-dan-khong-ton-tai'),
+        ] as $response) {
+            $body = $response->json();
+            $this->assertSame(
+                ['success', 'message', 'data', 'meta', 'error_code', 'errors'],
+                array_keys($body),
+                'Lỗi do framework sinh ra phải đi qua cùng một envelope.',
+            );
+            // Object `error` của envelope nội bộ không được lọt ra hợp đồng mới.
+            $this->assertArrayNotHasKey('error', $body);
+        }
+    }
+
+    public function test_request_id_echoes_the_client_supplied_header(): void
+    {
+        $body = $this->getJson(self::BASE.'/health/version', ['X-Request-ID' => 'trace-abc-123'])
+            ->assertOk()
+            ->json();
+
+        $this->assertSame('trace-abc-123', $body['meta']['request_id']);
+    }
+
+    // ==================================================================
+    // Hiển thị: PUBLISHED + IN_STOCK, và không lộ số tồn
+    // ==================================================================
+
+    public function test_listing_returns_only_published_and_in_stock_products(): void
+    {
+        $warehouse = $this->warehouseFixture();
+
+        $visible = $this->publishedSku('PUB-001', 'Máy bơm hiển thị');
+        $this->seedAvailableBalance($warehouse->id, $visible->sku_id, 5);
+
+        // Đã publish nhưng HẾT HÀNG -> phải biến mất. Đây là điểm khác biệt cốt
+        // lõi so với nhóm /api/v1/pv, nơi tồn 0 vẫn hiện kèm nhãn "Chưa có hàng".
+        $outOfStock = $this->publishedSku('PUB-002', 'Máy bơm hết hàng');
+        $this->seedAvailableBalance($warehouse->id, $outOfStock->sku_id, 0);
+
+        // Còn hàng nhưng CHƯA publish -> cũng phải biến mất.
+        $unpublished = $this->sku('PUB-003', 'Máy bơm chưa publish');
+        $this->seedAvailableBalance($warehouse->id, $unpublished->sku_id, 9);
+
+        $codes = collect($this->getJson(self::BASE.'/products')->assertOk()->json('data.items'))
+            ->pluck('primary_code')->all();
+
+        $this->assertSame(['PUB-001'], $codes);
+    }
+
+    /**
+     * §Rò rỉ dữ liệu: hợp đồng cấm trả giá, số tồn, nhà cung cấp, ghi chú nội
+     * bộ, đường dẫn nguồn và cờ publish thô. Quét trên JSON THÔ chứ không phải
+     * trên mảng đã parse, để bắt cả trường hợp khoá nằm sâu trong cấu trúc lồng.
+     */
+    public function test_public_payload_never_exposes_internal_or_stock_fields(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->publishedSku('LEAK-001', 'Máy kiểm tra rò rỉ');
+        $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 42);
+
+        $responses = [
+            $this->getJson(self::BASE.'/products')->assertOk(),
+            $this->getJson(self::BASE.'/products/leak-001')->assertOk(),
+            $this->getJson(self::BASE.'/home')->assertOk(),
+            $this->getJson(self::BASE.'/facets')->assertOk(),
+        ];
+
+        $forbidden = [
+            'available_qty', 'on_hand_qty', 'reserved_qty', 'quantity', 'stock_status',
+            'price', 'cost', 'supplier', 'internal_note', 'source_path',
+            'published_to_app', 'is_published', 'min_stock', 'max_stock',
+            'warehouse_id', 'item_id', 'container_id', 'serial_number', 'movement',
+        ];
+
+        foreach ($responses as $response) {
+            $raw = $response->getContent();
+
+            foreach ($forbidden as $key) {
+                $this->assertStringNotContainsString(
+                    '"'.$key.'"',
+                    $raw,
+                    "Mặt công khai đã lộ trường nội bộ [{$key}].",
+                );
+            }
+
+            // Số tồn cũng không được rò qua một tên khoá KHÁC. Phải soi theo cấu
+            // trúc chứ không phải tìm chuỗi con: "42" xuất hiện ngẫu nhiên trong
+            // UUID và mốc thời gian, nên so chuỗi thô sẽ đỏ oan.
+            $this->assertNoScalarEquals($response->json(), 42, 'Số lượng tồn kho lọt vào response công khai.');
+        }
+    }
+
+    /**
+     * Duyệt đệ quy mọi giá trị vô hướng của payload và khẳng định không giá trị
+     * nào bằng $needle (so cả dạng số lẫn dạng chuỗi).
+     *
+     * @param  mixed  $payload
+     */
+    private function assertNoScalarEquals($payload, int $needle, string $message): void
+    {
+        if (is_array($payload)) {
+            foreach ($payload as $value) {
+                $this->assertNoScalarEquals($value, $needle, $message);
+            }
+
+            return;
+        }
+
+        if (is_int($payload) || is_string($payload)) {
+            $this->assertNotSame((string) $needle, (string) $payload, $message);
+        }
+    }
+
+    public function test_detail_masks_unpublished_product_as_404_not_403(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->sku('HIDDEN-001', 'Sản phẩm chưa publish');
+        $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 3);
+
+        // 403 sẽ xác nhận cho người ẩn danh rằng mã hàng này CÓ THẬT trong hệ thống.
+        $this->getJson(self::BASE.'/products/hidden-001')
+            ->assertNotFound()
+            ->assertJsonPath('error_code', 'PRODUCT_NOT_FOUND');
+    }
+
+    // ==================================================================
+    // Tìm kiếm
+    // ==================================================================
+
+    /**
+     * Hợp đồng: "trim, không phân biệt hoa/thường, không dấu".
+     */
+    #[DataProvider('searchVariants')]
+    public function test_search_is_trimmed_case_and_accent_insensitive(string $query): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->publishedSku('SEARCH-001', 'Máy bơm nước ly tâm');
+        $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 4);
+
+        $codes = collect($this->getJson(self::BASE.'/products?q='.rawurlencode($query))->assertOk()->json('data.items'))
+            ->pluck('primary_code')->all();
+
+        $this->assertSame(['SEARCH-001'], $codes, "Từ khoá [{$query}] phải tìm ra sản phẩm.");
+    }
+
+    /**
+     * @return array<string, array<int, string>>
+     */
+    public static function searchVariants(): array
+    {
+        return [
+            'đúng nguyên văn' => ['Máy bơm nước'],
+            'không dấu' => ['may bom nuoc'],
+            'chữ hoa không dấu' => ['MAY BOM NUOC'],
+            'thừa khoảng trắng hai đầu' => ['   may bom   '],
+            'chữ hoa có dấu' => ['MÁY BƠM'],
+        ];
+    }
+
+    /**
+     * Hợp đồng: "ưu tiên khớp chính xác model/primary_code trước tên gần đúng".
+     *
+     * Fixture cố ý dựng để thứ tự chữ cái NGƯỢC với thứ tự đúng: sản phẩm khớp
+     * CHÍNH XÁC mã lại có tên bắt đầu bằng "Zzz", còn sản phẩm chỉ khớp MỜ trong
+     * tên thì bắt đầu bằng "Aaa". Chạy với sort=name_asc, nên nếu hạng khớp
+     * không được áp dụng thì "Aaa" sẽ đứng trước và test đỏ. Test chỉ có giá trị
+     * chứng minh nhờ đúng chỗ ngược nhau đó.
+     */
+    public function test_exact_code_match_outranks_fuzzy_name_match(): void
+    {
+        $warehouse = $this->warehouseFixture();
+
+        $exact = $this->publishedSku('MAYBOM', 'Zzz thiet bi khop ma chinh xac');
+        $this->seedAvailableBalance($warehouse->id, $exact->sku_id, 1);
+
+        // Tên chứa "maybom" như một chuỗi con -> khớp mờ, hạng thấp hơn.
+        $fuzzy = $this->publishedSku('AAA-001', 'Aaa maybom dan dung');
+        $this->seedAvailableBalance($warehouse->id, $fuzzy->sku_id, 1);
+
+        $codes = collect($this->getJson(self::BASE.'/products?q=maybom&sort=name_asc')->assertOk()->json('data.items'))
+            ->pluck('primary_code')->all();
+
+        $this->assertSame(
+            ['MAYBOM', 'AAA-001'],
+            $codes,
+            'Khớp chính xác primary_code phải đứng trước khớp mờ theo tên, kể cả khi sort=name_asc nói ngược lại.',
+        );
+    }
+
+    // ==================================================================
+    // Sắp xếp + phân trang cursor
+    // ==================================================================
+
+    public function test_cursor_pagination_walks_every_product_exactly_once(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        for ($i = 1; $i <= 7; $i++) {
+            $sku = $this->publishedSku(sprintf('PAGE-%03d', $i), 'Sản phẩm phân trang '.$i);
+            $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 1);
+        }
+
+        $seen = [];
+        $cursor = null;
+        $guard = 0;
+
+        do {
+            $url = self::BASE.'/products?limit=3'.($cursor !== null ? '&cursor='.urlencode($cursor) : '');
+            $page = $this->getJson($url)->assertOk()->json('data');
+
+            foreach ($page['items'] as $item) {
+                $seen[] = $item['primary_code'];
+            }
+
+            $cursor = $page['page_info']['next_cursor'];
+            $this->assertLessThan(10, ++$guard, 'Phân trang cursor không kết thúc — nghi ngờ vòng lặp vô hạn.');
+        } while ($cursor !== null);
+
+        sort($seen);
+        $this->assertCount(7, $seen);
+        $this->assertSame($seen, array_unique($seen), 'Cursor trả trùng bản ghi giữa các trang.');
+    }
+
+    /**
+     * Đây là lý do dùng keyset thay vì OFFSET: sản phẩm mới chèn vào GIỮA hai
+     * lần gọi không được làm bản ghi khác bị nhảy cóc. Với OFFSET, một dòng chèn
+     * lên đầu sẽ đẩy toàn bộ trang sau xuống một nấc và người dùng mất đúng một
+     * sản phẩm — im lặng, không ai phát hiện.
+     */
+    public function test_cursor_pagination_does_not_skip_rows_when_data_shifts(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        foreach (['B', 'C', 'D', 'E'] as $letter) {
+            $sku = $this->publishedSku('SHIFT-'.$letter, 'San pham '.$letter);
+            $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 1);
+        }
+
+        $first = $this->getJson(self::BASE.'/products?limit=2&sort=name_asc')->assertOk()->json('data');
+        $this->assertSame(['SHIFT-B', 'SHIFT-C'], collect($first['items'])->pluck('primary_code')->all());
+
+        // Chèn một sản phẩm xếp TRƯỚC tất cả -> với OFFSET, trang 2 sẽ bỏ sót SHIFT-D.
+        $inserted = $this->publishedSku('SHIFT-A', 'San pham A');
+        $this->seedAvailableBalance($warehouse->id, $inserted->sku_id, 1);
+
+        $second = $this->getJson(self::BASE.'/products?limit=2&sort=name_asc&cursor='.urlencode($first['page_info']['next_cursor']))
+            ->assertOk()->json('data');
+
+        $this->assertSame(
+            ['SHIFT-D', 'SHIFT-E'],
+            collect($second['items'])->pluck('primary_code')->all(),
+            'Keyset phải tiếp tục đúng chỗ dừng dù dữ liệu đã đổi.',
+        );
+    }
+
+    public function test_cursor_is_opaque_and_rejects_tampering_or_context_change(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        foreach (['T1', 'T2', 'T3'] as $code) {
+            $sku = $this->publishedSku($code, 'San pham '.$code);
+            $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 1);
+        }
+
+        $cursor = $this->getJson(self::BASE.'/products?limit=1')->assertOk()->json('data.page_info.next_cursor');
+        $this->assertIsString($cursor);
+
+        // Sửa một byte -> chữ ký hỏng.
+        $this->getJson(self::BASE.'/products?limit=1&cursor='.urlencode($cursor).'X')
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_CURSOR');
+
+        // Cùng cursor nhưng đổi sort: trang tiếp theo của một thứ tự khác là vô nghĩa.
+        $this->getJson(self::BASE.'/products?limit=1&sort=name_asc&cursor='.urlencode($cursor))
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_CURSOR');
+
+        // Cùng cursor nhưng đổi bộ lọc.
+        $this->getJson(self::BASE.'/products?limit=1&q=abc&cursor='.urlencode($cursor))
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_CURSOR');
+    }
+
+    public function test_invalid_sort_and_limit_are_rejected_with_explicit_codes(): void
+    {
+        $this->getJson(self::BASE.'/products?sort=gia_tang_dan')
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_SORT');
+
+        // Vượt trần phải là LỖI: cắt ngầm sẽ khiến client tưởng đã nhận đủ trang.
+        $this->getJson(self::BASE.'/products?limit=999')
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_QUERY');
+
+        $this->getJson(self::BASE.'/products?limit=0')
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_QUERY');
+    }
+
+    // ==================================================================
+    // Bộ lọc
+    // ==================================================================
+
+    public function test_domain_filter_maps_to_configured_categories(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $pumpCategory = $this->category('PUMP', 'Máy bơm nước');
+        $partCategory = $this->category('SPARE_PART', 'Phụ tùng');
+
+        $pump = $this->publishedSku('DOM-PUMP', 'May bom', $pumpCategory);
+        $this->seedAvailableBalance($warehouse->id, $pump->sku_id, 1);
+
+        $part = $this->publishedSku('DOM-PART', 'Phu tung', $partCategory);
+        $this->seedAvailableBalance($warehouse->id, $part->sku_id, 1);
+
+        $power = collect($this->getJson(self::BASE.'/products?domain=POWER_TOOLS')->assertOk()->json('data.items'))
+            ->pluck('primary_code')->all();
+        $this->assertSame(['DOM-PUMP'], $power);
+
+        $accessories = collect($this->getJson(self::BASE.'/products?domain=ACCESSORIES')->assertOk()->json('data.items'))
+            ->pluck('primary_code')->all();
+        $this->assertSame(['DOM-PART'], $accessories);
+
+        // Domain hợp lệ nhưng chưa ánh xạ category nào phải trả RỖNG, không được
+        // âm thầm bỏ qua bộ lọc rồi trả về toàn bộ catalog.
+        $this->getJson(self::BASE.'/products?domain=HAND_TOOLS')
+            ->assertOk()
+            ->assertJsonCount(0, 'data.items');
+
+        $this->getJson(self::BASE.'/products?domain=KHONG_CO')
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_DOMAIN');
+    }
+
+    /**
+     * `spec.<code>` là tham số dễ vỡ nhất của hợp đồng: PHP đổi dấu chấm trong
+     * TÊN tham số thành gạch dưới khi dựng $_GET, nên nếu đọc qua
+     * $request->query() thì bộ lọc này im lặng không có tác dụng — response vẫn
+     * 200 và vẫn trả kết quả, chỉ là sai. Test khoá đường parse raw query string.
+     */
+    public function test_spec_filter_with_dotted_parameter_name_actually_filters(): void
+    {
+        $warehouse = $this->warehouseFixture();
+
+        $strong = $this->publishedSku('SPEC-750', 'May cong suat lon');
+        $this->setSpecification($strong->sku_id, ['power' => '750W']);
+        $this->seedAvailableBalance($warehouse->id, $strong->sku_id, 1);
+
+        $weak = $this->publishedSku('SPEC-250', 'May cong suat nho');
+        $this->setSpecification($weak->sku_id, ['power' => '250W']);
+        $this->seedAvailableBalance($warehouse->id, $weak->sku_id, 1);
+
+        $codes = collect($this->getJson(self::BASE.'/products?spec.power=750W')->assertOk()->json('data.items'))
+            ->pluck('primary_code')->all();
+
+        $this->assertSame(['SPEC-750'], $codes, 'Bộ lọc spec.power không có tác dụng — nghi ngờ tên tham số bị PHP bóp méo.');
+
+        // Khoá spec ngoài allowlist bị từ chối TƯỜNG MINH, không bỏ qua im lặng.
+        $this->getJson(self::BASE.'/products?spec.khoa_la=1')
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_QUERY');
+    }
+
+    /**
+     * `feature` lặp nhiều lần: PHP chỉ giữ giá trị CUỐI nếu đọc qua $_GET, nên
+     * giá trị đầu bị mất và kết quả lọc sai mà không có lỗi nào được báo.
+     */
+    public function test_repeated_feature_parameter_keeps_every_value(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $promo = $this->tag('PROMOTION', 'Khuyến mãi');
+        $saving = $this->tag('ENERGY_SAVING', 'Tiết kiệm nhiên liệu');
+
+        $a = $this->publishedSku('FEAT-A', 'San pham A');
+        $this->seedAvailableBalance($warehouse->id, $a->sku_id, 1);
+        $this->mapTag($this->profileIdOf($a->sku_id), $promo);
+
+        $b = $this->publishedSku('FEAT-B', 'San pham B');
+        $this->seedAvailableBalance($warehouse->id, $b->sku_id, 1);
+        $this->mapTag($this->profileIdOf($b->sku_id), $saving);
+
+        $c = $this->publishedSku('FEAT-C', 'San pham C');
+        $this->seedAvailableBalance($warehouse->id, $c->sku_id, 1);
+
+        $codes = collect(
+            $this->getJson(self::BASE.'/products?feature=PROMOTION&feature=ENERGY_SAVING')->assertOk()->json('data.items')
+        )->pluck('primary_code')->all();
+        sort($codes);
+
+        $this->assertSame(
+            ['FEAT-A', 'FEAT-B'],
+            $codes,
+            'Giá trị feature đầu tiên bị mất — tham số lặp phải được gom đủ.',
+        );
+    }
+
+    // ==================================================================
+    // config / home / categories / facets / related
+    // ==================================================================
+
+    public function test_config_and_home_are_independent_and_both_serve_app_bootstrap(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $category = $this->category('PUMP', 'Máy bơm nước');
+        $sku = $this->publishedSku('HOME-001', 'May bom trang chu', $category);
+        $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 2);
+
+        $config = $this->getJson(self::BASE.'/config')->assertOk()->json('data');
+        $this->assertArrayHasKey('hotline', $config['contact']);
+        $this->assertArrayHasKey('version', $config['privacy']);
+        $this->assertFalse($config['maintenance']['enabled']);
+        $this->assertIsBool($config['feature_flags']['quote_request']);
+
+        $home = $this->getJson(self::BASE.'/home')->assertOk()->json('data');
+        $this->assertCount(3, $home['domains'], 'Hợp đồng chốt đúng ba domain.');
+
+        // "Các section Home CÓ DỮ LIỆU": section rỗng bị loại ở BE, không để FE
+        // render một hàng trống.
+        foreach ($home['sections'] as $section) {
+            $this->assertNotEmpty($section['items'], "Section [{$section['code']}] rỗng nhưng vẫn được trả về.");
+        }
+    }
+
+    public function test_categories_and_facets_count_only_visible_products(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $category = $this->category('PUMP', 'Máy bơm nước');
+
+        $visible = $this->publishedSku('CAT-001', 'May bom con hang', $category);
+        $this->seedAvailableBalance($warehouse->id, $visible->sku_id, 3);
+
+        $hidden = $this->publishedSku('CAT-002', 'May bom het hang', $category);
+        $this->seedAvailableBalance($warehouse->id, $hidden->sku_id, 0);
+
+        $categories = collect($this->getJson(self::BASE.'/categories')->assertOk()->json('data.items'));
+        $pump = $categories->firstWhere('code', 'PUMP');
+
+        $this->assertNotNull($pump);
+        $this->assertSame(1, $pump['product_count'], 'Số đếm phải bỏ qua sản phẩm hết hàng.');
+        $this->assertSame('POWER_TOOLS', $pump['domain']);
+
+        $facets = $this->getJson(self::BASE.'/facets')->assertOk()->json('data');
+        $this->assertSame(1, collect($facets['category'])->firstWhere('code', 'PUMP')['count']);
+    }
+
+    public function test_related_excludes_the_product_itself(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $category = $this->category('PUMP', 'Máy bơm nước');
+
+        foreach (['REL-001', 'REL-002', 'REL-003'] as $code) {
+            $sku = $this->publishedSku($code, 'May bom '.$code, $category);
+            $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 1);
+        }
+
+        $codes = collect($this->getJson(self::BASE.'/products/rel-001/related')->assertOk()->json('data.items'))
+            ->pluck('primary_code')->all();
+
+        $this->assertNotContains('REL-001', $codes);
+        sort($codes);
+        $this->assertSame(['REL-002', 'REL-003'], $codes);
+    }
+
+    public function test_related_of_unknown_slug_is_404(): void
+    {
+        $this->getJson(self::BASE.'/products/khong-co/related')
+            ->assertNotFound()
+            ->assertJsonPath('error_code', 'PRODUCT_NOT_FOUND');
+    }
+
+    public function test_health_version_reports_maintenance_without_leaking_build_details(): void
+    {
+        $body = $this->getJson(self::BASE.'/health/version')->assertOk()->json('data');
+        $this->assertSame('OK', $body['status']);
+        $this->assertFalse($body['maintenance']['enabled']);
+
+        // Endpoint ẩn danh: commit SHA / version framework là thông tin trinh
+        // sát miễn phí cho người tấn công, không được xuất hiện.
+        foreach (['commit', 'sha', 'branch', 'php_version', 'laravel'] as $forbidden) {
+            $this->assertArrayNotHasKey($forbidden, $body);
+        }
+
+        config()->set('public_api.maintenance.enabled', true);
+        $this->getJson(self::BASE.'/health/version')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'MAINTENANCE');
+    }
+
+    // ==================================================================
+    // POST /quote-requests
+    // ==================================================================
+
+    public function test_quote_request_is_created_then_replayed_idempotently(): void
+    {
+        $sku = $this->visibleSku('QR-001', 'May bom bao gia');
+        $payload = $this->quotePayload($sku->sku_id);
+        $headers = ['Idempotency-Key' => 'quote-key-0123456789abcdef'];
+
+        $first = $this->postJson(self::BASE.'/quote-requests', $payload, $headers)->assertStatus(201);
+
+        // Hợp đồng: response thành công CHỈ có request_id và status.
+        $this->assertSame(['request_id', 'status'], array_keys($first->json('data')));
+        $this->assertSame('RECEIVED', $first->json('data.status'));
+
+        // Gửi lại cùng khoá + cùng nội dung: trả lại đúng bản ghi cũ, không tạo mới.
+        $replay = $this->postJson(self::BASE.'/quote-requests', $payload, $headers)->assertOk();
+        $this->assertSame($first->json('data.request_id'), $replay->json('data.request_id'));
+        $this->assertSame(1, PublicQuoteRequest::query()->count(), 'Retry đã tạo thêm bản ghi thứ hai.');
+    }
+
+    public function test_same_key_with_different_payload_is_a_conflict(): void
+    {
+        $sku = $this->visibleSku('QR-002', 'May bom xung dot');
+        $headers = ['Idempotency-Key' => 'quote-key-conflict-000001'];
+
+        $this->postJson(self::BASE.'/quote-requests', $this->quotePayload($sku->sku_id), $headers)->assertStatus(201);
+
+        // Trả lại kết quả cũ ở đây sẽ giấu mất một lỗi thật của client.
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            ['full_name' => 'Người khác hẳn'] + $this->quotePayload($sku->sku_id),
+            $headers,
+        )->assertStatus(409)->assertJsonPath('error_code', 'IDEMPOTENCY_CONFLICT');
+
+        $this->assertSame(1, PublicQuoteRequest::query()->count());
+    }
+
+    public function test_quote_request_rejects_missing_or_malformed_idempotency_key(): void
+    {
+        $sku = $this->visibleSku('QR-003', 'May bom thieu khoa');
+        $payload = $this->quotePayload($sku->sku_id);
+
+        $this->postJson(self::BASE.'/quote-requests', $payload)
+            ->assertStatus(428)
+            ->assertJsonPath('error_code', 'IDEMPOTENCY_KEY_REQUIRED');
+
+        // Hợp đồng chốt 16-128 ký tự.
+        $this->postJson(self::BASE.'/quote-requests', $payload, ['Idempotency-Key' => str_repeat('a', 15)])
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'IDEMPOTENCY_KEY_INVALID');
+
+        $this->postJson(self::BASE.'/quote-requests', $payload, ['Idempotency-Key' => str_repeat('a', 129)])
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'IDEMPOTENCY_KEY_INVALID');
+
+        $this->assertSame(0, PublicQuoteRequest::query()->count());
+    }
+
+    public function test_quote_request_enforces_consent_and_current_privacy_version(): void
+    {
+        $sku = $this->visibleSku('QR-004', 'May bom dong y');
+
+        // Đồng ý chính sách là điều kiện PHÁP LÝ để lưu dữ liệu cá nhân, nên nó
+        // có mã lỗi riêng để FE trỏ đúng vào ô checkbox.
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            ['consent' => false] + $this->quotePayload($sku->sku_id),
+            ['Idempotency-Key' => 'quote-key-consent-000001'],
+        )->assertStatus(422)->assertJsonPath('error_code', 'CONSENT_REQUIRED');
+
+        // Đồng ý với một bản chính sách CŨ không phải là đồng ý với bản hiện hành.
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            ['privacy_version' => '0.9.0'] + $this->quotePayload($sku->sku_id),
+            ['Idempotency-Key' => 'quote-key-privacy-000001'],
+        )->assertStatus(422)->assertJsonPath('error_code', 'PRIVACY_VERSION_MISMATCH');
+
+        $this->assertSame(0, PublicQuoteRequest::query()->count());
+    }
+
+    public function test_quote_request_validates_phone_and_name(): void
+    {
+        $sku = $this->visibleSku('QR-005', 'May bom validate');
+
+        $response = $this->postJson(
+            self::BASE.'/quote-requests',
+            ['phone' => '123', 'full_name' => 'A'] + $this->quotePayload($sku->sku_id),
+            ['Idempotency-Key' => 'quote-key-validate-00001'],
+        )->assertStatus(422);
+
+        $response->assertJsonPath('error_code', 'VALIDATION_FAILED');
+        $this->assertArrayHasKey('phone', $response->json('errors'));
+        $this->assertArrayHasKey('full_name', $response->json('errors'));
+    }
+
+    public function test_quote_request_normalizes_vietnamese_phone_numbers(): void
+    {
+        $sku = $this->visibleSku('QR-006', 'May bom sdt');
+
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            ['phone' => '+84 912 345 678'] + $this->quotePayload($sku->sku_id),
+            ['Idempotency-Key' => 'quote-key-phone-0000001'],
+        )->assertStatus(201);
+
+        $this->assertSame('0912345678', PublicQuoteRequest::query()->value('phone_normalized'));
+    }
+
+    public function test_quote_request_rejects_product_that_is_not_publicly_visible(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $hidden = $this->sku('QR-HIDDEN', 'San pham chua publish');
+        $this->seedAvailableBalance($warehouse->id, $hidden->sku_id, 5);
+
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quotePayload($hidden->sku_id),
+            ['Idempotency-Key' => 'quote-key-hidden-000001'],
+        )->assertNotFound()->assertJsonPath('error_code', 'PRODUCT_NOT_FOUND');
+
+        $this->assertSame(0, PublicQuoteRequest::query()->count());
+    }
+
+    public function test_quote_request_is_blocked_during_maintenance(): void
+    {
+        $sku = $this->visibleSku('QR-007', 'May bom bao tri');
+        config()->set('public_api.maintenance.enabled', true);
+
+        // Nhận yêu cầu lúc không ai xử lý là hứa với người dùng một điều không có thật.
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quotePayload($sku->sku_id),
+            ['Idempotency-Key' => 'quote-key-maint-0000001'],
+        )->assertStatus(503)->assertJsonPath('error_code', 'SERVICE_UNAVAILABLE');
+
+        // Nhưng các endpoint ĐỌC vẫn phải sống để FE hiện được màn hình bảo trì.
+        $this->getJson(self::BASE.'/config')->assertOk();
+        $this->getJson(self::BASE.'/products')->assertOk();
+    }
+
+    /**
+     * Hợp đồng cấm móc CRM/ERP/notification/queue/outbox vào luồng này, và cấm
+     * mọi khái niệm giá/tồn/cart/order. Cách kiểm chứng cụ thể nhất: gửi yêu cầu
+     * rồi chứng minh không job nào được đẩy vào hàng đợi và ledger tồn kho
+     * không đổi.
+     */
+    public function test_quote_request_has_no_side_effects_beyond_its_own_row(): void
+    {
+        Queue::fake();
+        Event::fake();
+
+        $sku = $this->visibleSku('QR-008', 'May bom khong tac dung phu');
+        $ledgerBefore = DB::table('inventory_balances')->orderBy('id')->get()->toJson();
+
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quotePayload($sku->sku_id),
+            ['Idempotency-Key' => 'quote-key-sideeffect-01'],
+        )->assertStatus(201);
+
+        Queue::assertNothingPushed();
+        $this->assertSame(
+            $ledgerBefore,
+            DB::table('inventory_balances')->orderBy('id')->get()->toJson(),
+            'Gửi yêu cầu tư vấn đã làm đổi ledger tồn kho.',
+        );
+    }
+
+    // ==================================================================
+    // Fixtures
+    // ==================================================================
+
+    private function sku(string $code, string $name, ?string $categoryId = null): Sku
+    {
+        return Sku::create([
+            'sku_code' => $code,
+            'sku_name' => $name,
+            'sku_type' => 'PRODUCT',
+            'unit' => 'cai',
+            'is_serial_tracked' => false,
+            'status' => 'ACTIVE',
+            'category_id' => $categoryId,
+        ]);
+    }
+
+    private function publishedSku(string $code, string $name, ?string $categoryId = null): Sku
+    {
+        $sku = $this->sku($code, $name, $categoryId);
+
+        $headers = $this->superAdminHeaders();
+        unset($headers['__user_id']);
+
+        $this->patchJson(
+            "/api/v1/pv/products/{$sku->sku_id}/publish",
+            ['published' => true],
+            $headers + ['If-Match' => '0'],
+        )->assertOk();
+
+        return $sku;
+    }
+
+    /** SKU đã publish VÀ còn hàng — điều kiện để xuất hiện trên mặt công khai. */
+    private function visibleSku(string $code, string $name): Sku
+    {
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->publishedSku($code, $name);
+        $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 5);
+
+        return $sku;
+    }
+
+    private function profileIdOf(string $skuId): string
+    {
+        $relation = PvRelations::profile();
+
+        return (string) DB::table($relation['table'])->where($relation['sku'], $skuId)->value($relation['key']);
+    }
+
+    private function category(string $code, string $name): string
+    {
+        $id = (string) Str::uuid();
+        DB::table('product_categories')->insert([
+            'id' => $id,
+            'category_code' => $code,
+            'category_name' => $name,
+            'status' => 'ACTIVE',
+            'sort_order' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Trên baseline sqlite, sku.category_id trỏ product_masters.
+        if (DB::getDriverName() !== 'pgsql') {
+            DB::table('product_masters')->insert([
+                'master_id' => $id,
+                'master_type' => 'CATEGORY',
+                'code' => $code,
+                'name' => $name,
+                'status' => 'ACTIVE',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return $id;
+    }
+
+    private function tag(string $code, string $name): string
+    {
+        $id = (string) Str::uuid();
+        DB::table(PvRelations::READ_TAG)->insert([
+            'tag_id' => $id,
+            'tag_code' => $code,
+            'tag_name' => $name,
+            'status' => 'ACTIVE',
+            'sort_order' => 0,
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $id;
+    }
+
+    private function mapTag(string $profileId, string $tagId): void
+    {
+        DB::table(PvRelations::productTagTable())->insert([
+            'profile_id' => $profileId,
+            'tag_id' => $tagId,
+            'created_at' => now(),
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $specification
+     */
+    private function setSpecification(string $skuId, array $specification): void
+    {
+        DB::table('sku')->where('sku_id', $skuId)->update([
+            'specification' => json_encode($specification, JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function quotePayload(string $productId): array
+    {
+        return [
+            'product_id' => $productId,
+            'variant_id' => null,
+            'full_name' => 'Nguyễn Văn A',
+            'phone' => '0912345678',
+            'province_code' => null,
+            'note' => null,
+            'consent' => true,
+            'privacy_version' => '1.0.0',
+        ];
+    }
+}

@@ -36,7 +36,7 @@ class AuditLogController extends Controller
         path: '/api/v1/audit-logs',
         operationId: 'audit_log_list',
         summary: 'Lấy danh sách nhật ký thao tác',
-        description: 'Hỗ trợ phân trang, lọc theo user_id, action, module và tìm kiếm theo mô tả (q). Yêu cầu quyền audit_log.view; không có audit_log.view_all (và không phải super admin) thì kết quả chỉ giới hạn trong các module tương ứng quyền nghiệp vụ hiện có của actor.',
+        description: 'Hỗ trợ phân trang, lọc theo user_id, action, module, khoảng thời gian (date_from/date_to) và tìm kiếm theo mô tả (q). Yêu cầu quyền audit_log.view; không có audit_log.view_all (và không phải super admin) thì kết quả chỉ giới hạn trong các module tương ứng quyền nghiệp vụ hiện có của actor.',
         security: [['bearerAuth' => []]],
         tags: ['15. Audit Log'],
         parameters: [
@@ -46,6 +46,8 @@ class AuditLogController extends Controller
             new OA\Parameter(name: 'user_id', in: 'query', description: 'Lọc theo actor_id (UUID)', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'action', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'module', in: 'query', description: 'SYSTEM | INBOUND | OUTBOUND | WARRANTY | STOCKTAKE', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'date_from', in: 'query', description: 'Lọc created_at >= (Y-m-d hoặc Y-m-d H:i:s)', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'date_to', in: 'query', description: 'Lọc created_at <= (Y-m-d hoặc Y-m-d H:i:s)', schema: new OA\Schema(type: 'string')),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Danh sách audit log (actor/action/module/object_type/object_id/description/before_data/after_data/created_at)'),

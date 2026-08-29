@@ -3,10 +3,14 @@
 namespace Modules\Warehouse\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Modules\Warehouse\Http\Requests\Concerns\ValidatesSkuStockThresholds;
 
 class UpdateProductRequest extends FormRequest
 {
+    use ValidatesSkuStockThresholds;
+
     public function authorize(): bool
     {
         return true;
@@ -50,10 +54,28 @@ class UpdateProductRequest extends FormRequest
             'specification' => ['nullable', 'array'],
             'published_to_app' => ['nullable', 'boolean'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
-            // GĐ1 Dashboard: định mức tồn kho theo SKU, toàn hệ thống (không theo
-            // kho). NULL = chưa đặt định mức, không tính cảnh báo.
-            'min_stock' => ['nullable', 'numeric', 'min:0'],
-            'max_stock' => ['nullable', 'numeric', 'min:0', 'gte:min_stock'],
+            // Định mức tồn theo SKU, toàn hệ thống (không theo kho) — phục vụ báo
+            // cáo định mức tồn. NULL = chưa đặt, không tính cảnh báo.
+            // min >= 0, max >= 1, max > min: xem ValidatesSkuStockThresholds.
+            ...$this->skuStockThresholdRules(),
         ];
+    }
+
+    /**
+     * PATCH có thể chỉ gửi một vế định mức; vế còn lại đọc từ bản ghi đang sửa để
+     * ràng buộc "max > min" so trên GIÁ TRỊ SAU KHI LƯU, không phải trên payload.
+     *
+     * @return array{min_stock?: float|int|string|null, max_stock?: float|int|string|null}
+     */
+    protected function currentSkuStockThresholds(): array
+    {
+        $id = $this->route('id');
+        if (! is_string($id) || $id === '') {
+            return [];
+        }
+
+        $row = DB::table('sku')->where('sku_id', $id)->first(['min_stock', 'max_stock']);
+
+        return $row === null ? [] : (array) $row;
     }
 }

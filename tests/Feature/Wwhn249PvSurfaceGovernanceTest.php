@@ -50,6 +50,14 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
         'POST api/v1/auth/login' => 'SRS §8.1 IAM — cấp token',
         'POST api/v1/auth/refresh' => 'SRS §8.1 IAM — gia hạn token',
         'GET api/v1/health' => 'NFR §11 — health probe hạ tầng',
+        // Quên mật khẩu bằng OTP email (WWHN — commit 368943c). Buộc phải ẩn
+        // danh: người dùng mất mật khẩu thì theo định nghĩa không có JWT để gọi,
+        // nên đây là bootstrap phiên giống login/refresh chứ không phải nới lỏng
+        // gate. Bù lại cả ba bước đều không tiết lộ email có tồn tại hay không
+        // (message/lỗi dùng chung) và hai bước đầu có limiter theo (IP + email).
+        'POST api/v1/auth/forgot-password' => 'SRS §8.1 IAM — phát OTP đặt lại mật khẩu',
+        'POST api/v1/auth/verify-otp' => 'SRS §8.1 IAM — xác thực OTP, cấp reset_token',
+        'POST api/v1/auth/reset-password' => 'SRS §8.1 IAM — đặt mật khẩu mới bằng reset_token',
         // Annex C: 4 operation PUBLIC_ANONYMOUS của App PV.
         'GET api/v1/pv/products' => 'Annex C listPvProducts (security: [])',
         'GET api/v1/pv/products/{skuId}' => 'Annex C getPvProduct (security: [])',
@@ -59,6 +67,22 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
         // không vỡ. Gỡ hay giữ là quyết định của BA, không phải của DEV.
         'GET api/v1/pv/catalog' => 'Alias lịch sử của listPvProducts',
         'GET api/v1/pv/tags' => 'Alias lịch sử — tag public phục vụ bộ lọc',
+        // Storefront công khai App PV — mặt API riêng, hợp đồng FE
+        // `{VITE_PUBLIC_API_BASE_URL}/api/v1/public`. Chỉ trả sản phẩm
+        // PUBLISHED + còn hàng và KHÔNG lộ số tồn, khác hẳn nhóm pv/* ở trên.
+        'GET api/v1/public/config' => 'Storefront — cấu hình khởi động app',
+        'GET api/v1/public/home' => 'Storefront — domain + section trang chủ',
+        'GET api/v1/public/health/version' => 'Storefront — version hợp đồng + cờ bảo trì',
+        'GET api/v1/public/categories' => 'Storefront — danh mục theo domain',
+        'GET api/v1/public/facets' => 'Storefront — bộ lọc động',
+        'GET api/v1/public/products' => 'Storefront — listing/search/filter/sort/cursor',
+        'GET api/v1/public/products/{slug}' => 'Storefront — chi tiết sản phẩm theo slug',
+        'GET api/v1/public/products/{slug}/related' => 'Storefront — sản phẩm liên quan',
+        // Endpoint GHI ẩn danh duy nhất của mặt storefront (hệ thống còn nhóm
+        // quên-mật-khẩu ở trên cũng ghi khi chưa đăng nhập). Được mở có chủ đích
+        // vì người gửi yêu cầu tư vấn chưa có tài khoản; bù lại nó có limiter
+        // riêng chặt hơn và bắt buộc Idempotency-Key.
+        'POST api/v1/public/quote-requests' => 'Storefront — gửi yêu cầu tư vấn (idempotent)',
         // Trang tài liệu do l5-swagger đăng ký, không phải API nghiệp vụ.
         'GET api/documentation' => 'l5-swagger UI',
         'GET api/oauth2-callback' => 'l5-swagger UI',
@@ -110,6 +134,35 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
                 "Route công khai [{$key}] không nằm trong nhóm throttle:pv-public."
             );
         }
+    }
+
+    /**
+     * Cùng lý do với test trên, áp cho mặt storefront `/api/v1/public/*`: mọi
+     * route ẩn danh phải có limiter thì 429 công bố trong hợp đồng mới là mã có
+     * thật. Endpoint GHI phải dùng limiter RIÊNG, chặt hơn nhóm đọc — dùng
+     * chung ngưỡng đọc thì form gửi yêu cầu tư vấn ẩn danh thành cửa spam.
+     */
+    public function test_every_public_storefront_route_is_rate_limited(): void
+    {
+        $seen = 0;
+
+        foreach ($this->anonymousApiRoutes() as $key) {
+            if (! str_contains($key, 'api/v1/public/')) {
+                continue;
+            }
+
+            $seen++;
+            $middleware = $this->middlewareOf($key);
+            $expected = str_starts_with($key, 'POST ') ? 'throttle:public-quote-request' : 'throttle:public-api';
+
+            $this->assertContains(
+                $expected,
+                $middleware,
+                "Route storefront [{$key}] phải nằm trong nhóm {$expected}."
+            );
+        }
+
+        $this->assertGreaterThan(0, $seen, 'Không tìm thấy route storefront nào — kiểm tra lại việc nạp routes/public_api.php.');
     }
 
     /**

@@ -895,6 +895,10 @@ Loại hàng tồn kho PRODUCT/COMPONENT. **\[BASELINE + TECH-PROPOSAL\]**
 
   **specifications**       jsonb                 Yes                                       Thông số kỹ thuật mở.
 
+  **min_stock**            numeric(18,3)         Yes            CHECK >= 0                 Định mức tồn tối thiểu theo SKU, toàn hệ thống (không theo kho). 0 là định mức hợp lệ; NULL = chưa đặt.
+
+  **max_stock**            numeric(18,3)         Yes            CHECK >= 1, > min_stock    Định mức tồn tối đa theo SKU, toàn hệ thống (không theo kho). NULL = chưa đặt.
+
   **status**               varchar(20)           No             CHECK ACTIVE/INACTIVE      Trạng thái.
 
   **created_at**           timestamptz           No             DEFAULT now()              Thời điểm tạo.
@@ -911,7 +915,7 @@ Loại hàng tồn kho PRODUCT/COMPONENT. **\[BASELINE + TECH-PROPOSAL\]**
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
   **Constraint chính**                                                                                           **Index khuyến nghị**
   -------------------------------------------------------------------------------------------------------------- --------------------------------------------------------------------------------
-  sku_code và tracking_mode khóa sau khi có item/movement/balance; catalog có thể tồn tại khi chưa có balance.   UX(sku_code); IDX(sku_type,status); IDX(brand_id,category_id,power_source_id).
+  sku_code và tracking_mode khóa sau khi có item/movement/balance; catalog có thể tồn tại khi chưa có balance. CHECK chk_skus_stock_thresholds: min_stock >= 0, max_stock >= 1, max_stock > min_stock (mỗi vế NULL = chưa đặt định mức).   UX(sku_code); IDX(sku_type,status); IDX(brand_id,category_id,power_source_id).
 
   -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
