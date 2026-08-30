@@ -7,9 +7,7 @@ use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\InboundBoxRegistrar;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
@@ -86,81 +84,22 @@ class CurrentBaselineInboundBoxController extends Controller
                 ApiError::abort(422, 'SKU_NOT_ACTIVE', 'SKU COMPONENT phải ACTIVE.');
             }
 
-            $boxCode = strtoupper(trim((string) $payload['box_code']));
-            $box = DB::table('containers')->where('container_code', $boxCode)->lockForUpdate()->first();
-            if ($box !== null) {
-                $this->assertBoxReusable($box, (string) $line->product_id);
-                $this->assertBoxNotUsedByOtherActiveReceipt((string) $box->container_id, $id);
-
-                return $this->boxResponse($box, false);
-            }
-
-            $boxId = (string) Str::uuid();
-            DB::table('containers')->insert([
-                // Trên Postgres, containers có cột id mirror (không tự set
-                // như các bảng khác); trên SQLite bảng này không có cột id.
-                ...(Schema::hasColumn('containers', 'id') ? ['id' => $boxId] : []),
-                'container_id' => $boxId,
-                'container_code' => $boxCode,
-                'container_type' => 'BOX',
-                'physical_code_id' => null,
-                'primary_sku_id' => $line->product_id,
-                'parent_container_id' => null,
-                'zone_code' => null,
-                'location_hint' => null,
-                'status' => 'EMPTY',
-                'version' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            $box = DB::table('containers')->where('container_id', $boxId)->first();
-
-            AuditLogger::record(
-                action: 'CREATE_RECEIPT_BOX',
-                objectType: 'container',
-                objectId: $boxId,
-                actorId: $actorId,
-                requestId: is_string($requestId) ? $requestId : null,
-                afterData: (array) $box,
+            // Đăng ký/tái sử dụng BOX qua registrar dùng chung (cùng nguồn sự thật
+            // với luồng scan-driven khi quét trực tiếp mã BOX-<SKU>-<seq>).
+            $registered = app(InboundBoxRegistrar::class)->ensure(
+                $id,
+                (string) $line->product_id,
+                (string) $payload['box_code'],
+                $actorId,
+                is_string($requestId) ? $requestId : null,
             );
 
-            return $this->boxResponse($box, true);
+            return $this->boxResponse($registered['box'], $registered['created']);
         }, 3);
 
         return $result['created']
             ? $this->respondCreated($result, 'Đã đăng ký BOX cho dòng nhập COMPONENT.')
             : $this->respondSuccess($result, 'BOX đã tồn tại và hợp lệ.');
-    }
-
-    private function assertBoxReusable(object $box, string $skuId): void
-    {
-        if ((string) $box->container_type !== 'BOX') {
-            ApiError::abort(422, 'BOX_CODE_CONFLICT', 'Mã đã tồn tại nhưng không phải BOX.');
-        }
-        if ((string) $box->primary_sku_id !== $skuId) {
-            ApiError::abort(422, 'BOX_SKU_MISMATCH', 'Một BOX chỉ được chứa một SKU COMPONENT.');
-        }
-        if ($box->parent_container_id !== null || (string) $box->status !== 'EMPTY') {
-            ApiError::abort(409, 'BOX_NOT_RECEIVABLE', 'BOX đã được lưu kho, đã Post Receipt hoặc không còn ở trạng thái nhận hàng.');
-        }
-    }
-
-    private function assertBoxNotUsedByOtherActiveReceipt(string $boxId, string $documentId): void
-    {
-        $conflict = DB::table('inbound_scan_entries as e')
-            ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
-            ->join('stock_documents as d', 'd.id', '=', 'l.stock_document_id')
-            ->where('e.container_id', $boxId)
-            ->where('d.id', '<>', $documentId)
-            ->whereIn('d.status', ['DRAFT', 'SCANNING'])
-            // BOX chỉ còn bị chiếm khi entry ở phiếu kia vẫn ACTIVE.
-            ->where(function ($query): void {
-                $query->whereNull('e.status')->orWhere('e.status', '!=', 'REMOVED');
-            })
-            ->exists();
-        if ($conflict) {
-            ApiError::abort(409, 'BOX_IN_OTHER_ACTIVE_RECEIPT', 'BOX đang được dùng bởi một phiếu nhập khác chưa kết thúc.');
-        }
     }
 
     private function boxResponse(object $box, bool $created): array
@@ -177,5 +116,4 @@ class CurrentBaselineInboundBoxController extends Controller
             'movement_created' => false,
         ];
     }
-
 }

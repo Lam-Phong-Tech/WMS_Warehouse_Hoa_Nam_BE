@@ -34,7 +34,7 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
             // BA 2026-08-25: inbound is scan-driven. qty_planned is retained only as
             // a compatibility/storage column and mirrors the quantity physically
             // scanned. It is not a user-entered expectation or an over-scan gate.
-            $payload = $this->prepareScanDrivenInboundLine($documentId, $payload);
+            $payload = $this->prepareScanDrivenInboundLine($documentId, $payload, $actorId);
         }
 
         return parent::scanStockDocument($documentId, $documentType, $payload, $actorId);
@@ -74,6 +74,7 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
                 $actual = (int) $line->scanned_qty;
                 if ($actual <= 0) {
                     DB::table('stock_document_lines')->where('id', $line->id)->delete();
+
                     continue;
                 }
 
@@ -103,9 +104,9 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
      * authoritative and a line is created automatically when this is the first scan
      * of that SKU. No expected SKU/quantity entry is required beforehand.
      */
-    private function prepareScanDrivenInboundLine(string $documentId, array $payload): array
+    private function prepareScanDrivenInboundLine(string $documentId, array $payload, ?string $actorId = null): array
     {
-        return DB::transaction(function () use ($documentId, $payload): array {
+        return DB::transaction(function () use ($documentId, $payload, $actorId): array {
             $document = DB::table('stock_documents')
                 ->where('id', $documentId)
                 ->where('doc_type', 'receipt')
@@ -121,6 +122,16 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
             $quantity = (int) ($payload['quantity'] ?? 0);
             if ($quantity <= 0) {
                 ApiError::abort(422, 'INVALID_QUANTITY', 'Số lượng scan phải là số nguyên lớn hơn 0.');
+            }
+
+            // Mã HỘP linh kiện BOX-<SKU>-<seq>: hệ thống tự nhận diện, tự tạo dòng
+            // COMPONENT + đăng ký BOX rồi ghi nhận số lượng đếm tay — nhân viên
+            // không phải chọn SKU / thêm dòng / đăng ký hộp thủ công trước.
+            if (! empty($payload['code_value'])) {
+                $box = app(BoxCodeParser::class)->parse((string) $payload['code_value']);
+                if ($box !== null) {
+                    return $this->prepareScanDrivenBoxLine($documentId, $payload, $box, $quantity, $actorId);
+                }
             }
 
             $line = null;
@@ -195,6 +206,99 @@ class DiagnosticCurrentBaselineStockService extends AlignedOutboundStockService
 
             return $payload;
         }, 3);
+    }
+
+    /**
+     * Luồng scan-driven cho mã HỘP linh kiện (BOX-<SKU>-<seq>).
+     *
+     * Nhân viên chỉ quét mã hộp; hệ thống:
+     *  1) resolve SKU COMPONENT từ mã (BaM1StockService đã materialize nếu mới),
+     *  2) tự tạo dòng nhập COMPONENT cho SKU đó (qty_planned bơm theo số quét),
+     *  3) đăng ký/tái sử dụng BOX (primary_sku_id = SKU),
+     *  4) chuyển payload sang dạng "đếm theo BOX" (line_id + container_id +
+     *     quantity, KHÔNG còn code_value) để canonical scanner ghi nhận số lượng
+     *     đếm tay giống hệt luồng component-by-box đã có.
+     *
+     * @param  array{box_code: string, sku_code: string, box_seq: string}  $box
+     */
+    private function prepareScanDrivenBoxLine(
+        string $documentId,
+        array $payload,
+        array $box,
+        int $quantity,
+        ?string $actorId
+    ): array {
+        $sku = DB::table('sku')->where('sku_code', $box['sku_code'])->lockForUpdate()->first();
+        if ($sku === null) {
+            // BaM1StockService materialize COMPONENT SKU trước khi tới đây; thiếu
+            // nghĩa là tầng auto-create không chạy (vd gọi service trực tiếp).
+            ApiError::abort(422, 'BOX_SKU_NOT_FOUND', 'Không resolve được SKU linh kiện từ mã hộp.', [
+                'box_code' => $box['box_code'],
+                'sku_code' => $box['sku_code'],
+            ]);
+        }
+        if (strtoupper((string) $sku->status) !== 'ACTIVE') {
+            ApiError::abort(422, 'SKU_NOT_ACTIVE', 'SKU linh kiện của hộp không ACTIVE.');
+        }
+        if (strtoupper((string) $sku->sku_type) !== 'COMPONENT') {
+            ApiError::abort(422, 'BOX_SKU_NOT_COMPONENT', 'Mã hộp trỏ tới SKU không phải COMPONENT.', [
+                'box_code' => $box['box_code'],
+                'sku_code' => $box['sku_code'],
+                'sku_type' => (string) $sku->sku_type,
+            ]);
+        }
+
+        $skuId = (string) $sku->sku_id;
+
+        // Ensure dòng nhập COMPONENT (mirror BaM1InboundComponentController::ensureLine).
+        $line = DB::table('stock_document_lines')
+            ->where('stock_document_id', $documentId)
+            ->where('product_id', $skuId)
+            ->orderBy('line_no')
+            ->lockForUpdate()
+            ->first();
+        if ($line === null) {
+            $lineId = (string) Str::uuid();
+            $lineNo = ((int) DB::table('stock_document_lines')
+                ->where('stock_document_id', $documentId)
+                ->max('line_no')) + 1;
+            DB::table('stock_document_lines')->insert([
+                'id' => $lineId,
+                'stock_document_id' => $documentId,
+                'line_no' => $lineNo,
+                'product_id' => $skuId,
+                'qty_planned' => 0,
+                'qty_actual' => 0,
+                'scanned_qty' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $line = DB::table('stock_document_lines')->where('id', $lineId)->lockForUpdate()->first();
+        }
+
+        // Đăng ký/tái sử dụng BOX (stock-neutral) qua registrar dùng chung.
+        $registered = app(InboundBoxRegistrar::class)->ensure(
+            $documentId,
+            $skuId,
+            $box['box_code'],
+            $actorId,
+            request()?->attributes->get('request_id'),
+        );
+
+        // qty_planned = "capacity exactly equal to the next actual scan" để canonical
+        // scanner (base) không chặn SCAN_EXCEEDS_REQUIRED; post normalize về số quét thực.
+        DB::table('stock_document_lines')->where('id', $line->id)->update([
+            'qty_planned' => (int) $line->scanned_qty + $quantity,
+            'updated_at' => now(),
+        ]);
+
+        $payload['line_id'] = (string) $line->id;
+        $payload['container_id'] = (string) $registered['box']->container_id;
+        // Bỏ code_value: base resolveItem() sẽ không cố tra mã hộp như ITEM
+        // (mã hộp không phải physical_code của item) — ghi nhận thành scan đếm tay.
+        unset($payload['code_value']);
+
+        return $payload;
     }
 
     private function assertNoActiveOutboundReservation(string $documentId, string $itemId): void

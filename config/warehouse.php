@@ -191,4 +191,22 @@ return [
          */
         'max_payload_length' => (int) env('WMS_PRODUCT_QR_MAX_PAYLOAD_LENGTH', 512),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mã HỘP linh kiện nhập kho (scan-driven COMPONENT box)
+    |--------------------------------------------------------------------------
+    |
+    | Format: <prefix>-<SKU_CODE>-<BOX_SEQ>, ví dụ BOX-HN-COMP-BASE-003-0001
+    |   -> sku_code = HN-COMP-BASE-003 (SKU linh kiện, sku_type=COMPONENT)
+    |   -> box_seq  = 0001
+    |
+    | Mã hộp tự mang SKU: khi nhân viên quét hộp, hệ thống đọc được SKU ngay,
+    | tự materialize COMPONENT SKU-candidate nếu chưa có (giống PRODUCT QR),
+    | tự tạo dòng nhập + đăng ký BOX rồi mở ô nhập số lượng đếm tay.
+    */
+    'box_code' => [
+        /** Prefix nhận diện mã HỘP; segment đầu = <prefix> (mặc định BOX). */
+        'prefix' => env('WMS_BOX_CODE_PREFIX', 'BOX'),
+    ],
 ];

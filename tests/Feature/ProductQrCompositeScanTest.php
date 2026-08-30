@@ -49,12 +49,12 @@ class ProductQrCompositeScanTest extends TestCase
         ];
     }
 
-    private function inboundScan(array $fixture, string $rawPayload, int $version = 1)
+    private function inboundScan(array $fixture, string $rawPayload, int $version = 1, array $extra = [])
     {
         return $this->postJson("/api/v1/inbound-documents/{$fixture['document_id']}/scans", [
             'quantity' => 1,
             'code_value' => $rawPayload,
-        ], $fixture['headers'] + ['If-Match' => (string) $version]);
+        ] + $extra, $fixture['headers'] + ['If-Match' => (string) $version]);
     }
 
     // ------------------------------------------------------------------ inbound
@@ -164,15 +164,27 @@ class ProductQrCompositeScanTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'UNSUPPORTED_PAYLOAD_VERSION');
 
-        // GĐ1-REQ-007: SKU chưa tồn tại trong master KHÔNG còn bị SKU_NOT_FOUND —
-        // BaM1StockService auto-create SKU PRODUCT ACTIVE tối thiểu rồi nhận scan.
+        // SKU mới (mã item) lần đầu: KHÔNG tạo im lặng — thiếu new_sku_type thì
+        // trả NEW_SKU_TYPE_REQUIRED để FE hỏi Sản phẩm/Linh kiện; chưa tạo SKU.
         $this->assertSame(0, DB::table('sku')->where('sku_code', 'QR-SKU-05-GHOST')->count());
         $this->inboundScan($fixture, $this->composite('QR-SKU-05-GHOST', 'SN-QR05-0001'))
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'NEW_SKU_TYPE_REQUIRED');
+        $this->assertSame(0, DB::table('sku')->where('sku_code', 'QR-SKU-05-GHOST')->count());
+
+        // Gửi lại kèm new_sku_type=PRODUCT: tạo SKU PRODUCT ACTIVE rồi nhận scan.
+        $this->inboundScan(
+            $fixture,
+            $this->composite('QR-SKU-05-GHOST', 'SN-QR05-0001'),
+            1,
+            ['new_sku_type' => 'PRODUCT'],
+        )
             ->assertOk()
             ->assertJsonPath('data.resolution_status', 'NEW_ITEM_CANDIDATE');
         $ghost = DB::table('sku')->where('sku_code', 'QR-SKU-05-GHOST')->first();
         $this->assertNotNull($ghost);
         $this->assertSame('ACTIVE', strtoupper((string) $ghost->status));
+        $this->assertSame('PRODUCT', strtoupper((string) $ghost->sku_type));
 
         // SKU đã tồn tại nhưng INACTIVE thì vẫn bị chặn (không auto-create đè).
         Sku::create([
@@ -196,6 +208,37 @@ class ProductQrCompositeScanTest extends TestCase
                 ->sum('scanned_qty')
         );
         $this->assertSame(0, DB::table('stock_movements')->count());
+    }
+
+    /**
+     * SKU mới + new_sku_type=COMPONENT: quét mã item chọn "Linh kiện" tạo linh
+     * kiện DÁN MÃ TỪNG CÁI (serial-tracked), ghi nhận +1 như sản phẩm, không cần
+     * hộp. new_sku_type là bắt buộc cho SKU mới (thiếu -> NEW_SKU_TYPE_REQUIRED).
+     */
+    public function test_new_sku_type_component_tao_linh_kien_dan_ma_serial_tracked(): void
+    {
+        $fixture = $this->draftInbound('QR-SKU-CT-SEED');
+        $this->assertSame(0, DB::table('sku')->where('sku_code', 'QR-SKU-COMP-01')->count());
+
+        // Thiếu new_sku_type -> hỏi loại.
+        $this->inboundScan($fixture, $this->composite('QR-SKU-COMP-01', 'SN-CT-0001'))
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'NEW_SKU_TYPE_REQUIRED');
+
+        // Chọn Linh kiện -> tạo COMPONENT serial-tracked, ghi nhận candidate.
+        $this->inboundScan(
+            $fixture,
+            $this->composite('QR-SKU-COMP-01', 'SN-CT-0001'),
+            1,
+            ['new_sku_type' => 'COMPONENT'],
+        )
+            ->assertOk()
+            ->assertJsonPath('data.resolution_status', 'NEW_ITEM_CANDIDATE');
+
+        $sku = DB::table('sku')->where('sku_code', 'QR-SKU-COMP-01')->first();
+        $this->assertNotNull($sku);
+        $this->assertSame('COMPONENT', strtoupper((string) $sku->sku_type));
+        $this->assertTrue((bool) $sku->is_serial_tracked);
     }
 
     public function test_qr06_post_receipt_dang_ky_item_physical_code_va_tang_ton_dung_mot_lan(): void

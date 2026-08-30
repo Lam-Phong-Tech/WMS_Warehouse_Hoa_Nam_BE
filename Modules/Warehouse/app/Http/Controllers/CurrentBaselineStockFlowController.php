@@ -12,6 +12,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Events\InboundCompleted;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
@@ -609,7 +610,7 @@ class CurrentBaselineStockFlowController extends Controller
                     $posted['version'] = $expectedVersion + 1;
 
                     if ($type === 'receipt') {
-                        event(new \Modules\Warehouse\Events\InboundCompleted(
+                        event(new InboundCompleted(
                             $id,
                             (string) $document->doc_no,
                             $document->dst_warehouse_id !== null ? (string) $document->dst_warehouse_id : null,
@@ -759,6 +760,10 @@ class CurrentBaselineStockFlowController extends Controller
             'code_value' => ['nullable', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'item_id' => ['nullable', 'uuid'],
             'container_id' => ['nullable', 'uuid'],
+            // Loại người dùng chọn cho SKU MỚI khi quét mã item lần đầu (loại chưa
+            // suy ra được từ mã). Bỏ trống với SKU đã tồn tại; SKU mới mà thiếu ->
+            // NEW_SKU_TYPE_REQUIRED để FE hỏi rồi gửi lại.
+            'new_sku_type' => ['nullable', 'string', 'in:PRODUCT,COMPONENT'],
             'printer_config_id' => ['nullable', 'uuid', 'exists:printer_configs,id'],
         ]);
         $validated['quantity'] = (int) ($request->input('quantity') ?? $request->input('qty'));
@@ -810,5 +815,4 @@ class CurrentBaselineStockFlowController extends Controller
             'meta' => ['request_id' => request()?->attributes->get('request_id'), 'timestamp' => now()->toIso8601String()],
         ];
     }
-
 }

@@ -75,6 +75,9 @@ trait BuildsScanDrivenInbound
             $response = $this->postJson("/api/v1/inbound-documents/{$documentId}/scans", [
                 'quantity' => 1,
                 'code_value' => $this->compositeProductQr($skuCode, $unique),
+                // SKU mới lần đầu: khai loại PRODUCT (mã item mặc định là sản phẩm
+                // trong helper này). SKU đã tồn tại thì backend bỏ qua trường này.
+                'new_sku_type' => 'PRODUCT',
             ], $headers + ['If-Match' => (string) $version])->assertOk();
             $version = (int) $response->json('data.version');
             $lineId = (string) $response->json('data.line_id');
