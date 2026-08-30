@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
@@ -217,13 +218,28 @@ class CurrentBaselineComponentFlowController extends Controller
                 if ($item === null || (string) $item->sku_id !== (string) $line->sku_id || $item->item_status !== 'IN_STOCK') {
                     ApiError::abort(422, 'COMPONENT_ITEM_NOT_AVAILABLE', 'Component item sai SKU hoặc không IN_STOCK.');
                 }
-                if (DB::table('component_issue_items as ci')
+                // Global, không chỉ trong phiếu hiện tại: unique index DB
+                // `uk_component_issue_active_item` cấm 1 item ACTIVE ở HAI
+                // Component Issue cùng lúc (item vật lý không thể ở 2 nơi).
+                // Trước đây chỉ check trong phiếu hiện tại nên lọt xuống DB,
+                // vi phạm unique constraint và hiện lỗi kỹ thuật khó hiểu
+                // "dữ liệu ghi bởi thao tác khác" thay vì lý do nghiệp vụ rõ.
+                $activeElsewhere = DB::table('component_issue_items as ci')
                     ->join('component_issue_lines as cl', 'cl.id', '=', 'ci.component_issue_line_id')
-                    ->where('cl.component_issue_document_id', $id)
+                    ->join('component_issue_documents as cid', 'cid.id', '=', 'cl.component_issue_document_id')
                     ->where('ci.item_id', $itemId)
                     ->where('ci.status', 'ACTIVE')
-                    ->exists()) {
-                    ApiError::abort(409, 'DUPLICATE_COMPONENT_ITEM', 'Item đã được scan ACTIVE trong Component Issue này.');
+                    ->select('cid.id as document_id', 'cid.component_issue_no')
+                    ->first();
+                if ($activeElsewhere !== null) {
+                    if ((string) $activeElsewhere->document_id === (string) $id) {
+                        ApiError::abort(409, 'DUPLICATE_COMPONENT_ITEM', 'Item đã được scan ACTIVE trong Component Issue này.');
+                    }
+                    ApiError::abort(
+                        422,
+                        'COMPONENT_ITEM_ACTIVE_ELSEWHERE',
+                        "Linh kiện này đang được quét ở phiếu xuất linh kiện khác ({$activeElsewhere->component_issue_no}) và chưa hủy/hoàn tất. Hủy dòng quét đó hoặc xử lý xong phiếu kia trước khi quét vào phiếu này."
+                    );
                 }
             } else {
                 $this->containers->assertContainerAvailable((string) $containerId, (string) $line->sku_id, $quantity);
@@ -434,8 +450,20 @@ class CurrentBaselineComponentFlowController extends Controller
         $containerId = $validated['container_id'] ?? null;
         $physicalCodeId = null;
         if (! empty($validated['code_value'])) {
+            // DEC-QR-001: mã composite dán trên item thật (HN1|SKU=...|ITEM=...
+            // |SER=...) phải parse ra item_unique trước khi tra
+            // physical_codes.code_value — bảng đó chỉ lưu phần ITEM, không lưu
+            // nguyên chuỗi composite. Thiếu bước này, MỌI lần quét QR thật (khác
+            // với mã hộp/legacy trần) đều báo nhầm PHYSICAL_CODE_NOT_FOUND dù
+            // item có sẵn trong kho. Mã hộp/legacy không khớp prefix composite
+            // nên isComposite()=false, normalizedCodeValue giữ nguyên hành vi cũ
+            // (strtoupper(trim(...))).
+            $parsedCode = app(ProductQrPayloadParser::class)->parse((string) $validated['code_value']);
+            $lookupCodeValue = $parsedCode->isComposite()
+                ? (string) $parsedCode->itemUnique
+                : (string) $parsedCode->normalizedCodeValue;
             $physical = DB::table('physical_codes')
-                ->where('code_value', strtoupper(trim((string) $validated['code_value'])))
+                ->where('code_value', $lookupCodeValue)
                 ->where('status', 'ACTIVE')
                 ->lockForUpdate()
                 ->first();
@@ -539,5 +567,4 @@ class CurrentBaselineComponentFlowController extends Controller
             'meta' => ['request_id' => request()?->attributes->get('request_id'), 'timestamp' => now()->toIso8601String()],
         ];
     }
-
 }

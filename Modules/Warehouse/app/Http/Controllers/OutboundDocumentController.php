@@ -233,8 +233,11 @@ class OutboundDocumentController extends Controller
         $stats = $this->documentProgressStats(
             collect($paginator->items())->map(fn (StockDocument $doc): string => (string) $doc->id)->all()
         );
+        $requestNoById = $this->requestNoByOutboundRequestId(
+            collect($paginator->items())->pluck('outbound_request_id')->filter()->unique()->all()
+        );
 
-        $paginator->getCollection()->transform(function (StockDocument $doc) use ($stats): array {
+        $paginator->getCollection()->transform(function (StockDocument $doc) use ($stats, $requestNoById): array {
             $stat = $stats[(string) $doc->id] ?? null;
 
             return [
@@ -243,10 +246,35 @@ class OutboundDocumentController extends Controller
                 'matched_count' => (int) ($stat->matched_count ?? 0),
                 'label_printed_count' => (int) ($stat->label_printed_count ?? 0),
                 'rfid_mapped_count' => (int) ($stat->rfid_mapped_count ?? 0),
+                // Cột "Yêu cầu xuất" ở danh sách phải hiện mã toa đọc được
+                // (request_no), không phải UUID của outbound_request_id.
+                'request_no' => $requestNoById[(string) $doc->outbound_request_id] ?? null,
             ];
         });
 
         return $this->respondPaginated($paginator);
+    }
+
+    /**
+     * Tra ngược request_no đọc được từ outbound_request_id — dòng phiếu xuất
+     * chỉ lưu UUID, thiếu bước này UI sẽ phải tự hiển thị UUID thô. Dùng
+     * chung cho AlignedOutboundDocumentController::index() (route thật đang
+     * chạy, xem routes/api.php) lẫn index() ở đây.
+     *
+     * @param  list<string>  $outboundRequestIds
+     * @return array<string, string> keyed by outbound_request_id
+     */
+    protected function requestNoByOutboundRequestId(array $outboundRequestIds): array
+    {
+        if ($outboundRequestIds === []) {
+            return [];
+        }
+
+        return DB::table('outbound_requests')
+            ->whereIn('id', $outboundRequestIds)
+            ->pluck('request_no', 'id')
+            ->map(fn ($value): string => (string) $value)
+            ->all();
     }
 
     /** @return array<string, object> keyed by document id */

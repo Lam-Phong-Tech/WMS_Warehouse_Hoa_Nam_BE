@@ -42,8 +42,11 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
         $paginator = $query->orderByDesc('created_at')->paginate($this->perPage($request));
         $ids = collect($paginator->items())->map(fn (StockDocument $doc): string => (string) $doc->id)->all();
         $stats = $this->alignedProgressStats($ids);
+        $requestNoById = $this->requestNoByOutboundRequestId(
+            collect($paginator->items())->pluck('outbound_request_id')->filter()->unique()->all()
+        );
 
-        $paginator->getCollection()->transform(function (StockDocument $doc) use ($stats): array {
+        $paginator->getCollection()->transform(function (StockDocument $doc) use ($stats, $requestNoById): array {
             $stat = $stats[(string) $doc->id] ?? null;
 
             return [
@@ -55,6 +58,9 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
                 'packing_label_applied_count' => (int) ($stat->packing_label_applied ?? 0),
                 'rfid_mapped_count' => (int) ($stat->rfid_mapped_count ?? 0),
                 'rfid_required' => false,
+                // Cột "Yêu cầu xuất" ở danh sách phải hiện mã toa đọc được
+                // (request_no), không phải UUID của outbound_request_id.
+                'request_no' => $requestNoById[(string) $doc->outbound_request_id] ?? null,
             ];
         });
 
