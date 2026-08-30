@@ -1,0 +1,49 @@
+<?php
+
+namespace Tests\Feature;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Tests\Feature\Concerns\PreparesOutboundFixtures;
+use Tests\TestCase;
+
+/**
+ * Chi tiết tồn kho (subledger): một item mang NHIỀU mã vật lý (mã in barcode/QR
+ * + thẻ RFID) chỉ được tính/hiển thị là MỘT sản phẩm — không double-count như
+ * khi join 1-nhiều (2 dòng cho 1 item, item_count = 2 dù tồn = 1).
+ */
+class InventorySubledgerPhysicalCodeTest extends TestCase
+{
+    use PreparesOutboundFixtures;
+    use RefreshDatabase;
+
+    public function test_item_nhieu_ma_vat_ly_chi_la_mot_dong_va_tach_rfid(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->productSkuFixture('SUBLEDGER-DUP-01');
+
+        // Một item duy nhất, gắn cả mã in (QR/barcode) lẫn thẻ RFID.
+        $itemId = $this->seedItemInStock($sku->sku_id);
+        $this->seedScanCode($itemId, 'SN-SUBLEDGER-DUP-01');
+        $this->seedRfidCode($itemId);
+        $this->seedAvailableBalance((string) $warehouse->id, (string) $sku->sku_id, 1);
+
+        $balanceId = (string) DB::table('inventory_balances')
+            ->where('warehouse_id', $warehouse->id)
+            ->where('product_id', $sku->sku_id)
+            ->value('id');
+
+        $res = $this
+            ->getJson("/api/v1/inventory/balances/{$balanceId}/subledger", $headers)
+            ->assertOk();
+
+        // Một item = một dòng, item_count = 1 (khớp tồn), không phải 2.
+        $res->assertJsonPath('data.item_count', 1);
+        $this->assertCount(1, $res->json('data.items'));
+
+        // Mã in hiển thị ở physical_code; RFID tách riêng ở rfid_code.
+        $this->assertSame('SN-SUBLEDGER-DUP-01', $res->json('data.items.0.physical_code'));
+        $this->assertStringStartsWith('RFID-', (string) $res->json('data.items.0.rfid_code'));
+    }
+}

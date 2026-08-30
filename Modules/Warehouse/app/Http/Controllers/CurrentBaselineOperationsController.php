@@ -8,6 +8,7 @@ use App\Support\ConflictCode;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -1081,7 +1082,7 @@ class CurrentBaselineOperationsController extends Controller
         $this->assertLabelPrintable($request, $snapshot, $reprint);
         $printer = DB::table('printer_configs')->where('id', $validated['printer_config_id'])->first();
         if ($printer === null || ($printer->status ?? 'ACTIVE') !== 'ACTIVE' || empty($printer->agent_endpoint)) {
-            return $this->recordPrintFailure($snapshot, $validated['printer_config_id'], 'Máy in chưa được cấu hình hoặc đang ở trạng thái không hoạt động.', $reprint, $reason);
+            return $this->recordPrintFailure($snapshot, $validated['printer_config_id'], 'Máy in chưa được cấu hình hoặc đang ở trạng thái không hoạt động.', $reason);
         }
 
         $eventId = (string) Str::uuid();
@@ -1098,8 +1099,16 @@ class CurrentBaselineOperationsController extends Controller
             if ($response->successful() && (bool) $response->json('success', true)) {
                 $status = 'PRINTED';
             } else {
-                $error = 'Printer agent rejected command: HTTP '.$response->status();
+                $error = 'Máy in phản hồi lỗi khi nhận lệnh in (HTTP '.$response->status().').';
             }
+        } catch (ConnectionException) {
+            // Không tới được agent máy in (chưa bật/chưa cắm mạng/sai địa chỉ) hoặc
+            // hết thời gian chờ (timeout ở trên) — cùng loại exception này ở
+            // Laravel HTTP client. Thông điệp kỹ thuật gốc (cURL/host/port) không
+            // có ích cho người dùng cuối nên KHÔNG lộ ra UI; giữ nguyên câu rõ ràng,
+            // có hướng xử lý, thay vì để rơi xuống bản dịch chung chung ở
+            // UserFacingMessageLocalizer.
+            $error = 'Không thể kết nối tới máy in. Kiểm tra máy in đã bật và đã kết nối mạng, sau đó thử lại.';
         } catch (\Throwable $e) {
             $error = $e->getMessage();
         }
@@ -1145,12 +1154,15 @@ class CurrentBaselineOperationsController extends Controller
 
         if ($status !== 'PRINTED') {
             // §5.2 + SCR-LBL-01: print failure chặn completion, tồn/movement không đổi.
-            ApiError::abort(409, 'PRINT_FAILED', $error ?? 'Printer failed.', [
-                'label_print_event_id' => $eventId,
-                'label_status' => 'PRINT_FAILED',
-                'version' => $version,
-                'reprint' => $reprint,
-            ]);
+            //
+            // `details` cố ý để RỖNG: label_print_event_id/version/reprint là siêu
+            // dữ liệu audit — FE không đọc lại field nào trong số này (chỉ refetch
+            // nguyên document/label qua GET sau mọi lần in). ApiError::abort()
+            // Việt hoá TỪNG GIÁ TRỊ trong `details` rồi FE hiển thị chúng như câu
+            // lỗi field-by-field (đúng cho lỗi validate 422) — nhét metadata không
+            // phải câu chữ vào đây khiến toast hiện một chuỗi UUID/số/bool lẫn lộn
+            // thay vì đúng một câu $error rõ ràng.
+            ApiError::abort(409, 'PRINT_FAILED', $error ?? 'Không thể gửi lệnh in tới máy in.');
         }
 
         return $this->respondSuccess([
@@ -1202,7 +1214,7 @@ class CurrentBaselineOperationsController extends Controller
         return (int) $header;
     }
 
-    private function recordPrintFailure(object $snapshot, string $printerId, string $message, bool $reprint, ?string $reason = null)
+    private function recordPrintFailure(object $snapshot, string $printerId, string $message, ?string $reason = null)
     {
         $eventId = (string) Str::uuid();
         // WWHN-234 F-06: cùng CAS như nhánh thành công trong dispatchLabelOnce() —
@@ -1236,12 +1248,10 @@ class CurrentBaselineOperationsController extends Controller
                 ApiError::abort(409, ConflictCode::CONCURRENCY, 'Label snapshot đã bị thay đổi bởi lệnh in khác; tải lại rồi thử lại.');
             }
         });
-        ApiError::abort(409, 'PRINT_FAILED', $message, [
-            'label_print_event_id' => $eventId,
-            'label_status' => 'PRINT_FAILED',
-            'version' => $version,
-            'reprint' => $reprint,
-        ]);
+        // `details` để rỗng — xem chú thích ở nhánh PRINT_FAILED khác trong
+        // dispatchLabelOnce(): metadata này không phải câu chữ và FE không đọc
+        // lại, nhét vào đây chỉ khiến toast hiện chuỗi UUID/số/bool lẫn lộn.
+        ApiError::abort(409, 'PRINT_FAILED', $message);
     }
 
     private function containsPhoneField(array $payload): bool

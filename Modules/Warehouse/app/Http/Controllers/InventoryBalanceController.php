@@ -232,13 +232,14 @@ class InventoryBalanceController extends Controller
 
         // Cùng một predicate với buildSubledgerCounts, nếu không thì con số đối soát
         // và danh sách drill-down mâu thuẫn nhau ngay trên cùng một màn hình.
+        //
+        // KHÔNG join physical_codes tại đây: một item có thể mang NHIỀU mã vật lý
+        // (mã in barcode/QR + thẻ RFID), join 1-nhiều sẽ nhân đôi dòng và làm
+        // item_count vượt số item thật (2 dòng cho 1 sản phẩm). Lấy item trước
+        // (mỗi item đúng một dòng), gắn mã vật lý ở bước sau.
         $items = $this->eligibleItemQuery([$balance->product_id])
             ->leftJoin('sku', 'item_instances.sku_id', '=', 'sku.sku_id')
             ->leftJoin('containers', 'containers.container_id', '=', 'item_instances.container_id')
-            ->leftJoin('physical_codes', function ($join) {
-                $join->on('physical_codes.assigned_object_id', '=', 'item_instances.item_id')
-                    ->where('physical_codes.assigned_object_type', '=', 'ITEM');
-            })
             ->orderByDesc('item_instances.created_at')
             ->limit(200)
             ->select([
@@ -253,10 +254,32 @@ class InventoryBalanceController extends Controller
                 'sku.sku_name',
                 'containers.container_code',
                 'containers.location_hint',
-                'physical_codes.code_value as physical_code',
-                'physical_codes.carrier_type as code_carrier_type',
             ])
             ->get();
+
+        // Gắn mã vật lý cho từng item: tách mã in (barcode/QR) với thẻ RFID để
+        // UI phân biệt được, nhưng vẫn giữ MỖI ITEM = MỘT DÒNG.
+        $itemIds = $items->pluck('id')->filter()->values();
+        $codesByItem = $itemIds->isEmpty()
+            ? collect()
+            : DB::table('physical_codes')
+                ->where('assigned_object_type', 'ITEM')
+                ->whereIn('assigned_object_id', $itemIds->all())
+                ->orderBy('created_at')
+                ->get(['assigned_object_id', 'code_value', 'carrier_type'])
+                ->groupBy('assigned_object_id');
+
+        $items = $items->map(function (object $item) use ($codesByItem): object {
+            $codes = $codesByItem->get($item->id, collect());
+            $rfid = $codes->first(fn ($code): bool => strtoupper((string) $code->carrier_type) === 'RFID');
+            $printed = $codes->first(fn ($code): bool => strtoupper((string) $code->carrier_type) !== 'RFID')
+                ?? $codes->first();
+            $item->physical_code = $printed->code_value ?? null;
+            $item->code_carrier_type = $printed->carrier_type ?? null;
+            $item->rfid_code = $rfid->code_value ?? null;
+
+            return $item;
+        });
 
         $containers = $this->activeContainerItemQuery([$balance->product_id])
             ->join('containers', 'container_items.container_id', '=', 'containers.container_id')

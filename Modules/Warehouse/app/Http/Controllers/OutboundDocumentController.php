@@ -297,9 +297,42 @@ class OutboundDocumentController extends Controller
         }
 
         $payload = $doc->toArray();
+        $payload['lines'] = $this->enrichLinesWithSku($payload['lines'] ?? []);
         $payload['item_matches'] = $this->outboundItemMatches($id);
 
         return $this->respondSuccess($payload);
+    }
+
+    /**
+     * Bổ sung sku_code + sku_name cho mỗi dòng phiếu (dòng chỉ lưu product_id là
+     * UUID của SKU). Không có sẽ khiến UI hiển thị UUID thay vì mã SKU.
+     *
+     * @param  array<int, array<string, mixed>>  $lines
+     * @return array<int, array<string, mixed>>
+     */
+    private function enrichLinesWithSku(array $lines): array
+    {
+        $skuIds = collect($lines)
+            ->pluck('product_id')
+            ->filter()
+            ->unique()
+            ->values();
+        if ($skuIds->isEmpty()) {
+            return $lines;
+        }
+
+        $skus = DB::table('sku')
+            ->whereIn('sku_id', $skuIds->all())
+            ->get(['sku_id', 'sku_code', 'sku_name'])
+            ->keyBy('sku_id');
+
+        return collect($lines)->map(function (array $line) use ($skus): array {
+            $sku = $skus->get($line['product_id'] ?? null);
+            $line['sku_code'] = $sku->sku_code ?? null;
+            $line['sku_name'] = $sku->sku_name ?? null;
+
+            return $line;
+        })->all();
     }
 
     private function outboundItemMatches(string $documentId): array
