@@ -421,6 +421,11 @@ class CurrentBaselineStockService
             }
 
             $movementIds = [];
+            // Mảng song song với $movementIds, thêm để FE hiển thị mã biến động
+            // đọc được (movement_no) thay vì UUID thô — không đổi shape của
+            // $movementIds vì nó còn được dùng nguyên trạng cho recordPostingEvent/
+            // AuditLogger (payload idempotency/audit không nên đổi hình dạng).
+            $movements = [];
             // WWHN-234 F-04: khoá inventory_balances theo thứ tự product_id toàn
             // cục, không theo thứ tự line_no của chứng từ (đã khoá ở trên, giữ
             // nguyên cho stock_document_lines). Hai chứng từ chạm cùng tập SKU
@@ -449,6 +454,7 @@ class CurrentBaselineStockService
                     $this->resolveLineItemId($documentType, (string) $line->id)
                 );
                 $movementIds[] = $movement['id'];
+                $movements[] = ['id' => $movement['id'], 'movement_no' => $movement['movement_no']];
             }
 
             if ($documentType === 'receipt') {
@@ -487,8 +493,12 @@ class CurrentBaselineStockService
 
             return [
                 'document_id' => $documentId,
+                // Mã chứng từ đọc được (vd "PN-20260830153015-A1B2") — FE dùng để
+                // hiển thị thay cho document_id thô trong card kết quả hoàn tất.
+                'document_no' => $document->doc_no,
                 'status' => 'POSTED',
                 'movement_ids' => $movementIds,
+                'movements' => $movements,
                 'stock_effect' => $documentType === 'receipt' ? 'INCREASE' : 'DECREASE',
             ] + $auditAfterData;
         }, 3);
@@ -1512,9 +1522,10 @@ class CurrentBaselineStockService
         }
 
         $movementId = (string) Str::uuid();
+        $movementNo = 'MV-'.now()->format('Ymd').'-'.Str::upper(Str::random(8));
         DB::table('stock_movements')->insert([
             'id' => $movementId,
-            'movement_no' => 'MV-'.now()->format('Ymd').'-'.Str::upper(Str::random(8)),
+            'movement_no' => $movementNo,
             'business_key' => $businessKey,
             'movement_type' => $movementType,
             'warehouse_id' => $warehouseId,
@@ -1546,7 +1557,7 @@ class CurrentBaselineStockService
         // afterCommit() chỉ chạy khi ghi tồn kho commit thật sự thành công.
         DB::afterCommit(fn () => $this->cacheService()->bumpVersion('stock:version'));
 
-        return ['id' => $movementId, 'before' => $before, 'after' => $after];
+        return ['id' => $movementId, 'movement_no' => $movementNo, 'before' => $before, 'after' => $after];
     }
 
     private function cacheService(): CacheService

@@ -117,6 +117,13 @@ return [
                     // không có param/schema nào để wire. KHÔNG được bỏ hai dòng dưới.
                     base_path('Modules/Warehouse/app/Http/Controllers/PvPublicCatalogController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/PvAdminResourceController.php'),
+                    // Cùng lỗi lớp HN-BE-API-005 ở trên: PvCatalogImportController có
+                    // annotation #[OA\Post] thật (POST /pv-admin/catalog-import, batch
+                    // items[]/dry_run) nhưng nếu thiếu dòng dưới, RouteSyncProcessor tự sinh
+                    // skeleton "POST ... - Modules Warehouse Http Controllers ..." với
+                    // requestBody rỗng — FE App PV sẽ không đọc được schema items[] để build
+                    // gói import. KHÔNG được bỏ dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/PvCatalogImportController.php'),
                     // WWHN-153/WWHN-180/WWHN-152: cùng lỗi lớp với WWHN-184/240/244/252 ở trên
                     // — annotation TEMP_ONLY (requestBody temporary_item_code/missing_code_reason/
                     // manual_product_description/condition_status, permission warranty.temp_only)

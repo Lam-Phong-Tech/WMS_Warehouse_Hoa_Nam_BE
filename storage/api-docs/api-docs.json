@@ -34232,6 +34232,217 @@
                 ]
             }
         },
+        "/api/v1/pv-admin/catalog-import": {
+            "post": {
+                "tags": [
+                    "21. Public Catalog"
+                ],
+                "summary": "App PV — import hàng loạt SKU + hồ sơ trình bày (catalogue DongCheng), hỗ trợ dry-run",
+                "description": "Tạo đồng thời `sku` + hồ sơ App PV (display_name/description/specifications/ảnh) cho mỗi dòng, trong một giao dịch all-or-nothing: có bất kỳ dòng nào lỗi thì committed=false, không có gì được ghi. `published_to_app` LUÔN false khi tạo (đây không phải importer để publish) — dùng PATCH /api/v1/pv/products/{sku_id}/publish (quyền pv.publish) sau khi đã QA xong từng SKU. Không nhận giá/số lượng/barcode: các khoá đó bị từ chối tường minh (FORBIDDEN_FIELD) ngay ở bước validate, trước khi chạm DB. `brand_code`/`category_code` phải đã tồn tại ACTIVE trong master data (tạo trước qua POST /api/v1/brands, /api/v1/product-categories) — dry_run=true cho phép kiểm tra mapping trước khi tạo master data thật, lỗi trả về UNKNOWN_MASTER_CODE theo từng dòng.",
+                "operationId": "pv_catalog_import",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "items"
+                                ],
+                                "properties": {
+                                    "dry_run": {
+                                        "type": "boolean",
+                                        "example": true,
+                                        "default": false
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "product_code",
+                                                "name",
+                                                "brand_code",
+                                                "category_code"
+                                            ],
+                                            "properties": {
+                                                "product_code": {
+                                                    "type": "string",
+                                                    "example": "DC-DZ180-001",
+                                                    "maxLength": 100
+                                                },
+                                                "name": {
+                                                    "type": "string",
+                                                    "example": "Máy khoan vặn vít dùng pin DongCheng DZ180",
+                                                    "maxLength": 255
+                                                },
+                                                "brand_code": {
+                                                    "type": "string",
+                                                    "example": "DONGCHENG"
+                                                },
+                                                "category_code": {
+                                                    "type": "string",
+                                                    "example": "DRILL_FASTEN_DC"
+                                                },
+                                                "domain": {
+                                                    "type": "string",
+                                                    "example": "POWER_TOOLS",
+                                                    "nullable": true,
+                                                    "enum": [
+                                                        "POWER_TOOLS",
+                                                        "HAND_TOOLS",
+                                                        "ACCESSORIES"
+                                                    ]
+                                                },
+                                                "unit": {
+                                                    "type": "string",
+                                                    "example": "Cái",
+                                                    "nullable": true
+                                                },
+                                                "description": {
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "short_description": {
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "specifications": {
+                                                    "type": "object",
+                                                    "example": {
+                                                        "power": "18V",
+                                                        "voltage": "18V"
+                                                    },
+                                                    "nullable": true
+                                                },
+                                                "media_url": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "format": "uri",
+                                                        "example": "https://cdn.example.com/dongcheng/dz180.jpg"
+                                                    },
+                                                    "nullable": true
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "maxItems": 500
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true, would_insert=N).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Thiếu quyền sku.manage hoặc pv.master.manage",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "row_errors theo từng dòng (product_code/name/brand_code/category_code/domain/media_url/specifications không hợp lệ, UNKNOWN_MASTER_CODE, CATEGORY_DOMAIN_MISMATCH, DUPLICATE_CODE, hoặc FORBIDDEN_FIELD nếu payload chứa price/quantity/barcode/published). Không có SKU/hồ sơ nào được ghi.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/api/v1/pv-admin/resources/{resourceType}": {
             "get": {
                 "tags": [
