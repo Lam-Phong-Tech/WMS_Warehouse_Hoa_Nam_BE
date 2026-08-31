@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\CacheService;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
@@ -284,6 +285,12 @@ class PutawayController extends Controller
 
             $updatedEvent = DB::table('putaway_events')->where('id', $id)->first();
             $updatedBox = DB::table('containers')->where('container_id', $boxId)->first();
+
+            // Stock-neutral nhưng đổi location_hint của box — "Vị trí gợi ý"
+            // (InventoryBalanceController::buildContainerHints) đọc qua cache
+            // cùng version namespace với tồn kho; không bump ở đây thì cache cũ
+            // (TTL stock_short) tiếp tục trả location cũ dù Putaway đã CONFIRMED.
+            DB::afterCommit(fn () => app(CacheService::class)->bumpVersion('stock:version'));
 
             AuditLogger::record(
                 action: 'PUTAWAY_CONFIRM',
@@ -639,5 +646,4 @@ class PutawayController extends Controller
             ]);
         }
     }
-
 }

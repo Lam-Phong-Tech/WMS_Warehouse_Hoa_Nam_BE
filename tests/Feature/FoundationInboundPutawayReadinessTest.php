@@ -193,6 +193,23 @@ class FoundationInboundPutawayReadinessTest extends TestCase
             'primary_sku_id' => $sku->sku_id,
             'status' => 'RECEIVED_PENDING_PUTAWAY',
         ]);
+        // Post Receipt phải materialize container_items cho SKU/box này — nếu không,
+        // "Vị trí gợi ý" (InventoryBalanceController::buildContainerHints) không bao
+        // giờ thấy hộp đã nhận hàng dù Post Receipt đã thành công.
+        $this->assertDatabaseHas('container_items', [
+            'container_id' => $boxId,
+            'sku_id' => $sku->sku_id,
+            'quantity' => 5,
+            'is_active' => true,
+            'source_type' => 'RECEIPT',
+            'source_id' => $documentId,
+        ]);
+        $balanceAfterReceipt = $this->getJson('/api/v1/inventory?sku_id='.$sku->sku_id, $headers)
+            ->assertOk()
+            ->json('data.0');
+        $this->assertSame('BOX-E2E-001', $balanceAfterReceipt['container_code'] ?? null);
+        $this->assertNull($balanceAfterReceipt['tray_code']);
+        $this->assertNull($balanceAfterReceipt['location_hint']);
 
         $this->postJson("/api/v1/inbound-documents/{$documentId}/post-receipt", [], $postHeaders)
             ->assertOk()
@@ -236,6 +253,14 @@ class FoundationInboundPutawayReadinessTest extends TestCase
             'status' => 'STORED',
             'location_hint' => 'A-E2E-01',
         ]);
+        // Sau Putaway confirm, "Vị trí gợi ý" phải lộ luôn cả mã hộp lẫn vị trí/khay —
+        // container_items từ Post Receipt vẫn active, container_id không đổi.
+        $balanceAfterPutaway = $this->getJson('/api/v1/inventory?sku_id='.$sku->sku_id, $headers)
+            ->assertOk()
+            ->json('data.0');
+        $this->assertSame('BOX-E2E-001', $balanceAfterPutaway['container_code'] ?? null);
+        $this->assertSame('TRAY-E2E-001', $balanceAfterPutaway['tray_code'] ?? null);
+        $this->assertSame('A-E2E-01', $balanceAfterPutaway['location_hint'] ?? null);
 
         $this->postJson('/api/v1/putaway/tasks', [
             'box_container_id' => $boxId,

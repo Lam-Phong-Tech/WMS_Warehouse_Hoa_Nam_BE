@@ -15,7 +15,7 @@
             "balance_after": 9,
             "reversal_qty_delta": 2,
             "original_movement_immutable": true,
-            "box_subledger_untouched": 7,
+            "box_subledger_untouched": 17,
             "posting_action": "REVERSE_COMPONENT_ISSUE"
         },
         "TC-REV-CI-02": {

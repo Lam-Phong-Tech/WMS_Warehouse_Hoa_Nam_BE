@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Events\StockDocumentScanStarted;
 use Modules\Warehouse\Support\ProductQrPayload;
 
 class CurrentBaselineStockService
@@ -97,7 +98,7 @@ class CurrentBaselineStockService
                 $this->recordDocumentStatus($documentId, 'DRAFT', 'SCANNING', 'scan_start', $actorId);
 
                 $scanWarehouseId = $documentType === 'receipt' ? $document->dst_warehouse_id : $document->src_warehouse_id;
-                event(new \Modules\Warehouse\Events\StockDocumentScanStarted(
+                event(new StockDocumentScanStarted(
                     $documentId,
                     (string) $document->doc_no,
                     $documentType,
@@ -458,7 +459,7 @@ class CurrentBaselineStockService
             }
 
             if ($documentType === 'receipt') {
-                $this->applyReceiptSubledger($documentId);
+                $this->applyReceiptSubledger($documentId, $actorId);
             } else {
                 $this->applyIssueSubledger($documentId);
             }
@@ -1343,17 +1344,68 @@ class CurrentBaselineStockService
         }
     }
 
-    private function applyReceiptSubledger(string $documentId): void
+    /**
+     * DR-LOC-001 "container hint": Post Receipt là điểm duy nhất xác nhận stock thật, nên
+     * đây cũng phải là điểm duy nhất materialize container linkage cho subledger — trước
+     * bản sửa này, `inbound_scan_entries.container_id` chỉ được ghi lúc scan rồi bị bỏ
+     * quên, không có mã nào chép nó sang `item_instances.container_id` (Item/CARTON) hay
+     * `container_items` (COMPONENT theo BOX/quantity). Hệ quả: `InventoryBalanceController
+     * ::buildContainerHints()` (cột "Vị trí gợi ý" của SCR-INV-01) và subledger drill-down
+     * luôn đọc bảng trống, kể cả sau khi đã quét hộp và Post Receipt thành công.
+     */
+    private function applyReceiptSubledger(string $documentId, ?string $actorId = null): void
     {
-        $itemIds = DB::table('inbound_scan_entries as e')
+        $entries = DB::table('inbound_scan_entries as e')
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
             ->where('l.stock_document_id', $documentId)
-            ->whereNotNull('e.item_id')
             ->where(fn ($query) => self::activeScanEntry($query))
-            ->pluck('e.item_id');
+            ->get(['e.item_id', 'e.container_id', 'e.quantity', 'l.product_id']);
+
+        $itemEntries = $entries->whereNotNull('item_id');
+        $itemIds = $itemEntries->pluck('item_id')->unique()->values();
         if ($itemIds->isNotEmpty()) {
             DB::table('item_instances')->whereIn('item_id', $itemIds)->update([
                 'item_status' => 'IN_STOCK',
+                'updated_at' => now(),
+            ]);
+        }
+        // Item lẻ scan kèm carton (PRODUCT) hoặc item serial-tracked scan kèm BOX (COMPONENT)
+        // đều mang container_id trên entry — chép sang item_instances để subledger
+        // drill-down (InventoryBalanceController::subledger) thấy đúng carton/box hiện tại.
+        foreach ($itemEntries->whereNotNull('container_id') as $entry) {
+            DB::table('item_instances')->where('item_id', $entry->item_id)->update([
+                'container_id' => $entry->container_id,
+                'updated_at' => now(),
+            ]);
+        }
+
+        // Component đếm theo BOX (quantity-mode, không có item_id) chưa từng có mapping
+        // container_items nào — tạo mới ở đây, gộp theo (container, SKU) vì nhiều lượt
+        // scan cùng hộp trong cùng phiếu là nhiều dòng inbound_scan_entries riêng lẻ.
+        $boxGroups = $entries->whereNull('item_id')->whereNotNull('container_id')
+            ->groupBy(fn ($entry): string => $entry->container_id.'|'.$entry->product_id);
+        foreach ($boxGroups as $key => $group) {
+            [$containerId, $skuId] = explode('|', (string) $key, 2);
+            $quantity = (int) $group->sum('quantity');
+            if ($quantity <= 0) {
+                continue;
+            }
+            DB::table('container_items')->insert([
+                'container_item_id' => (string) Str::uuid(),
+                'container_id' => $containerId,
+                'item_id' => null,
+                'sku_id' => $skuId,
+                'quantity' => $quantity,
+                'status' => 'ACTIVE',
+                'is_active' => true,
+                'placed_at' => now(),
+                'placed_by' => $actorId,
+                'source_type' => 'RECEIPT',
+                'source_id' => $documentId,
+                'version' => 1,
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+                'created_at' => now(),
                 'updated_at' => now(),
             ]);
         }
@@ -1424,6 +1476,35 @@ class CurrentBaselineStockService
                 'item_status' => 'ADJUSTED_OUT',
                 'updated_at' => now(),
             ]);
+        }
+
+        // Đối xứng với applyReceiptSubledger(): container_items materialize từ RECEIPT
+        // này phải bị vô hiệu hoá cùng lúc, nếu không "Vị trí gợi ý" vẫn hiển thị hàng
+        // đã đảo — cùng bất biến với CurrentBaselineContainerFlowController::removeItem.
+        $mappings = DB::table('container_items')
+            ->where('source_type', 'RECEIPT')
+            ->where('source_id', $documentId)
+            ->where('is_active', true)
+            ->lockForUpdate()
+            ->get(['container_item_id', 'container_id', 'version']);
+        foreach ($mappings as $mapping) {
+            DB::table('container_items')->where('container_item_id', $mapping->container_item_id)->update([
+                'status' => 'REMOVED',
+                'is_active' => false,
+                'removed_at' => now(),
+                'version' => ((int) ($mapping->version ?? 0)) + 1,
+                'updated_at' => now(),
+            ]);
+            $remaining = DB::table('container_items')
+                ->where('container_id', $mapping->container_id)
+                ->where('is_active', true)
+                ->exists();
+            DB::table('containers')->where('container_id', $mapping->container_id)
+                ->whereNotIn('status', ['CLOSED', 'STORED'])
+                ->update([
+                    'status' => $remaining ? 'PARTIAL' : 'EMPTY',
+                    'updated_at' => now(),
+                ]);
         }
     }
 

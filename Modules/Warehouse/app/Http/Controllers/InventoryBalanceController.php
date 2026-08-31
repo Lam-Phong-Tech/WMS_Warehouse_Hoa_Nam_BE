@@ -192,7 +192,11 @@ class InventoryBalanceController extends Controller
                 'item_subledger_count' => (int) $sub['item_count'],
                 'container_subledger_count' => (int) $sub['container_count'],
                 // DR-LOC-001: gợi ý vị trí là thông tin tương đối, không tạo bucket tồn.
+                // container_code = mã HỘP đang giữ SKU; tray_code = mã KHAY đang chứa hộp đó
+                // (containers.parent_container_id của hộp, null nếu chưa Putaway); location_hint
+                // là mô tả vị trí rời (vd "Kệ A1-Tầng 2"), độc lập với mã khay.
                 'container_code' => $hint['container_code'] ?? null,
+                'tray_code' => $hint['tray_code'] ?? null,
                 'location_hint' => $hint['location_hint'] ?? null,
                 'incident_id' => $incident?->id ?? null,
                 'incident_status' => $incident?->status ?? null,
@@ -408,8 +412,12 @@ class InventoryBalanceController extends Controller
      * Annex D SCR-INV-01 "container hint". DR-LOC-001: chỉ hiển thị, không tham gia
      * available_qty và có thể null tới khi khảo sát vị trí.
      *
+     * `tray_code` là container_code của container CHA (parent_container_id) của hộp —
+     * chỉ có sau khi Putaway confirm gắn hộp vào một TRAY; trước đó null (giống
+     * location_hint) chứ không rơi về mã hộp.
+     *
      * @param  list<string>  $skuIds
-     * @return array<string, array{container_code: ?string, location_hint: ?string}>
+     * @return array<string, array{container_code: ?string, tray_code: ?string, location_hint: ?string}>
      */
     private function buildContainerHints(array $skuIds): array
     {
@@ -419,11 +427,13 @@ class InventoryBalanceController extends Controller
 
         $rows = $this->activeContainerItemQuery($skuIds)
             ->join('containers', 'container_items.container_id', '=', 'containers.container_id')
+            ->leftJoin('containers as tray', 'tray.container_id', '=', 'containers.parent_container_id')
             ->orderByDesc('container_items.created_at')
             ->select([
                 'container_items.sku_id',
                 'containers.container_code',
                 'containers.location_hint',
+                'tray.container_code as tray_code',
             ])
             ->get();
 
@@ -433,6 +443,7 @@ class InventoryBalanceController extends Controller
             if (! isset($map[$key])) {
                 $map[$key] = [
                     'container_code' => $row->container_code,
+                    'tray_code' => $row->tray_code,
                     'location_hint' => $row->location_hint,
                 ];
             }

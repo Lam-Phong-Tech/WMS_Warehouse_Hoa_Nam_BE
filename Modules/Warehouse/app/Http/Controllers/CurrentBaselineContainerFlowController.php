@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\CacheService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -395,6 +396,10 @@ class CurrentBaselineContainerFlowController extends Controller
                 'updated_at' => now(),
             ]);
             $created = DB::table('container_items')->where('container_item_id', $mappingId)->first();
+            // "Vị trí gợi ý" (InventoryBalanceController::buildContainerHints) đọc
+            // container_items qua cache chung với tồn kho (stock:version); nội dung
+            // container đổi mà không bump thì cache cũ (TTL stock_short) vẫn ẩn mapping mới.
+            DB::afterCommit(fn () => app(CacheService::class)->bumpVersion('stock:version'));
             AuditLogger::record(
                 action: 'CONTAINER_CONTENT_ADD',
                 objectType: 'container_item',
@@ -473,6 +478,7 @@ class CurrentBaselineContainerFlowController extends Controller
                 'updated_at' => now(),
             ]);
 
+            DB::afterCommit(fn () => app(CacheService::class)->bumpVersion('stock:version'));
             AuditLogger::record(
                 action: 'CONTAINER_CONTENT_REMOVE',
                 objectType: 'container_item',
@@ -566,5 +572,4 @@ class CurrentBaselineContainerFlowController extends Controller
             ]);
         }
     }
-
 }
