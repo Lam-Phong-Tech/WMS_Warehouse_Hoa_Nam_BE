@@ -27,6 +27,20 @@ use Modules\Warehouse\Support\PvRelations;
  *    khi động tới DB.
  * 3. dry_run=true không ghi bất kỳ dòng nào; dry_run=false là all-or-nothing (một
  *    dòng lỗi thì toàn batch rollback).
+ *
+ * Mở rộng cho Hand Tools DongCheng (P0):
+ * 4. `family_name`/`variant_label` — một family (vd. "Kìm điện đa năng") có nhiều
+ *    SKU variant (vd. "6 inch"). Không có bảng family riêng, chỉ là hai cột mô tả
+ *    trên `sku`; PublicCatalogReadModel nhóm lại bằng (brand_id, category_id,
+ *    family_name) ở tầng đọc.
+ * 5. `power_source` — nullable cho mọi domain; domain=HAND_TOOLS thì BẮT BUỘC
+ *    null/absent (không có nguồn điện thật, không được bịa UNKNOWN).
+ * 6. `media` (mảng {url, role}) thay cho `media_url` phẳng — role PRIMARY/GALLERY,
+ *    validate qua CatalogMediaValidator (host allowlist, chặn redirect ra ngoài,
+ *    content-type ảnh, giới hạn kích thước). `media_url` cũ vẫn nhận để tương
+ *    thích ngược (URL đầu = PRIMARY, còn lại = GALLERY).
+ * 7. Sanitize description/short_description/specifications qua CatalogTextSanitizer
+ *    trước khi ghi — không tin caller đã tự lọc mã vạch khỏi text tự do.
  */
 class PvCatalogImportService
 {
@@ -35,11 +49,45 @@ class PvCatalogImportService
         'quantity', 'qty', 'stock', 'available_qty', 'on_hand_qty',
         'barcode', 'ean', 'gtin', 'upc',
         'published', 'published_to_app', 'is_published',
+        // Dữ liệu audit nội bộ của catalog nguồn (Trang PDF/Trang catalog/OCR) —
+        // tuyệt đối không được lọt qua importer dưới bất kỳ tên trường nào, kể cả
+        // khi một caller nào đó cố tình gửi lên (P0 #5, #8).
+        'page_pdf', 'catalog_page', 'source_url', 'source_path',
+        'ocr_confidence', 'bounding_box', 'import_audit',
     ];
 
-    private const MAX_ITEMS = 500;
+    /**
+     * Khoá cùng loại có thể lọt vào bên trong `specifications` (object tự do) —
+     * chặn đệ quy ở đó nữa, không chỉ ở top-level của item.
+     */
+    private const FORBIDDEN_SPEC_KEYS = [
+        'price', 'quantity', 'stock', 'barcode', 'ean', 'gtin', 'upc',
+        'page_pdf', 'catalog_page', 'source_url', 'source_path',
+        'ocr_confidence', 'bounding_box',
+    ];
+
+    // Hand Tools DongCheng có 541 dòng nguồn (537 sau khi loại mã trùng) — 500
+    // (giới hạn cũ, chỉ tính cho batch Power Tools khởi đầu 61 SKU) sẽ cắt cụt
+    // batch trước khi validate từng dòng chạy tới, khiến DUPLICATE_CODE_IN_BATCH
+    // không bao giờ có cơ hội báo lỗi cho D094101/D156601. Nâng lên 600 kèm dư
+    // cho catalogue phình thêm, không đổi ngữ nghĩa BATCH_TOO_LARGE.
+    private const MAX_ITEMS = 600;
 
     private const CODE_PATTERN = '/^[A-Z0-9](?:[A-Z0-9._-]*[A-Z0-9])?$/';
+
+    private const MEDIA_ROLES = ['PRIMARY', 'GALLERY'];
+
+    /**
+     * Cache trong đúng một lần gọi import()/dry-run: nhiều SKU (các variant
+     * cùng family) thường trỏ chung một ảnh — P0 #6 yêu cầu "không nhân bản
+     * kiểm tra CDN không cần thiết" cho đúng một URL lặp lại hàng trăm lần
+     * trong một batch 541 dòng.
+     *
+     * @var array<string, array{ok: bool, code: ?string, message: ?string}>
+     */
+    private array $mediaValidationCache = [];
+
+    public function __construct(private readonly CatalogMediaValidator $mediaValidator = new CatalogMediaValidator) {}
 
     /**
      * @param  array<int, array<string, mixed>>  $items
@@ -121,13 +169,16 @@ class PvCatalogImportService
                     'is_serial_tracked' => false,
                     'brand_id' => $record['brand_id'],
                     'category_id' => $record['category_id'],
+                    'power_source_id' => $record['power_source_id'],
+                    'family_name' => $record['family_name'],
+                    'variant_label' => $record['variant_label'],
                     'specification' => $record['specifications'],
                     'published_to_app' => false,
                     'status' => 'ACTIVE',
                 ]);
 
                 $profileId = $this->createProfile((string) $sku->sku_id, $record);
-                $this->createImages($profileId, $record['media_url']);
+                $this->createImages($profileId, $record['media']);
 
                 AuditLogger::record(
                     action: 'PV_CATALOG_IMPORT_CREATE',
@@ -140,8 +191,10 @@ class PvCatalogImportService
                         'brand_code' => $record['brand_code'],
                         'category_code' => $record['category_code'],
                         'domain' => $record['domain'],
+                        'family_name' => $record['family_name'],
+                        'variant_label' => $record['variant_label'],
                         'profile_id' => $profileId,
-                        'image_count' => count($record['media_url']),
+                        'image_count' => count($record['media']),
                     ],
                     reason: 'App PV catalogue import (DongCheng) — tạo SKU + hồ sơ PV, published_to_app=false',
                     module: AuditLogger::MODULE_SYSTEM,
@@ -208,17 +261,17 @@ class PvCatalogImportService
     }
 
     /**
-     * @param  array<int, string>  $mediaUrls
+     * @param  array<int, array{url: string, role: string}>  $media
      */
-    private function createImages(string $profileId, array $mediaUrls): void
+    private function createImages(string $profileId, array $media): void
     {
-        foreach ($mediaUrls as $index => $url) {
+        foreach ($media as $index => $entry) {
             DB::table('pv_product_images')->insert([
                 'id' => (string) Str::uuid(),
                 'profile_id' => $profileId,
-                'image_url' => $url,
-                'storage_url' => $url,
-                'is_primary' => $index === 0,
+                'image_url' => $entry['url'],
+                'storage_url' => $entry['url'],
+                'is_primary' => $entry['role'] === 'PRIMARY',
                 'sort_order' => $index,
                 'status' => 'ACTIVE',
                 'version' => 1,
@@ -286,21 +339,48 @@ class PvCatalogImportService
                 }
             }
 
-            $mediaUrls = $row['media_url'] ?? [];
-            if (! is_array($mediaUrls)) {
-                $mediaUrls = [$mediaUrls];
-            }
-            $mediaUrls = array_values(array_filter(array_map(static fn ($u): string => trim((string) $u), $mediaUrls)));
-            foreach ($mediaUrls as $url) {
-                if (! preg_match('/^https:\/\//i', $url)) {
-                    $rowErrors[] = $this->rowError($rowNumber, 'INVALID_MEDIA_URL', 'media_url', 'media_url phải là https:// (CDN đã xác minh).', $url);
+            // power_source: nullable cho mọi domain; HAND_TOOLS thì BẮT BUỘC null —
+            // dụng cụ cầm tay không có nguồn điện thật, không được bịa UNKNOWN (P0 #4).
+            $powerSourceId = null;
+            $rawPowerSource = $row['power_source'] ?? null;
+            $powerSourceCode = $rawPowerSource !== null ? strtoupper(trim((string) $rawPowerSource)) : '';
+            if ($powerSourceCode !== '') {
+                if ($domain === 'HAND_TOOLS') {
+                    $rowErrors[] = $this->rowError($rowNumber, 'POWER_SOURCE_NOT_APPLICABLE', 'power_source', 'Hand Tools không có nguồn điện — power_source phải là null.', $rawPowerSource);
+                } else {
+                    $powerSourceId = $this->resolveMaster($powerSourceCode, 'POWER', $rowNumber, 'power_source', $rowErrors);
                 }
             }
+
+            $familyName = isset($row['family_name']) ? trim((string) $row['family_name']) : '';
+            $familyName = $familyName !== '' ? $familyName : null;
+            if ($familyName !== null && mb_strlen($familyName) > 200) {
+                $rowErrors[] = $this->rowError($rowNumber, 'INVALID_FAMILY_NAME', 'family_name', 'family_name tối đa 200 ký tự.', $familyName);
+            }
+
+            $variantLabel = isset($row['variant_label']) ? trim((string) $row['variant_label']) : '';
+            $variantLabel = $variantLabel !== '' ? $variantLabel : null;
+            if ($variantLabel !== null && mb_strlen($variantLabel) > 100) {
+                $rowErrors[] = $this->rowError($rowNumber, 'INVALID_VARIANT_LABEL', 'variant_label', 'variant_label tối đa 100 ký tự.', $variantLabel);
+            }
+            if ($variantLabel !== null && $familyName === null) {
+                $rowErrors[] = $this->rowError($rowNumber, 'VARIANT_WITHOUT_FAMILY', 'variant_label', 'variant_label chỉ có nghĩa khi đã có family_name.', $variantLabel);
+            }
+
+            $media = $this->normalizeMedia($row, $rowNumber, $domain, $rowErrors);
 
             $specifications = $row['specifications'] ?? null;
             if ($specifications !== null && ! is_array($specifications)) {
                 $rowErrors[] = $this->rowError($rowNumber, 'INVALID_SPECIFICATIONS', 'specifications', 'specifications phải là object.', $specifications);
                 $specifications = null;
+            } elseif (is_array($specifications)) {
+                $specForbidden = array_intersect(array_map('strtolower', array_keys($specifications)), self::FORBIDDEN_SPEC_KEYS);
+                if ($specForbidden !== []) {
+                    foreach ($specForbidden as $field) {
+                        $rowErrors[] = $this->rowError($rowNumber, 'FORBIDDEN_FIELD', "specifications.{$field}", "Trường 'specifications.{$field}' không được chấp nhận ở importer này.", $specifications[$field] ?? null);
+                    }
+                }
+                $specifications = CatalogTextSanitizer::sanitizeArray($specifications);
             }
 
             if ($rowErrors !== []) {
@@ -314,19 +394,99 @@ class PvCatalogImportService
                 'sku_code' => $code,
                 'name' => $name,
                 'unit' => trim((string) ($row['unit'] ?? '')) !== '' ? trim((string) $row['unit']) : 'Cái',
-                'description' => isset($row['description']) ? trim((string) $row['description']) : null,
-                'short_description' => isset($row['short_description']) ? trim((string) $row['short_description']) : null,
+                'description' => CatalogTextSanitizer::sanitize(isset($row['description']) ? trim((string) $row['description']) : null),
+                'short_description' => CatalogTextSanitizer::sanitize(isset($row['short_description']) ? trim((string) $row['short_description']) : null),
                 'specifications' => $specifications,
                 'brand_code' => $brandCode,
                 'brand_id' => $brandId,
                 'category_code' => $categoryCode,
                 'category_id' => $categoryId,
                 'domain' => $domain,
-                'media_url' => $mediaUrls,
+                'power_source_id' => $powerSourceId,
+                'family_name' => $familyName,
+                'variant_label' => $variantLabel,
+                'media' => $media,
             ];
         }
 
         return [$records, $errors];
+    }
+
+    /**
+     * Nhận cả hai hình dạng payload:
+     *   - `media`: [{url, role}]  (role PRIMARY/GALLERY, mới — ưu tiên nếu có)
+     *   - `media_url`: [url, ...] (cũ — URL đầu = PRIMARY, còn lại = GALLERY)
+     *
+     * CatalogMediaValidator (https + host allowlist + không redirect ra ngoài +
+     * content-type ảnh + giới hạn kích thước) CHỈ áp dụng cho domain=HAND_TOOLS
+     * — đây là ràng buộc mới của catalogue DongCheng, cố ý không siết ngược lại
+     * lên các domain đã có từ trước (Power Tools) để không phá vỡ luồng hiện
+     * hữu của họ (CDN khác, chưa qua allowlist). Domain khác/không có domain
+     * vẫn giữ đúng hành vi cũ: chỉ kiểm tra scheme https://.
+     *
+     * @param  array<string, mixed>  $row
+     * @param  array<int, array<string, mixed>>  $rowErrors
+     * @return array<int, array{url: string, role: string}>
+     */
+    private function normalizeMedia(array $row, int $rowNumber, ?string $domain, array &$rowErrors): array
+    {
+        $entries = [];
+
+        if (array_key_exists('media', $row)) {
+            $raw = is_array($row['media']) ? $row['media'] : [];
+            foreach ($raw as $item) {
+                if (! is_array($item)) {
+                    $rowErrors[] = $this->rowError($rowNumber, 'INVALID_MEDIA_URL', 'media', 'Mỗi phần tử media phải là object {url, role}.', $item);
+
+                    continue;
+                }
+                $url = trim((string) ($item['url'] ?? ''));
+                $role = strtoupper(trim((string) ($item['role'] ?? '')));
+                if ($role === '') {
+                    $role = $entries === [] ? 'PRIMARY' : 'GALLERY';
+                }
+                if (! in_array($role, self::MEDIA_ROLES, true)) {
+                    $rowErrors[] = $this->rowError($rowNumber, 'INVALID_MEDIA_ROLE', 'media.role', 'role phải là PRIMARY hoặc GALLERY.', $role);
+
+                    continue;
+                }
+                if ($url === '') {
+                    continue;
+                }
+                $entries[] = ['url' => $url, 'role' => $role];
+            }
+        } elseif (array_key_exists('media_url', $row)) {
+            $urls = is_array($row['media_url']) ? $row['media_url'] : [$row['media_url']];
+            $urls = array_values(array_filter(array_map(static fn ($u): string => trim((string) $u), $urls)));
+            foreach ($urls as $i => $url) {
+                $entries[] = ['url' => $url, 'role' => $i === 0 ? 'PRIMARY' : 'GALLERY'];
+            }
+        }
+
+        $primaryCount = count(array_filter($entries, static fn (array $e): bool => $e['role'] === 'PRIMARY'));
+        if ($primaryCount > 1) {
+            $rowErrors[] = $this->rowError($rowNumber, 'DUPLICATE_PRIMARY_MEDIA', 'media', 'Chỉ được đúng một media role=PRIMARY.', $primaryCount);
+
+            return $entries;
+        }
+
+        foreach ($entries as $entry) {
+            if ($domain === 'HAND_TOOLS') {
+                $result = $this->mediaValidationCache[$entry['url']]
+                    ??= $this->mediaValidator->validate($entry['url']);
+                if (! $result['ok']) {
+                    $rowErrors[] = $this->rowError($rowNumber, (string) $result['code'], 'media', (string) $result['message'], $entry['url']);
+                }
+
+                continue;
+            }
+
+            if (! preg_match('/^https:\/\//i', $entry['url'])) {
+                $rowErrors[] = $this->rowError($rowNumber, 'INVALID_MEDIA_URL', 'media', 'media phải là https:// (CDN đã xác minh).', $entry['url']);
+            }
+        }
+
+        return $entries;
     }
 
     /**

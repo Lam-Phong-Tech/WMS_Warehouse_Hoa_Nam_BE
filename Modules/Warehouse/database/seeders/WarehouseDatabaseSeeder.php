@@ -63,6 +63,7 @@ class WarehouseDatabaseSeeder extends Seeder
         ['brand_code' => 'HONDA', 'brand_name' => 'Honda', 'description' => 'Hãng động cơ đa dụng và máy cầm tay Nhật Bản.'],
         ['brand_code' => 'HUSQVARNA', 'brand_name' => 'Husqvarna', 'description' => 'Hãng thiết bị cắt cỏ, lâm nghiệp Thụy Điển.'],
         ['brand_code' => 'HOANAM', 'brand_name' => 'Hoa Nam', 'description' => 'Thương hiệu nội bộ Hoa Nam — sản phẩm lắp ráp/gia công trong nước.'],
+        ['brand_code' => 'DONGCHENG', 'brand_name' => 'DongCheng', 'description' => 'Hãng dụng cụ cầm tay và máy cầm tay Trung Quốc.'],
     ];
 
     private const PRODUCT_CATEGORIES = [
@@ -71,6 +72,21 @@ class WarehouseDatabaseSeeder extends Seeder
         ['category_code' => 'PUMP', 'category_name' => 'Máy bơm nước', 'description' => 'Máy bơm nước tưới tiêu, thoát nước.'],
         ['category_code' => 'ENGINE', 'category_name' => 'Động cơ', 'description' => 'Động cơ xăng/diesel dùng cho máy phát điện, máy nông nghiệp.'],
         ['category_code' => 'SPARE_PART', 'category_name' => 'Phụ tùng', 'description' => 'Linh kiện, phụ tùng thay thế cho máy móc.'],
+        // Hand Tools DongCheng (P0) — 12 category cha, ánh xạ 1:1 với cột "Phân
+        // loại theo chức năng chung" của catalog nguồn. "Chủng loại máy" (172 giá
+        // trị) KHÔNG trở thành category — nó là product_family (sku.family_name).
+        ['category_code' => 'CLAMPING_TOOLS', 'category_name' => 'Dụng cụ kẹp giữ', 'description' => 'Kìm, mỏ lết, ê-tô và dụng cụ kẹp giữ chi tiết.'],
+        ['category_code' => 'WRENCHES', 'category_name' => 'Cờ lê', 'description' => 'Cờ lê các loại dùng để siết/vặn bu-lông, đai ốc.'],
+        ['category_code' => 'SOCKETS', 'category_name' => 'Đầu tuýp', 'description' => 'Đầu tuýp và bộ đầu tuýp dùng kèm tay vặn/cần siết.'],
+        ['category_code' => 'FASTENING_TOOLS', 'category_name' => 'Dụng cụ siết/vặn', 'description' => 'Tua vít, tay vặn, cần siết và dụng cụ siết/vặn chi tiết.'],
+        ['category_code' => 'CUTTING_TOOLS', 'category_name' => 'Dụng cụ cắt', 'description' => 'Dao, kéo, lưỡi cắt và dụng cụ cắt cầm tay.'],
+        ['category_code' => 'MEASURING_TOOLS', 'category_name' => 'Dụng cụ đo lường', 'description' => 'Thước, ni-vô và dụng cụ đo lường cầm tay.'],
+        ['category_code' => 'ELECTRICAL_TOOLS', 'category_name' => 'Dụng cụ điện', 'description' => 'Dụng cụ hỗ trợ thi công, kiểm tra hệ thống điện/điện tử.'],
+        ['category_code' => 'PAINTING_WALL_TOOLS', 'category_name' => 'Dụng cụ sơn & làm tường', 'description' => 'Dụng cụ thi công sơn, keo, gạch và hoàn thiện bề mặt.'],
+        ['category_code' => 'MECHANICAL_TOOLS', 'category_name' => 'Dụng cụ cơ khí', 'description' => 'Dụng cụ cơ khí đa dụng phục vụ lắp ráp, sửa chữa.'],
+        ['category_code' => 'HYDRAULIC_TOOLS', 'category_name' => 'Dụng cụ thủy lực', 'description' => 'Kích, cảo và dụng cụ thủy lực cầm tay.'],
+        ['category_code' => 'STORAGE_TOOLS', 'category_name' => 'Dụng cụ lưu trữ', 'description' => 'Hộp, tủ và dụng cụ lưu trữ/sắp xếp đồ nghề.'],
+        ['category_code' => 'GARDEN_HAND_TOOLS', 'category_name' => 'Dụng cụ làm vườn cầm tay', 'description' => 'Kéo cắt tỉa và dụng cụ làm vườn cầm tay.'],
     ];
 
     private const PRODUCT_MODELS = [

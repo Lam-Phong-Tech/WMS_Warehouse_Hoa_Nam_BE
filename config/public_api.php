@@ -89,7 +89,12 @@ return [
         'HAND_TOOLS' => [
             'name' => 'Dụng cụ cầm tay',
             'description' => 'Dụng cụ thao tác trực tiếp, không dùng nguồn động lực.',
-            'categories' => [],
+            'categories' => [
+                'CLAMPING_TOOLS', 'WRENCHES', 'SOCKETS', 'FASTENING_TOOLS',
+                'CUTTING_TOOLS', 'MEASURING_TOOLS', 'ELECTRICAL_TOOLS',
+                'PAINTING_WALL_TOOLS', 'MECHANICAL_TOOLS', 'HYDRAULIC_TOOLS',
+                'STORAGE_TOOLS', 'GARDEN_HAND_TOOLS',
+            ],
         ],
         'ACCESSORIES' => [
             'name' => 'Phụ tùng và phụ kiện',
@@ -126,6 +131,18 @@ return [
         'capacity' => 'Dung tích',
         'engine_type' => 'Loại động cơ',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Media (ảnh sản phẩm import qua pv-admin/catalog-import)
+    |--------------------------------------------------------------------------
+    | Chỉ nhận ảnh từ CDN đã xác minh — importer không tin bất kỳ https:// nào
+    | client gửi lên. Thêm host mới đi qua review có chủ đích, không phải qua
+    | request của client.
+    */
+    'media_host_allowlist' => array_filter(array_map('trim', explode(',', env('PUBLIC_API_MEDIA_HOST_ALLOWLIST', 'images.bigk.click')))),
+
+    'media_max_bytes' => (int) env('PUBLIC_API_MEDIA_MAX_BYTES', 10 * 1024 * 1024),
 
     /*
     |--------------------------------------------------------------------------

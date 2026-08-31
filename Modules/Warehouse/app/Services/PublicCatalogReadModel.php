@@ -121,6 +121,7 @@ class PublicCatalogReadModel
         // Chi tiết bổ sung thêm phần nặng mà listing không cần tải.
         $product['specifications'] = $this->publicSpecifications($row);
         $product['variants'] = $this->variantsOf($row);
+        $product['family'] = $this->familyContext($row);
 
         return $product;
     }
@@ -386,6 +387,7 @@ class PublicCatalogReadModel
     {
         $columns = [
             's.sku_id', 's.sku_code', 's.sku_name', 's.unit', 's.specification', 's.updated_at',
+            's.family_name', 's.variant_label',
             'br.brand_code', 'br.brand_name',
             'pc.category_code', 'pc.category_name',
             'ps.power_source_code', 'ps.power_source_name',
@@ -833,22 +835,68 @@ class PublicCatalogReadModel
     }
 
     /**
-     * Biến thể đóng gói. Hệ hiện tại chưa có mô hình family/variant riêng — một
-     * SKU là một dòng phẳng — nên trả về đúng một biến thể mặc định thay vì bịa
-     * ra cấu trúc chưa tồn tại. FE giữ được hình dạng response ổn định cho tới
-     * khi nghiệp vụ thật sự có variant.
+     * Biến thể trong cùng family (Hand Tools DongCheng, P0). `family_name` là
+     * cột mô tả trên chính `sku` — không có bảng family riêng — nên "cùng
+     * family" được suy ra bằng (brand_code, category_code, family_name) ngay
+     * tại đây. SKU không có family_name (mọi SKU trước P0, và SKU Hand Tools
+     * đơn lẻ không thuộc nhóm nào) suy biến về đúng MỘT biến thể mặc định như
+     * hành vi cũ, để FE không phải xử lý hai hình dạng response khác nhau.
      *
+     * dùng lại baseQuery() cho truy vấn sibling nên một variant KHÔNG published
+     * hoặc HẾT HÀNG sẽ tự động vắng mặt khỏi danh sách — đúng yêu cầu "variant
+     * không public/không còn hàng thì không được selectable".
+     *
+     * @return Collection<int, object>
+     */
+    private function siblingRows(object $row): Collection
+    {
+        $familyName = $this->nullableString($row->family_name ?? null);
+        if ($familyName === null) {
+            return collect([$row]);
+        }
+
+        $query = $this->baseQuery()
+            ->where('s.family_name', $familyName)
+            ->orderByRaw('COALESCE(s.variant_label, s.sku_code)');
+
+        $this->whereMatches($query, 'br.brand_code', $row->brand_code ?? null);
+        $this->whereMatches($query, 'pc.category_code', $row->category_code ?? null);
+
+        return $query->get();
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function variantsOf(object $row): array
     {
-        return [[
-            'id' => (string) $row->sku_id,
-            'code' => (string) $row->sku_code,
-            'name' => (string) ($row->display_name ?: $row->sku_name),
-            'unit' => $this->nullableString($row->unit ?? null),
-            'is_default' => true,
-        ]];
+        return $this->siblingRows($row)->map(fn (object $sibling): array => [
+            'id' => (string) $sibling->sku_id,
+            'code' => (string) $sibling->sku_code,
+            'name' => (string) ($sibling->display_name ?? null ?: $sibling->sku_name),
+            'variant_label' => $this->nullableString($sibling->variant_label ?? null),
+            'unit' => $this->nullableString($sibling->unit ?? null),
+            'is_default' => (string) $sibling->sku_id === (string) $row->sku_id,
+        ])->values()->all();
+    }
+
+    /**
+     * Ngữ cảnh family cho trang chi tiết — null khi SKU không thuộc family nào
+     * (giữ đúng hợp đồng cũ, FE không cần hiển thị khối family).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function familyContext(object $row): ?array
+    {
+        $familyName = $this->nullableString($row->family_name ?? null);
+        if ($familyName === null) {
+            return null;
+        }
+
+        return [
+            'name' => $familyName,
+            'variant_count' => $this->siblingRows($row)->count(),
+        ];
     }
 
     /**
@@ -1144,6 +1192,17 @@ class PublicCatalogReadModel
     // ==================================================================
     // Tiện ích nhỏ
     // ==================================================================
+
+    private function whereMatches(Builder $query, string $column, ?string $value): void
+    {
+        if ($value === null) {
+            $query->whereNull($column);
+
+            return;
+        }
+
+        $query->where($column, $value);
+    }
 
     /**
      * @param  array<string, mixed>  $filters

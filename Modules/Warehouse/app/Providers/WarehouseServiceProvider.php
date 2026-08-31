@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Providers;
 
 use Illuminate\Console\Scheduling\Schedule;
+use Modules\Warehouse\Console\Commands\ImportHandToolsDongChengCommand;
 use Modules\Warehouse\Console\SeedUatData;
 use Modules\Warehouse\Repositories\AgencyRepository;
 use Modules\Warehouse\Repositories\ContainerItemRepository;
@@ -43,6 +44,7 @@ class WarehouseServiceProvider extends ModuleServiceProvider
      */
     protected array $commands = [
         SeedUatData::class,
+        ImportHandToolsDongChengCommand::class,
     ];
 
     /**

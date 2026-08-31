@@ -46,7 +46,7 @@ class PvCatalogImportController extends Controller
                     new OA\Property(
                         property: 'items',
                         type: 'array',
-                        maxItems: 500,
+                        maxItems: 600,
                         items: new OA\Items(
                             type: 'object',
                             required: ['product_code', 'name', 'brand_code', 'category_code'],
@@ -57,13 +57,30 @@ class PvCatalogImportController extends Controller
                                 new OA\Property(property: 'category_code', type: 'string', example: 'DRILL_FASTEN_DC'),
                                 new OA\Property(property: 'domain', type: 'string', enum: ['POWER_TOOLS', 'HAND_TOOLS', 'ACCESSORIES'], nullable: true, example: 'POWER_TOOLS'),
                                 new OA\Property(property: 'unit', type: 'string', nullable: true, example: 'Cái'),
+                                new OA\Property(property: 'power_source', type: 'string', nullable: true, description: 'Mã master POWER. Bắt buộc null khi domain=HAND_TOOLS.', example: null),
+                                new OA\Property(property: 'family_name', type: 'string', nullable: true, description: 'Tên nhóm sản phẩm (product family) — nhiều SKU cùng family_name là các variant của nhau.', example: 'Kìm điện đa năng'),
+                                new OA\Property(property: 'variant_label', type: 'string', nullable: true, description: 'Nhãn phân biệt variant trong family (vd. "6 inch"). Chỉ có nghĩa khi đã có family_name.', example: '6 inch'),
                                 new OA\Property(property: 'description', type: 'string', nullable: true),
                                 new OA\Property(property: 'short_description', type: 'string', nullable: true),
                                 new OA\Property(property: 'specifications', type: 'object', nullable: true, example: ['power' => '18V', 'voltage' => '18V']),
                                 new OA\Property(
+                                    property: 'media',
+                                    type: 'array',
+                                    nullable: true,
+                                    description: 'Ảnh sản phẩm. URL phải https:// và thuộc CDN allowlist (public_api.media_host_allowlist); tối đa một role=PRIMARY.',
+                                    items: new OA\Items(
+                                        type: 'object',
+                                        properties: [
+                                            new OA\Property(property: 'url', type: 'string', format: 'uri', example: 'https://images.bigk.click/Handtool/p006_y0389_l0_product.jpg'),
+                                            new OA\Property(property: 'role', type: 'string', enum: ['PRIMARY', 'GALLERY'], example: 'PRIMARY'),
+                                        ]
+                                    )
+                                ),
+                                new OA\Property(
                                     property: 'media_url',
                                     type: 'array',
                                     nullable: true,
+                                    description: 'Tương thích ngược — dùng `media` cho catalogue mới. URL đầu tiên = PRIMARY, còn lại = GALLERY.',
                                     items: new OA\Items(type: 'string', format: 'uri', example: 'https://cdn.example.com/dongcheng/dz180.jpg')
                                 ),
                             ]
@@ -76,16 +93,17 @@ class PvCatalogImportController extends Controller
             new OA\Response(response: 200, description: 'Import committed atomically, hoặc dry-run hợp lệ (committed=false, dry_run=true, would_insert=N).'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
             new OA\Response(response: 403, description: 'Thiếu quyền sku.manage hoặc pv.master.manage'),
-            new OA\Response(response: 422, description: 'row_errors theo từng dòng (product_code/name/brand_code/category_code/domain/media_url/specifications không hợp lệ, '
-                .'UNKNOWN_MASTER_CODE, CATEGORY_DOMAIN_MISMATCH, DUPLICATE_CODE, hoặc FORBIDDEN_FIELD nếu payload chứa price/quantity/barcode/published). '
-                .'Không có SKU/hồ sơ nào được ghi.'),
+            new OA\Response(response: 422, description: 'row_errors theo từng dòng (product_code/name/brand_code/category_code/domain/media/specifications không hợp lệ, '
+                .'UNKNOWN_MASTER_CODE, CATEGORY_DOMAIN_MISMATCH, DUPLICATE_CODE, POWER_SOURCE_NOT_APPLICABLE (domain=HAND_TOOLS kèm power_source), '
+                .'MEDIA_HOST_NOT_ALLOWED/MEDIA_NOT_IMAGE/MEDIA_TOO_LARGE/MEDIA_REDIRECT_NOT_ALLOWED, hoặc FORBIDDEN_FIELD nếu payload chứa '
+                .'price/quantity/barcode/published/page_pdf/catalog_page/source_url/ocr_confidence/bounding_box). Không có SKU/hồ sơ nào được ghi.'),
         ]
     )]
     public function import(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'dry_run' => ['nullable', 'boolean'],
-            'items' => ['required', 'array', 'min:1', 'max:500'],
+            'items' => ['required', 'array', 'min:1', 'max:600'],
         ]);
 
         $dryRun = (bool) ($validated['dry_run'] ?? false);

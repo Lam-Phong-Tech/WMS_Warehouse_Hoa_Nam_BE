@@ -24,6 +24,7 @@ class Sku extends Model
         'power_or_voltage', 'package_variant', 'version', 'version_code',
         'warranty_applicable', 'specification', 'published_to_app', 'status',
         'code', 'name', 'min_stock', 'max_stock',
+        'family_name', 'variant_label',
     ];
 
     protected $casts = [
