@@ -468,7 +468,28 @@ class CurrentBaselineComponentFlowController extends Controller
                 ->lockForUpdate()
                 ->first();
             if ($physical === null) {
-                ApiError::abort(422, 'PHYSICAL_CODE_NOT_FOUND', 'Barcode/QR/RFID không tồn tại hoặc không ACTIVE.');
+                // Mã hộp BOX-<SKU>-<seq> (BoxCodeParser) tự mô tả — đường DUY NHẤT
+                // tạo BOX (InboundBoxRegistrar::ensure, dùng chung bởi POST
+                // /inbound-documents/{id}/boxes và scan-driven inbound) cố ý KHÔNG
+                // ghi physical_codes cho BOX (physical_code_id=null), vì
+                // container_code chính là mã quét được — cùng cách
+                // ScanClassificationService::resolveContainerByCode() đã tra khi
+                // vắng physical_codes. Thiếu fallback này thì MỌI BOX tạo qua nhập
+                // kho chuẩn không bao giờ quét lại được ở Component Issue.
+                $boxContainer = DB::table('containers')
+                    ->where('container_code', $lookupCodeValue)
+                    ->where('container_type', 'BOX')
+                    ->lockForUpdate()
+                    ->first();
+                if ($boxContainer === null) {
+                    ApiError::abort(422, 'PHYSICAL_CODE_NOT_FOUND', 'Barcode/QR/RFID không tồn tại hoặc không ACTIVE.');
+                }
+                $resolvedContainer = (string) $boxContainer->container_id;
+                if ($containerId !== null && strtolower((string) $containerId) !== strtolower($resolvedContainer)) {
+                    ApiError::abort(422, 'PHYSICAL_CODE_TARGET_MISMATCH', 'code_value và container_id không cùng target.');
+                }
+
+                return [$itemId ? (string) $itemId : null, $resolvedContainer, null];
             }
             $physicalCodeId = (string) $physical->physical_code_id;
             $resolvedItem = $physical->item_id ?? (($physical->assigned_object_type ?? null) === 'ITEM' ? $physical->assigned_object_id : null);

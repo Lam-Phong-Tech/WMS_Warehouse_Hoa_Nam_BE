@@ -45,13 +45,32 @@ trait InteractsWithStockDocuments
 
     public function show(string $id)
     {
-        $doc = StockDocument::with(['lines', 'movements', 'statusHistory'])
+        // `lines.product_id` chỉ là UUID thô — FE (bảng "Hàng thực nhận/xuất theo
+        // SKU") cần mã/tên SKU đọc được ngay trên từng dòng, không được bắt phải tự
+        // tra qua danh sách SKU tải sẵn ở màn khác (danh sách đó có thể phân trang và
+        // KHÔNG chứa hết mọi SKU trong hệ thống — sai với SKU nằm ngoài trang đầu).
+        // Eager-load quan hệ product (Sku qua product_id -> sku_id) rồi gán thẳng
+        // product_code/product_name/product_type vào từng line, cùng quy ước field
+        // đã dùng ở OperationalReportController::documentHistoryLines(). product_type
+        // (PRODUCT/COMPONENT) cho phép FE hiện badge "Sản phẩm/Linh kiện" ngay trên
+        // dòng, không phụ thuộc danh sách SKU tải sẵn (bị giới hạn per_page) như
+        // product_code/product_name ở trên.
+        $doc = StockDocument::with(['lines.product:sku_id,sku_code,sku_name,sku_type', 'movements', 'statusHistory'])
             ->where('doc_type', $this->docType())
             ->find($id);
 
-        return $doc
-            ? $this->respondSuccess($doc)
-            : $this->respondNotFound('Không tìm thấy chứng từ.');
+        if ($doc === null) {
+            return $this->respondNotFound('Không tìm thấy chứng từ.');
+        }
+
+        $doc->lines->each(function ($line): void {
+            $line->setAttribute('product_code', $line->product?->sku_code);
+            $line->setAttribute('product_name', $line->product?->sku_name);
+            $line->setAttribute('product_type', $line->product?->sku_type);
+            $line->unsetRelation('product');
+        });
+
+        return $this->respondSuccess($doc);
     }
 
     /**
