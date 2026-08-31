@@ -23642,7 +23642,7 @@ paths:
                               type: object
                         type: object
                       issues:
-                        description: 'Bộ đếm "vấn đề cần xử lý". import_error = SUM(import_reports.error_rows) trong period. LƯU Ý: không có số "scan lỗi" — scan_record_events chỉ ghi kết quả thành công, quét lỗi ném exception và không lưu dòng nào.'
+                        description: 'Bộ đếm "vấn đề cần xử lý". import_error = SUM(import_reports.error_rows) trong period. sku_pending_info là snapshot hiện tại (KHÔNG lọc theo period). LƯU Ý: không có số "scan lỗi" — scan_record_events chỉ ghi kết quả thành công, quét lỗi ném exception và không lưu dòng nào.'
                         properties:
                           inventory_mismatch:
                             type: integer
@@ -23651,6 +23651,9 @@ paths:
                           warranty_overdue:
                             type: integer
                           print_failed:
+                            type: integer
+                          sku_pending_info:
+                            description: 'Số SKU đã có sku_code + sku_type nhưng chưa gán brand_id/category_id/model_id — snapshot hiện tại, không lọc theo period.'
                             type: integer
                         type: object
                     type: object
