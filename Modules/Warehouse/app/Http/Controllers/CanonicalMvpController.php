@@ -438,12 +438,17 @@ class CanonicalMvpController extends Controller
     )]
     public function listWarrantyEvents(Request $request, string $id)
     {
-        $query = DB::table('warranty_event')
-            ->where('warranty_case_id', $id);
-        $this->applyKeyword($query, $request, ['event_type', 'from_status', 'to_status', 'note']);
+        // FE hiển thị performed_by trên timeline (WarrantyDetailModal) — thiếu join này
+        // thì FE chỉ còn created_by (UUID actor thô) để rơi vào, hiện thẳng UUID cho
+        // người dùng đọc thay vì tên nhân viên.
+        $query = DB::table('warranty_event as e')
+            ->leftJoin('app_user as u', 'u.user_id', '=', 'e.created_by')
+            ->where('e.warranty_case_id', $id)
+            ->select(['e.*', 'u.display_name as performed_by_name']);
+        $this->applyKeyword($query, $request, ['e.event_type', 'e.from_status', 'e.to_status', 'e.note']);
 
         return $this->respondPaginated(
-            $query->orderByDesc('event_at')->paginate($this->perPage($request))
+            $query->orderByDesc('e.event_at')->paginate($this->perPage($request))
         );
     }
 

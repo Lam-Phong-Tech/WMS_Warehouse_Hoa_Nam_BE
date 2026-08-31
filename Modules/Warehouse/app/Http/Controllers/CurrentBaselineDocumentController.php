@@ -64,6 +64,7 @@ class CurrentBaselineDocumentController extends Controller
             's.sku_code',
             's.sku_name',
             'i.serial_number',
+            'c.container_code',
         ];
         // item_code chỉ tồn tại trên nhánh ERD PostgreSQL (migration bổ sung cột
         // này dùng cú pháp PG nên bị bỏ qua ở sqlite) — chọn có điều kiện để
@@ -86,6 +87,7 @@ class CurrentBaselineDocumentController extends Controller
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
             ->leftJoin('sku as s', 's.sku_id', '=', 'l.product_id')
             ->leftJoin('item_instances as i', 'i.item_id', '=', 'e.item_id')
+            ->leftJoin('containers as c', 'c.container_id', '=', 'e.container_id')
             ->where('l.stock_document_id', $id)
             ->when($statusFilter === 'ACTIVE', function ($query): void {
                 $query->where(function ($nested): void {
@@ -104,7 +106,8 @@ class CurrentBaselineDocumentController extends Controller
     {
         $validated = $request->validate([
             'doc_no' => ['nullable', 'string', 'max:80', 'unique:stock_documents,doc_no'],
-            'doc_date' => ['nullable', 'date'],
+            // Không nhận phiếu nhập ghi ngày tương lai — chứng từ chỉ ghi nhận việc đã xảy ra.
+            'doc_date' => ['nullable', 'date', 'before_or_equal:today'],
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             // Annex A / Annex D SCR-IN-01 đặt tên field là `source_reference` max 200;
             // ERD bảng 26 lưu cột `source_name` varchar(255). Nhận cả hai tên và siết
@@ -137,7 +140,7 @@ class CurrentBaselineDocumentController extends Controller
             // DB có UNIQUE(doc_no); thiếu rule ở update sẽ nổ QueryException 500
             // thay vì 422 VALIDATION_ERROR theo §8.2.
             'doc_no' => ['sometimes', 'string', 'max:80', Rule::unique('stock_documents', 'doc_no')->ignore($id, 'id')],
-            'doc_date' => ['sometimes', 'date'],
+            'doc_date' => ['sometimes', 'date', 'before_or_equal:today'],
             'source_name' => ['nullable', 'string', 'max:200'],
             'source_reference' => ['nullable', 'string', 'max:200'],
             // note ghi thẳng vào stock_documents.note varchar(1000); xem lý do ở storeInbound().
