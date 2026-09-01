@@ -4,6 +4,7 @@ namespace Modules\Auth\Support;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
 
@@ -21,8 +22,13 @@ class RefreshTokenService
         RefreshToken::create([
             'user_id' => $user->user_id,
             'token_hash' => $this->hash($raw),
-            'user_agent' => (string) $request->userAgent(),
-            'ip_address' => (string) $request->ip(),
+            // refresh_tokens.user_agent là varchar(255): trình duyệt nào gửi UA
+            // dài hơn 255 ký tự (Chrome kèm extension/enterprise agent) sẽ làm
+            // Postgres ném 22001 "value too long" và /auth/login trả 500 dù mật
+            // khẩu đúng. Cắt ngắn giống PublicQuoteRequestController thay vì để
+            // chiều dài UA của client quyết định đăng nhập được hay không.
+            'user_agent' => Str::limit((string) $request->userAgent(), 250, ''),
+            'ip_address' => Str::limit((string) $request->ip(), 45, ''),
             'expires_at' => now()->addMinutes((int) config('refresh_token.ttl_minutes')),
         ]);
 

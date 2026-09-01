@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
+use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
 
@@ -65,5 +66,30 @@ class AuthLoginContractSecurityTest extends TestCase
         $this->assertStringContainsString("example: 'admin@gmail.com'", $source);
         $this->assertStringContainsString("example: 'Cntt@1234'", $source);
         $this->assertStringNotContainsString('UAT/production không có mật khẩu mặc định', $source);
+    }
+
+    public function test_login_survives_a_user_agent_longer_than_the_refresh_token_column(): void
+    {
+        // refresh_tokens.user_agent là varchar(255). Trên Postgres (UAT/prod) một
+        // UA dài hơn 255 ký tự làm INSERT ném 22001 và /auth/login trả 500 dù mật
+        // khẩu đúng — mà không để lại audit log nào vì exception xảy ra trước khi
+        // AuthController ghi LOGIN. SQLite không ép độ dài nên test khẳng định giá
+        // trị ĐÃ ĐƯỢC cắt trước khi ghi, đúng bất biến mà Postgres yêu cầu.
+        $this->seed(AuthDatabaseSeeder::class);
+
+        $longUserAgent = str_repeat('A', 400);
+
+        $this->withHeader('User-Agent', $longUserAgent)
+            ->postJson('/api/v1/auth/login', [
+                'email' => 'admin@gmail.com',
+                'password' => 'Cntt@1234',
+            ])->assertOk();
+
+        $this->assertSame(1, RefreshToken::query()->count());
+        $storedUserAgent = RefreshToken::query()->value('user_agent');
+
+        $this->assertIsString($storedUserAgent);
+        $this->assertLessThanOrEqual(255, strlen($storedUserAgent));
+        $this->assertStringStartsWith('AAA', $storedUserAgent);
     }
 }
