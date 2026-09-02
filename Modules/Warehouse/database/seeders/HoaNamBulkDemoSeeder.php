@@ -531,6 +531,13 @@ class HoaNamBulkDemoSeeder extends Seeder
             $caseId = (string) Str::uuid();
             $defectCode = 'DEF-'.sprintf('%03d', ((crc32($caseCode) % 5) + 1));
             $defectId = DB::table('defect_catalogs')->where('defect_code', $defectCode)->value('defect_id');
+            // "Kết quả kiểm tra" (confirmed_defect) chỉ có sau khi KTV mở máy — các
+            // case đã qua bước CHECKING mới có, còn RECEIVED (chưa kiểm) / CANCELLED
+            // để trống đúng nghiệp vụ. Nhờ vậy cột "Kết quả kiểm tra" ở màn bảo hành
+            // có dữ liệu cho các trạng thái tiến xa, không còn "Chưa có" đồng loạt.
+            $confirmedDefect = in_array($status, ['CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED'], true)
+                ? 'KTV xác nhận lỗi ('.$defectCode.') sau khi mở máy — hồ sơ '.$caseCode.'.'
+                : null;
 
             DB::table('warranty_case')->insert([
                 'warranty_case_id' => $caseId,
@@ -550,6 +557,7 @@ class HoaNamBulkDemoSeeder extends Seeder
                 'purchase_date' => now()->subMonths(2)->toDateString(),
                 'status' => $status,
                 'condition_status' => 'DEFECTIVE',
+                'confirmed_defect' => $confirmedDefect,
                 'description' => 'Hồ sơ bảo hành demo — trạng thái '.$status.'.',
                 'reported_defect' => 'Khách báo lỗi cho case '.$caseCode.'.',
                 'received_condition' => $tempOnly ? null : 'Nguyên vỏ, đủ phụ kiện',

@@ -396,6 +396,13 @@ class SkuAggregateService
             if ($code === '' || mb_strlen($code) > 100) {
                 ApiError::abort(422, 'INVALID_SKU_CODE', 'sku_code không hợp lệ.');
             }
+            // sku_code là mã nghiệp vụ đọc được (vd HN-PRD-SEED-001), KHÔNG BAO GIỜ là
+            // UUID. Quét nhầm QR/serial dạng UUID trước đây tạo ra SKU có sku_code là
+            // chuỗi thô UUID → màn nghiệp vụ in nguyên UUID. Chặn ngay tại điểm tạo/sửa
+            // duy nhất này để dữ liệu không bao giờ phát sinh mã mồ côi kiểu UUID.
+            if (Str::isUuid($code)) {
+                ApiError::abort(422, 'INVALID_SKU_CODE', 'sku_code không được là chuỗi UUID thô.');
+            }
             $attributes['sku_code'] = $code;
         } elseif ($requireCodeAndName) {
             ApiError::abort(422, 'SKU_CODE_REQUIRED', 'code hoặc sku_code là bắt buộc.');
