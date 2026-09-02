@@ -210,11 +210,17 @@ class CurrentBaselineReversalService
             if ($sku === null) {
                 ApiError::abort(422, 'SKU_NOT_FOUND', 'Không resolve được SKU của movement gốc.');
             }
-            $serialScoped = strtoupper((string) $sku->sku_type) === 'PRODUCT' || (bool) $sku->is_serial_tracked;
+            // Rule chuẩn item-scope: PRODUCT LUÔN đảo theo từng Item/máy vật lý cụ
+            // thể (bất kể is_serial_tracked) — mỗi máy 1 line quantity=1 + item_id,
+            // hỗ trợ partial reversal (nhập 10 chọn đúng 3 để đảo). COMPONENT chỉ
+            // theo Item khi is_serial_tracked, còn lại đảo theo quantity. Phải KHỚP
+            // $isItemScoped ở StockMovementController::reversible() (cờ + items[]
+            // trả FE), nếu không FE và validation lệch nhau.
+            $itemScoped = strtoupper((string) $sku->sku_type) === 'PRODUCT' || (bool) $sku->is_serial_tracked;
             $itemId = $lineInput['item_id'] ?? null;
-            if ($serialScoped) {
+            if ($itemScoped) {
                 if ($qty !== 1 || empty($itemId)) {
-                    ApiError::abort(422, 'REVERSAL_ITEM_REQUIRED', 'PRODUCT/serial reversal phải chỉ rõ item_id và quantity=1 cho từng line.');
+                    ApiError::abort(422, 'REVERSAL_ITEM_REQUIRED', 'PRODUCT/serial reversal phải chỉ rõ item_id và quantity=1 cho từng line (mỗi máy một line).');
                 }
                 $this->assertItemBelongsToOriginal((string) $itemId, $movement, $documentType, $skuId);
                 $this->assertItemNotAlreadyReversed((string) $itemId, (string) $movement->id, $stagedItemIds);

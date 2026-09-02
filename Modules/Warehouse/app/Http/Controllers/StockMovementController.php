@@ -657,6 +657,7 @@ class StockMovementController extends Controller
                 'warehouses.code as warehouse_code',
                 'sku.sku_code',
                 'sku.sku_name',
+                'sku.sku_type',
                 'sku.unit',
                 DB::raw('COALESCE(sku.is_serial_tracked, false) AS is_serial_tracked'),
             ])
@@ -689,13 +690,21 @@ class StockMovementController extends Controller
             }
         }
 
-        $serialDocIds = collect($movements->items())
-            ->filter(fn ($mv) => $mv->is_serial_tracked && $mv->stock_document_id)
+        // Rule chuẩn item-scope: PRODUCT luôn đảo theo Item (bất kể serial), COMPONENT
+        // chỉ khi is_serial_tracked. Phải KHỚP $itemScoped ở CurrentBaselineReversalService,
+        // nếu không FE (đọc cờ + items[] từ đây) và validation lúc tạo sẽ lệch nhau.
+        $isItemScoped = fn ($mv): bool => strtoupper((string) ($mv->sku_type ?? '')) === 'PRODUCT'
+            || (bool) $mv->is_serial_tracked;
+
+        $itemScopedStockDocIds = collect($movements->items())
+            ->filter(fn ($mv) => $isItemScoped($mv) && $mv->stock_document_id)
             ->pluck('stock_document_id')
             ->unique()
             ->all();
-        $itemDependencyMap = $this->buildItemDependencyMap($serialDocIds);
-        $itemCandidateMap = $this->buildItemCandidateMap($serialDocIds);
+        $itemDependencyMap = $this->buildItemDependencyMap($itemScopedStockDocIds);
+        $itemCandidateMap = $this->buildItemCandidateMap($itemScopedStockDocIds);
+        // Component serial reverse theo Item từ component_issue_items (COMPONENT non-serial
+        // vẫn quantity-mode); PRODUCT không đi nhánh COMPONENT_ISSUE nên giữ is_serial_tracked.
         $componentDocIds = collect($movements->items())
             ->filter(fn ($mv) => $mv->is_serial_tracked && $mv->movement_type === 'COMPONENT_ISSUE' && $mv->source_id)
             ->pluck('source_id')
@@ -715,7 +724,7 @@ class StockMovementController extends Controller
             }
 
             $docDepGuard = null;
-            if ($mv->is_serial_tracked && $mv->stock_document_id) {
+            if ($isItemScoped($mv) && $mv->stock_document_id) {
                 $docDepGuard = $itemDependencyMap[$mv->stock_document_id] ?? null;
             } elseif ($mv->movement_type === 'RECEIPT' && $reversibleQty > 0) {
                 // BR-REV-03/04 cho SKU quantity-mode: phần đã bị Issue/Component Issue
@@ -743,9 +752,11 @@ class StockMovementController extends Controller
                 'version' => (string) $mv->version,
                 'dependency_guard' => $docDepGuard,
                 'can_reverse' => $canReverse,
-                // BR-REV/AC-GWT-REV-001: SKU serial-tracked bắt buộc reverse theo
-                // item (quantity=1 + item_id) — FE cần biết cờ này và ứng viên item.
+                // Rule chuẩn: item_scoped = PRODUCT || is_serial_tracked. FE dựa vào
+                // item_scoped để bắt chọn từng Item (quantity=1 + item_id). Giữ
+                // is_serial_tracked để FE phân biệt nhãn (số sê-ri vs mã vật lý).
                 'is_serial_tracked' => (bool) $mv->is_serial_tracked,
+                'item_scoped' => $isItemScoped($mv),
                 'lines' => [
                     [
                         'id' => $mv->id,
@@ -759,8 +770,9 @@ class StockMovementController extends Controller
                         'dependency_guard' => $docDepGuard,
                         'can_reverse' => $canReverse,
                         'is_serial_tracked' => (bool) $mv->is_serial_tracked,
+                        'item_scoped' => $isItemScoped($mv),
                         'items' => match (true) {
-                            ! (bool) $mv->is_serial_tracked => [],
+                            ! $isItemScoped($mv) => [],
                             // Serial component: ứng viên lấy từ component_issue_items
                             // (item còn ISSUED), không phải outbound_item_matches.
                             $mv->movement_type === 'COMPONENT_ISSUE' => array_values(array_filter(
