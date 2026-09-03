@@ -1,0 +1,98 @@
+# Server block của HỒ SƠ ĐO TẢI. Là bản sao của docker/nginx/default.conf.template
+# (giữ NGUYÊN toàn bộ hợp đồng X-Forwarded-* của WWHN-295, không được đổi) cộng
+# thêm phần điều chỉnh chịu tải. Không dùng cho stack dev.
+
+map $http_x_forwarded_proto $wms_forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
+map $http_x_forwarded_host $wms_forwarded_host {
+    default $http_x_forwarded_host;
+    ""      $host;
+}
+
+map $http_x_forwarded_port $wms_forwarded_port {
+    default $http_x_forwarded_port;
+    ""      "${WMS_NGINX_EXTERNAL_PORT}";
+}
+
+# Upstream TĨNH (khác bản dev dùng biến + resolver). Đổi lại là mất khả năng tự
+# phát hiện replica mới qua DNS, nhưng ĐƯỢC `keepalive`: nginx giữ sẵn một bể
+# kết nối tới php-fpm thay vì bắt tay TCP mới cho từng request. Ở vài trăm
+# request/giây, phần bắt tay đó là chi phí đo được.
+#
+# Mở rộng ngang NHIỀU MÁY: khai thêm dòng `server host2:9000;` vào biến
+# WMS_PHP_UPSTREAM_SERVERS (xem docker-compose.perf.yml) — nginx sẽ cân tải
+# vòng tròn giữa chúng.
+upstream wms_php {
+    ${WMS_PHP_UPSTREAM_SERVERS}
+
+    keepalive 128;
+    keepalive_requests 10000;
+    keepalive_timeout 60s;
+}
+
+server {
+    listen 80 backlog=8192;
+    index index.php index.html;
+    server_name localhost;
+    root /var/www/html/public;
+
+    sendfile on;
+    tcp_nopush on;
+    keepalive_timeout 75;
+    keepalive_requests 10000;
+
+    client_max_body_size ${WMS_NGINX_MAX_BODY};
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_min_length 1024;
+    gzip_comp_level 4;
+    gzip_types
+        application/json
+        application/javascript
+        application/xml
+        image/svg+xml
+        text/css
+        text/plain;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass wms_php;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+
+        # Bắt buộc để keepalive tới upstream có tác dụng.
+        fastcgi_keep_conn on;
+
+        fastcgi_param HTTP_X_FORWARDED_FOR   $proxy_add_x_forwarded_for;
+        fastcgi_param HTTP_X_FORWARDED_PROTO $wms_forwarded_proto;
+        fastcgi_param HTTP_X_FORWARDED_HOST  $wms_forwarded_host;
+        fastcgi_param HTTP_X_FORWARDED_PORT  $wms_forwarded_port;
+
+        fastcgi_buffering on;
+        fastcgi_buffer_size 32k;
+        fastcgi_buffers 32 16k;
+        fastcgi_busy_buffers_size 64k;
+
+        fastcgi_connect_timeout 5s;
+        fastcgi_send_timeout ${WMS_NGINX_FASTCGI_TIMEOUT}s;
+        fastcgi_read_timeout ${WMS_NGINX_FASTCGI_TIMEOUT}s;
+
+        # KHÔNG phát lại request khi upstream lỗi/timeout: các endpoint ghi của
+        # WMS (đăng phiếu nhập/xuất) không idempotent, phát lại có thể tạo bút
+        # toán tồn kho lặp. Thà trả 502 cho FE xử lý còn hơn ghi trùng.
+        fastcgi_next_upstream off;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}

@@ -40,6 +40,8 @@ class User extends Model implements AuthenticatableContract, JWTSubject
 
     private ?EloquentCollection $activeRolesMemo = null;
 
+    private ?bool $isSuperAdminMemo = null;
+
     public function getAuthPassword(): string
     {
         return $this->password_hash;
@@ -95,9 +97,18 @@ class User extends Model implements AuthenticatableContract, JWTSubject
 
     public function isSuperAdmin(): bool
     {
-        return $this->activeRoleModels()->contains(
-            static fn (Role $role): bool => $role->role_code === 'SUPER_ADMIN'
-        );
+        // Nhớ trong instance để một request không hỏi cache/DB nhiều lần —
+        // hasPermission(), permissionCodes() và warehouseScopeIds() đều gọi hàm
+        // này. Lần đầu resolve qua AuthCache (Valkey, khoá theo user.version).
+        if ($this->isSuperAdminMemo !== null) {
+            return $this->isSuperAdminMemo;
+        }
+
+        return $this->isSuperAdminMemo = AuthCache::rememberIsSuperAdmin($this, function (): bool {
+            return $this->activeRoleModels()->contains(
+                static fn (Role $role): bool => $role->role_code === 'SUPER_ADMIN'
+            );
+        });
     }
 
     /** @return array<int, string> */

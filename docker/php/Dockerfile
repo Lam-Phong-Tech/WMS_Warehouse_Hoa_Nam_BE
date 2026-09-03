@@ -19,6 +19,18 @@ RUN apk add --no-cache \
         gd \
         pcntl
 
+# ext-redis (phpredis) — client Redis viết bằng C, thay cho predis (thuần PHP).
+# Cài SẴN nhưng KHÔNG bật mặc định: driver vẫn do REDIS_CLIENT quyết định
+# (config/database.php). Stack dev giữ nguyên `predis`, chỉ hồ sơ đo tải/chạy
+# thật đặt REDIS_CLIENT=phpredis. Mỗi request WMS chạm Redis nhiều lần (cache
+# RBAC, session, rate limit) nên đây là phần chi phí giảm được nhiều nhất mà
+# không đụng một dòng code ứng dụng nào.
+RUN apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del .phpize-deps \
+    && rm -rf /tmp/pear
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/zz-wms-opcache.ini
 COPY docker/php/www.conf /usr/local/etc/php-fpm.d/zz-wms-pool.conf

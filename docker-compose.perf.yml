@@ -1,0 +1,234 @@
+# ---------------------------------------------------------------------------
+# HỒ SƠ CHỊU TẢI (perf overlay) — WMS Hoà Nam
+#
+# File này KHÔNG tự động được nạp. `docker compose up` như thường lệ vẫn chạy
+# đúng stack dev cũ, không đổi một hành vi nào. Chỉ khi khai báo tường minh:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.override.yml \
+#                  -f docker-compose.perf.yml up -d
+#
+# thì các tinh chỉnh dưới đây mới có hiệu lực. (Nhắc: khi đã truyền -f thì
+# docker-compose.override.yml KHÔNG còn được nạp ngầm, phải liệt kê tay như trên.)
+#
+# Nguyên tắc của toàn bộ overlay: KHÔNG sửa mã ứng dụng, KHÔNG đổi hành vi
+# nghiệp vụ. Mọi thứ ở đây là tham số vận hành — kích thước pool, bộ nhớ, cache,
+# giới hạn tài nguyên — và đều đọc từ biến môi trường để cùng một file chạy được
+# trên máy dev 8GB lẫn server thật 64GB. Xem .env.perf.example cho preset.
+# ---------------------------------------------------------------------------
+
+services:
+  nginx:
+    # LƯU Ý VẬN HÀNH: nginx perf dùng `upstream` TĨNH (để bật keepalive tới
+    # php-fpm) nên nó phân giải IP của `backend` MỘT LẦN lúc khởi động. Nếu
+    # recreate riêng container backend (đổi IP), nginx giữ kết nối cũ và trả 502
+    # cho tới khi được restart. Sau khi recreate backend, chạy:
+    #   docker compose -f docker-compose.yml -f docker-compose.override.yml \
+    #                  -f docker-compose.perf.yml restart nginx
+    # (Stack dev mặc định không bị việc này vì dùng upstream động + resolver.)
+    volumes:
+      # Ghi đè đúng hai file cấu hình (compose khớp theo đường dẫn trong
+      # container); bind mount mã nguồn khai ở compose gốc giữ nguyên.
+      - ./docker/nginx/perf/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/perf/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    environment:
+      - WMS_NGINX_EXTERNAL_PORT=${NGINX_DOCKER_PORT:-8080}
+      # Danh sách backend cho khối `upstream`. Mở rộng ngang nhiều máy: nối thêm
+      # "server ip2:9000; server ip3:9000;" vào biến này.
+      - WMS_PHP_UPSTREAM_SERVERS=${WMS_PHP_UPSTREAM_SERVERS:-server backend:9000 max_fails=3 fail_timeout=10s;}
+      - WMS_NGINX_MAX_BODY=${WMS_NGINX_MAX_BODY:-64m}
+      - WMS_NGINX_FASTCGI_TIMEOUT=${WMS_NGINX_FASTCGI_TIMEOUT:-60}
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+
+  backend:
+    # entrypoint riêng: sinh cấu hình php-fpm/opcache theo biến môi trường rồi
+    # giao lại cho entrypoint gốc trong image. Gọi qua `sh` để không phụ thuộc
+    # bit thực thi của file trên bind mount Windows.
+    entrypoint: ["sh", "/var/www/html/docker/php/perf-entrypoint.sh"]
+    # `-F` (foreground) là cách gọi php-fpm chuẩn cho container: giữ tiến trình ở
+    # tiền cảnh làm PID chính và đẩy log ra stderr để Docker thu. Dưới lớp
+    # entrypoint bọc thêm, bản `php-fpm` trần có thể tự tách nền rồi thoát khiến
+    # container dừng; `-F` bảo đảm không xảy ra. Không đổi hành vi ứng dụng.
+    command: ["php-fpm", "-F"]
+    environment:
+      # --- Chi phí mỗi request, không đổi hành vi nghiệp vụ ---
+      # APP_DEBUG=true bắt Laravel thu thập toàn bộ truy vấn + stack trace cho
+      # mọi request, kể cả request thành công. Đây là khoản tốn vô ích lớn nhất.
+      - APP_DEBUG=false
+      # Log mức debug ghi thẳng ra file trên bind mount Windows -> tranh chấp ổ
+      # đĩa ở tải cao. Đẩy ra stderr để Docker thu, và chỉ ghi từ mức warning.
+      - LOG_LEVEL=${PERF_LOG_LEVEL:-warning}
+      - LOG_STACK=${PERF_LOG_STACK:-stderr}
+      # phpredis (extension C) thay predis (thuần PHP). Đã cài sẵn trong image.
+      - REDIS_CLIENT=${PERF_REDIS_CLIENT:-phpredis}
+      # Chỉ container này hâm nóng cache config/route/event. bootstrap/cache nằm
+      # trên bind mount dùng chung nên nhiều container cùng ghi sẽ đua nhau.
+      - PERF_OPTIMIZE=${PERF_OPTIMIZE:-true}
+
+      # --- Kích thước pool php-fpm (tính theo RAM thật, xem .env.perf.example) ---
+      - PHP_FPM_PM=${PHP_FPM_PM:-dynamic}
+      - PHP_FPM_MAX_CHILDREN=${PHP_FPM_MAX_CHILDREN:-48}
+      - PHP_FPM_START_SERVERS=${PHP_FPM_START_SERVERS:-12}
+      - PHP_FPM_MIN_SPARE=${PHP_FPM_MIN_SPARE:-12}
+      - PHP_FPM_MAX_SPARE=${PHP_FPM_MAX_SPARE:-24}
+      - PHP_FPM_MAX_REQUESTS=${PHP_FPM_MAX_REQUESTS:-1000}
+      - PHP_FPM_BACKLOG=${PHP_FPM_BACKLOG:-8192}
+      - PHP_FPM_SLOWLOG_TIMEOUT=${PHP_FPM_SLOWLOG_TIMEOUT:-3s}
+      - PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-512M}
+
+      # --- opcache ---
+      - OPCACHE_VALIDATE_TIMESTAMPS=${OPCACHE_VALIDATE_TIMESTAMPS:-0}
+      - OPCACHE_MEMORY=${OPCACHE_MEMORY:-256}
+      - OPCACHE_MAX_FILES=${OPCACHE_MAX_FILES:-30000}
+      - OPCACHE_JIT=${OPCACHE_JIT:-tracing}
+      - OPCACHE_JIT_BUFFER=${OPCACHE_JIT_BUFFER:-64M}
+
+      # --- Cơ sở dữ liệu dùng khi đo tải ---
+      # Mặc định vẫn là DB thật; đặt PERF_DB_DATABASE=wms_hoanam_perf để đo trên
+      # bản sao có khối lượng dữ liệu lớn mà không đụng dữ liệu đang dùng.
+      - DB_DATABASE=${PERF_DB_DATABASE:-wms_hoanam}
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    deploy:
+      resources:
+        limits:
+          cpus: "${BACKEND_CPU_LIMIT:-10}"
+          memory: ${BACKEND_MEM_LIMIT:-2600m}
+
+  queue:
+    entrypoint: ["sh", "/var/www/html/docker/php/perf-entrypoint.sh"]
+    # Nhiều worker chạy song song thay vì một. Job của WMS (audit outbox,
+    # reconcile tồn kho) dồn theo đợt sau mỗi lần đăng phiếu; một worker duy
+    # nhất là hàng đợi nối tiếp và làm chuông thông báo trễ dần khi tải lên.
+    command:
+      - sh
+      - -lc
+      - php artisan queue:work --tries=3 --timeout=${QUEUE_WORKER_TIMEOUT:-90} --sleep=1 --max-jobs=${QUEUE_MAX_JOBS:-2000}
+    deploy:
+      replicas: ${QUEUE_REPLICAS:-2}
+      resources:
+        limits:
+          memory: ${QUEUE_MEM_LIMIT:-300m}
+    environment:
+      - APP_DEBUG=false
+      - LOG_LEVEL=${PERF_LOG_LEVEL:-warning}
+      - LOG_STACK=${PERF_LOG_STACK:-stderr}
+      - REDIS_CLIENT=${PERF_REDIS_CLIENT:-phpredis}
+      # Không hâm nóng cache ở đây: backend đã làm, dùng chung bootstrap/cache.
+      - PERF_OPTIMIZE=false
+      - PHP_FPM_MAX_CHILDREN=4
+      - OPCACHE_VALIDATE_TIMESTAMPS=${OPCACHE_VALIDATE_TIMESTAMPS:-0}
+      - OPCACHE_JIT=${OPCACHE_JIT:-tracing}
+      - PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-512M}
+      - DB_DATABASE=${PERF_DB_DATABASE:-wms_hoanam}
+
+  scheduler:
+    entrypoint: ["sh", "/var/www/html/docker/php/perf-entrypoint.sh"]
+    environment:
+      - APP_DEBUG=false
+      - LOG_LEVEL=${PERF_LOG_LEVEL:-warning}
+      - LOG_STACK=${PERF_LOG_STACK:-stderr}
+      - REDIS_CLIENT=${PERF_REDIS_CLIENT:-phpredis}
+      - PERF_OPTIMIZE=false
+      - OPCACHE_VALIDATE_TIMESTAMPS=${OPCACHE_VALIDATE_TIMESTAMPS:-0}
+      - DB_DATABASE=${PERF_DB_DATABASE:-wms_hoanam}
+    deploy:
+      resources:
+        limits:
+          memory: ${SCHEDULER_MEM_LIMIT:-200m}
+
+  reverb:
+    entrypoint: ["sh", "/var/www/html/docker/php/perf-entrypoint.sh"]
+    environment:
+      - APP_DEBUG=false
+      - LOG_LEVEL=${PERF_LOG_LEVEL:-warning}
+      - LOG_STACK=${PERF_LOG_STACK:-stderr}
+      - REDIS_CLIENT=${PERF_REDIS_CLIENT:-phpredis}
+      - PERF_OPTIMIZE=false
+      - OPCACHE_VALIDATE_TIMESTAMPS=${OPCACHE_VALIDATE_TIMESTAMPS:-0}
+      # Mỗi người dùng đang mở app giữ MỘT WebSocket tới đây. 3000 người =
+      # 3000 socket mở liên tục, vượt xa giới hạn file descriptor mặc định.
+      - PHP_MEMORY_LIMIT=${REVERB_MEMORY_LIMIT:-384M}
+      - DB_DATABASE=${PERF_DB_DATABASE:-wms_hoanam}
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    deploy:
+      resources:
+        limits:
+          memory: ${REVERB_MEM_LIMIT:-512m}
+
+  postgres:
+    # Ảnh postgres mặc định là cấu hình "chạy được ở mọi nơi", không phải cấu
+    # hình chạy tải: max_connections=100 và shared_buffers=128MB. Với pool
+    # php-fpm vài chục worker thì 100 kết nối là trần cứng — vượt qua là lỗi
+    # "sorry, too many clients already" trả thẳng 500 về người dùng.
+    command:
+      - postgres
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-120}
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-1536MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-128MB}
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - max_wal_size=${PG_MAX_WAL_SIZE:-2GB}
+      - -c
+      - min_wal_size=512MB
+      - -c
+      - checkpoint_completion_target=0.9
+      # SSD: chi phí đọc ngẫu nhiên gần bằng đọc tuần tự. Để mặc định 4.0 (giả
+      # định đĩa cơ) khiến trình tối ưu né index và chọn quét toàn bảng.
+      - -c
+      - random_page_cost=${PG_RANDOM_PAGE_COST:-1.1}
+      - -c
+      - effective_io_concurrency=${PG_EFFECTIVE_IO_CONCURRENCY:-200}
+      - -c
+      - default_statistics_target=${PG_STATS_TARGET:-100}
+      # Ghi log mọi truy vấn chậm hơn ngưỡng — cơ sở để tìm câu SQL cần index
+      # thay vì phỏng đoán.
+      - -c
+      - log_min_duration_statement=${PG_LOG_MIN_DURATION_MS:-500}
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.max=5000
+      - -c
+      - pg_stat_statements.track=top
+    shm_size: ${PG_SHM_SIZE:-256mb}
+    deploy:
+      resources:
+        limits:
+          memory: ${PG_MEM_LIMIT:-1600m}
+
+  valkey:
+    # maxmemory + volatile-lru: khi chạm trần, CHỈ những khoá có hạn dùng (cache
+    # ứng dụng, session) bị dọn. Khoá không đặt TTL — quan trọng nhất là hàng đợi
+    # job — không bao giờ bị đuổi. Dùng allkeys-lru ở đây sẽ làm MẤT JOB.
+    # Giữ nguyên chính sách lưu đĩa mặc định của ảnh: hàng đợi phải sống sót qua
+    # một lần khởi động lại.
+    command:
+      - valkey-server
+      - --maxmemory
+      - ${VALKEY_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - volatile-lru
+      - --tcp-backlog
+      - "4096"
+      - --timeout
+      - "0"
+    deploy:
+      resources:
+        limits:
+          memory: ${VALKEY_MEM_LIMIT:-400m}

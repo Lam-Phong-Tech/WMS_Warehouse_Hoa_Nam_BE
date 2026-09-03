@@ -1,0 +1,26 @@
+# Trình chạy k6 — cố ý TÁCH RIÊNG khỏi docker-compose.yml của ứng dụng để việc
+# đo tải không bao giờ trở thành một phần của stack chạy thật.
+#
+# k6 nối vào đúng mạng `wms` của stack và gọi thẳng service `nginx`, bỏ qua lớp
+# chuyển tiếp cổng của Docker Desktop trên Windows (lớp này tự nó thêm độ trễ và
+# bão hoà sớm hơn cả backend, làm sai lệch kết quả).
+#
+#   docker compose -f load/docker-compose.k6.yml run --rm k6 run \
+#     -e PROFILE=smoke /scripts/wms-load.js
+
+services:
+  k6:
+    image: grafana/k6:latest
+    volumes:
+      - ./k6:/scripts:ro
+      - ./results:/results
+    environment:
+      - BASE_URL=${LOAD_BASE_URL:-http://nginx}
+      - K6_NO_USAGE_REPORT=true
+    networks:
+      - wms
+
+networks:
+  wms:
+    name: ${WMS_NETWORK_NAME:-wms_warehouse_hoa_nam_be_wms}
+    external: true

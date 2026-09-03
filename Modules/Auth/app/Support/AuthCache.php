@@ -34,6 +34,22 @@ final class AuthCache
         return self::service()->remember(self::key($user, 'permissions'), CacheTtl::seconds(self::TTL_POLICY), $resolver);
     }
 
+    /**
+     * Cache cờ "có phải SUPER_ADMIN" — đi cùng khoá version như permission/scope
+     * nên vô hiệu hoá y hệt (bump `app_user.version` khi role đổi). `hasPermission`
+     * gọi `isSuperAdmin` đầu tiên trên MỌI request có kiểm quyền; khi danh sách
+     * quyền đã cache thì truy vấn role trong `isSuperAdmin` là lần chạm DB duy
+     * nhất còn lại của bước kiểm quyền, nên đây là nơi đáng cache tiếp theo.
+     *
+     * Về độ trễ dữ liệu: cùng TTL 300s với permissionCodes(). Không thêm lớp
+     * staleness mới — cả hai đều suy ra từ chính các role đó và đã cache như vậy
+     * từ trước; bump version vẫn cho hiệu lực tức thì khi thu hồi role.
+     */
+    public static function rememberIsSuperAdmin(User $user, \Closure $resolver): bool
+    {
+        return (bool) self::service()->remember(self::key($user, 'is-super-admin'), CacheTtl::seconds(self::TTL_POLICY), $resolver);
+    }
+
     public static function rememberWarehouseScope(User $user, \Closure $resolver): ?array
     {
         return self::service()->remember(self::key($user, 'warehouse-scopes'), CacheTtl::seconds(self::TTL_POLICY), $resolver);

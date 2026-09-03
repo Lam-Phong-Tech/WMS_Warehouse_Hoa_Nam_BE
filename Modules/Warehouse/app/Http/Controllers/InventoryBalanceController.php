@@ -201,7 +201,17 @@ class InventoryBalanceController extends Controller
                 'incident_id' => $incident?->id ?? null,
                 'incident_status' => $incident?->status ?? null,
                 'data_as_of' => $dataAsOf,
-                'updated_at' => $balance->updated_at,
+                // Serialize sẵn Carbon thành chuỗi TRƯỚC khi cache. Payload này
+                // được đưa vào Cache::rememberStampede; Cache::unserialize của dự
+                // án chạy allowed_classes=false (chống gadget-chain,
+                // config/cache.php) nên một object Carbon bị khôi phục thành
+                // __PHP_Incomplete_Class -> CacheService coi cả trang là
+                // "corrupted", bỏ cache rồi chạy lại aggregate nặng ở MỌI request.
+                // Dưới tải đồng thời, cache luôn-miss + Cache::lock của
+                // rememberStampede biến endpoint này thành điểm nghẽn nối tiếp.
+                // toJSON() cho ĐÚNG chuỗi mà response vẫn trả trước nay (Carbon tự
+                // jsonSerialize bằng toJSON), nên JSON xuất ra không đổi một byte.
+                'updated_at' => $balance->updated_at?->toJSON(),
             ];
         })->all();
 

@@ -714,7 +714,17 @@ class CurrentBaselineMasterController extends Controller
             function () use ($table, $request, $perPage, $currentPage): array {
                 $paginator = $this->buildMasterQuery($table, $request)->paginate($perPage, ['*'], 'page', $currentPage);
 
-                return ['items' => $paginator->items(), 'total' => $paginator->total()];
+                // Ép mỗi dòng stdClass (DB::table trả về object) thành mảng thuần
+                // TRƯỚC khi cache. Cache::unserialize của dự án chạy với
+                // allowed_classes=false (chống gadget-chain, config/cache.php) nên
+                // object bị khôi phục thành __PHP_Incomplete_Class -> CacheService
+                // coi là "corrupted", bỏ cache rồi dựng lại từ DB ở MỌI request:
+                // cache list master coi như vô hiệu. Mảng thuần sống sót qua ràng
+                // buộc đó. JSON xuất ra KHÔNG đổi (stdClass và mảng kết hợp mã hoá
+                // thành cùng một object); giá trị từng cột cũng không đổi.
+                $items = array_map(static fn (object $row): array => (array) $row, $paginator->items());
+
+                return ['items' => $items, 'total' => $paginator->total()];
             }
         );
 
