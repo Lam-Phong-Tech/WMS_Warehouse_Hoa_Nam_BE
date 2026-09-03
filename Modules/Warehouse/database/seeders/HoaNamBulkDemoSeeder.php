@@ -9,9 +9,11 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Services\StockDocumentService;
 
 /**
  * Dữ liệu DEMO KHỐI LƯỢNG LỚN cho "Báo cáo truy vết hàng hoá" (TabTraceability) và
@@ -348,7 +350,7 @@ class HoaNamBulkDemoSeeder extends Seeder
     /**
      * @param  list<string>  $skus
      * @param  list<Carbon>  $days
-     * @return list<string>  item ids IN_STOCK
+     * @return list<string> item ids IN_STOCK
      */
     private function seedReceipts(array $skus, int $target, string $prefix, int $batch, array $days, string $kind): array
     {
@@ -488,7 +490,7 @@ class HoaNamBulkDemoSeeder extends Seeder
 
     /**
      * @param  list<string>  $issuedProductItems
-     * @return list<string>  active warranty case ids (cho component issue)
+     * @return list<string> active warranty case ids (cho component issue)
      */
     private function seedWarrantyCases(array $issuedProductItems): array
     {
@@ -658,6 +660,8 @@ class HoaNamBulkDemoSeeder extends Seeder
                     'document_date' => now()->toDateString(),
                     'purpose' => 'WARRANTY',
                     'status' => 'DRAFT',
+                    // Điền ngay lúc tạo: chứng từ POSTED là immutable, không vá được sau.
+                    'note' => 'Xuất linh kiện thay thế cho hồ sơ bảo hành (dữ liệu demo).',
                     'created_at' => now(), 'created_by' => $this->actorId,
                     'updated_at' => now(), 'updated_by' => $this->actorId,
                     'version' => 0,
@@ -837,9 +841,9 @@ class HoaNamBulkDemoSeeder extends Seeder
                 [$docId] = $this->createDocument('receipt', 'PN-BULK-CANCEL-01', [
                     ['product_id' => $componentSku, 'qty_planned' => 4],
                 ], ['source_name' => 'Phiếu bị huỷ demo']);
-                $doc = \Modules\Warehouse\Models\StockDocument::query()->find($docId);
+                $doc = StockDocument::query()->find($docId);
                 if ($doc !== null) {
-                    app(\Modules\Warehouse\Services\StockDocumentService::class)
+                    app(StockDocumentService::class)
                         ->cancel($doc, $this->actorId, 'Huỷ phiếu demo — nhập nhầm nhà cung cấp.');
                 }
             }
@@ -1077,7 +1081,10 @@ class HoaNamBulkDemoSeeder extends Seeder
             'id' => (string) Str::uuid(),
             'outbound_item_match_id' => null,
             'outbound_document_id' => $documentId,
-            'sku_id' => null, 'item_id' => null,
+            // PHẢI gán ngay lúc INSERT: trigger LABEL_SNAPSHOT_IMMUTABLE chặn mọi
+            // UPDATE lên sku_id/item_id sau khi nhãn đã chốt, nên không backfill
+            // được về sau. Để null thì cột SKU ở màn RPT-05 trống vĩnh viễn.
+            'sku_id' => $skuId, 'item_id' => $items[0] ?? null,
             'label_payload' => json_encode([
                 'source' => 'seeder-bulk', 'label_code' => $labelCode, 'outbound_no' => $docNo,
                 'outbound_document_id' => $documentId, 'sku_id' => $skuId, 'item_ids' => $items,

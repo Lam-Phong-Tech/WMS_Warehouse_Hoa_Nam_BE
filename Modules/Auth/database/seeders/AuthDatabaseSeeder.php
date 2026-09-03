@@ -370,6 +370,12 @@ class AuthDatabaseSeeder extends Seeder
         }
 
         $this->seedSampleUserPermissionGrant($permissionsByKey, $adminUser);
+
+        // Nhân sự phủ đủ vai trò / phòng ban / trạng thái cho màn IAM-01: ba bộ
+        // lọc của màn (vai trò, phòng ban, trạng thái) trước đây trả rỗng ở phần
+        // lớn giá trị. Gọi trong nhánh $withFixtures để dùng chung guard môi
+        // trường với các tài khoản demo phía trên.
+        $this->call(IamCoverageSeeder::class);
     }
 
     /**

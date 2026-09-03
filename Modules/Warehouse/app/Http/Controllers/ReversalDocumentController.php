@@ -48,6 +48,8 @@ class ReversalDocumentController extends Controller
             // join thêm để REV-00 vẫn hiển thị được mã phiếu nguồn.
             ->leftJoin('component_issue_documents', 'reversal_documents.original_document_id', '=', 'component_issue_documents.id')
             ->leftJoin('app_user', 'reversal_documents.created_by', '=', 'app_user.user_id')
+            // Người ghi nhận (posted_by) cũng phải ra TÊN: FE cấm in UUID thô.
+            ->leftJoin('app_user as poster', 'reversal_documents.posted_by', '=', 'poster.user_id')
             ->select([
                 'reversal_documents.id',
                 'reversal_documents.reversal_no as reversal_code',
@@ -61,6 +63,7 @@ class ReversalDocumentController extends Controller
                 'reversal_documents.correction_chain_id',
                 'reversal_documents.posted_at as reversed_at',
                 'reversal_documents.posted_by',
+                'poster.display_name as posted_by_name',
                 // ERD bảng 33 + BR-REV-06/07: hai cột này là điều kiện Post của Reverse
                 // Issue. Không chiếu ra thì REV-00/REV-01 không bao giờ thấy bước
                 // CONFIRMED, nút "Xác nhận hàng vật lý đã về" không render và mọi lần
@@ -123,6 +126,8 @@ class ReversalDocumentController extends Controller
             // join thêm để REV-00 vẫn hiển thị được mã phiếu nguồn.
             ->leftJoin('component_issue_documents', 'reversal_documents.original_document_id', '=', 'component_issue_documents.id')
             ->leftJoin('app_user', 'reversal_documents.created_by', '=', 'app_user.user_id')
+            // Người ghi nhận (posted_by) cũng phải ra TÊN: FE cấm in UUID thô.
+            ->leftJoin('app_user as poster', 'reversal_documents.posted_by', '=', 'poster.user_id')
             ->select([
                 'reversal_documents.id',
                 'reversal_documents.reversal_no as reversal_code',
@@ -136,6 +141,7 @@ class ReversalDocumentController extends Controller
                 'reversal_documents.correction_chain_id',
                 'reversal_documents.posted_at as reversed_at',
                 'reversal_documents.posted_by',
+                'poster.display_name as posted_by_name',
                 // ERD bảng 33 + BR-REV-06/07: hai cột này là điều kiện Post của Reverse
                 // Issue. Không chiếu ra thì REV-00/REV-01 không bao giờ thấy bước
                 // CONFIRMED, nút "Xác nhận hàng vật lý đã về" không render và mọi lần

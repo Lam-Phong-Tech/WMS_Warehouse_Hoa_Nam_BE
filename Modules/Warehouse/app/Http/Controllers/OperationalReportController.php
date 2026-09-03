@@ -2306,10 +2306,17 @@ class OperationalReportController extends Controller
         }
 
         $movements = $query->orderByDesc('m.occurred_at')->orderByDesc('m.id')->get();
+        // Mã movement (movement_no) của movement GỐC mà một REVERSAL đang đảo: FE
+        // hiển thị mã nghiệp vụ thay cho UUID, nên phải tra thêm — movement gốc
+        // có thể nằm ngoài kỳ đang lọc.
+        $originalIds = $movements->pluck('original_movement_id')->filter()->unique()->values()->all();
+        $originalNoById = $originalIds === [] ? collect() : DB::table('stock_movements')->whereIn('id', $originalIds)->pluck('movement_no', 'id');
         $objectIds = $movements->pluck('item_id')->merge($movements->pluck('container_id'))->filter()->unique()->values()->all();
         $codeMap = $objectIds === [] ? collect() : DB::table('physical_codes')->whereIn('assigned_object_id', $objectIds)->where('status', 'ACTIVE')->orderBy('created_at')->get(['assigned_object_id', 'code_value'])->groupBy('assigned_object_id')->map(fn ($rows) => (string) $rows->first()->code_value);
         $rows = $movements->map(fn ($m): array => [
             'id' => (string) $m->id,
+            // Mã nghiệp vụ đọc được (MV-…) — FE không được in UUID thô ra màn.
+            'movement_no' => (string) ($m->movement_no ?? ''),
             'occurred_at' => (string) $m->occurred_at,
             'movement_type' => (string) $m->movement_type,
             'warehouse_id' => (string) $m->warehouse_id,
@@ -2326,6 +2333,7 @@ class OperationalReportController extends Controller
             'source_id' => $m->source_id ?? null,
             'actor' => (string) ($m->actor_display_name ?? $m->actor_username ?? ''),
             'original_movement_id' => $m->original_movement_id ?? null,
+            'original_movement_no' => $m->original_movement_id ? (string) ($originalNoById[(string) $m->original_movement_id] ?? '') : null,
             'correction_chain_id' => $m->correction_chain_id ?? null,
         ])->all();
         $collection = collect($rows);

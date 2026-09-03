@@ -519,6 +519,8 @@ class OperationalReportRangeSeeder extends Seeder
             'document_date' => now()->toDateString(),
             'purpose' => 'WARRANTY',
             'status' => 'DRAFT',
+            // Điền ngay lúc tạo: chứng từ POSTED là immutable, không vá được sau.
+            'note' => 'Xuất linh kiện thay thế cho hồ sơ bảo hành đang sửa chữa.',
             'created_at' => now(),
             'created_by' => $this->actorId,
             'updated_at' => now(),
@@ -597,7 +599,9 @@ class OperationalReportRangeSeeder extends Seeder
             'id' => $labelId,
             'outbound_item_match_id' => null,
             'outbound_document_id' => $documentId,
-            'sku_id' => null,
+            // Gán ngay lúc INSERT — trigger LABEL_SNAPSHOT_IMMUTABLE chặn UPDATE.
+            // Phiếu này không quét serial nên item_id để trống là đúng nghiệp vụ.
+            'sku_id' => $skuId,
             'item_id' => null,
             'label_payload' => json_encode([
                 'source' => 'seeder-rpt',
@@ -956,8 +960,9 @@ class OperationalReportRangeSeeder extends Seeder
             'id' => (string) Str::uuid(),
             'outbound_item_match_id' => null,
             'outbound_document_id' => $documentId,
-            'sku_id' => null,
-            'item_id' => null,
+            // Gán ngay lúc INSERT — trigger LABEL_SNAPSHOT_IMMUTABLE chặn UPDATE.
+            'sku_id' => $skuId,
+            'item_id' => $items[0] ?? null,
             'label_payload' => json_encode([
                 'source' => 'seeder-rpt',
                 'label_code' => $labelCode,

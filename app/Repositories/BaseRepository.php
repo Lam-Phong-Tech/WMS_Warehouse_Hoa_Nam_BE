@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 abstract class BaseRepository implements RepositoryInterface
 {
@@ -442,8 +443,15 @@ abstract class BaseRepository implements RepositoryInterface
             if (array_key_exists($column, $filters) && $filters[$column] !== null && $filters[$column] !== '' && $filters[$column] !== 'all') {
                 $value = $filters[$column];
 
-                if (($column === 'id' || str_ends_with($column, '_id')) && ! is_numeric($value)) {
-                    ApiError::abort(422, 'VALIDATION_ERROR', "Giá trị lọc '{$column}' phải là số nguyên.");
+                // Khoá chính của toàn hệ thống là UUID (xem ERD 1.0), nên bộ lọc
+                // theo `*_id` phải nhận UUID; guard cũ chỉ cho số nguyên khiến MỌI
+                // bộ lọc theo id trả 422 (vd "Phòng ban" ở màn Danh sách người dùng
+                // & phân quyền không lọc được giá trị nào). Vẫn chặn chuỗi rác để
+                // không đẩy giá trị lạ xuống câu WHERE.
+                if (($column === 'id' || str_ends_with($column, '_id'))
+                    && ! is_numeric($value)
+                    && ! (is_string($value) && Str::isUuid($value))) {
+                    ApiError::abort(422, 'VALIDATION_ERROR', "Giá trị lọc '{$column}' phải là số nguyên hoặc UUID.");
                 }
 
                 $query->where($column, $value);

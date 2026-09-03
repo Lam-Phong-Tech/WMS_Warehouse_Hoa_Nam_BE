@@ -366,10 +366,10 @@ class WarehouseBusinessDataSeeder extends Seeder
      */
     /**
      * @param  array<int, string>  $additionalDefectCodes  Đồng bộ vào pivot
-     *     `warranty_case_defects` cùng $defectCode (là defect chính, is_primary=true) —
-     *     khớp `syncWarrantyDefects()` thật của CurrentBaselineWarrantyController,
-     *     seeder trước đây chỉ set `warranty_case.defect_id` (cột legacy) nên
-     *     bảng pivot multi-defect luôn rỗng dù tính năng đã có UI.
+     *                                                     `warranty_case_defects` cùng $defectCode (là defect chính, is_primary=true) —
+     *                                                     khớp `syncWarrantyDefects()` thật của CurrentBaselineWarrantyController,
+     *                                                     seeder trước đây chỉ set `warranty_case.defect_id` (cột legacy) nên
+     *                                                     bảng pivot multi-defect luôn rỗng dù tính năng đã có UI.
      */
     private function seedWarrantyCase(string $itemId, string $skuId, string $caseCode = self::WARRANTY_CASE_CODE, string $defectCode = 'DEF-004', array $additionalDefectCodes = []): string
     {
@@ -704,6 +704,9 @@ class WarehouseBusinessDataSeeder extends Seeder
             'document_date' => now()->toDateString(),
             'purpose' => 'WARRANTY',
             'status' => 'DRAFT',
+            // Cột "Ghi chú" của màn phiếu xuất linh kiện: phải điền NGAY lúc tạo —
+            // component_issue_documents là immutable sau khi POSTED nên không vá được sau.
+            'note' => 'Xuất linh kiện thay thế theo yêu cầu của kỹ thuật viên bảo hành.',
             'created_at' => now(),
             'created_by' => $this->actorId,
             'updated_at' => now(),
@@ -892,6 +895,15 @@ class WarehouseBusinessDataSeeder extends Seeder
     private function createDocument(string $type, string $docNo, array $lines, array $extra = []): array
     {
         $documentId = (string) Str::uuid();
+        // Phiếu xuất luôn phải neo vào một "nơi nhận" trong danh mục: cột "Nơi
+        // nhận" ở màn phiếu xuất và toàn bộ báo cáo RPT-RECIPIENT-01 lọc theo
+        // agency_id, để null thì phiếu biến mất khỏi báo cáo dù vẫn có tên người
+        // nhận. Chứng từ POSTED là immutable nên KHÔNG vá được sau, phải gán
+        // đúng lúc tạo — suy từ recipient_name khi call site không truyền sẵn.
+        $agencyId = $extra['agency_id'] ?? null;
+        if ($agencyId === null && $type === 'issue' && ! empty($extra['recipient_name'])) {
+            $agencyId = DB::table('agencies')->where('agency_name', $extra['recipient_name'])->value('agency_id');
+        }
         DB::table('stock_documents')->insert([
             'id' => $documentId,
             'doc_type' => $type,
@@ -902,7 +914,7 @@ class WarehouseBusinessDataSeeder extends Seeder
             'dst_warehouse_id' => $type === 'receipt' ? $this->warehouseId : null,
             'source_name' => $extra['source_name'] ?? null,
             'outbound_request_id' => $extra['outbound_request_id'] ?? null,
-            'agency_id' => $extra['agency_id'] ?? null,
+            'agency_id' => $agencyId,
             'recipient_name' => $extra['recipient_name'] ?? null,
             'recipient_address' => $extra['recipient_address'] ?? null,
             'note' => $extra['note'] ?? 'Dữ liệu mẫu seeder',
@@ -1248,8 +1260,9 @@ class WarehouseBusinessDataSeeder extends Seeder
             'id' => (string) Str::uuid(),
             'outbound_item_match_id' => null,
             'outbound_document_id' => $documentId,
-            'sku_id' => null,
-            'item_id' => null,
+            // Gán ngay lúc INSERT — trigger LABEL_SNAPSHOT_IMMUTABLE chặn UPDATE.
+            'sku_id' => $skuId,
+            'item_id' => $items[0] ?? null,
             'label_payload' => json_encode([
                 'source' => 'seeder',
                 'label_code' => $labelCode,

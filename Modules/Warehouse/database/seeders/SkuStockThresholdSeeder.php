@@ -23,10 +23,12 @@ class SkuStockThresholdSeeder extends Seeder
         // available_qty theo từng SKU = SUM(inventory_balances.available_qty) ở
         // stock_status=AVAILABLE — CÙNG nguồn với dashboard-quick để card khớp số.
         // Chia band theo row_number để phân bố dưới/trong/vượt định mức cân đối.
-        // Định mức mang tính nghiệp vụ: đa số SKU có min "sàn" thực tế (>=5) và max
-        // cao (>=35) → cột hiển thị chuyên nghiệp; riêng ~14% SKU (rn%7=0) là band
-        // "overstock" cố ý đặt max thấp hơn tồn thực để card có "Tồn vượt định mức"
-        // khác 0. Ràng buộc DB max>min luôn thoả.
+        //
+        // SKU CHƯA CÓ TỒN (a = 0) luôn nhận min_stock = 0: 0 là định mức THẬT
+        // ("không yêu cầu tồn tối thiểu"), không phải "chưa đặt". Nếu gán min > 0
+        // cho nhóm này thì MỌI SKU danh mục chưa nhập hàng đều bị đếm là "dưới
+        // định mức" và card Dashboard hiện gần bằng tổng số SKU — con số vô nghĩa,
+        // che mất các SKU thực sự thiếu hàng. Chỉ SKU ĐANG CÓ TỒN mới chia 3 band.
         $affected = DB::update(<<<'SQL'
             WITH avail AS (
               SELECT s.id AS sku_id,
@@ -40,14 +42,16 @@ class SkuStockThresholdSeeder extends Seeder
               WHERE s.status = 'ACTIVE'
             )
             UPDATE skus s SET
-              min_stock = CASE (av.rn % 3)
-                 WHEN 0 THEN GREATEST(8, av.a + 5)                 -- dưới định mức
-                 WHEN 1 THEN GREATEST(3, av.a - 2)                 -- trong ngưỡng
-                 ELSE GREATEST(2, floor(av.a * 0.4)::int)         -- vượt định mức (min thấp)
+              min_stock = CASE
+                 WHEN av.a = 0 THEN 0                              -- chưa nhập hàng: không có sàn tồn
+                 WHEN (av.rn % 3) = 0 THEN GREATEST(8, av.a + 5)   -- dưới định mức
+                 WHEN (av.rn % 3) = 1 THEN GREATEST(3, av.a - 2)   -- trong ngưỡng
+                 ELSE GREATEST(2, floor(av.a * 0.4)::int)          -- vượt định mức (min thấp)
               END,
-              max_stock = CASE (av.rn % 3)
-                 WHEN 0 THEN GREATEST(8, av.a + 5) + 42
-                 WHEN 1 THEN GREATEST(GREATEST(3, av.a - 2) + 18, av.a + 22)
+              max_stock = CASE
+                 WHEN av.a = 0 THEN 30 + (av.rn % 70)              -- trần tồn dự kiến khi bắt đầu nhập
+                 WHEN (av.rn % 3) = 0 THEN GREATEST(8, av.a + 5) + 42
+                 WHEN (av.rn % 3) = 1 THEN GREATEST(GREATEST(3, av.a - 2) + 18, av.a + 22)
                  ELSE GREATEST(GREATEST(2, floor(av.a * 0.4)::int) + 1, av.a - 1)  -- max < tồn khi tồn đủ lớn
               END,
               updated_at = now()

@@ -173,8 +173,12 @@ class WarehouseSupplementalDataSeeder extends Seeder
 
         foreach ($skuIds as $index => $skuId) {
             $aliasCode = 'ALIAS-SEED-'.sprintf('%03d', $index + 1);
+            // Guard PHẢI theo alias_code — cột UNIQUE của bảng. Guard cũ theo cặp
+            // (product_id, alias_code) không idempotent: `limit(5) order by sku_code`
+            // trả về tập SKU khác nhau giữa hai lần seed (các seeder sau bổ sung SKU
+            // có mã đứng trước về alphabet), nên lần chạy thứ hai gán ALIAS-SEED-005
+            // cho một SKU khác → guard trượt và vỡ UNIQUE alias_code.
             $exists = DB::table('sku_alias')
-                ->where('product_id', $skuId)
                 ->where('alias_code', $aliasCode)
                 ->exists();
             if ($exists) {
