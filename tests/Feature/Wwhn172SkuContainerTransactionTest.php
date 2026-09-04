@@ -23,7 +23,7 @@ class Wwhn172SkuContainerTransactionTest extends TestCase
     {
         parent::setUp();
         $this->seed(AuthDatabaseSeeder::class);
-        $this->user = User::where('email', 'test-super-admin@hoanam.com')->firstOrFail();
+        $this->user = User::where('email', 'test-super-admin@gmail.com')->firstOrFail();
         $this->token = JWTAuth::fromUser($this->user);
     }
 

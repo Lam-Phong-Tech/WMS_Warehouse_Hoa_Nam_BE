@@ -36,7 +36,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             ['username' => $username],
             [
                 'display_name' => 'Test Super Admin',
-                'email' => "{$username}@hoanam.com",
+                'email' => "{$username}@gmail.com",
                 'password_hash' => Hash::make('Cntt@1234'),
                 'status' => 'ACTIVE',
                 'version' => 1,

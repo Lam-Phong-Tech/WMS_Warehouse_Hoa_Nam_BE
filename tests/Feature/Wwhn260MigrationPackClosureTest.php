@@ -288,7 +288,7 @@ class Wwhn260MigrationPackClosureTest extends TestCase
         return User::query()->create([
             'username' => $username,
             'display_name' => $username,
-            'email' => $username.'@hoanam.com',
+            'email' => $username.'@gmail.com',
             'password_hash' => bcrypt('Cntt@1234'),
             'status' => 'ACTIVE',
             'version' => 1,

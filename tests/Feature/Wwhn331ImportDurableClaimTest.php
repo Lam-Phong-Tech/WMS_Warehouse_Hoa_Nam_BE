@@ -412,7 +412,7 @@ class Wwhn331ImportDurableClaimTest extends TestCase
 
     private function superAdminId(): string
     {
-        return (string) User::query()->where('email', 'test-super-admin@hoanam.com')->value('user_id');
+        return (string) User::query()->where('email', 'test-super-admin@gmail.com')->value('user_id');
     }
 
     /** @param  array<int, array<int, string>>  $rows */

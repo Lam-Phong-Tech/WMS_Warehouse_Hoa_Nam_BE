@@ -49,7 +49,7 @@ class Wwhn330ImportR3ClosureTest extends TestCase
         parent::setUp();
         config(['audit.write_policy' => 'fail_closed']);
         $this->seed(AuthDatabaseSeeder::class);
-        $user = User::query()->where('email', 'test-super-admin@hoanam.com')->firstOrFail();
+        $user = User::query()->where('email', 'test-super-admin@gmail.com')->firstOrFail();
         $this->token = JWTAuth::fromUser($user);
     }
 
@@ -388,7 +388,7 @@ class Wwhn330ImportR3ClosureTest extends TestCase
 
     private function superAdminId(): string
     {
-        return (string) User::query()->where('email', 'test-super-admin@hoanam.com')->value('user_id');
+        return (string) User::query()->where('email', 'test-super-admin@gmail.com')->value('user_id');
     }
 
     /** @param  array<int, array<int, string>>  $rows */

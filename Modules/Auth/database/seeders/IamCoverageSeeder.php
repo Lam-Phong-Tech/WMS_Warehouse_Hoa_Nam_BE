@@ -137,7 +137,7 @@ class IamCoverageSeeder extends Seeder
                 ['username' => $username],
                 [
                     'display_name' => $displayName,
-                    'email' => $username.'@hoanam.vn',
+                    'email' => $username.'@gmail.com',
                     'phone' => self::phoneFor($username),
                     'password_hash' => $password,
                     'status' => $status,

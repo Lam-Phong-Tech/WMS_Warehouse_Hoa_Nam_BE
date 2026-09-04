@@ -49,6 +49,17 @@ final class WarrantyPiiMasker
             return '';
         }
 
+        // FE lưu địa chỉ dạng JSON {detail, ward_code, ward, province_code, province}
+        // (địa giới 2 cấp sau sáp nhập). Che thì chỉ giữ tỉnh/thành, bỏ hết phần còn lại.
+        if (str_starts_with($value, '{') && str_ends_with($value, '}')) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                $province = trim((string) ($decoded['province'] ?? ''));
+
+                return $province === '' ? '***' : '***, '.$province;
+            }
+        }
+
         // Rút gọn về phần địa giới cuối cùng; số nhà/đường bị ẩn hoàn toàn.
         $parts = array_values(array_filter(array_map('trim', explode(',', $value)), fn (string $part): bool => $part !== ''));
         if (count($parts) <= 1) {

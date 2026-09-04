@@ -25,6 +25,30 @@ class UserFacingMessageLocalizerTest extends TestCase
         );
     }
 
+    /**
+     * Lỗi UAT 04-09-2026: dialog "Cập nhật trạng thái bảo hành" hiện nguyên câu
+     * "Warranty case version mismatch." — câu này không chứa từ khoá nào của
+     * stillLooksEnglish() nên lưới fail-closed không bắt được, và người đọc không
+     * biết phải làm gì. Mọi message 412 STALE_VERSION phải là tiếng Việt và nói rõ
+     * hành động (tải lại rồi thao tác lại).
+     */
+    public function test_it_localizes_optimistic_locking_messages_with_an_actionable_sentence(): void
+    {
+        $this->assertSame(
+            'Hồ sơ bảo hành vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+            UserFacingMessageLocalizer::translate('Warranty case version mismatch.')
+        );
+        $this->assertSame(
+            'Nhãn đóng gói vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+            UserFacingMessageLocalizer::translate('Packing Label version mismatch.')
+        );
+        // Đối tượng chưa liệt kê ở EXACT vẫn ra câu tiếng Việt nói rõ hành động.
+        $this->assertSame(
+            'Dữ liệu vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+            UserFacingMessageLocalizer::translate('Stocktake session version mismatch.')
+        );
+    }
+
     public function test_it_localizes_laravel_validation_detail_values_and_preserves_field_keys(): void
     {
         $details = [

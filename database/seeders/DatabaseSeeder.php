@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Database\Seeders\AuditLogDatabaseSeeder;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Notification\Database\Seeders\NotificationDatabaseSeeder;
+use Modules\Warehouse\Database\Seeders\DailySkuCoverageSeeder;
 use Modules\Warehouse\Database\Seeders\DisplayFieldCoverageSeeder;
 use Modules\Warehouse\Database\Seeders\HoaNamBulkDemoSeeder;
 use Modules\Warehouse\Database\Seeders\InventoryStockStatusMixSeeder;
@@ -109,6 +110,16 @@ class DatabaseSeeder extends Seeder
                 // dòng máy). PHẢI đứng sau HoaNamBulkDemoSeeder vì seeder đó còn
                 // sinh thêm ~500 SKU sau SkuCoverageSeeder.
                 SkuAttributeBackfillSeeder::class,
+                // 8c-bis. Phủ ĐỀU mọi SKU đang có trong sổ cái, mỗi ngày trong
+                //     cửa sổ gần nhất, đủ 4 cột của phương trình XNT (nhập /
+                //     xuất SP / xuất LK / hoàn tác). PHẢI đứng sau
+                //     InventoryStockStatusMixSeeder — seeder đó còn đưa thêm SKU
+                //     vào sổ cái, chạy trước thì đúng những SKU ấy vẫn hiện 0 ở
+                //     RPT-XNT-01. Và phải TRƯỚC hai seeder dưới để định mức tồn
+                //     kho + lấp ô hiển thị nhìn thấy dữ liệu cuối cùng.
+                //     Đây là phase LÂU NHẤT (~18 phút); tắt bằng
+                //     HN_DAILY_COVERAGE_DAYS=0 (mặc định tắt khi CI=true).
+                DailySkuCoverageSeeder::class,
                 SkuStockThresholdSeeder::class,
                 // 8d. Lấp các CỘT HIỂN THỊ còn trống 100% sau toàn bộ chuỗi trên:
                 //     vị trí lưu kho (chỉ 5/132 SKU có tồn từng được gán), tệp lỗi

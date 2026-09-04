@@ -29,6 +29,15 @@ final class UserFacingMessageLocalizer
         'Server Error' => 'Hệ thống gặp lỗi nội bộ.',
         'Internal Server Error' => 'Hệ thống gặp lỗi nội bộ.',
         'Document must have at least one line.' => 'Chứng từ phải có ít nhất một dòng.',
+        // Optimistic locking (412 STALE_VERSION): message phải nói người dùng
+        // PHẢI LÀM GÌ (tải lại rồi thao tác lại), không chỉ mô tả sự cố kỹ thuật.
+        'Warranty case version mismatch.' => 'Hồ sơ bảo hành vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+        'Document version mismatch.' => 'Chứng từ vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+        'Packing Label version mismatch.' => 'Nhãn đóng gói vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+        'Component Issue version mismatch.' => 'Phiếu xuất linh kiện vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+        'Container version mismatch.' => 'Thùng/hộp vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+        'Import version mismatch.' => 'Lô nạp dữ liệu vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
+        'Physical code version mismatch.' => 'Mã vật lý vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.',
         'Scan quantity must be greater than zero.' => 'Số lượng quét phải lớn hơn 0.',
         'Reject approval is outside the latest MVP baseline.' => 'Thao tác từ chối phê duyệt không thuộc quy trình MVP hiện hành.',
         'close_remainder is outside the latest MVP baseline.' => 'Thao tác đóng phần còn lại không thuộc quy trình MVP hiện hành.',
@@ -81,6 +90,17 @@ final class UserFacingMessageLocalizer
         $trimmed = trim($message);
         if (isset(self::EXACT[$trimmed])) {
             return self::preserveWhitespace($message, self::EXACT[$trimmed]);
+        }
+
+        // Bất kỳ '<đối tượng> version mismatch.' nào chưa liệt kê ở EXACT: vẫn phải
+        // ra câu tiếng Việt nói rõ hành động, thay vì rơi xuống câu fail-closed
+        // chung chung (hoặc tệ hơn là lọt nguyên tiếng Anh vì câu không chứa từ
+        // khoá nào của stillLooksEnglish).
+        if (preg_match('/^[A-Za-z][A-Za-z0-9 _\-\/]* version mismatch\.?$/', $trimmed) === 1) {
+            return self::preserveWhitespace(
+                $message,
+                'Dữ liệu vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.'
+            );
         }
 
         $localized = $message;

@@ -204,7 +204,7 @@ class AuthorizationTest extends TestCase
             ['username' => $username],
             [
                 'display_name' => ucwords(str_replace('-', ' ', $username)),
-                'email' => "{$username}@hoanam.com",
+                'email' => "{$username}@gmail.com",
                 'password_hash' => Hash::make('Cntt@1234'),
                 'status' => 'ACTIVE',
                 'version' => 1,

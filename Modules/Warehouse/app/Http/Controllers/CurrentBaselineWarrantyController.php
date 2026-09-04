@@ -409,7 +409,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy ca bảo hành.');
             }
             if ((int) $case->version !== $expectedVersion) {
-                ApiError::abort(412, 'STALE_VERSION', 'Warranty case version mismatch.', [
+                ApiError::abort(412, 'STALE_VERSION', 'Hồ sơ bảo hành vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.', [
                     'expected_version' => $expectedVersion,
                     'current_version' => (int) $case->version,
                 ]);

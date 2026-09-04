@@ -42,7 +42,7 @@ class Wwhn331ImportContractClosureTest extends TestCase
         parent::setUp();
         config(['audit.write_policy' => 'fail_closed']);
         $this->seed(AuthDatabaseSeeder::class);
-        $user = User::query()->where('email', 'test-super-admin@hoanam.com')->firstOrFail();
+        $user = User::query()->where('email', 'test-super-admin@gmail.com')->firstOrFail();
         $this->token = JWTAuth::fromUser($user);
     }
 

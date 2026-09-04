@@ -62,7 +62,7 @@ class RbacCacheInvalidationTest extends TestCase
         $user = User::create([
             'username' => 'rbac-cache-subject-'.Str::lower(Str::random(8)),
             'display_name' => 'RBAC Cache Subject',
-            'email' => Str::lower(Str::random(8)).'@hoanam.test',
+            'email' => Str::lower(Str::random(8)).'@gmail.com',
             'password_hash' => Hash::make('Cntt@1234'),
             'status' => 'ACTIVE',
             'version' => 1,

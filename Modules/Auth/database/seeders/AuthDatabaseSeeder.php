@@ -280,11 +280,11 @@ class AuthDatabaseSeeder extends Seeder
         ['username' => 'keeper01', 'display_name' => 'Thủ kho 01', 'email' => 'keeper01@gmail.com', 'role' => 'WAREHOUSE_KEEPER', 'department' => 'QUAN_LY_KHO'],
         ['username' => 'viewer01', 'display_name' => 'Người xem 01', 'email' => 'viewer01@gmail.com', 'role' => 'VIEWER'],
         ['username' => 'manager01', 'display_name' => 'Quản lý kho 01', 'email' => 'manager01@gmail.com', 'role' => 'WAREHOUSE_MANAGER', 'department' => 'QUAN_LY_KHO'],
-        ['username' => 'test-sku-manage', 'display_name' => 'Test Quản lý SKU', 'email' => 'test-sku-manage@hoanam.com', 'role' => 'SKU_MANAGER'],
-        ['username' => 'test-master-manage', 'display_name' => 'Test Quản lý dữ liệu gốc', 'email' => 'test-master-manage@hoanam.com', 'role' => 'MASTER_MANAGER'],
-        ['username' => 'test-no-permission', 'display_name' => 'Test Không có quyền', 'email' => 'test-no-permission@hoanam.com', 'role' => 'NO_PERMISSION'],
-        ['username' => 'test-super-admin', 'display_name' => 'Test Siêu quản trị', 'email' => 'test-super-admin@hoanam.com', 'role' => 'SUPER_ADMIN'],
-        ['username' => 'inbound-tester01', 'display_name' => 'Test Chỉ nhập kho', 'email' => 'inbound-tester01@hoanam.com', 'role' => 'INBOUND_ONLY_TEST'],
+        ['username' => 'test-sku-manage', 'display_name' => 'Test Quản lý SKU', 'email' => 'test-sku-manage@gmail.com', 'role' => 'SKU_MANAGER'],
+        ['username' => 'test-master-manage', 'display_name' => 'Test Quản lý dữ liệu gốc', 'email' => 'test-master-manage@gmail.com', 'role' => 'MASTER_MANAGER'],
+        ['username' => 'test-no-permission', 'display_name' => 'Test Không có quyền', 'email' => 'test-no-permission@gmail.com', 'role' => 'NO_PERMISSION'],
+        ['username' => 'test-super-admin', 'display_name' => 'Test Siêu quản trị', 'email' => 'test-super-admin@gmail.com', 'role' => 'SUPER_ADMIN'],
+        ['username' => 'inbound-tester01', 'display_name' => 'Test Chỉ nhập kho', 'email' => 'inbound-tester01@gmail.com', 'role' => 'INBOUND_ONLY_TEST'],
     ];
 
     private const NON_PRODUCTION_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION', 'INBOUND_ONLY_TEST'];
@@ -376,6 +376,12 @@ class AuthDatabaseSeeder extends Seeder
         // lớn giá trị. Gọi trong nhánh $withFixtures để dùng chung guard môi
         // trường với các tài khoản demo phía trên.
         $this->call(IamCoverageSeeder::class);
+
+        // Ba tài khoản ĐĂNG NHẬP ĐƯỢC cho MỖI vai trò, tên theo đúng mã vai trò
+        // (`warehouse-keeper-01`…). Chạy SAU IamCoverageSeeder vì cần 5 phòng ban
+        // mà seeder đó tạo thêm, và vì seeder đó cố ý để một phần tài khoản
+        // INACTIVE/LOCKED cho bộ lọc — bộ này bù phần "mở để đăng nhập thử".
+        $this->call(RoleAccountMatrixSeeder::class);
     }
 
     /**

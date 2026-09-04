@@ -40,7 +40,7 @@ class AuthPublicEndpointMiddlewareBypassTest extends TestCase
         return User::create([
             'username' => $username,
             'display_name' => $username,
-            'email' => "{$username}@hoanam.com",
+            'email' => "{$username}@gmail.com",
             'password_hash' => Hash::make('Cntt@1234'),
             'status' => $status,
             'version' => 1,
@@ -96,7 +96,7 @@ class AuthPublicEndpointMiddlewareBypassTest extends TestCase
         // Chỉ cần KHÔNG phải 403 ACCOUNT_DISABLED do middleware global — nội dung
         // nghiệp vụ (gửi OTP hay không) do PasswordResetController quyết định.
         $response = $this->postJson('/api/v1/auth/forgot-password', [
-            'email' => 'khong-ton-tai@hoanam.com',
+            'email' => 'khong-ton-tai@gmail.com',
         ], ['Authorization' => "Bearer {$staleToken}"]);
 
         $this->assertNotSame('ACCOUNT_DISABLED', $response->json('error_code'));

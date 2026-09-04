@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\ConflictCode;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
@@ -367,7 +368,7 @@ class CurrentBaselineOperationsController extends Controller
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Warranty case not found.');
             }
             if ((int) $case->version !== $expectedVersion) {
-                ApiError::abort(412, 'STALE_VERSION', 'Warranty case version mismatch.');
+                ApiError::abort(412, 'STALE_VERSION', 'Hồ sơ bảo hành vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.');
             }
 
             $target = $validated['status'];
@@ -1033,7 +1034,8 @@ class CurrentBaselineOperationsController extends Controller
         if (! $request->user()?->hasPermission('warranty.pii.view')) {
             $case->customer_name = $this->mask((string) $case->customer_name);
             $case->customer_phone = $this->mask((string) $case->customer_phone);
-            $case->customer_address = $this->mask((string) ($case->customer_address ?? ''));
+            // Địa chỉ có thể là JSON tỉnh/xã (FE) — che theo shape riêng, giữ tỉnh/thành.
+            $case->customer_address = WarrantyPiiMasker::address((string) ($case->customer_address ?? ''));
         }
 
         return (array) $case;

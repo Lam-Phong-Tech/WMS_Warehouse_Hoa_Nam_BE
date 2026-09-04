@@ -39,7 +39,7 @@ class Wwhn330ImportResidualHardeningTest extends TestCase
         parent::setUp();
         config(['audit.write_policy' => 'fail_closed']);
         $this->seed(AuthDatabaseSeeder::class);
-        $user = User::query()->where('email', 'test-super-admin@hoanam.com')->firstOrFail();
+        $user = User::query()->where('email', 'test-super-admin@gmail.com')->firstOrFail();
         $this->token = JWTAuth::fromUser($user);
     }
 
@@ -101,7 +101,7 @@ class Wwhn330ImportResidualHardeningTest extends TestCase
         $lock->shouldReceive('block')->once()->andReturnTrue();
         $lock->shouldReceive('release')->once()->andReturnTrue();
 
-        $actorId = (string) User::query()->where('email', 'test-super-admin@hoanam.com')->value('user_id');
+        $actorId = (string) User::query()->where('email', 'test-super-admin@gmail.com')->value('user_id');
         $checksum = hash_file('sha256', $path);
         $optionsFingerprint = SkuImportContract::optionsFingerprint(false);
 
@@ -119,7 +119,7 @@ class Wwhn330ImportResidualHardeningTest extends TestCase
     public function test_dry_run_does_not_take_the_commit_lock(): void
     {
         $path = $this->plainXlsxPath([['LOCK-DRY', 'San pham dry run']]);
-        $actorId = (string) User::query()->where('email', 'test-super-admin@hoanam.com')->value('user_id');
+        $actorId = (string) User::query()->where('email', 'test-super-admin@gmail.com')->value('user_id');
 
         Cache::shouldReceive('lock')->never();
 

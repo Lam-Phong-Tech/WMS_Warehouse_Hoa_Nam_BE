@@ -31,11 +31,11 @@ class SkuAuthorizationTest extends TestCase
 
     public function test_products_list_requires_product_view_and_super_admin_bypasses(): void
     {
-        $skuManager = $this->user('test-sku-manage@hoanam.com');
+        $skuManager = $this->user('test-sku-manage@gmail.com');
         $viewer = $this->user('staff01@gmail.com');
-        $masterManager = $this->user('test-master-manage@hoanam.com');
-        $noPermission = $this->user('test-no-permission@hoanam.com');
-        $superAdmin = $this->user('test-super-admin@hoanam.com');
+        $masterManager = $this->user('test-master-manage@gmail.com');
+        $noPermission = $this->user('test-no-permission@gmail.com');
+        $superAdmin = $this->user('test-super-admin@gmail.com');
 
         $this->getJson('/api/v1/products', $this->auth($skuManager))
             ->assertOk()
@@ -60,10 +60,10 @@ class SkuAuthorizationTest extends TestCase
 
     public function test_product_create_requires_product_manage(): void
     {
-        $skuManager = $this->user('test-sku-manage@hoanam.com');
+        $skuManager = $this->user('test-sku-manage@gmail.com');
         $viewer = $this->user('staff01@gmail.com');
-        $noPermission = $this->user('test-no-permission@hoanam.com');
-        $superAdmin = $this->user('test-super-admin@hoanam.com');
+        $noPermission = $this->user('test-no-permission@gmail.com');
+        $superAdmin = $this->user('test-super-admin@gmail.com');
 
         $this->postJson('/api/v1/products', [
             'sku_code' => 'TEST-PROD-001',
@@ -99,10 +99,10 @@ class SkuAuthorizationTest extends TestCase
             'status' => 'ACTIVE',
         ]);
 
-        $skuManager = $this->user('test-sku-manage@hoanam.com');
+        $skuManager = $this->user('test-sku-manage@gmail.com');
         $viewer = $this->user('staff01@gmail.com');
-        $noPermission = $this->user('test-no-permission@hoanam.com');
-        $superAdmin = $this->user('test-super-admin@hoanam.com');
+        $noPermission = $this->user('test-no-permission@gmail.com');
+        $superAdmin = $this->user('test-super-admin@gmail.com');
 
         foreach ([$skuManager, $viewer, $superAdmin] as $user) {
             $this->getJson("/api/v1/products/{$sku->sku_id}", $this->auth($user))
@@ -125,10 +125,10 @@ class SkuAuthorizationTest extends TestCase
             'status' => 'INACTIVE',
         ]);
 
-        $skuManager = $this->user('test-sku-manage@hoanam.com');
+        $skuManager = $this->user('test-sku-manage@gmail.com');
         $viewer = $this->user('staff01@gmail.com');
-        $noPermission = $this->user('test-no-permission@hoanam.com');
-        $superAdmin = $this->user('test-super-admin@hoanam.com');
+        $noPermission = $this->user('test-no-permission@gmail.com');
+        $superAdmin = $this->user('test-super-admin@gmail.com');
 
         $this->patchJson("/api/v1/products/{$sku->sku_id}", [
             'sku_name' => 'After Update',
@@ -169,10 +169,10 @@ class SkuAuthorizationTest extends TestCase
             'status' => 'INACTIVE',
         ]);
 
-        $skuManager = $this->user('test-sku-manage@hoanam.com');
+        $skuManager = $this->user('test-sku-manage@gmail.com');
         $viewer = $this->user('staff01@gmail.com');
-        $noPermission = $this->user('test-no-permission@hoanam.com');
-        $superAdmin = $this->user('test-super-admin@hoanam.com');
+        $noPermission = $this->user('test-no-permission@gmail.com');
+        $superAdmin = $this->user('test-super-admin@gmail.com');
 
         $this->patchJson("/api/v1/products/{$sku->sku_id}/enable", [], $this->auth($skuManager))
             ->assertOk()
