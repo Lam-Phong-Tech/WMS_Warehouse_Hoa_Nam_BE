@@ -37,7 +37,11 @@ services:
       - REDIS_HOST=valkey
       - REDIS_PORT=6379
       - MAIL_HOST=mailpit
-      - AWS_ENDPOINT=http://minio:9000
+      # Mặc định là MinIO của stack dev. KHÔNG hard-code: giá trị trong container
+      # ghi đè .env mà Laravel đọc (Dotenv không overwrite biến môi trường thật),
+      # nên bản deploy đặt AWS_ENDPOINT=<R2 endpoint> trong .env sẽ bị kéo ngược về
+      # MinIO nội bộ và media ghi nhầm chỗ.
+      - AWS_ENDPOINT=${AWS_ENDPOINT:-http://minio:9000}
       - AWS_BUCKET=${AWS_BUCKET:-wms-hoanam}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
@@ -84,7 +88,11 @@ services:
       - REDIS_HOST=valkey
       - REDIS_PORT=6379
       - MAIL_HOST=mailpit
-      - AWS_ENDPOINT=http://minio:9000
+      # Mặc định là MinIO của stack dev. KHÔNG hard-code: giá trị trong container
+      # ghi đè .env mà Laravel đọc (Dotenv không overwrite biến môi trường thật),
+      # nên bản deploy đặt AWS_ENDPOINT=<R2 endpoint> trong .env sẽ bị kéo ngược về
+      # MinIO nội bộ và media ghi nhầm chỗ.
+      - AWS_ENDPOINT=${AWS_ENDPOINT:-http://minio:9000}
       - AWS_BUCKET=${AWS_BUCKET:-wms-hoanam}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}
@@ -157,7 +165,11 @@ services:
       - REDIS_HOST=valkey
       - REDIS_PORT=6379
       - MAIL_HOST=mailpit
-      - AWS_ENDPOINT=http://minio:9000
+      # Mặc định là MinIO của stack dev. KHÔNG hard-code: giá trị trong container
+      # ghi đè .env mà Laravel đọc (Dotenv không overwrite biến môi trường thật),
+      # nên bản deploy đặt AWS_ENDPOINT=<R2 endpoint> trong .env sẽ bị kéo ngược về
+      # MinIO nội bộ và media ghi nhầm chỗ.
+      - AWS_ENDPOINT=${AWS_ENDPOINT:-http://minio:9000}
       - AWS_BUCKET=${AWS_BUCKET:-wms-hoanam}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minioadmin}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minioadmin}

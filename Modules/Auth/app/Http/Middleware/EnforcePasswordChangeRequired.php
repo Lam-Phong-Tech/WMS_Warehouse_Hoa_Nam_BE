@@ -5,7 +5,7 @@ namespace Modules\Auth\Http\Middleware;
 use App\Support\ApiError;
 use Closure;
 use Illuminate\Http\Request;
-use Modules\Auth\Models\User;
+use Modules\Auth\Support\ApiAuthContext;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -16,16 +16,25 @@ use Symfony\Component\HttpFoundation\Response;
  * (src/shared/api/axios.ts, src/app/router/ProtectedRoute.tsx) — FE build
  * trước, BE trước đây chưa từng phát ra mã này.
  *
- * Chỉ 2 route được miễn: change-password (để thực sự đổi được) và logout (để
- * luôn thoát được phiên).
+ * Miễn trừ:
+ *  - change-password (để thực sự đổi được) và logout (để luôn thoát được phiên);
+ *  - toàn bộ endpoint public trong ApiAuthContext::PUBLIC_PATH_PATTERNS. Bắt
+ *    buộc: FE gắn Bearer token cũ vào cả POST /api/v1/auth/login, nếu không
+ *    miễn thì tài khoản đang must_change_password sẽ nhận 403 ngay trên request
+ *    đăng nhập và không bao giờ vào được màn đổi mật khẩu. `auth/refresh` cũng
+ *    phải chạy được để phiên không chết khi người dùng đang ở màn đổi mật khẩu.
  */
 class EnforcePasswordChangeRequired
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $user = auth('api')->user();
+        if (ApiAuthContext::isPublicEndpoint($request)) {
+            return $next($request);
+        }
 
-        if ($user instanceof User
+        $user = ApiAuthContext::resolveUser();
+
+        if ($user !== null
             && $user->must_change_password
             && ! $request->is('api/v1/auth/change-password')
             && ! $request->is('api/v1/auth/logout')
