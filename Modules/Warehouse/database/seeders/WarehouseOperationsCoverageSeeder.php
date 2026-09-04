@@ -57,6 +57,12 @@ class WarehouseOperationsCoverageSeeder extends Seeder
     /** Guard "đã seed đủ" — phiếu cuối cùng của lượt chạy đầy đủ. */
     private const GUARD_DOC_NO = 'PN-COV-Q0040';
 
+    /**
+     * Độ dài cửa sổ "vừa xảy ra" — xem seedRecentWindowCoverage(). Giữ >= 14 để
+     * phủ luôn preset "Tuần này" của báo cáo dù `db:seed` chạy vào Chủ nhật.
+     */
+    private const RECENT_WINDOW_DAYS = 14;
+
     /** Số SKU sản phẩm lấy mỗi nhóm hàng để nhập kho (trải đều mọi nhóm hàng). */
     private const PRODUCT_SKUS_PER_CATEGORY = 5;
 
@@ -140,6 +146,9 @@ class WarehouseOperationsCoverageSeeder extends Seeder
         $this->seedLabelPrintCoverage();
         $this->seedPutawayCoverage();
         $this->seedNotificationCoverage();
+        // Phải đứng TRƯỚC backfillDisplayGaps() để chứng từ vừa sinh trong cửa sổ
+        // 14 ngày gần nhất cũng được lấp nốt các ô hiển thị còn trống.
+        $this->seedRecentWindowCoverage($productSkus, $componentQtySkus);
         $this->backfillDisplayGaps();
 
         $this->command?->info('WarehouseOperationsCoverageSeeder: HOÀN TẤT — dữ liệu vận hành 06→09/2026 đủ mọi trạng thái.');
@@ -1023,6 +1032,7 @@ class WarehouseOperationsCoverageSeeder extends Seeder
      * hoặc serial-tracked phải khai MỖI MÁY MỘT DÒNG kèm item_id, quantity=1;
      * SKU quantity-mode đảo theo số lượng và KHÔNG được gán item_id.
      *
+     * @param  'receipt'|'issue'|'component_issue'  $documentType
      * @param  'DRAFT'|'POSTED'|'CANCELLED'  $target
      * @param  int|null  $maxLines  null = đảo toàn bộ; số = chỉ đảo ngần ấy dòng (hoàn một phần)
      */
@@ -1035,10 +1045,23 @@ class WarehouseOperationsCoverageSeeder extends Seeder
         bool $physicalReturnConfirmed,
         ?int $maxLines = null
     ): void {
-        $movementType = $documentType === 'receipt' ? 'RECEIPT' : 'ISSUE';
+        $movementType = match ($documentType) {
+            'receipt' => 'RECEIPT',
+            'component_issue' => 'COMPONENT_ISSUE',
+            default => 'ISSUE',
+        };
+        // Movement COMPONENT_ISSUE không thuộc stock_document nào (chứng từ linh
+        // kiện sống ở bảng riêng) — danh tính gốc nằm ở cặp source_type/source_id,
+        // đúng như CurrentBaselineReversalService::createDraft() truy ngược.
         $movements = DB::table('stock_movements')
-            ->where('stock_document_id', $documentId)
             ->where('movement_type', $movementType)
+            ->when(
+                $documentType === 'component_issue',
+                fn ($query) => $query
+                    ->where('source_type', 'COMPONENT_ISSUE_DOCUMENT')
+                    ->where('source_id', $documentId),
+                fn ($query) => $query->where('stock_document_id', $documentId),
+            )
             ->orderBy('created_at')
             ->get(['id', 'quantity', 'sku_id', 'product_id', 'item_id']);
         if ($movements->isEmpty()) {
@@ -1077,9 +1100,12 @@ class WarehouseOperationsCoverageSeeder extends Seeder
             }
             // BR-REV-03/04: chỉ đảo được item còn ở đúng trạng thái downstream.
             $itemStatus = (string) DB::table('item_instances')->where('item_id', $movement->item_id)->value('item_status');
-            $eligible = $documentType === 'receipt'
-                ? in_array($itemStatus, ['IN_STOCK', 'NEW'], true)
-                : in_array($itemStatus, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true);
+            $eligible = match ($documentType) {
+                'receipt' => in_array($itemStatus, ['IN_STOCK', 'NEW'], true),
+                // Linh kiện serial đã lĩnh cho hồ sơ bảo hành mang IN_WARRANTY.
+                'component_issue' => in_array($itemStatus, ['IN_WARRANTY', 'ISSUED'], true),
+                default => in_array($itemStatus, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true),
+            };
             if (! $eligible) {
                 continue;
             }
@@ -1108,7 +1134,9 @@ class WarehouseOperationsCoverageSeeder extends Seeder
             $payload['physical_return_confirmed'] = $target === 'POSTED' ? true : $physicalReturnConfirmed;
         }
 
-        $version = (int) DB::table('stock_documents')->where('id', $documentId)->value('version');
+        $version = (int) ($documentType === 'component_issue'
+            ? DB::table('component_issue_documents')->where('id', $documentId)->value('version')
+            : DB::table('stock_documents')->where('id', $documentId)->value('version'));
         $key = 'seed-cov-reversal-'.$documentId;
         $result = $this->reversal->execute($documentId, $documentType, $payload, $actorId, $key, sha1($key), $version);
         $reversalId = (string) $result['reversal_document_id'];
@@ -1893,11 +1921,11 @@ class WarehouseOperationsCoverageSeeder extends Seeder
                         'error_field' => $errorField,
                         'error_code' => $errorCode,
                         'error_message' => $errorMessage,
-                        'raw_payload' => json_encode(['sku_code' => $skuCode, 'qty' => $requiredQty], JSON_UNESCAPED_UNICODE),
-                        'normalized_payload' => json_encode(['sku_code' => $skuCode, 'required_qty' => $requiredQty], JSON_UNESCAPED_UNICODE),
+                        'raw_payload' => json_encode(['sku_code' => $skuCode, 'qty' => $requiredQty, 'request_no' => $importNo.'-R'.sprintf('%03d', $rowNo)], JSON_UNESCAPED_UNICODE),
+                        'normalized_payload' => json_encode(['sku_code' => $skuCode, 'required_qty' => $requiredQty, 'request_no' => $importNo.'-R'.sprintf('%03d', $rowNo)], JSON_UNESCAPED_UNICODE),
                         'validation_errors' => $errorCode === null
                             ? json_encode([], JSON_UNESCAPED_UNICODE)
-                            : json_encode([['code' => $errorCode, 'message' => $errorMessage, 'field' => $errorField]], JSON_UNESCAPED_UNICODE),
+                            : json_encode([['code' => $errorCode, 'error_code' => $errorCode, 'message' => $errorMessage, 'field' => $errorField]], JSON_UNESCAPED_UNICODE),
                         'created_at' => $day,
                     ]);
                 }
@@ -2424,6 +2452,749 @@ class WarehouseOperationsCoverageSeeder extends Seeder
         $end = Carbon::parse(self::END)->setTime(16, 0);
 
         return $day->gt($end) ? $end : $day;
+    }
+
+    // ==================================================================
+    //  CỬA SỔ "VỪA XẢY RA" — 14 NGÀY GẦN NHẤT TÍNH TỚI HÔM NAY
+    // ==================================================================
+
+    /**
+     * Vì sao phải có phase này (yêu cầu người dùng 04/09/2026):
+     *
+     * Mọi bộ lọc MẶC ĐỊNH của báo cáo neo vào NGÀY HIỆN TẠI chứ không neo vào
+     * lịch demo 06→09/2026 mà các phase trên rải dữ liệu:
+     *  - "Báo cáo Nhập – Xuất – Tồn" mở sẵn ở **hôm qua → hôm nay**;
+     *  - "Nhập liệu, đối chiếu & lỗi", "Trung tâm kiểm soát in nhãn", "Truy vết
+     *    hàng hoá" mở sẵn ở **đầu tháng → HÔM NAY** (preset `this-month` của FE
+     *    kết thúc ở today, KHÔNG phải cuối tháng — nên phần dữ liệu rơi vào các
+     *    ngày sau hôm nay không cứu được màn hình);
+     *  - Thẻ luồng của "Tổng quan vận hành" luôn nhìn 7 ngày gần nhất.
+     *
+     * Các phase trên dùng spreadIndex() nên rải ĐỀU 122 ngày: rơi đúng vào cửa
+     * sổ vài ngày cuối gần như không còn gì. Hệ quả người dùng thấy: cột "Hoàn
+     * tác" / "Ảnh hưởng hoàn tác" / "Nhập thuần / Xuất SP / Xuất LK" bằng 0,
+     * chuỗi "Điều chỉnh tồn kho" ở màn truy vết trống, cột "Lỗi / Trùng" của
+     * Import & Match và cột "Lỗi / lý do" của nhật ký in nhãn đều "Chưa có".
+     *
+     * Phase này NEO THEO now() nên chạy `db:seed` ngày nào cũng phủ đúng cửa sổ
+     * mặc định của ngày đó, và mỗi ngày trong cửa sổ đều có đủ 4 chiều của
+     * phương trình XNT (nhập / xuất sản phẩm / xuất linh kiện / điều chỉnh).
+     * Idempotent: mọi khoá tự nhiên đều nhúng ngày (PN-RW-20260904, IMP-RW-…),
+     * chạy lại trong cùng ngày không nhân bản.
+     *
+     * @param  list<string>  $productSkus
+     * @param  list<string>  $componentQtySkus
+     */
+    private function seedRecentWindowCoverage(array $productSkus, array $componentQtySkus): void
+    {
+        if ($productSkus === [] || $componentQtySkus === []) {
+            return;
+        }
+
+        $caseIds = DB::table('warranty_case')
+            ->whereIn('status', ['CHECKING', 'REPAIRING'])
+            ->orderBy('warranty_case_code')
+            ->pluck('warranty_case_id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+
+        $today = Carbon::today();
+        for ($back = self::RECENT_WINDOW_DAYS - 1; $back >= 0; $back--) {
+            $day = $today->copy()->subDays($back);
+            $tag = $day->format('Ymd');
+            $seq = self::RECENT_WINDOW_DAYS - $back;
+
+            // 1. Nhập sản phẩm serial — nuôi cột "Nhập thuần" và pool hiện vật
+            //    để cùng ngày còn có phiếu xuất. 3 SKU/phiếu vì kỳ mặc định của
+            //    RPT-XNT-01 chỉ dài 2 ngày: 1 SKU/ngày thì gần như cả bảng vẫn 0.
+            $serialSkus = array_values(array_unique([
+                $productSkus[$seq % count($productSkus)],
+                $productSkus[($seq + 7) % count($productSkus)],
+                $productSkus[($seq + 13) % count($productSkus)],
+            ]));
+            $received = $this->recentSerialReceipt('PN-RW-'.$tag, $serialSkus, $day->copy()->setTime(8, 30), $seq);
+
+            // 2. Nhập linh kiện theo số lượng — nguồn để đảo phiếu NHẬP mà không
+            //    vướng guard DOWNSTREAM_DEPENDENCY của hiện vật serial.
+            $qtySkus = array_values(array_unique([
+                $componentQtySkus[$seq % count($componentQtySkus)],
+                $componentQtySkus[($seq + 2) % count($componentQtySkus)],
+            ]));
+            $this->recentQuantityReceipt('PN-RWQ-'.$tag, $qtySkus, $day->copy()->setTime(9, 15), $seq);
+
+            // 3. Xuất bán (cột "Xuất SP") + bản chụp nhãn của chính phiếu đó.
+            $this->recentIssue('PX-RW-'.$tag, $received, $day->copy()->setTime(14, 10), $seq, $back);
+
+            // 4. Xuất linh kiện bảo hành (cột "Xuất LK").
+            $this->recentComponentIssue('CIQ-RW-'.$tag, $qtySkus[0], $caseIds, $day->copy()->setTime(15, 40), $seq);
+
+            // 5. Điều chỉnh tồn kho — luân phiên đảo NHẬP / XUẤT / XUẤT LINH KIỆN
+            //    để cả ba cột `receipt_reversal` / `issue_reversal` /
+            //    `component_issue_reversal` của RPT-XNT-01 đều có số.
+            $this->recentReversal($tag, $day, $seq, $back);
+
+            // 6. Nhật ký in nhãn có lần in LỖI kèm mã lỗi + lý do.
+            $this->recentLabelPrintEvents('PX-RW-'.$tag, $day, $seq);
+
+            // 7. Nhập liệu & đối chiếu — cả hai ngữ cảnh IMPORT và MATCH đều phải
+            //    có dòng LỖI và dòng TRÙNG. Xen kẽ ngày chẵn/lẻ cho giống nhật ký
+            //    thật, nhưng HÔM NAY và HÔM QUA thì cả hai đều phải có: kỳ mặc
+            //    định của màn này có thể chỉ dài đúng 1-2 ngày (mùng 1, mùng 2).
+            $this->recentImportReport($tag, $day, $seq, $back);
+            $this->recentMatchImport($tag, $day, $seq, $back);
+
+            // 8. Điều chỉnh không truy được chứng từ gốc — nguồn DUY NHẤT của KPI
+            //    "Ảnh hưởng hoàn tác (+/−)" (xem docblock của phương thức).
+            if ($seq % 3 === 1 || $back <= 1) {
+                $this->recentOpeningAdjustment($tag, $day, $seq);
+            }
+        }
+
+        $this->command?->info(
+            '  đã bổ sung dữ liệu '.self::RECENT_WINDOW_DAYS.' ngày gần nhất ('
+            .$today->copy()->subDays(self::RECENT_WINDOW_DAYS - 1)->toDateString().' → '.$today->toDateString().').'
+        );
+    }
+
+    /**
+     * Phiếu nhập linh kiện theo SỐ LƯỢNG của một ngày trong cửa sổ.
+     *
+     * @param  list<string>  $skus
+     */
+    private function recentQuantityReceipt(string $docNo, array $skus, Carbon $day, int $seq): void
+    {
+        if ($skus === [] || DB::table('stock_documents')->where('doc_no', $docNo)->exists()) {
+            return;
+        }
+
+        $actorId = $this->actorFor('inbound', $seq + 1);
+        Carbon::setTestNow($day);
+        try {
+            $lines = [];
+            foreach ($skus as $n => $skuId) {
+                $lines[] = ['product_id' => $skuId, 'qty_planned' => 12 + ($n * 4) + ($seq % 5)];
+            }
+            [$docId, $lineIds] = $this->createDocument('receipt', $docNo, $lines, $actorId, [
+                'source_name' => 'Phiếu giao hàng NCC linh kiện '.$docNo,
+                'note' => 'Nhập linh kiện rời theo số lượng — dữ liệu vận hành ngày '.$day->format('d/m/Y').'.',
+            ]);
+            foreach ($lines as $n => $line) {
+                $this->stock->scanStockDocument($docId, 'receipt', [
+                    'line_id' => $lineIds[$n],
+                    'quantity' => (int) $line['qty_planned'],
+                ], $actorId);
+            }
+            $this->postDocument($docId, 'receipt', $actorId);
+        } catch (Throwable $e) {
+            $this->command?->warn('  phiếu nhập linh kiện '.$docNo.': '.$this->describe($e));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    /**
+     * Phiếu nhập serial NHIỀU SKU của một ngày trong cửa sổ.
+     *
+     * receiptBatch() chỉ nhập được 1 SKU/phiếu (dùng cho lô lớn của phase chính);
+     * ở đây cần trải rộng SKU trên ít ngày nên tự dựng phiếu nhiều dòng.
+     *
+     * @param  list<string>  $skus
+     * @return list<array{sku_id:string,item_id:string}>
+     */
+    private function recentSerialReceipt(string $docNo, array $skus, Carbon $day, int $seq): array
+    {
+        if ($skus === []) {
+            return [];
+        }
+
+        $serials = [];
+        foreach ($skus as $index => $skuId) {
+            $serials[] = ['sku_id' => $skuId, 'serial' => 'SN-'.$docNo.'-'.sprintf('%03d', $index + 1)];
+        }
+
+        if (! DB::table('stock_documents')->where('doc_no', $docNo)->exists()) {
+            $actorId = $this->actorFor('inbound', $seq);
+            Carbon::setTestNow($day);
+            try {
+                $lines = array_map(fn ($row) => ['product_id' => $row['sku_id'], 'qty_planned' => 1], $serials);
+                [$docId, $lineIds] = $this->createDocument('receipt', $docNo, $lines, $actorId, [
+                    'source_name' => 'Hoá đơn NCC '.strtoupper(substr(md5($docNo), 0, 6)).' — lô '.$docNo,
+                    'note' => 'Nhập kho ngày '.$day->format('d/m/Y').'.',
+                ]);
+                foreach ($serials as $i => $row) {
+                    $skuCode = (string) DB::table('sku')->where('sku_id', $row['sku_id'])->value('sku_code');
+                    $this->stock->scanStockDocument($docId, 'receipt', [
+                        'line_id' => $lineIds[$i],
+                        'quantity' => 1,
+                        'code_value' => "HN1|SKU={$skuCode}|ITEM={$row['serial']}",
+                    ], $actorId);
+                }
+                $this->postDocument($docId, 'receipt', $actorId);
+            } catch (Throwable $e) {
+                $this->command?->warn('  phiếu nhập '.$docNo.': '.$this->describe($e));
+            } finally {
+                Carbon::setTestNow();
+            }
+        }
+
+        $received = [];
+        foreach ($serials as $row) {
+            $itemId = DB::table('item_instances')->where('serial_number', $row['serial'])->value('item_id');
+            if ($itemId !== null) {
+                $received[] = ['sku_id' => $row['sku_id'], 'item_id' => (string) $itemId];
+            }
+        }
+
+        return $received;
+    }
+
+    /**
+     * Phiếu xuất bán của một ngày trong cửa sổ — dùng chính hiện vật vừa nhập
+     * cùng ngày nên không tranh chấp pool tồn của các phase trước.
+     *
+     * @param  list<array{sku_id:string,item_id:string}>  $received
+     */
+    private function recentIssue(string $docNo, array $received, Carbon $day, int $seq, int $back): void
+    {
+        if ($received === [] || DB::table('stock_documents')->where('doc_no', $docNo)->exists()) {
+            return;
+        }
+        $recipient = $this->recipients[$seq % max(1, count($this->recipients))] ?? null;
+        if ($recipient === null) {
+            return;
+        }
+
+        // Chừa hiện vật cuối cùng lại trong kho để màn tồn kho vẫn có hàng mới về.
+        $eligible = array_values(array_filter(
+            array_slice($received, 0, max(1, count($received) - 1)),
+            fn ($row) => DB::table('item_instances')->where('item_id', $row['item_id'])->value('item_status') === 'IN_STOCK'
+        ));
+        if ($eligible === []) {
+            return;
+        }
+
+        $actorId = $this->actorFor('outbound', $seq);
+        Carbon::setTestNow($day);
+        try {
+            $requestLines = [];
+            foreach ($eligible as $row) {
+                $requestLines[$row['sku_id']] = ($requestLines[$row['sku_id']] ?? 0) + 1;
+            }
+            $requestId = $this->createOutboundRequest(
+                'TOA-RW-'.$day->format('Ymd'),
+                array_map(fn ($skuId, $qty) => [$skuId, $qty], array_keys($requestLines), array_values($requestLines)),
+                $recipient,
+                $actorId,
+                'CONSUMED'
+            );
+            $lines = array_map(fn ($row) => ['product_id' => $row['sku_id'], 'qty_planned' => 1], $eligible);
+            [$docId, $lineIds] = $this->createDocument('issue', $docNo, $lines, $actorId, [
+                'outbound_request_id' => $requestId,
+                'agency_id' => $recipient['id'],
+                'recipient_name' => $recipient['name'],
+                'recipient_address' => $recipient['address'],
+                'note' => 'Giao hàng ngày '.$day->format('d/m/Y').' — '.$recipient['name'].'.',
+            ]);
+            foreach ($eligible as $i => $row) {
+                $this->stock->scanStockDocument($docId, 'issue', [
+                    'line_id' => $lineIds[$i],
+                    'quantity' => 1,
+                    'item_id' => $row['item_id'],
+                ], $actorId);
+            }
+            // markLabelPrinted() chọn trạng thái bản chụp theo `seq % 8` (5 = chờ
+            // in, 7 = in lỗi). Kỳ mặc định của Trung tâm in nhãn là "đầu tháng →
+            // hôm nay" nên có thể chỉ dài 1-2 ngày; ép hai ngày gần nhất mang đủ
+            // "in lỗi" và "chờ in" để KPI + bộ lọc kết quả luôn ra dòng.
+            $this->markLabelPrinted($docId, $eligible[0]['sku_id'], $actorId, match ($back) {
+                1 => 7,
+                2 => 5,
+                default => $seq,
+            });
+            $this->postDocument($docId, 'issue', $actorId);
+        } catch (Throwable $e) {
+            $this->command?->warn('  phiếu xuất '.$docNo.': '.$this->describe($e));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    /**
+     * Phiếu xuất linh kiện bảo hành theo số lượng của một ngày trong cửa sổ.
+     *
+     * @param  list<string>  $caseIds
+     */
+    private function recentComponentIssue(string $issueNo, string $skuId, array $caseIds, Carbon $day, int $seq): void
+    {
+        if ($caseIds === [] || DB::table('component_issue_documents')->where('component_issue_no', $issueNo)->exists()) {
+            return;
+        }
+
+        // Chỉ xuất trong phạm vi tồn khả dụng để không đẩy tồn xuống âm.
+        $available = (int) DB::table('inventory_balances')
+            ->where('warehouse_id', $this->warehouseId)
+            ->where(fn ($q) => $q->where('sku_id', $skuId)->orWhere('product_id', $skuId))
+            ->where('stock_status', 'AVAILABLE')
+            ->sum('available_qty');
+        $qty = min(2 + ($seq % 4), max(0, $available - 2));
+        if ($qty <= 0) {
+            return;
+        }
+
+        $actorId = $this->actorFor('warranty', $seq);
+        Carbon::setTestNow($day);
+        try {
+            $documentId = $this->createComponentIssueDocument($issueNo, $caseIds[$seq % count($caseIds)], $actorId, 'DRAFT');
+            DB::table('component_issue_lines')->insert([
+                'id' => (string) Str::uuid(),
+                'component_issue_document_id' => $documentId,
+                'line_no' => 1,
+                'sku_id' => $skuId,
+                'required_qty' => $qty,
+                'scanned_qty' => $qty,
+                'created_at' => now(), 'created_by' => $actorId,
+                'updated_at' => now(), 'updated_by' => $actorId,
+                'version' => 0,
+            ]);
+            $key = 'seed-rw-cq-'.$documentId;
+            $this->stock->postComponentIssue($documentId, $actorId, $key, sha1($key));
+        } catch (Throwable $e) {
+            $this->command?->warn('  phiếu xuất linh kiện '.$issueNo.': '.$this->describe($e));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    /**
+     * Một phiếu điều chỉnh tồn kho mỗi ngày, luân phiên đảo NHẬP → XUẤT → XUẤT
+     * LINH KIỆN và luân phiên trạng thái POSTED / DRAFT / CANCELLED.
+     *
+     * Đảo phiếu nhập luôn nhắm vào phiếu linh kiện theo SỐ LƯỢNG (`PN-RWQ-*`):
+     * đảo phiếu nhập serial cùng ngày sẽ vướng BR-REV-03 nếu hiện vật đã lên
+     * phiếu xuất trong cùng ngày.
+     *
+     * Luân phiên trạng thái tính theo $back (số ngày lùi) chứ KHÔNG theo $seq:
+     * DRAFT/CANCELLED không sinh movement nào, mà kỳ mặc định của RPT-XNT-01 chỉ
+     * dài đúng 2 ngày (hôm qua → hôm nay) — rơi trúng hai ngày đó thì cột "Hoàn
+     * tác" lại bằng 0 y như trước. Hai ngày gần nhất vì vậy luôn POSTED.
+     */
+    private function recentReversal(string $tag, Carbon $day, int $seq, int $back): void
+    {
+        $target = match (true) {
+            $back <= 1 => 'POSTED',
+            $back % 7 === 4 => 'CANCELLED',
+            $back % 5 === 3 => 'DRAFT',
+            default => 'POSTED',
+        };
+
+        [$documentId, $documentType, $reason] = match ($seq % 3) {
+            0 => [
+                DB::table('stock_documents')->where('doc_no', 'PN-RWQ-'.$tag)->where('status', 'POSTED')->value('id'),
+                'receipt',
+                'Kiểm đếm lại lô linh kiện vừa nhập, số thực nhận ít hơn phiếu giao hàng NCC.',
+            ],
+            1 => [
+                DB::table('stock_documents')->where('doc_no', 'PX-RW-'.$tag)->where('status', 'POSTED')->value('id'),
+                'issue',
+                'Khách trả lại máy do giao sai cấu hình so với đơn đặt hàng.',
+            ],
+            default => [
+                DB::table('component_issue_documents')->where('component_issue_no', 'CIQ-RW-'.$tag)->where('status', 'POSTED')->value('id'),
+                'component_issue',
+                'Linh kiện đã lĩnh nhưng không dùng tới, kỹ thuật nhập trả lại kho.',
+            ],
+        };
+        if ($documentId === null) {
+            return;
+        }
+
+        Carbon::setTestNow($day->copy()->setTime(16, 45));
+        try {
+            $this->runReversal(
+                (string) $documentId,
+                $documentType,
+                $target,
+                $reason,
+                $this->actorFor('inbound', $seq + 2),
+                $target === 'POSTED',
+                1
+            );
+        } catch (Throwable $e) {
+            $this->command?->warn('  điều chỉnh tồn kho '.$tag.' ('.$documentType.'): '.$this->describe($e));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    /**
+     * Nhật ký in nhãn của phiếu xuất trong ngày.
+     *
+     * Cột "Lỗi / lý do" của RPT-LABEL-01 đọc `error_code` + `metadata.reason` +
+     * `error_message` của TỪNG lần in, mà lần in lỗi duy nhất trong bộ dữ liệu cũ
+     * nằm ở tháng 6–8 (seedLabelPrintCoverage() chỉ lấy 40 bản chụp CŨ NHẤT) nên
+     * cửa sổ mặc định không bao giờ thấy. Ở đây mỗi 3/4 số ngày có ít nhất một
+     * lần in lỗi, đủ mã lỗi khác nhau để bộ lọc "Kết quả = In lỗi" cũng ra dòng.
+     */
+    private function recentLabelPrintEvents(string $docNo, Carbon $day, int $seq): void
+    {
+        $snapshotId = DB::table('label_snapshots as ls')
+            ->join('stock_documents as sd', 'sd.id', '=', 'ls.outbound_document_id')
+            ->where('sd.doc_no', $docNo)
+            ->value('ls.id');
+        if ($snapshotId === null) {
+            return;
+        }
+
+        // Máy in phải ACTIVE tại thời điểm ghi sự kiện (trg_erd_print_printer_active).
+        $printers = DB::table('printer_configs')->where('status', 'ACTIVE')->orderBy('printer_code')->get(['id']);
+        if ($printers->isEmpty()) {
+            return;
+        }
+
+        // [event_type, status, error_code, error_message, reason]
+        $attempts = match ($seq % 4) {
+            0 => [
+                ['PRINT', 'FAILED', 'PRINTER_OUT_OF_PAPER', 'Máy in báo hết giấy, lệnh in bị huỷ giữa chừng.', 'OUT_OF_PAPER'],
+                ['REPRINT', 'PRINTED', null, null, null],
+            ],
+            1 => [
+                ['PRINT', 'FAILED', 'PRINTER_OFFLINE', 'Mất kết nối tới agent in đặt tại kho tổng.', 'PRINTER_OFFLINE'],
+                ['PRINT', 'FAILED', 'LABEL_TEMPLATE_INVALID', 'Mẫu nhãn không khớp khổ giấy đang nạp trên máy in.', 'TEMPLATE_MISMATCH'],
+            ],
+            2 => [
+                ['PRINT', 'PRINTED', null, null, null],
+                ['REPRINT', 'FAILED', 'PRINTER_JAMMED', 'Kẹt giấy khi in lại nhãn thùng, cần thao tác thủ công.', 'PAPER_JAM'],
+            ],
+            default => [
+                ['PRINT', 'PRINTED', null, null, null],
+            ],
+        };
+
+        foreach ($attempts as $index => [$eventType, $status, $errorCode, $errorMessage, $reason]) {
+            $requestId = 'seed-rw-label-'.$snapshotId.'-'.$index;
+            if (DB::table('label_print_events')->where('request_id', $requestId)->exists()) {
+                continue;
+            }
+
+            $printer = $printers[($seq + $index) % $printers->count()];
+            $at = $day->copy()->setTime(14, 30 + ($index * 7));
+            $attemptNo = 1 + (int) DB::table('label_print_events')
+                ->where('label_snapshot_id', $snapshotId)
+                ->max('attempt_no');
+            $actorId = $this->actorFor('outbound', $seq + $index);
+
+            try {
+                DB::table('label_print_events')->insert([
+                    'id' => (string) Str::uuid(),
+                    'label_snapshot_id' => $snapshotId,
+                    'printer_config_id' => $printer->id,
+                    'printer_id' => $printer->id,
+                    'event_type' => $eventType,
+                    'attempt_no' => $attemptNo,
+                    'status' => $status,
+                    'error_code' => $errorCode,
+                    'error_message' => $errorMessage,
+                    'requested_at' => $at->copy()->subMinutes(2),
+                    'printed_at' => $status === 'PRINTED' ? $at : null,
+                    'completed_at' => in_array($status, ['PRINTED', 'FAILED'], true) ? $at : null,
+                    'job_id' => 'JOB-'.strtoupper(substr(md5($requestId), 0, 10)),
+                    'request_id' => $requestId,
+                    'actor_id' => $actorId,
+                    'metadata' => json_encode(
+                        array_filter(['source' => 'seeder-recent-window', 'reason' => $reason]),
+                        JSON_UNESCAPED_UNICODE
+                    ),
+                    'created_at' => $at,
+                    'created_by' => $actorId,
+                    'updated_at' => $at,
+                    'updated_by' => $actorId,
+                    'version' => 0,
+                ]);
+            } catch (Throwable $e) {
+                $this->command?->warn('  nhật ký in nhãn '.$docNo.': '.$this->describe($e));
+            }
+        }
+    }
+
+    /**
+     * Nhật ký import danh mục SKU (ngữ cảnh IMPORT của màn "Nhập liệu, đối chiếu
+     * & lỗi") — mỗi 2 ngày một lô, luôn có cả dòng TRÙNG lẫn dòng LỖI để hai ô
+     * thống kê "Trùng" / "Lỗi" và hai bộ lọc kết quả tương ứng đều ra dữ liệu.
+     */
+    private function recentImportReport(string $tag, Carbon $day, int $seq, int $back): void
+    {
+        if ($seq % 2 === 0 && $back > 1) {
+            return;
+        }
+        $requestId = 'seed-rw-import-'.$tag;
+        if (DB::table('import_reports')->where('request_id', $requestId)->exists()) {
+            return;
+        }
+
+        [$status, $mode, $total, $duplicates, $failures] = match ($seq % 6) {
+            1 => ['COMMITTED', 'COMMIT', 90, 4, 3],
+            3 => ['REJECTED', 'VALIDATE', 45, 9, 8],
+            default => ['VALID', 'VALIDATE', 60, 3, 2],
+        };
+
+        $rowErrors = [];
+        $row = 2;
+        for ($d = 0; $d < $duplicates; $d++, $row++) {
+            $rowErrors[] = [
+                'row' => $row,
+                'code' => 'SKU_CODE_DUPLICATE',
+                'message' => 'Mã SKU đã tồn tại trong hệ thống, dòng bị bỏ qua.',
+                'field' => 'sku_code',
+            ];
+        }
+        $failureCodes = [
+            ['MISSING_REQUIRED_FIELD', 'Thiếu trường bắt buộc "Tên SKU".', 'sku_name'],
+            ['INVALID_CATEGORY', 'Nhóm hàng không tồn tại trong danh mục.', 'category_code'],
+            ['INVALID_BRAND', 'Hãng không tồn tại trong danh mục.', 'brand_code'],
+            ['INVALID_UNIT', 'Đơn vị tính không hợp lệ.', 'unit'],
+            ['INVALID_TRACKING_MODE', 'Cách theo dõi phải là SERIAL hoặc QUANTITY.', 'tracking_mode'],
+        ];
+        for ($f = 0; $f < $failures; $f++, $row++) {
+            [$code, $message, $field] = $failureCodes[$f % count($failureCodes)];
+            $rowErrors[] = ['row' => $row, 'code' => $code, 'message' => $message, 'field' => $field];
+        }
+
+        $errorRows = $duplicates + $failures;
+        $validRows = $total - $errorRows;
+        $inserted = $mode === 'COMMIT' ? (int) round($validRows * 0.8) : 0;
+        $at = $day->copy()->setTime(10, 20);
+
+        DB::table('import_reports')->insert([
+            'import_report_id' => (string) Str::uuid(),
+            'import_type' => 'SKU',
+            'mode' => $mode,
+            'status' => $status,
+            'file_name' => 'danh-muc-sku-'.$tag.'.xlsx',
+            'file_sha256' => hash('sha256', $requestId),
+            'template_version' => 'v1',
+            'total_rows' => $total,
+            'valid_rows' => $validRows,
+            'error_rows' => $errorRows,
+            'inserted_rows' => $inserted,
+            'updated_rows' => $mode === 'COMMIT' ? $validRows - $inserted : 0,
+            'row_errors' => json_encode($rowErrors, JSON_UNESCAPED_UNICODE),
+            'actor_id' => $this->actorFor('inbound', $seq),
+            'request_id' => $requestId,
+            'options_fingerprint' => hash('sha256', 'seed-rw-options-'.$tag),
+            'created_at' => $at,
+            'updated_at' => $at,
+        ]);
+    }
+
+    /**
+     * Lô toa xuất (ngữ cảnh MATCH của cùng màn) — mỗi 2 ngày một lô.
+     *
+     * Bộ dữ liệu cũ chỉ sinh `SKU_NOT_FOUND` và `QTY_EXCEEDS_STOCK`, KHÔNG có mã
+     * lỗi nào mang nghĩa "trùng", nên ô "Trùng" của ngữ cảnh MATCH luôn bằng 0
+     * bất kể kỳ đang xem (FE nhận diện trùng qua mã chứa DUPLICATE /
+     * ALREADY_EXISTS / ALREADY_MATCHED). Ở đây bổ sung đúng hai mã đó.
+     */
+    private function recentMatchImport(string $tag, Carbon $day, int $seq, int $back): void
+    {
+        if ($seq % 2 === 1 && $back > 1) {
+            return;
+        }
+        $importNo = 'IMP-RW-'.$tag;
+        if (DB::table('outbound_request_imports')->where('import_no', $importNo)->exists()) {
+            return;
+        }
+
+        $skuCodes = DB::table('skus')->where('status', 'ACTIVE')->orderBy('sku_code')->limit(40)->pluck('sku_code');
+        if ($skuCodes->isEmpty()) {
+            return;
+        }
+
+        // [validation_status, error_code, error_message, error_field, số dòng]
+        $mix = [
+            ['VALID', null, null, null, 6 + ($seq % 4)],
+            ['WARNING', 'QTY_EXCEEDS_STOCK', 'Số lượng yêu cầu lớn hơn tồn khả dụng hiện tại.', 'required_qty', 2],
+            ['ERROR', 'SKU_NOT_FOUND', 'Mã SKU không tồn tại trong danh mục.', 'sku_code', 2 + ($seq % 3)],
+            ['ERROR', 'SKU_ALREADY_MATCHED', 'Dòng toa xuất này đã được đối chiếu ở lô nhập trước, bỏ qua.', 'request_no', 2],
+            ['ERROR', 'DUPLICATE_REQUEST_NO', 'Số toa xuất bị lặp trong cùng một tệp Excel.', 'request_no', 1 + ($seq % 2)],
+        ];
+
+        $status = match ($seq % 6) {
+            0 => 'CONSUMED',
+            2 => 'VALIDATED',
+            default => 'REJECTED',
+        };
+        $at = $day->copy()->setTime(8, 50);
+        $total = array_sum(array_column($mix, 4));
+        $valid = $mix[0][4];
+        $importId = (string) Str::uuid();
+        $actorId = $this->actorFor('outbound', $seq);
+
+        DB::table('outbound_request_imports')->insert([
+            'id' => $importId,
+            'import_no' => $importNo,
+            'source_file_name' => 'toa-xuat-'.$tag.'.xlsx',
+            'source_key' => 'seed/'.strtolower($importNo).'.xlsx',
+            'source_checksum' => hash('sha256', $importNo),
+            'status' => $status,
+            'total_rows' => $total,
+            'valid_rows' => $valid,
+            'error_rows' => $total - $valid - $mix[1][4],
+            'uploaded_at' => $at,
+            'uploaded_by' => $actorId,
+            'validated_at' => $at->copy()->addMinutes(12),
+            'consumed_at' => $status === 'CONSUMED' ? $at->copy()->addHours(2) : null,
+            'consumed_by' => $status === 'CONSUMED' ? $actorId : null,
+            'version' => 1,
+            'created_by' => $actorId,
+            'updated_by' => $actorId,
+            'created_at' => $at,
+            'updated_at' => $at,
+        ]);
+
+        $rowNo = 0;
+        foreach ($mix as [$validationStatus, $errorCode, $errorMessage, $errorField, $count]) {
+            for ($n = 0; $n < $count; $n++) {
+                $rowNo++;
+                $skuCode = (string) $skuCodes[($rowNo + $seq) % $skuCodes->count()];
+                $recipient = $this->recipients[$rowNo % max(1, count($this->recipients))] ?? [];
+                $requiredQty = 1 + (($rowNo + $seq) % 12);
+                // Dòng trùng cố ý lặp lại số toa của dòng đầu tiên để người đọc
+                // nhìn ra ngay vì sao nó bị đánh dấu trùng.
+                $requestNo = in_array($errorCode, ['SKU_ALREADY_MATCHED', 'DUPLICATE_REQUEST_NO'], true)
+                    ? $importNo.'-R001'
+                    : $importNo.'-R'.sprintf('%03d', $rowNo);
+
+                DB::table('outbound_request_import_rows')->insert([
+                    'id' => (string) Str::uuid(),
+                    'import_id' => $importId,
+                    'row_no' => $rowNo,
+                    'request_no' => $requestNo,
+                    'customer_name' => $recipient['name'] ?? 'Khách lẻ',
+                    'customer_address' => $recipient['address'] ?? 'Việt Nam',
+                    'sku_code' => $errorCode === 'SKU_NOT_FOUND' ? 'SKU-KHONG-TON-TAI-'.$rowNo : $skuCode,
+                    'product_name_raw' => 'Dòng '.$rowNo.' — '.$skuCode,
+                    'required_qty' => $requiredQty,
+                    'note' => 'Dòng nhập từ tệp Excel '.$importNo.'.',
+                    'validation_status' => $validationStatus,
+                    'error_field' => $errorField,
+                    'error_code' => $errorCode,
+                    'error_message' => $errorMessage,
+                    'raw_payload' => json_encode(['sku_code' => $skuCode, 'qty' => $requiredQty, 'request_no' => $requestNo], JSON_UNESCAPED_UNICODE),
+                    // AlignedImportMatchReportController đọc sku_code/required_qty/
+                    // request_no TỪ normalized_payload (không đọc cột), nên payload
+                    // phải mang đủ ba khoá này.
+                    'normalized_payload' => json_encode(['sku_code' => $skuCode, 'required_qty' => $requiredQty, 'request_no' => $requestNo], JSON_UNESCAPED_UNICODE),
+                    // Cột "Mã lỗi" của RPT-04 lấy `validation_errors[0].error_code`
+                    // chứ không lấy cột `error_code`; thiếu khoá này thì ô "Trùng"
+                    // của ngữ cảnh Đối chiếu luôn bằng 0 dù dòng đã đánh dấu lỗi.
+                    'validation_errors' => $errorCode === null
+                        ? json_encode([], JSON_UNESCAPED_UNICODE)
+                        : json_encode([['code' => $errorCode, 'error_code' => $errorCode, 'message' => $errorMessage, 'field' => $errorField]], JSON_UNESCAPED_UNICODE),
+                    'created_at' => $at,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Điều chỉnh tồn kho KHÔNG truy được chứng từ gốc ("kiểm kê tồn đầu kỳ").
+     *
+     * KPI "Ảnh hưởng hoàn tác (+/−)" của RPT-XNT-01 chính là `reversal_unlinked_net`
+     * = phần REVERSAL mà `resolveCorrectionRootTypes()` không quy được về
+     * RECEIPT / ISSUE / COMPONENT_ISSUE — theo mô tả contract là "dữ liệu
+     * migrate/OPENING". Mọi reversal đi qua CurrentBaselineReversalService đều
+     * gắn `original_movement_id` trỏ về đúng ba loại trên, mà service KHÔNG cho
+     * đảo movement OPENING (REVERSIBLE_MOVEMENT_TYPES), nên nếu chỉ dùng service
+     * thì KPI này bằng 0 vĩnh viễn và ô đó không bao giờ có dữ liệu.
+     *
+     * Vì vậy đây là chỗ DUY NHẤT trong seeder ghi thẳng sổ cái. Ba ràng buộc
+     * được giữ nguyên để không đẻ chênh lệch giả ở RPT-INV-01:
+     *  1. ghi `inventory_balances` và `stock_movements` trong CÙNG transaction,
+     *     đúng thứ tự và đúng công thức của CurrentBaselineStockService::
+     *     mutateBalance() ⇒ sổ cái = sổ tồn, phép kiểm `ledger_to_balance` vẫn MATCH;
+     *  2. chỉ chọn SKU linh kiện theo SỐ LƯỢNG ⇒ không có sổ phụ serial để lệch
+     *     (`serial_subledger` = NOT_APPLICABLE);
+     *  3. chỉ điều chỉnh TĂNG tồn ⇒ `quantity_subledger` (box_qty <= on_hand) và
+     *     `container_integrity` không thể chuyển sang MISMATCH.
+     *
+     * KHÔNG lọc theo stock_status: tuỳ thứ tự seeder, bucket AVAILABLE của nhóm
+     * SKU này có thể đã bị seedStockStatusSpread() chuyển hết sang DEFECTIVE /
+     * QUARANTINE / NON_SELLABLE, lọc cứng AVAILABLE thì pool rỗng và KPI lại về 0.
+     * `available_qty` chỉ cộng thêm khi bucket đúng là AVAILABLE — đúng công thức
+     * của mutateBalance().
+     */
+    private function recentOpeningAdjustment(string $tag, Carbon $day, int $seq): void
+    {
+        $businessKey = 'REVERSAL|OPENING-ADJ|'.$tag;
+        if (DB::table('stock_movements')->where('business_key', $businessKey)->exists()) {
+            return;
+        }
+
+        $opening = DB::table('stock_movements as m')
+            ->join('skus as s', 's.id', '=', 'm.product_id')
+            ->where('m.movement_type', 'OPENING')
+            ->where('m.warehouse_id', $this->warehouseId)
+            ->where('s.sku_type', 'COMPONENT')
+            ->where('s.tracking_mode', 'QUANTITY')
+            ->orderBy('m.id')
+            ->skip($seq % 8)
+            ->first(['m.id', 'm.product_id', 'm.warehouse_id', 'm.stock_status']);
+        if ($opening === null) {
+            return;
+        }
+
+        $qty = 2 + ($seq % 4);
+        $actorId = $this->actorFor('inbound', $seq + 3);
+        $at = $day->copy()->setTime(17, 20);
+
+        try {
+            DB::transaction(function () use ($opening, $qty, $actorId, $at, $businessKey): void {
+                $balance = DB::table('inventory_balances')
+                    ->where('warehouse_id', $opening->warehouse_id)
+                    ->where(fn ($q) => $q->where('sku_id', $opening->product_id)->orWhere('product_id', $opening->product_id))
+                    ->where('stock_status', $opening->stock_status)
+                    ->lockForUpdate()
+                    ->first();
+                if ($balance === null) {
+                    return;
+                }
+
+                $before = (int) $balance->quantity;
+                $after = $before + $qty;
+                DB::table('inventory_balances')->where('id', $balance->id)->update([
+                    'quantity' => $after,
+                    'on_hand_qty' => $after,
+                    'available_qty' => $opening->stock_status === 'AVAILABLE'
+                        ? (int) $balance->available_qty + $qty
+                        : (int) $balance->available_qty,
+                    'version' => (int) $balance->version + 1,
+                    'updated_at' => $at,
+                ]);
+
+                DB::table('stock_movements')->insert([
+                    'id' => (string) Str::uuid(),
+                    'movement_no' => 'MV-'.$at->format('Ymd').'-'.Str::upper(Str::random(8)),
+                    'business_key' => $businessKey,
+                    'movement_type' => 'REVERSAL',
+                    'warehouse_id' => $opening->warehouse_id,
+                    'product_id' => $opening->product_id,
+                    'sku_id' => $opening->product_id,
+                    'stock_status' => $opening->stock_status,
+                    'quantity' => $qty,
+                    'qty_before' => $before,
+                    'qty_delta' => $qty,
+                    'qty_after' => $after,
+                    'source_type' => 'OPENING_ADJUSTMENT',
+                    'original_movement_id' => $opening->id,
+                    'correction_chain_id' => (string) Str::uuid(),
+                    'created_by' => $actorId,
+                    'occurred_at' => $at,
+                    'created_at' => $at,
+                ]);
+            }, 3);
+        } catch (Throwable $e) {
+            $this->command?->warn('  điều chỉnh tồn đầu kỳ '.$tag.': '.$this->describe($e));
+        }
     }
 
     private function quarterOf(Carbon $day): int
