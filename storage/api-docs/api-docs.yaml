@@ -10233,6 +10233,738 @@ paths:
         -
           bearerAuth: []
       x-permission: inbound.scan
+  /api/v1/mini-app/items:
+    get:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App - danh sách hiện vật kèm trạng thái chip NFC'
+      description: 'Worklist của màn gán NFC: mỗi dòng là MỘT hiện vật (item_instance) kèm `nfc_status` (UNASSIGNED|ASSIGNED), khối `nfc` và `nfc_payload`. Mặc định chỉ trả item_status=IN_STOCK; gửi item_status=ALL để bỏ lọc. Read-only.'
+      operationId: mini_app_item_list
+      parameters:
+        -
+          name: keyword
+          in: query
+          description: 'Khớp serial_number, sku_code hoặc sku_name.'
+          schema:
+            type: string
+            maxLength: 200
+        -
+          name: sku_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: item_status
+          in: query
+          description: 'Mặc định IN_STOCK; ALL để bỏ lọc.'
+          schema:
+            type: string
+            default: IN_STOCK
+        -
+          name: container_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: nfc_status
+          in: query
+          schema:
+            type: string
+            default: ALL
+            enum:
+              - UNASSIGNED
+              - ASSIGNED
+              - ALL
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+            minimum: 1
+      responses:
+        200:
+          description: 'Trang hiện vật kèm nfc_status/nfc/nfc_payload.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Thiếu cả ba quyền được chấp nhận.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+      x-permission: physical_code.assign_rfid|item_instance.view|inventory.view
+  '/api/v1/mini-app/items/{itemId}/nfc':
+    patch:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App - xác nhận chip NFC đã ghi và đọc lại thành công'
+      description: 'Chốt mapping item ↔ hardware_uid sau khi app đã ghi NDEF, dán chip và đọc lại. Ghi một dòng physical_codes carrier_type=NFC (code_value mặc định `NFC-<hardware_uid>`). Hai lớp idempotency: header Idempotency-Key chặn double-submit, khoá tự nhiên hardware_uid chặn cả khi client sinh key mới rồi chạm lại đúng chip cũ. Thao tác STOCK-NEUTRAL, không phải điều kiện của Post Receipt/Post Issue.'
+      operationId: mini_app_nfc_confirm
+      parameters:
+        -
+          name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        -
+          name: Idempotency-Key
+          in: header
+          description: 'Giữ nguyên key khi retry cùng một lần xác nhận.'
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - hardware_uid
+              properties:
+                hardware_uid:
+                  description: 'UID phần cứng đọc từ chip; duy nhất toàn hệ thống.'
+                  type: string
+                  example: 04A1B2C3D4E5F6
+                  maxLength: 150
+                written_payload:
+                  description: 'Nội dung ĐỌC LẠI từ chip; BE đối chiếu phải trỏ đúng item, lệch trả NFC_PAYLOAD_ITEM_MISMATCH.'
+                  type: string
+                  nullable: true
+                  maxLength: 512
+                reservation_token:
+                  description: 'Token nhận từ prepare; giúp xác nhận đúng phiên khi đổi thiết bị.'
+                  type: string
+                  nullable: true
+                  maxLength: 100
+                code_value:
+                  description: 'Bỏ trống thì BE dùng `NFC-<hardware_uid>`.'
+                  type: string
+                  nullable: true
+                  maxLength: 100
+                replace_existing:
+                  description: 'true để thay chip cũ (chip cũ chuyển INACTIVE + replaced_by_code_id).'
+                  type: boolean
+                  nullable: true
+                  default: false
+                reason:
+                  description: 'Bắt buộc khi replace_existing=true.'
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+              type: object
+      responses:
+        201:
+          description: 'Đã gán chip mới; stock_effect=NONE, movement_created=false.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        200:
+          description: 'Chip đã gán trước đó cho đúng item này (idempotent replay).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Thiếu physical_code.assign_rfid.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy hiện vật.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'NFC_TAG_ALREADY_ASSIGNED, NFC_TAG_INACTIVE, ITEM_ALREADY_HAS_NFC, DUPLICATE_CODE_VALUE hoặc NFC_WRITE_RESERVED_BY_OTHER.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'ITEM_IDENTITY_NOT_RESOLVABLE, NFC_PAYLOAD_ITEM_MISMATCH hoặc REPLACE_REASON_REQUIRED.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'PRECONDITION_REQUIRED — thiếu header Idempotency-Key.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+      x-permission: physical_code.assign_rfid
+  '/api/v1/mini-app/items/{itemId}/nfc/prepare':
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App - giữ chỗ ghi chip NFC cho một hiện vật'
+      description: 'Kiểm tra quyền, trạng thái hiện vật, SKU và chip chưa được gán, rồi GIỮ CHỖ có thời hạn (mặc định 300s, đọc từ config warehouse.nfc) trước khi app ghi NDEF. Giữ chỗ tồn tại vì ghi chip là thao tác vật lý không hoàn tác: thiếu nó, hai máy cùng chuẩn bị một hiện vật sẽ có một bên dán chip xong mới biết mình thua. Gọi lại bởi CÙNG người dùng thì gia hạn chỗ đang giữ. Stock-neutral, chưa ghi physical_code nào.'
+      operationId: mini_app_nfc_prepare
+      parameters:
+        -
+          name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Trả nfc_payload + reservation_token + expires_at + ttl_seconds.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Thiếu physical_code.assign_rfid.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy hiện vật.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'ITEM_ALREADY_HAS_NFC hoặc NFC_WRITE_RESERVED_BY_OTHER (máy khác đang giữ chỗ).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'ITEM_IDENTITY_NOT_RESOLVABLE hoặc ITEM_STATUS_NOT_TAGGABLE.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+      x-permission: physical_code.assign_rfid
+  /api/v1/mini-app/nfc-tags:
+    get:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App - danh sách chip NFC đã gán'
+      description: 'Read-only, xoay quanh CHIP (khác /items xoay quanh hiện vật): lọc theo item_id, hardware_uid hoặc status, gồm cả chip đã thu hồi, trả kèm serial/SKU của hiện vật đang đeo chip.'
+      operationId: mini_app_nfc_tag_list
+      parameters:
+        -
+          name: item_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        -
+          name: hardware_uid
+          in: query
+          schema:
+            type: string
+            maxLength: 150
+        -
+          name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
+              - LOST
+              - DAMAGED
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+            minimum: 1
+      responses:
+        200:
+          description: 'Trang danh sách chip NFC.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Thiếu quyền đọc.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+      x-permission: physical_code.assign_rfid|inventory.trace
+  '/api/v1/mini-app/nfc-tags/{physicalCodeId}/deactivate':
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App - thu hồi chip NFC (rơi, hỏng, gỡ khỏi sản phẩm)'
+      description: 'Chuyển chip sang INACTIVE/LOST/DAMAGED kèm lý do; bản ghi không bị xoá để giữ lịch sử. Sau thao tác này hiện vật quay lại nfc_status=UNASSIGNED và gán được chip mới. Stock-neutral.'
+      operationId: mini_app_nfc_tag_deactivate
+      parameters:
+        -
+          name: physicalCodeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - status
+                - reason
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - INACTIVE
+                    - LOST
+                    - DAMAGED
+                reason:
+                  type: string
+                  example: 'Chip bong khỏi vỏ máy khi vận chuyển'
+                  maxLength: 2000
+              type: object
+      responses:
+        200:
+          description: 'Đã thu hồi chip; stock_effect=NONE.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Thiếu physical_code.assign_rfid.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy chip NFC.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'NFC_TAG_INACTIVE — chip đã thu hồi từ trước.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+      x-permission: physical_code.assign_rfid
+  /api/v1/mini-app/nfc/resolve-code:
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App - quét QR sản phẩm để lấy item_id trước khi gán chip'
+      description: 'Cầu nối giữa "cầm máy trên tay" và item_id mà prepare cần. Read-only: resolve raw QR thành item + SKU, trả trạng thái chip hiện có và `nfc_payload` (đúng payload QR `HN1|SKU=<sku_code>|ITEM=<item_unique>`, DEC-QR-001). Không tạo bản ghi nào, không giữ chỗ, stock_effect=NONE.'
+      operationId: mini_app_nfc_resolve_code
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - raw_code
+              properties:
+                raw_code:
+                  type: string
+                  example: HN1|SKU=DCPL02-8|ITEM=DCPL02-8-000001
+                  maxLength: 512
+              type: object
+      responses:
+        200:
+          description: 'Trả item/sku/nfc_status/nfc_payload + assignable, assign_block_code (ASSIGNABLE | ITEM_NOT_FOUND | ITEM_ALREADY_HAS_NFC | ITEM_IDENTITY_NOT_RESOLVABLE | ITEM_STATUS_NOT_TAGGABLE).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Thiếu physical_code.assign_rfid.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'SKU trong QR không tồn tại/không ACTIVE hoặc QR trỏ sai SKU của item (WRONG_SKU).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+      x-permission: physical_code.assign_rfid
+  /api/v1/mini-app/nfc/resolve-tag:
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App - quét chip NFC để tra cứu sản phẩm đã xuất kho'
+      description: 'Dùng cho màn quét NFC thay QR sau khi hàng rời kho. Nhận hardware_uid (UID chip) hoặc raw_code (nội dung đọc từ chip). Trả item + SKU + chip + phiếu xuất đã Post gần nhất (bên nhận) + hồ sơ bảo hành đang mở. PII bên nhận chỉ trả thô cho actor có outbound.view, ngược lại mask kèm cờ pii_masked=true (§13.8).'
+      operationId: mini_app_nfc_resolve_tag
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                hardware_uid:
+                  type: string
+                  example: 04A1B2C3D4E5F6
+                  nullable: true
+                  maxLength: 150
+                raw_code:
+                  type: string
+                  example: HN1|SKU=DCPL02-8|ITEM=DCPL02-8-000001
+                  nullable: true
+                  maxLength: 512
+              type: object
+      responses:
+        200:
+          description: 'resolve_code = RESOLVED | NFC_TAG_NOT_REGISTERED | NFC_TAG_NOT_ASSIGNED; stock_effect=NONE.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Thiếu cả ba quyền được chấp nhận.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Không gửi hardware_uid lẫn raw_code.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+      x-permission: physical_code.assign_rfid|inventory.trace|warranty.view
   /api/v1/mini-app/outbound-documents:
     get:
       tags:
@@ -21929,6 +22661,21 @@ paths:
                         type: string
                         example: Cái
                         nullable: true
+                      power_source:
+                        description: 'Mã master POWER. Bắt buộc null khi domain=HAND_TOOLS.'
+                        type: string
+                        example: null
+                        nullable: true
+                      family_name:
+                        description: 'Tên nhóm sản phẩm (product family) — nhiều SKU cùng family_name là các variant của nhau.'
+                        type: string
+                        example: 'Kìm điện đa năng'
+                        nullable: true
+                      variant_label:
+                        description: 'Nhãn phân biệt variant trong family (vd. "6 inch"). Chỉ có nghĩa khi đã có family_name.'
+                        type: string
+                        example: '6 inch'
+                        nullable: true
                       description:
                         type: string
                         nullable: true
@@ -21941,7 +22688,25 @@ paths:
                           power: 18V
                           voltage: 18V
                         nullable: true
+                      media:
+                        description: 'Ảnh sản phẩm. URL phải https:// và thuộc CDN allowlist (public_api.media_host_allowlist); tối đa một role=PRIMARY.'
+                        type: array
+                        items:
+                          properties:
+                            url:
+                              type: string
+                              format: uri
+                              example: 'https://images.bigk.click/Handtool/p006_y0389_l0_product.jpg'
+                            role:
+                              type: string
+                              example: PRIMARY
+                              enum:
+                                - PRIMARY
+                                - GALLERY
+                          type: object
+                        nullable: true
                       media_url:
+                        description: 'Tương thích ngược — dùng `media` cho catalogue mới. URL đầu tiên = PRIMARY, còn lại = GALLERY.'
                         type: array
                         items:
                           type: string
@@ -21949,7 +22714,7 @@ paths:
                           example: 'https://cdn.example.com/dongcheng/dz180.jpg'
                         nullable: true
                     type: object
-                  maxItems: 500
+                  maxItems: 600
               type: object
       responses:
         200:
@@ -21971,7 +22736,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         422:
-          description: 'row_errors theo từng dòng (product_code/name/brand_code/category_code/domain/media_url/specifications không hợp lệ, UNKNOWN_MASTER_CODE, CATEGORY_DOMAIN_MISMATCH, DUPLICATE_CODE, hoặc FORBIDDEN_FIELD nếu payload chứa price/quantity/barcode/published). Không có SKU/hồ sơ nào được ghi.'
+          description: 'row_errors theo từng dòng (product_code/name/brand_code/category_code/domain/media/specifications không hợp lệ, UNKNOWN_MASTER_CODE, CATEGORY_DOMAIN_MISMATCH, DUPLICATE_CODE, POWER_SOURCE_NOT_APPLICABLE (domain=HAND_TOOLS kèm power_source), MEDIA_HOST_NOT_ALLOWED/MEDIA_NOT_IMAGE/MEDIA_TOO_LARGE/MEDIA_REDIRECT_NOT_ALLOWED, hoặc FORBIDDEN_FIELD nếu payload chứa price/quantity/barcode/published/page_pdf/catalog_page/source_url/ocr_confidence/bounding_box). Không có SKU/hồ sơ nào được ghi.'
           content:
             application/json:
               schema:

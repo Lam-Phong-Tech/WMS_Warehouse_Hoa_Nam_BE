@@ -209,4 +209,25 @@ return [
         /** Prefix nhận diện mã HỘP; segment đầu = <prefix> (mặc định BOX). */
         'prefix' => env('WMS_BOX_CODE_PREFIX', 'BOX'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gán chip NFC cho hiện vật (Mini App)
+    |--------------------------------------------------------------------------
+    |
+    | `prepare` giữ chỗ ghi chip cho một item đủ lâu để nhân viên ghi NDEF và dán
+    | chip lên sản phẩm. Đây là HÀNG RÀO TRẢI NGHIỆM (tránh hai máy cùng ghi rồi
+    | một bên phải bóc chip đã dán), KHÔNG phải hàng rào đúng đắn: nguồn đúng đắn
+    | cuối cùng vẫn là unique(hardware_uid) + lockForUpdate ở bước confirm. Vì thế
+    | reservation nằm ở cache — mất khi flush cache là chấp nhận được, và không
+    | phải thêm bảng nào vào ERD.
+    |
+    | 300s đo theo thao tác thật: quét QR -> ghi NDEF -> dán chip -> đọc lại xác
+    | nhận. Ngắn hơn thì nhân viên bị đá ra giữa chừng; dài hơn thì một máy treo
+    | sẽ khoá hiện vật quá lâu cho ca sau.
+    |
+    */
+    'nfc' => [
+        'write_reservation_ttl_seconds' => (int) env('WMS_NFC_WRITE_RESERVATION_TTL', 300),
+    ],
 ];

@@ -8,6 +8,7 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyAttachmentControll
 use Modules\Warehouse\Http\Controllers\DocumentAttachmentController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
+use Modules\Warehouse\Http\Controllers\MiniAppNfcController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundDraftController;
 use Modules\Warehouse\Http\Controllers\MiniAppOutboundStagingController;
@@ -42,6 +43,36 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
         ->middleware('permission:sku.view');
     Route::get('products/{id}', [MiniAppProductController::class, 'show'])
         ->middleware('permission:sku.view');
+
+    // ── NFC (gán chip cho từng hiện vật) ─────────────────────────────────
+    // Chip chỉ mang lại đúng payload QR của hiện vật (DEC-QR-001) nên quét NFC
+    // dùng được ở MỌI endpoint scan sẵn có (/scan/classify, inbound, outbound,
+    // warranty); nhóm route dưới đây chỉ lo vòng đời mapping item ↔ hardware_uid.
+    // Toàn bộ stock-neutral: không endpoint nào ở đây tạo movement hay đổi
+    // inventory_balances.
+    //
+    // Ghi chip là thao tác vật lý không hoàn tác được nên tách hai bước
+    // prepare -> confirm (PATCH), thay vì một lần ghi thẳng.
+    Route::get('items', [MiniAppNfcController::class, 'listItems'])
+        ->middleware('permission:physical_code.assign_rfid|item_instance.view|inventory.view');
+
+    Route::post('items/{itemId}/nfc/prepare', [MiniAppNfcController::class, 'prepare'])
+        ->middleware('permission:physical_code.assign_rfid');
+
+    Route::patch('items/{itemId}/nfc', [MiniAppNfcController::class, 'confirm'])
+        ->middleware('permission:physical_code.assign_rfid');
+
+    Route::post('nfc/resolve-code', [MiniAppNfcController::class, 'resolveCode'])
+        ->middleware('permission:physical_code.assign_rfid');
+
+    Route::post('nfc/resolve-tag', [MiniAppNfcController::class, 'resolveTag'])
+        ->middleware('permission:physical_code.assign_rfid|inventory.trace|warranty.view');
+
+    Route::get('nfc-tags', [MiniAppNfcController::class, 'listTags'])
+        ->middleware('permission:physical_code.assign_rfid|inventory.trace');
+
+    Route::post('nfc-tags/{physicalCodeId}/deactivate', [MiniAppNfcController::class, 'deactivate'])
+        ->middleware('permission:physical_code.assign_rfid');
 
     // ── Inbound ──────────────────────────────────────────────────────────
     Route::post('inbound/resolve-code', [MiniAppInboundStagingController::class, 'resolveCode'])

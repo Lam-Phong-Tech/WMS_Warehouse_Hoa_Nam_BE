@@ -9,6 +9,14 @@ const expectedTag = '22. Mini App';
 const expectedOperations = new Map([
   ['/api/v1/mini-app/printer-configs', ['get']],
 
+  ['/api/v1/mini-app/items', ['get']],
+  ['/api/v1/mini-app/items/{itemId}/nfc/prepare', ['post']],
+  ['/api/v1/mini-app/items/{itemId}/nfc', ['patch']],
+  ['/api/v1/mini-app/nfc/resolve-code', ['post']],
+  ['/api/v1/mini-app/nfc/resolve-tag', ['post']],
+  ['/api/v1/mini-app/nfc-tags', ['get']],
+  ['/api/v1/mini-app/nfc-tags/{physicalCodeId}/deactivate', ['post']],
+
   ['/api/v1/mini-app/inbound/resolve-code', ['post']],
   ['/api/v1/mini-app/inbound/record', ['post']],
   ['/api/v1/mini-app/inbound-documents', ['get', 'post']],
