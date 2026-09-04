@@ -95,10 +95,16 @@ CONF
 if [ "${PERF_OPTIMIZE:-false}" = "true" ]; then
     WARM='php artisan config:cache || echo "[perf] BO QUA config:cache";
           php artisan route:cache  || echo "[perf] BO QUA route:cache (co route dung Closure?)";
-          php artisan event:cache  || echo "[perf] BO QUA event:cache";'
+          php artisan event:cache  || echo "[perf] BO QUA event:cache";
+          /usr/local/bin/ensure-runtime-permissions.sh;'
 else
     WARM=''
 fi
+
+# Ba lệnh cache trên chạy bằng root và chạy SAU lần chuẩn hoá quyền cuối cùng
+# của entrypoint gốc, nên bootstrap/cache/{config,routes-v7,events}.php vừa sinh
+# ra là root:root — php-fpm chạy bằng www-data không ghi đè được ở lần deploy
+# sau. Vì vậy phải gọi lại ensure-runtime-permissions.sh ngay sau khối WARM.
 
 # Giao lại cho entrypoint gốc, KHÔNG sao chép logic của nó (composer install có
 # điều kiện, key:generate, jwt:secret, migrate, storage:link).

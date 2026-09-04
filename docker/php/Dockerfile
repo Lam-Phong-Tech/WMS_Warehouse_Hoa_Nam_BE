@@ -38,7 +38,10 @@ COPY docker/php/www.conf /usr/local/etc/php-fpm.d/zz-wms-pool.conf
 WORKDIR /var/www/html
 
 COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Chuẩn hoá quyền ghi cho storage và bootstrap/cache. Tách khỏi entrypoint để
+# perf-entrypoint.sh gọi lại được sau khi hâm nóng cache bằng root.
+COPY docker/php/ensure-runtime-permissions.sh /usr/local/bin/ensure-runtime-permissions.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/ensure-runtime-permissions.sh
 
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["php-fpm"]

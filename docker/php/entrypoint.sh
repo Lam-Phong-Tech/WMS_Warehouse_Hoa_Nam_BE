@@ -3,6 +3,15 @@ set -e
 
 cd /var/www/html
 
+# Quyền ghi runtime phải chuẩn TRƯỚC khi bất kỳ lệnh artisan nào chạy: composer,
+# key:generate, migrate đều có thể ghi log, và nếu storage/logs chưa ghi được
+# thì chính lệnh khởi động đã hỏng. Xem docker/php/ensure-runtime-permissions.sh.
+ensure_runtime_permissions() {
+    /usr/local/bin/ensure-runtime-permissions.sh
+}
+
+ensure_runtime_permissions
+
 # Keep Composer dependencies in a Docker named volume (see docker-compose.yml)
 # and only reinstall when composer.lock really changes. This avoids thousands of
 # vendor filesystem reads/writes through the Windows bind mount on every boot.
@@ -42,5 +51,11 @@ fi
 if [ ! -e public/storage ] && [ ! -L public/storage ]; then
     php artisan storage:link
 fi
+
+# Gọi lại LẦN CUỐI: mọi lệnh ở trên chạy bằng root nên vừa sinh ra file mới
+# (vendor stamp, bootstrap/cache/*.php, storage/logs/laravel.log, session/view
+# cache). Không nhận lại ownership ở đây thì php-fpm chạy bằng www-data mở ghi
+# không được và request đầu tiên trả 500.
+ensure_runtime_permissions
 
 exec "$@"

@@ -282,10 +282,16 @@ jobs:
             cd "$UAT_APP_PATH"
             docker compose up -d postgres valkey minio mailpit minio-init nginx
             docker compose up -d --no-build backend nginx
-            docker compose exec -T backend php artisan optimize:clear
-            docker compose exec -T backend php artisan migrate --force
+            # Artisan phải chạy bằng `www-data` — đúng user mà php-fpm phục vụ
+            # request. Chạy bằng root thì bootstrap/cache/*.php và
+            # storage/logs/laravel.log vừa sinh ra là root:root, php-fpm mất
+            # quyền ghi và login trả 500 (Monolog UnexpectedValueException).
+            # Entrypoint đã chuẩn hoá quyền lúc container khởi động; ràng buộc
+            # này chặn nốt đường tái phát từ chính script deploy.
+            docker compose exec -T -u www-data backend php artisan optimize:clear
+            docker compose exec -T -u www-data backend php artisan migrate --force
             if [ "${RUN_UAT_SEED}" = "true" ]; then
-              docker compose exec -T backend php artisan db:seed --force
+              docker compose exec -T -u www-data backend php artisan db:seed --force
             fi
             # Rebuild config/route/event cache against the code+config that
             # was just deployed. Without this the app re-parses .env and
@@ -295,8 +301,13 @@ jobs:
             # (set -euo pipefail) before the restart below, so a bad cache
             # build never reaches traffic -- the previous containers keep
             # serving until this is fixed and re-run.
-            docker compose exec -T backend php artisan optimize
+            docker compose exec -T -u www-data backend php artisan optimize
             docker compose restart backend nginx
+            # Chốt acceptance quyền ghi runtime: storage/logs/laravel.log và
+            # bootstrap/cache phải thuộc www-data sau khi container khởi động
+            # lại. Nếu một lệnh root nào đó lỡ chiếm ownership thì deploy đỏ ở
+            # đây, thay vì để người dùng phát hiện bằng login 500.
+            docker compose exec -T backend sh -lc 'stat -c "%U:%G %a %n" storage/logs/laravel.log bootstrap/cache && [ "$(stat -c %U storage/logs/laravel.log)" = www-data ] && [ "$(stat -c %U bootstrap/cache)" = www-data ]'
 
       - name: UAT smoke
         env:
@@ -304,11 +315,32 @@ jobs:
           UAT_SMOKE_USERNAME: ${{ secrets.UAT_SMOKE_USERNAME }}
           UAT_SMOKE_PASSWORD: ${{ secrets.UAT_SMOKE_PASSWORD }}
         run: |
+          set -euo pipefail
           curl --fail "$UAT_APP_URL/api/v1/health"
-          TOKEN=$(curl --fail -s -X POST "$UAT_APP_URL/api/v1/auth/login" \
-            -H "Content-Type: application/json" \
-            -d "{\"username\":\"$UAT_SMOKE_USERNAME\",\"password\":\"$UAT_SMOKE_PASSWORD\"}" | jq -r '.data.access_token')
-          test -n "$TOKEN"
+
+          # Login smoke chạy HAI LẦN liên tiếp: lần đầu có thể là lần tạo
+          # storage/logs/laravel.log, chỉ lần hai mới lộ ownership sai (file
+          # root:root do lệnh artisan chạy bằng root -> Monolog
+          # UnexpectedValueException -> 500). Chỉ kiểm HTTP 200 + success=true;
+          # không in body hay token ra log CI.
+          login_status() {
+            curl -s -o /tmp/login-body.json -w '%{http_code}' -X POST "$UAT_APP_URL/api/v1/auth/login" \
+              -H 'Content-Type: application/json' \
+              -d "{\"username\":\"$UAT_SMOKE_USERNAME\",\"password\":\"$UAT_SMOKE_PASSWORD\"}"
+          }
+
+          for attempt in 1 2; do
+            status="$(login_status)"
+            if [ "$status" != "200" ] || [ "$(jq -r '.success' /tmp/login-body.json)" != "true" ]; then
+              echo "::error::login smoke lan ${attempt} that bai: HTTP ${status} error_code=$(jq -r '.error_code // "?"' /tmp/login-body.json)"
+              exit 1
+            fi
+          done
+
+          TOKEN="$(jq -r '.data.access_token' /tmp/login-body.json)"
+          rm -f /tmp/login-body.json
+          test -n "$TOKEN" && [ "$TOKEN" != "null" ]
+
           curl --fail -H "Authorization: Bearer $TOKEN" "$UAT_APP_URL/api/v1/warehouses?keyword=KHO-TONG-HN"
 
       - name: Purge Cloudflare cache for staging
