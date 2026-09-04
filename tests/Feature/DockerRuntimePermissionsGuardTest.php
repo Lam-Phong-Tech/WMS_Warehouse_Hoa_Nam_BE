@@ -63,6 +63,99 @@ class DockerRuntimePermissionsGuardTest extends TestCase
         );
     }
 
+    /**
+     * Lớp phòng thủ thứ hai, khác lớp chown: chown chỉ sửa được file ĐÃ tồn tại
+     * lúc boot, còn hạ quyền làm mọi file ứng dụng sinh ra SAU đó đúng owner
+     * ngay từ lúc tạo. Trước đây queue:work / schedule:work / reverb:start chạy
+     * thẳng bằng root nên vẫn tạo được file root:root sau lần chown cuối.
+     */
+    public function test_entrypoint_drops_privileges_to_the_runtime_user_after_the_last_chown(): void
+    {
+        $entrypoint = $this->read('docker/php/entrypoint.sh');
+
+        $this->assertMatchesRegularExpression(
+            '/RUNTIME_USER="\$\{RUNTIME_USER:-www-data\}"/',
+            $entrypoint,
+            'entrypoint.sh phải mặc định RUNTIME_USER=www-data — đúng user của pool php-fpm.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/exec su-exec "\$RUNTIME_USER" "\$@"/',
+            $entrypoint,
+            'Tiến trình chính phải được hạ quyền bằng su-exec, không chạy tiếp bằng root.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/if \[ "\$\(id -u\)" = "0" \]/',
+            $entrypoint,
+            'Chỉ hạ quyền khi đang là root: `docker run/exec -u www-data` vẫn phải chạy được.'
+        );
+
+        $lastChownPosition = strrpos($entrypoint, "\nensure_runtime_permissions\n");
+        $dropPosition = strpos($entrypoint, 'exec su-exec');
+
+        $this->assertNotFalse($lastChownPosition);
+        $this->assertNotFalse($dropPosition);
+        $this->assertGreaterThan(
+            $lastChownPosition,
+            $dropPosition,
+            'Phải chown XONG rồi mới hạ quyền: su-exec chạy trước thì lệnh chown cuối cùng không còn quyền root để thực hiện.'
+        );
+    }
+
+    /**
+     * php-fpm là ngoại lệ CÓ CƠ SỞ: master của nó reopen
+     * `error_log = /proc/self/fd/2` (pipe stderr do root sở hữu) nên hạ quyền
+     * trước sẽ chết ngay — "failed to open error_log ... Permission denied",
+     * exit 78. Code ứng dụng của backend vốn đã chạy bằng www-data vì chính
+     * master fork worker theo `user` của pool.
+     *
+     * Phải quét TOÀN BỘ đối số chứ không chỉ $1: perf-entrypoint.sh gọi
+     * entrypoint gốc dưới dạng `sh -c "<warm>; exec "$@"" wms-perf php-fpm`.
+     */
+    public function test_entrypoint_keeps_php_fpm_master_as_root_by_scanning_every_argument(): void
+    {
+        $entrypoint = $this->read('docker/php/entrypoint.sh');
+
+        $this->assertMatchesRegularExpression(
+            '/for _arg in "\$@"; do/',
+            $entrypoint,
+            'Phải duyệt mọi đối số; chỉ kiểm $1 thì hồ sơ perf (php-fpm nằm ở cuối) sẽ bị hạ quyền và chết exit 78.'
+        );
+        $this->assertMatchesRegularExpression(
+            '/php-fpm \| \*\/php-fpm\)/',
+            $entrypoint,
+            'Phải nhận diện php-fpm để giữ root cho master.'
+        );
+
+        $exceptionPosition = strpos($entrypoint, 'for _arg in "$@"; do');
+        $dropPosition = strpos($entrypoint, 'exec su-exec');
+
+        $this->assertNotFalse($exceptionPosition);
+        $this->assertNotFalse($dropPosition);
+        $this->assertLessThan(
+            $dropPosition,
+            $exceptionPosition,
+            'Ngoại lệ php-fpm phải được xét TRƯỚC su-exec, nếu không master đã bị hạ quyền rồi.'
+        );
+    }
+
+    public function test_image_installs_su_exec(): void
+    {
+        $dockerfile = $this->read('docker/php/Dockerfile');
+
+        // chr(92) = dấu gạch chéo ngược nối dòng của Dockerfile; bỏ nó đi rồi so
+        // sánh từng token cho khỏi phải escape backslash trong regex.
+        $tokens = array_map(
+            static fn (string $line): string => trim(str_replace(chr(92), '', $line)),
+            preg_split('/\R/', $dockerfile),
+        );
+
+        $this->assertContains(
+            'su-exec',
+            $tokens,
+            'Dockerfile phải cài su-exec, nếu không entrypoint hạ quyền sẽ chết ngay lúc khởi động.'
+        );
+    }
+
     public function test_permission_script_hands_ownership_to_the_php_fpm_user_and_never_uses_chmod_777(): void
     {
         $script = $this->read('docker/php/ensure-runtime-permissions.sh');

@@ -1,6 +1,11 @@
 FROM php:8.3-fpm-alpine
 
+# su-exec: hạ quyền tiến trình chính từ root xuống www-data ở cuối entrypoint
+# (xem docker/php/entrypoint.sh). ~20KB, không kéo theo runtime phụ nào, và
+# khác `su` ở chỗ nó exec THẲNG chứ không tạo tiến trình trung gian — php-fpm /
+# queue:work vẫn là PID 1 của container nên nhận đúng SIGTERM khi stop.
 RUN apk add --no-cache \
+        su-exec \
         postgresql-dev \
         libzip-dev \
         icu-dev \
