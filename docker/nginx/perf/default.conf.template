@@ -17,15 +17,37 @@ map $http_x_forwarded_port $wms_forwarded_port {
     ""      "${WMS_NGINX_EXTERNAL_PORT}";
 }
 
-# Upstream TĨNH (khác bản dev dùng biến + resolver). Đổi lại là mất khả năng tự
-# phát hiện replica mới qua DNS, nhưng ĐƯỢC `keepalive`: nginx giữ sẵn một bể
-# kết nối tới php-fpm thay vì bắt tay TCP mới cho từng request. Ở vài trăm
-# request/giây, phần bắt tay đó là chi phí đo được.
+# Resolver của Docker. `valid=5s` là ĐỘ DÀI CỬA SỔ 502 sau khi backend đổi IP:
+# đo thật với valid=10s ra ~12 giây, với 5s còn ~6 giây. Chi phí là vài truy vấn
+# DNS nội bộ mỗi giây — không đáng kể so với việc rút ngắn thời gian gián đoạn.
+# PHẢI khai ở context `http` (file này được include vào
+# trong `http {}`) thì khối `upstream` bên dưới mới dùng được — resolver đặt trong
+# `server {}` chỉ áp cho proxy_pass biến, không áp cho upstream.
+resolver 127.0.0.11 valid=5s ipv6=off;
+resolver_timeout 5s;
+
+# Upstream ĐỘNG có keepalive — bản sửa cho lỗi 502 sau khi recreate backend.
 #
-# Mở rộng ngang NHIỀU MÁY: khai thêm dòng `server host2:9000;` vào biến
-# WMS_PHP_UPSTREAM_SERVERS (xem docker-compose.perf.yml) — nginx sẽ cân tải
-# vòng tròn giữa chúng.
+# LỖI CŨ: khối `upstream` tĩnh phân giải tên `backend` MỘT LẦN lúc nginx khởi
+# động. Recreate riêng container backend là nó nhận IP mới, còn nginx vẫn giữ IP
+# cũ và trả 502 cho tới khi có người nhớ ra phải restart nginx. Đó là một bước
+# thủ công nằm giữa "deploy xong" và "hệ thống chạy" — kiểu bẫy chỉ phát tác lúc
+# 2 giờ sáng.
+#
+# CÁCH SỬA: `zone` + tham số `resolve` trên `server`. nginx tự phân giải lại tên
+# theo TTL của DNS và cập nhật danh sách peer trong bộ nhớ chia sẻ, KHÔNG cần
+# reload. Tính năng này từng chỉ có ở NGINX Plus; đã kiểm chứng chạy được trên
+# đúng ảnh `nginx:alpine` (nginx 1.31.3) mà stack này dùng, bằng `nginx -t`.
+#
+# `zone` cũng là điều kiện để trạng thái peer (max_fails/fail_timeout) dùng chung
+# giữa các worker process thay vì mỗi worker đếm riêng.
+#
+# Mở rộng ngang NHIỀU MÁY: nối thêm `server host2:9000 resolve;` vào biến
+# WMS_PHP_UPSTREAM_SERVERS (xem docker-compose.perf.yml) — nginx cân tải vòng
+# tròn giữa chúng. Địa chỉ IP thuần cũng hợp lệ (có hoặc không có `resolve`).
 upstream wms_php {
+    zone wms_php 64k;
+
     ${WMS_PHP_UPSTREAM_SERVERS}
 
     keepalive 128;
@@ -86,10 +108,29 @@ server {
         fastcgi_send_timeout ${WMS_NGINX_FASTCGI_TIMEOUT}s;
         fastcgi_read_timeout ${WMS_NGINX_FASTCGI_TIMEOUT}s;
 
-        # KHÔNG phát lại request khi upstream lỗi/timeout: các endpoint ghi của
-        # WMS (đăng phiếu nhập/xuất) không idempotent, phát lại có thể tạo bút
-        # toán tồn kho lặp. Thà trả 502 cho FE xử lý còn hơn ghi trùng.
-        fastcgi_next_upstream off;
+        # PHÁT LẠI CÓ PHÂN LOẠI THEO PHƯƠNG THỨC — thay cho `off` trước đây.
+        #
+        # Lý do đổi: với nhiều backend, `off` nghĩa là một node chết làm hỏng cả
+        # những request CHỈ ĐỌC, dù node còn lại đang rảnh và trả lời đúng được.
+        # Đó là đánh mất phần lớn giá trị của việc chạy nhiều node.
+        #
+        # Vì sao an toàn: nginx MẶC ĐỊNH không bao giờ phát lại phương thức
+        # không idempotent (POST, PATCH, LOCK) — chỉ phát lại khi có thêm cờ
+        # `non_idempotent`, và cờ đó CỐ Ý KHÔNG được khai ở đây. Toàn bộ đường
+        # ghi nguy hiểm của WMS (post-receipt, post-issue, reversal) là POST/PATCH:
+        # 134 route POST + 31 route PATCH, không route nào được phát lại.
+        #
+        # Phần được phát lại là GET/HEAD (thuần đọc) và 2 route PUT + 8 route
+        # DELETE. Đã rà từng cái: PUT là "gán RFID cho hiện vật" và "đồng bộ
+        # permission của vai trò" — cả hai là gán-giá-trị, chạy hai lần cho cùng
+        # kết quả; DELETE là xoá tài nguyên theo id, lần hai trả 404 chứ không
+        # hỏng dữ liệu.
+        #
+        # `tries 2` + `timeout 10s`: chặn dây chuyền phát lại kéo dài khi nhiều
+        # node cùng hỏng — thà trả lỗi sớm còn hơn giữ kết nối của người dùng.
+        fastcgi_next_upstream error timeout;
+        fastcgi_next_upstream_tries 2;
+        fastcgi_next_upstream_timeout 10s;
     }
 
     location ~ /\.ht {

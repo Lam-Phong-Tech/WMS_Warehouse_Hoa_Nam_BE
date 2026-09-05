@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Http\Controllers\Concerns\CachesReportPayload;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -20,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 class AlignedImportMatchReportController extends Controller
 {
     use ApiResponse;
+    use CachesReportPayload;
 
     private const EXPORT_ROW_LIMIT = 10000;
 
@@ -98,7 +100,25 @@ class AlignedImportMatchReportController extends Controller
             : ['bytes' => $this->exportXlsxBytes('Import Match', $headers, $rows), 'fileName' => ReportExportFileName::stamp('flow06-import-match.xlsx'), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
     }
 
+    /**
+     * Báo cáo đối soát toa: nhiều lượt join qua outbound_request_imports ->
+     * import_rows -> outbound_requests -> stock_movements trên toàn kỳ. Đây là một
+     * trong những truy vấn nặng nhất còn lại chưa có cache.
+     *
+     * Phân trang được cắt TRONG BỘ NHỚ ở paginate() sau khi build() chạy xong, nên
+     * một entry phục vụ được mọi trang -> page/per_page không nằm trong key.
+     */
     private function build(Request $request): array
+    {
+        return $this->cachedReportPayload(
+            'warehouse:report:import-match',
+            $this->reportFiltersWithoutPaging($request),
+            $this->reportScopeIds(),
+            fn (): array => $this->buildUncached($request)
+        );
+    }
+
+    private function buildUncached(Request $request): array
     {
         [$from, $to] = $this->period($request);
         $validated = $request->validate([

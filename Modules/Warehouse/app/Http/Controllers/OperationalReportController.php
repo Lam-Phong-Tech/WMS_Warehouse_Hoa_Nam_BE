@@ -5,7 +5,6 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\CacheKey;
-use App\Support\Cache\CacheService;
 use App\Support\Cache\CacheTtl;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
@@ -23,6 +22,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Http\Controllers\Concerns\CachesReportPayload;
 use Modules\Warehouse\Jobs\GenerateReportExportJob;
 use Modules\Warehouse\Models\ReportExportJob;
 use Modules\Warehouse\Services\LedgerReconciliationService;
@@ -49,6 +49,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 class OperationalReportController extends Controller
 {
     use ApiResponse;
+    use CachesReportPayload;
     use ResolvesActorOrNull { actorIdOrNull as currentActorId; }
 
     private const STOCK_STATUSES = ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'];
@@ -164,6 +165,13 @@ class OperationalReportController extends Controller
     // ── Hub ──────────────────────────────────────────────────
 
     #[OA\Get(path: '/api/v1/reports/hub', operationId: 'report_hub', summary: 'Danh mục báo cáo vận hành Flow 06', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], responses: [new OA\Response(response: 200, description: 'Danh mục 8 báo cáo MVP')])]
+    /**
+     * KHONG cache — co chu dich, khong phai bo sot.
+     *
+     * Danh sach nay la hang so viet thang trong ma nguon, khong cham co so du lieu.
+     * Dua no qua Valkey chi them mot vong di-ve mang de doi lay dung thu vua doc
+     * duoc tu bo nho. Cache chi dang gia khi no thay the duoc mot phan viec that.
+     */
     public function hub()
     {
         return $this->respondSuccess([
@@ -570,6 +578,22 @@ class OperationalReportController extends Controller
             'stock_status' => ['nullable', 'in:'.implode(',', self::STOCK_STATUSES)],
             'only_mismatch' => ['nullable', 'boolean'],
         ]);
+
+        // buildInventoryBalance() da co cache, nhung phan dat cua endpoint nay la
+        // withSubledgerChecks(): no doi chieu serial/so luong/thung cho TUNG dong
+        // ton kho. Khong cache o day thi moi lan mo man doi soat lai chay tron bo
+        // doi chieu do, du ben duoi ton kho da doc ra tu cache.
+        return $this->respondSuccess($this->cachedReportPayload(
+            'warehouse:report:inventory-reconciliation',
+            $this->reportFiltersWithoutPaging($request),
+            $this->reportWarehouseScope($request),
+            fn (): array => $this->inventoryReconciliationData($request)
+        ));
+    }
+
+    /** @return array<string, mixed> */
+    private function inventoryReconciliationData(Request $request): array
+    {
         $report = $this->buildInventoryBalance($request);
         $rows = collect($this->withSubledgerChecks($request, $report['rows']));
         if ($request->boolean('only_mismatch')) {
@@ -578,7 +602,7 @@ class OperationalReportController extends Controller
 
         $mismatches = $rows->where('reconciliation_overall', 'MISMATCH')->values();
 
-        return $this->respondSuccess([
+        return [
             'formula' => 'variance = COALESCE(balance.on_hand_qty, 0) - SUM(stock_movements.qty_delta)',
             'dimension' => ['warehouse_id', 'product_id', 'stock_status'],
             'checks' => ['ledger_to_balance', 'serial_subledger', 'quantity_subledger', 'container_integrity'],
@@ -593,7 +617,7 @@ class OperationalReportController extends Controller
             ],
             'rows' => $rows->all(),
             'mismatches' => $mismatches->all(),
-        ]);
+        ];
     }
 
     // ── Dashboard Quick ──────────────────────────────────────
@@ -1155,12 +1179,9 @@ class OperationalReportController extends Controller
         // và 403 của warehouse_id ngoài scope cũng bị cache nuốt mất.
         $scope = $this->reportWarehouseScope($request);
 
-        $key = CacheKey::of('warehouse:report:inventory-balance', [
-            'f' => CacheKey::hashFilters($validated),
-            // Scope BẮT BUỘC nằm trong key: hai người dùng khác data-scope không được
-            // dùng chung entry.
-            'scope' => $scope === null ? 'global' : CacheKey::hashFilters($scope),
-        ], $this->cacheService()->currentVersion('stock:version'));
+        // Dùng chung bộ dựng key với mọi báo cáo khác (trait CachesReportPayload)
+        // thay vì tự ghép: một chỗ sửa, không có biến thể lệch nhau.
+        $key = $this->reportCacheKey('warehouse:report:inventory-balance', $validated, $scope);
 
         // Report tồn kho — cùng strategy với InventoryBalanceController::index (short
         // TTL 'report' + version `stock:version` bump ngay sau mutation). Trả về mảng
@@ -1186,11 +1207,6 @@ class OperationalReportController extends Controller
         $payload['scope_warehouse_ids'] = $scope;
 
         return $payload;
-    }
-
-    private function cacheService(): CacheService
-    {
-        return app(CacheService::class);
     }
 
     /**
@@ -1578,7 +1594,32 @@ class OperationalReportController extends Controller
             ->all();
     }
 
+    /**
+     * RPT-XNT-01: quét movement cả kỳ rồi tổng hợp theo SKU x kho — đây là báo cáo tốn SQL nhất của hệ thống.
+     *
+     * Đi qua cache theo ĐÚNG khuôn của buildInventoryBalance():
+     *  - data-scope giải TRƯỚC cache, nếu không một cache hit sẽ nuốt mất 403 của
+     *    warehouse_id ngoài scope, và người bị giới hạn kho có thể nhận payload
+     *    toàn hệ thống do người dùng GLOBAL vừa dựng;
+     *  - scope nằm TRONG key nên hai người khác data-scope không dùng chung entry;
+     *  - version namespace `stock:version` (bump ngay sau mutation tồn kho) khiến
+     *    entry cũ mồ côi tức thì, TTL 'report' chỉ là lưới an toàn bổ sung.
+     */
     private function buildXnt(Request $request): array
+    {
+        return $this->cachedReportPayload(
+            'warehouse:report:xnt',
+            // Phân trang cắt TRONG BỘ NHỚ ở paginateReport() nên một entry phục vụ
+            // được mọi trang -> bỏ page/per_page ra khỏi key.
+            $this->reportFiltersWithoutPaging($request),
+            // Giải scope Ở ĐÂY, trước khi vào cache: đối số được tính ngay, nên 403
+            // của warehouse_id ngoài scope vẫn bắn ra kể cả khi sau đó là cache hit.
+            $this->reportWarehouseScope($request),
+            fn (): array => $this->buildXntUncached($request)
+        );
+    }
+
+    private function buildXntUncached(Request $request): array
     {
         [$from, $to] = $this->period($request, true);
         // §13.10 RPT-XNT-01: filter date period; SKU/category.
@@ -1745,7 +1786,32 @@ class OperationalReportController extends Controller
      * bảng tổng cả kỳ; ở đây mỗi ngày là một điểm trên chuỗi nên mọi movement
      * trong ngày đó đều làm thay đổi số dư của đúng ngày đó, không cần tách.
      */
+    /**
+     * Chuỗi tồn theo NGÀY: gap-fill vòng lặp PHP trên toàn kỳ, chi phí tăng tuyến tính theo số ngày người dùng chọn.
+     *
+     * Đi qua cache theo ĐÚNG khuôn của buildInventoryBalance():
+     *  - data-scope giải TRƯỚC cache, nếu không một cache hit sẽ nuốt mất 403 của
+     *    warehouse_id ngoài scope, và người bị giới hạn kho có thể nhận payload
+     *    toàn hệ thống do người dùng GLOBAL vừa dựng;
+     *  - scope nằm TRONG key nên hai người khác data-scope không dùng chung entry;
+     *  - version namespace `stock:version` (bump ngay sau mutation tồn kho) khiến
+     *    entry cũ mồ côi tức thì, TTL 'report' chỉ là lưới an toàn bổ sung.
+     */
     private function buildXntDaily(Request $request): array
+    {
+        return $this->cachedReportPayload(
+            'warehouse:report:xnt-daily',
+            // Phân trang cắt TRONG BỘ NHỚ ở paginateReport() nên một entry phục vụ
+            // được mọi trang -> bỏ page/per_page ra khỏi key.
+            $this->reportFiltersWithoutPaging($request),
+            // Giải scope Ở ĐÂY, trước khi vào cache: đối số được tính ngay, nên 403
+            // của warehouse_id ngoài scope vẫn bắn ra kể cả khi sau đó là cache hit.
+            $this->reportWarehouseScope($request),
+            fn (): array => $this->buildXntDailyUncached($request)
+        );
+    }
+
+    private function buildXntDailyUncached(Request $request): array
     {
         [$from, $to] = $this->period($request, true);
         // Chart theo ngày — chặn range quá lớn để tránh vòng lặp dựng hàng nghìn
@@ -1999,7 +2065,32 @@ class OperationalReportController extends Controller
         return $this->exportRows($request, 'XNT', $headers, $rows, "{$prefix}-{$report['from_date']}-{$report['to_date']}.xlsx", 'inventory-xnt');
     }
 
+    /**
+     * Lịch sử chứng từ nhập/xuất toàn kỳ; là nguồn của 3 màn báo cáo khác nhau ở FE.
+     *
+     * Đi qua cache theo ĐÚNG khuôn của buildInventoryBalance():
+     *  - data-scope giải TRƯỚC cache, nếu không một cache hit sẽ nuốt mất 403 của
+     *    warehouse_id ngoài scope, và người bị giới hạn kho có thể nhận payload
+     *    toàn hệ thống do người dùng GLOBAL vừa dựng;
+     *  - scope nằm TRONG key nên hai người khác data-scope không dùng chung entry;
+     *  - version namespace `stock:version` (bump ngay sau mutation tồn kho) khiến
+     *    entry cũ mồ côi tức thì, TTL 'report' chỉ là lưới an toàn bổ sung.
+     */
     private function buildDocumentHistory(Request $request): array
+    {
+        return $this->cachedReportPayload(
+            'warehouse:report:document-history',
+            // Phân trang cắt TRONG BỘ NHỚ ở paginateReport() nên một entry phục vụ
+            // được mọi trang -> bỏ page/per_page ra khỏi key.
+            $this->reportFiltersWithoutPaging($request),
+            // Giải scope Ở ĐÂY, trước khi vào cache: đối số được tính ngay, nên 403
+            // của warehouse_id ngoài scope vẫn bắn ra kể cả khi sau đó là cache hit.
+            $this->reportWarehouseScope($request),
+            fn (): array => $this->buildDocumentHistoryUncached($request)
+        );
+    }
+
+    private function buildDocumentHistoryUncached(Request $request): array
     {
         [$from, $to] = $this->period($request);
         // §13.10 RPT-IO-01 filters: date, SKU, status, agency recipient.
@@ -2133,7 +2224,32 @@ class OperationalReportController extends Controller
             ->all();
     }
 
+    /**
+     * Tổng hợp xuất theo đại lý: join qua chứng từ + dòng + đại lý trên toàn kỳ.
+     *
+     * Đi qua cache theo ĐÚNG khuôn của buildInventoryBalance():
+     *  - data-scope giải TRƯỚC cache, nếu không một cache hit sẽ nuốt mất 403 của
+     *    warehouse_id ngoài scope, và người bị giới hạn kho có thể nhận payload
+     *    toàn hệ thống do người dùng GLOBAL vừa dựng;
+     *  - scope nằm TRONG key nên hai người khác data-scope không dùng chung entry;
+     *  - version namespace `stock:version` (bump ngay sau mutation tồn kho) khiến
+     *    entry cũ mồ côi tức thì, TTL 'report' chỉ là lưới an toàn bổ sung.
+     */
     private function buildOutboundByAgency(Request $request): array
+    {
+        return $this->cachedReportPayload(
+            'warehouse:report:outbound-by-agency',
+            // Phân trang cắt TRONG BỘ NHỚ ở paginateReport() nên một entry phục vụ
+            // được mọi trang -> bỏ page/per_page ra khỏi key.
+            $this->reportFiltersWithoutPaging($request),
+            // Giải scope Ở ĐÂY, trước khi vào cache: đối số được tính ngay, nên 403
+            // của warehouse_id ngoài scope vẫn bắn ra kể cả khi sau đó là cache hit.
+            $this->reportWarehouseScope($request),
+            fn (): array => $this->buildOutboundByAgencyUncached($request)
+        );
+    }
+
+    private function buildOutboundByAgencyUncached(Request $request): array
     {
         [$from, $to] = $this->period($request);
         $validated = $request->validate([
@@ -2236,7 +2352,32 @@ class OperationalReportController extends Controller
         ], $scope);
     }
 
+    /**
+     * Sổ movement chi tiết; phục vụ CẢ /reports/movement-trace lẫn /reports/inventory-ledger.
+     *
+     * Đi qua cache theo ĐÚNG khuôn của buildInventoryBalance():
+     *  - data-scope giải TRƯỚC cache, nếu không một cache hit sẽ nuốt mất 403 của
+     *    warehouse_id ngoài scope, và người bị giới hạn kho có thể nhận payload
+     *    toàn hệ thống do người dùng GLOBAL vừa dựng;
+     *  - scope nằm TRONG key nên hai người khác data-scope không dùng chung entry;
+     *  - version namespace `stock:version` (bump ngay sau mutation tồn kho) khiến
+     *    entry cũ mồ côi tức thì, TTL 'report' chỉ là lưới an toàn bổ sung.
+     */
     private function buildMovementTrace(Request $request): array
+    {
+        return $this->cachedReportPayload(
+            'warehouse:report:movement-trace',
+            // Phân trang cắt TRONG BỘ NHỚ ở paginateReport() nên một entry phục vụ
+            // được mọi trang -> bỏ page/per_page ra khỏi key.
+            $this->reportFiltersWithoutPaging($request),
+            // Giải scope Ở ĐÂY, trước khi vào cache: đối số được tính ngay, nên 403
+            // của warehouse_id ngoài scope vẫn bắn ra kể cả khi sau đó là cache hit.
+            $this->reportWarehouseScope($request),
+            fn (): array => $this->buildMovementTraceUncached($request)
+        );
+    }
+
+    private function buildMovementTraceUncached(Request $request): array
     {
         [$from, $to] = $this->period($request);
         $validated = $request->validate([

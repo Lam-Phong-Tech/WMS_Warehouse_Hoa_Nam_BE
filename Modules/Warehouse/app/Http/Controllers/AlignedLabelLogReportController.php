@@ -12,6 +12,7 @@ use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Http\Controllers\Concerns\CachesReportPayload;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -20,6 +21,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 class AlignedLabelLogReportController extends Controller
 {
     use ApiResponse;
+    use CachesReportPayload;
 
     private const EXPORT_ROW_LIMIT = 10000;
 
@@ -86,7 +88,23 @@ class AlignedLabelLogReportController extends Controller
             : ['bytes' => $this->exportXlsxBytes('Label Log', $headers, $rows), 'fileName' => ReportExportFileName::stamp('flow06-label-log.xlsx'), 'rowCount' => count($rows), 'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
     }
 
+    /**
+     * Nhật ký nhãn: join label_snapshots với label_print_events (lần in gần nhất
+     * của từng nhãn) trên toàn kỳ. Cùng khuôn cache với các báo cáo khác.
+     *
+     * Phân trang cắt TRONG BỘ NHỚ ở paginate() -> bỏ page/per_page khỏi key.
+     */
     private function build(Request $request): array
+    {
+        return $this->cachedReportPayload(
+            'warehouse:report:label-log',
+            $this->reportFiltersWithoutPaging($request),
+            $this->reportScopeIds(),
+            fn (): array => $this->buildUncached($request)
+        );
+    }
+
+    private function buildUncached(Request $request): array
     {
         [$from, $to] = $this->period($request);
         // §13.10 RPT-LABEL-01 filters: date / printer / result / actor.

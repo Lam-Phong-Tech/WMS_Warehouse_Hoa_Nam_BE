@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Modules\Warehouse\Http\Controllers\Concerns\CachesReportPayload;
 use OpenApi\Attributes as OA;
 
 /**
@@ -19,11 +20,37 @@ use OpenApi\Attributes as OA;
  */
 class BaM1ReportController extends Controller
 {
+    use CachesReportPayload;
+
     // Canonical source duy nhất cho 4 loại đối tượng nhận hàng (GĐ1-REQ-001).
     private const RECIPIENT_TYPES = BaM1RecipientController::TYPES;
+
     private const WARRANTY_STATUSES = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'];
 
     public function outboundByRecipient(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->cachedReportPayload(
+                'warehouse:report:outbound-by-recipient',
+                // Phân trang nằm TRONG SQL -> page/per_page BẮT BUỘC ở trong key,
+                // nếu không trang 3 sẽ nhận lại payload của trang 1.
+                $this->reportFiltersWithPaging($request),
+                $this->reportScopeIds(),
+                fn (): array => $this->outboundByRecipientData($request)
+            ),
+            // meta nằm NGOÀI cache: request_id phải mới mỗi lần gọi thì log truy vết
+            // mới trỏ đúng request, không trỏ về request đã dựng cache.
+            'meta' => ['request_id' => $request->attributes->get('request_id')],
+        ]);
+    }
+
+    /**
+     * Xuất theo người nhận: join stock_documents -> lines -> agencies, cộng thêm 2 truy vấn tổng hợp by_sku/by_recipient trên toàn kỳ.
+     *
+     * @return array<string, mixed>
+     */
+    private function outboundByRecipientData(Request $request): array
     {
         $validated = $request->validate([
             'from_date' => ['nullable', 'date'],
@@ -154,6 +181,7 @@ class BaM1ReportController extends Controller
             ])
             ->map(function (object $row): array {
                 $recipientName = trim((string) ($row->agency_name ?? $row->recipient_name_snapshot ?? ''));
+
                 return [
                     'document_id' => (string) $row->document_id,
                     'outbound_no' => (string) $row->outbound_no,
@@ -178,28 +206,47 @@ class BaM1ReportController extends Controller
                 ];
             })->values();
 
+        return [
+            'period' => ['from_date' => $from, 'to_date' => $to],
+            'rows' => $rows,
+            'summary' => [
+                'total_recipients' => $totalRecipients,
+                // Compatibility name used by existing FE.
+                'total_agencies' => $totalRecipients,
+                'total_documents' => $totalDocuments,
+                'total_issued_qty' => $totalQty,
+            ],
+            'pagination' => $this->pagination($page, $perPage, $total),
+            'recipient_types' => self::RECIPIENT_TYPES,
+            'by_sku' => $bySku,
+            'by_recipient' => $byRecipient,
+        ];
+    }
+
+    public function warrantyDefects(Request $request)
+    {
         return response()->json([
             'success' => true,
-            'data' => [
-                'period' => ['from_date' => $from, 'to_date' => $to],
-                'rows' => $rows,
-                'summary' => [
-                    'total_recipients' => $totalRecipients,
-                    // Compatibility name used by existing FE.
-                    'total_agencies' => $totalRecipients,
-                    'total_documents' => $totalDocuments,
-                    'total_issued_qty' => $totalQty,
-                ],
-                'pagination' => $this->pagination($page, $perPage, $total),
-                'recipient_types' => self::RECIPIENT_TYPES,
-                'by_sku' => $bySku,
-                'by_recipient' => $byRecipient,
-            ],
+            'data' => $this->cachedReportPayload(
+                'warehouse:report:warranty-defects',
+                // Phân trang nằm TRONG SQL -> page/per_page BẮT BUỘC ở trong key,
+                // nếu không trang 3 sẽ nhận lại payload của trang 1.
+                $this->reportFiltersWithPaging($request),
+                $this->reportScopeIds(),
+                fn (): array => $this->warrantyDefectsData($request)
+            ),
+            // meta nằm NGOÀI cache: request_id phải mới mỗi lần gọi thì log truy vết
+            // mới trỏ đúng request, không trỏ về request đã dựng cache.
             'meta' => ['request_id' => $request->attributes->get('request_id')],
         ]);
     }
 
-    public function warrantyDefects(Request $request)
+    /**
+     * Bảo hành theo lỗi: quét warranty_case cả kỳ, mỗi trang còn kéo thêm defects và component issue theo từng hồ sơ, cộng 5 truy vấn đếm cho phần summary.
+     *
+     * @return array<string, mixed>
+     */
+    private function warrantyDefectsData(Request $request): array
     {
         $validated = $request->validate([
             'from_date' => ['nullable', 'date'],
@@ -382,31 +429,50 @@ class BaM1ReportController extends Controller
                 'temp_only' => (int) $row->temp_only,
             ])->values()->all();
 
+        return [
+            'period' => ['from_date' => $from, 'to_date' => $to],
+            'rows' => $rows,
+            'summary' => [
+                'total' => (clone $summaryBase)->count(),
+                'processing' => (clone $summaryBase)->whereIn('wc.status', ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED'])->count(),
+                'returned' => (clone $summaryBase)->where('wc.status', 'RETURNED')->count(),
+                'cancelled' => (clone $summaryBase)->where('wc.status', 'CANCELLED')->count(),
+                'temp_only' => (clone $summaryBase)->where('wc.identification_status', 'TEMP_ONLY')->count(),
+            ],
+            'by_defect' => $byDefect,
+            // §13.8: mọi dòng luôn qua WarrantyPiiMasker (không có nhánh actor
+            // xem PII thô ở endpoint đọc này — chỉ export mới xét quyền/reason),
+            // nên cờ tóm tắt ở top-level luôn true, khớp pii_masked từng dòng.
+            'pii_included' => false,
+            'pii_masked' => true,
+            'pagination' => $this->pagination($page, $perPage, $total),
+        ];
+    }
+
+    public function defectSkuBreakdown(Request $request)
+    {
         return response()->json([
             'success' => true,
-            'data' => [
-                'period' => ['from_date' => $from, 'to_date' => $to],
-                'rows' => $rows,
-                'summary' => [
-                    'total' => (clone $summaryBase)->count(),
-                    'processing' => (clone $summaryBase)->whereIn('wc.status', ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED'])->count(),
-                    'returned' => (clone $summaryBase)->where('wc.status', 'RETURNED')->count(),
-                    'cancelled' => (clone $summaryBase)->where('wc.status', 'CANCELLED')->count(),
-                    'temp_only' => (clone $summaryBase)->where('wc.identification_status', 'TEMP_ONLY')->count(),
-                ],
-                'by_defect' => $byDefect,
-                // §13.8: mọi dòng luôn qua WarrantyPiiMasker (không có nhánh actor
-                // xem PII thô ở endpoint đọc này — chỉ export mới xét quyền/reason),
-                // nên cờ tóm tắt ở top-level luôn true, khớp pii_masked từng dòng.
-                'pii_included' => false,
-                'pii_masked' => true,
-                'pagination' => $this->pagination($page, $perPage, $total),
-            ],
+            'data' => $this->cachedReportPayload(
+                'warehouse:report:warranty-defect-sku-breakdown',
+                // Phân trang nằm TRONG SQL -> page/per_page BẮT BUỘC ở trong key,
+                // nếu không trang 3 sẽ nhận lại payload của trang 1.
+                $this->reportFiltersWithPaging($request),
+                $this->reportScopeIds(),
+                fn (): array => $this->defectSkuBreakdownData($request)
+            ),
+            // meta nằm NGOÀI cache: request_id phải mới mỗi lần gọi thì log truy vết
+            // mới trỏ đúng request, không trỏ về request đã dựng cache.
             'meta' => ['request_id' => $request->attributes->get('request_id')],
         ]);
     }
 
-    public function defectSkuBreakdown(Request $request)
+    /**
+     * Phân rã lỗi theo SKU: nhóm warranty_case_defects theo SKU trên toàn kỳ.
+     *
+     * @return array<string, mixed>
+     */
+    private function defectSkuBreakdownData(Request $request): array
     {
         $validated = $request->validate([
             'from_date' => ['nullable', 'date'],
@@ -447,14 +513,10 @@ class BaM1ReportController extends Controller
             ->selectRaw('wc.product_id AS sku_id, s.sku_code, s.sku_name, wcd.defect_id, dc.defect_code, dc.defect_name, COUNT(DISTINCT wc.warranty_case_id) AS case_count')
             ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'period' => ['from_date' => $from, 'to_date' => $to],
-                'rows' => $rows,
-            ],
-            'meta' => ['request_id' => $request->attributes->get('request_id')],
-        ]);
+        return [
+            'period' => ['from_date' => $from, 'to_date' => $to],
+            'rows' => $rows,
+        ];
     }
 
     /**
@@ -467,6 +529,29 @@ class BaM1ReportController extends Controller
      */
     #[OA\Get(path: '/api/v1/reports/warranty-component-usage', operationId: 'report_warranty_component_usage', summary: 'GĐ1 chart FE — top linh kiện sử dụng trong sửa chữa bảo hành', description: 'Gộp theo SKU linh kiện từ component_issue_documents/lines đã POSTED, join warranty_case theo COALESCE(received_at, created_at) — cùng quy ước ngày với /reports/warranty-defects và /reports/warranty-defect-sku-breakdown. Không phân trang, luôn trả toàn bộ tập lọc trong kỳ (an toàn để vẽ chart Top-N).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Top linh kiện theo tổng SL đã xuất, sắp giảm dần')])]
     public function componentUsage(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'data' => $this->cachedReportPayload(
+                'warehouse:report:warranty-component-usage',
+                // Phân trang nằm TRONG SQL -> page/per_page BẮT BUỘC ở trong key,
+                // nếu không trang 3 sẽ nhận lại payload của trang 1.
+                $this->reportFiltersWithPaging($request),
+                $this->reportScopeIds(),
+                fn (): array => $this->componentUsageData($request)
+            ),
+            // meta nằm NGOÀI cache: request_id phải mới mỗi lần gọi thì log truy vết
+            // mới trỏ đúng request, không trỏ về request đã dựng cache.
+            'meta' => ['request_id' => $request->attributes->get('request_id')],
+        ]);
+    }
+
+    /**
+     * Linh kiện đã dùng: nhóm component_issue_documents theo SKU trên toàn kỳ.
+     *
+     * @return array<string, mixed>
+     */
+    private function componentUsageData(Request $request): array
     {
         $validated = $request->validate([
             'from_date' => ['nullable', 'date'],
@@ -503,14 +588,10 @@ class BaM1ReportController extends Controller
             ->selectRaw('cs.sku_id, cs.sku_code, cs.sku_name, SUM(cil.scanned_qty) AS total_issued_qty, COUNT(DISTINCT cid.warranty_case_id) AS case_count')
             ->get();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'period' => ['from_date' => $from, 'to_date' => $to],
-                'rows' => $rows,
-            ],
-            'meta' => ['request_id' => $request->attributes->get('request_id')],
-        ]);
+        return [
+            'period' => ['from_date' => $from, 'to_date' => $to],
+            'rows' => $rows,
+        ];
     }
 
     private function pagination(int $page, int $perPage, int $total): array

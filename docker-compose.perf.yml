@@ -18,13 +18,11 @@
 
 services:
   nginx:
-    # LƯU Ý VẬN HÀNH: nginx perf dùng `upstream` TĨNH (để bật keepalive tới
-    # php-fpm) nên nó phân giải IP của `backend` MỘT LẦN lúc khởi động. Nếu
-    # recreate riêng container backend (đổi IP), nginx giữ kết nối cũ và trả 502
-    # cho tới khi được restart. Sau khi recreate backend, chạy:
-    #   docker compose -f docker-compose.yml -f docker-compose.override.yml \
-    #                  -f docker-compose.perf.yml restart nginx
-    # (Stack dev mặc định không bị việc này vì dùng upstream động + resolver.)
+    # ĐÃ SỬA (trước đây là một lưu ý vận hành, nay là hành vi tự động):
+    # khối `upstream` của hồ sơ perf dùng `zone` + tham số `resolve`, nên nginx
+    # tự phân giải lại tên `backend` theo TTL của DNS Docker. Recreate riêng
+    # container backend KHÔNG còn gây 502 và KHÔNG còn cần `restart nginx` thủ
+    # công. Chi tiết và bằng chứng kiểm chứng: docker/nginx/perf/default.conf.template.
     volumes:
       # Ghi đè đúng hai file cấu hình (compose khớp theo đường dẫn trong
       # container); bind mount mã nguồn khai ở compose gốc giữ nguyên.
@@ -32,9 +30,12 @@ services:
       - ./docker/nginx/perf/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     environment:
       - WMS_NGINX_EXTERNAL_PORT=${NGINX_DOCKER_PORT:-8080}
-      # Danh sách backend cho khối `upstream`. Mở rộng ngang nhiều máy: nối thêm
-      # "server ip2:9000; server ip3:9000;" vào biến này.
-      - WMS_PHP_UPSTREAM_SERVERS=${WMS_PHP_UPSTREAM_SERVERS:-server backend:9000 max_fails=3 fail_timeout=10s;}
+      # Danh sách backend cho khối `upstream`. `resolve` là phần bắt buộc để nginx
+      # theo kịp IP mới khi container backend được recreate — bỏ nó đi là quay lại
+      # đúng lỗi 502 cũ. Mở rộng ngang nhiều máy: nối thêm
+      # "server host2:9000 resolve; server host3:9000 resolve;" vào biến này
+      # (địa chỉ IP thuần cũng hợp lệ, có hay không có `resolve` đều được).
+      - WMS_PHP_UPSTREAM_SERVERS=${WMS_PHP_UPSTREAM_SERVERS:-server backend:9000 resolve max_fails=3 fail_timeout=10s;}
       - WMS_NGINX_MAX_BODY=${WMS_NGINX_MAX_BODY:-64m}
       - WMS_NGINX_FASTCGI_TIMEOUT=${WMS_NGINX_FASTCGI_TIMEOUT:-60}
     ulimits:

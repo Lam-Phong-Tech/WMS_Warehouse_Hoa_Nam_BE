@@ -175,4 +175,160 @@ class StockCacheInvalidationTest extends TestCase
         $this->assertGreaterThan(0, (int) $matching->json('meta.total'));
         $this->assertSame(0, (int) $nonMatching->json('meta.total'), 'Filter theo sku_id khác nhau không được đụng cache key.');
     }
+
+    /**
+     * 5 báo cáo nặng mới được đưa vào cache (xnt, xnt-daily, document-history,
+     * outbound-by-agency, movement-trace) dùng CHUNG version namespace
+     * `stock:version` với các endpoint đã có cache từ trước. Test này chứng minh
+     * điều đó đúng END-TO-END: hâm nóng cache khi chưa có tồn, post-receipt thật,
+     * rồi đọc lại phải thấy dữ liệu mới NGAY — không chờ hết TTL 'report' (300s).
+     *
+     * Thiếu test này thì một lần đổi namespace hoặc quên bump sẽ biến 5 endpoint
+     * trên thành nguồn số liệu cũ suốt 5 phút mà không ai phát hiện.
+     */
+    public function test_cached_heavy_reports_reflect_post_receipt_immediately(): void
+    {
+        $headers = $this->authHeaders();
+        $warehouse = $this->canonicalWarehouse();
+
+        // Vài báo cáo bắt buộc khoảng ngày (422 nếu thiếu) — dùng chung một kỳ
+        // bao trọn thời điểm chạy test để mọi endpoint đều hợp lệ.
+        $period = 'from_date='.now()->subDay()->toDateString().'&to_date='.now()->addDay()->toDateString();
+
+        $endpoints = [
+            '/api/v1/reports/inventory-xnt?'.$period.'&warehouse_id='.$warehouse->id,
+            '/api/v1/reports/inventory-xnt-daily?'.$period.'&warehouse_id='.$warehouse->id,
+            '/api/v1/reports/document-history?'.$period,
+            '/api/v1/reports/outbound-by-agency?'.$period,
+            '/api/v1/reports/movement-trace?'.$period,
+        ];
+
+        // Hâm nóng: mỗi endpoint ghi một entry ứng với version hiện tại.
+        foreach ($endpoints as $endpoint) {
+            $this->getJson($endpoint, $headers)->assertOk();
+        }
+
+        $skuCode = 'STOCK-CACHE-HEAVY-01';
+        $this->postComponentReceipt($headers, $skuCode, 5);
+
+        // Đọc lại: nếu version không bump, các lời gọi này trả nguyên payload cũ.
+        foreach ($endpoints as $endpoint) {
+            $this->getJson($endpoint, $headers)->assertOk();
+        }
+
+        $xnt = $this->getJson('/api/v1/reports/inventory-xnt?'.$period.'&warehouse_id='.$warehouse->id, $headers)->assertOk();
+        // Báo cáo XNT phát hành theo MÃ SKU (product_code), không có product_id.
+        $line = collect($xnt->json('data.lines'))
+            ->first(fn (array $row): bool => ($row['product_code'] ?? null) === $skuCode);
+
+        $this->assertNotNull(
+            $line,
+            'Báo cáo XNT phải thấy SKU vừa post-receipt ngay; null nghĩa là cache không bị bump theo stock:version.'
+        );
+
+        $trace = $this->getJson('/api/v1/reports/movement-trace?'.$period, $headers)->assertOk();
+        $traced = collect($trace->json('data.rows'))
+            ->contains(fn (array $row): bool => ($row['product_code'] ?? null) === $skuCode);
+
+        $this->assertTrue(
+            $traced,
+            'Sổ movement phải có bút toán vừa sinh; thiếu nghĩa là đang phục vụ entry cache dựng trước lúc post.'
+        );
+    }
+
+    /**
+     * Payload báo cáo phải ĐI QUA được cache store rồi quay lại nguyên vẹn.
+     *
+     * `config/cache.php` đặt `serializable_classes = false` (chặn gadget-chain khi
+     * unserialize). Bất kỳ PHP object nào lọt vào payload — Collection của query
+     * builder, stdClass của từng dòng `->get()`, Carbon — khi đọc lại sẽ thành
+     * `__PHP_Incomplete_Class`; CacheService coi đó là miss nên KHÔNG sai dữ liệu,
+     * nhưng cache không bao giờ hit và mỗi request vẫn chạy full SQL.
+     *
+     * Đây đúng là lỗi đã xảy ra thật với 4 báo cáo của BaM1ReportController (thấy
+     * qua `cache.corrupted` trong log). Test chốt lại: hai lần gọi liên tiếp phải
+     * cho payload y hệt nhau.
+     */
+    public function test_report_payloads_survive_a_cache_round_trip(): void
+    {
+        $headers = $this->authHeaders();
+        $this->postComponentReceipt($headers, 'STOCK-CACHE-ROUNDTRIP-01', 2);
+
+        $period = 'from_date='.now()->subDays(7)->toDateString()
+            .'&to_date='.now()->addDay()->toDateString();
+
+        $endpoints = [
+            '/api/v1/reports/outbound-by-recipient?'.$period,
+            '/api/v1/reports/warranty-defects?'.$period,
+            '/api/v1/reports/warranty-defect-sku-breakdown?'.$period,
+            '/api/v1/reports/warranty-component-usage?'.$period,
+            '/api/v1/reports/import-match?'.$period,
+            '/api/v1/reports/label-log?'.$period,
+            '/api/v1/reports/inventory-reconciliation',
+        ];
+
+        foreach ($endpoints as $endpoint) {
+            $first = $this->getJson($endpoint, $headers)->assertOk()->json('data');
+            $second = $this->getJson($endpoint, $headers)->assertOk()->json('data');
+
+            $this->assertSame(
+                $first,
+                $second,
+                "Payload của {$endpoint} đổi giữa hai lần gọi liên tiếp — dấu hiệu cache không dùng lại được."
+            );
+        }
+    }
+
+    /**
+     * Báo cáo phân trang TRONG SQL phải có page/per_page trong cache key.
+     *
+     * Nhóm BaM1 dùng LIMIT/OFFSET ở SQL, khác với các báo cáo cắt trang trong bộ
+     * nhớ. Dùng chung một entry cho mọi trang thì người xem trang 2 sẽ nhận lại
+     * đúng nội dung trang 1.
+     */
+    public function test_sql_paginated_report_separates_pages_in_cache(): void
+    {
+        $headers = $this->authHeaders();
+        $period = 'from_date='.now()->subDays(30)->toDateString()
+            .'&to_date='.now()->addDay()->toDateString();
+
+        $page1 = $this->getJson(
+            '/api/v1/reports/warranty-defects?'.$period.'&page=1&per_page=1',
+            $headers
+        )->assertOk();
+        $page2 = $this->getJson(
+            '/api/v1/reports/warranty-defects?'.$period.'&page=2&per_page=1',
+            $headers
+        )->assertOk();
+
+        $this->assertSame(1, (int) $page1->json('data.pagination.current_page'));
+        $this->assertSame(2, (int) $page2->json('data.pagination.current_page'));
+    }
+
+    /**
+     * Cache key của báo cáo phải đổi theo BỘ LỌC. Đây là lớp chống "trả nhầm số
+     * liệu của bộ lọc khác" — kiểu lỗi nguy hiểm nhất khi thêm cache vào báo cáo.
+     */
+    public function test_report_cache_key_separates_different_filters(): void
+    {
+        $headers = $this->authHeaders();
+
+        $this->postComponentReceipt($headers, 'STOCK-CACHE-FILTER-RPT-01', 6);
+
+        $inRange = $this->getJson(
+            '/api/v1/reports/document-history?from_date='.now()->subDay()->toDateString()
+                .'&to_date='.now()->addDay()->toDateString(),
+            $headers
+        )->assertOk();
+        $outOfRange = $this->getJson(
+            '/api/v1/reports/document-history?from_date=2000-01-01&to_date=2000-01-02',
+            $headers
+        )->assertOk();
+
+        $this->assertGreaterThan(
+            count($outOfRange->json('data.rows')),
+            count($inRange->json('data.rows')),
+            'Hai khoảng ngày khác nhau phải cho hai kết quả khác nhau — dùng chung cache key là trả sai số liệu.'
+        );
+    }
 }
