@@ -173,7 +173,14 @@ class AuthDatabaseSeeder extends Seeder
             'name' => 'Thủ kho',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
-                'inbound.view', 'inbound.scan', 'inbound.post', 'inbound.cancel',
+                // inbound.create bổ sung 05/09/2026: SRS v1.12 §3 hàng "Inbound
+                // create/cancel/scan/post" đánh A cho actor "Quản lý kho", mà
+                // ROLE_BASELINE_PIN.json ánh xạ WAREHOUSE_KEEPER về chính actor đó.
+                // Seed cũ thiếu key này nên Thủ kho quét xong không gửi duyệt được
+                // phiếu nhập: POST /api/v1/mini-app/inbound/record (và cả đường
+                // fallback POST /api/v1/inbound-documents) đều gác inbound.create
+                // nên trả 403 ACCESS_DENIED — chặn đứng Mini App ở bước "Gửi duyệt".
+                'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
                 'outbound.view', 'outbound.import', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
                 'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',

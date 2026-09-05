@@ -79,8 +79,9 @@
     },
     "WAREHOUSE_KEEPER": {
       "name": "Warehouse Keeper",
-      "permissionCount": 46,
-      "permissionsSha256": "28d753d22aad1d27eb30e1b14aec3d1f115ade48745e1294c11bd8cbc639b487"
+      "permissionCount": 39,
+      "permissionsSha256": "14658b58624a78ba790918d5421fde23170b734930c8ccfe226331707dab83d7",
+      "note": "Cập nhật 05/09/2026 cùng DELTA-04 (thêm inbound.create). Số quyền đi từ 46 xuống 39 vì HAI nguyên nhân khác nhau, đừng đọc nhầm thành 'thu hồi quyền': (a) bản pin 46 đã trôi từ trước — seeder tại thời điểm sửa chỉ còn 38 quyền, và WWHN-267 KHÔNG truy nguyên phần trôi đó ở đây; (b) lần sửa này CỘNG đúng 1 quyền (inbound.create) đưa 38 lên 39. Cảnh báo: mọi role còn lại trong pinnedRoles vẫn đang trôi so với seeder tại thời điểm này, nên test_role_baseline_matches_the_pin vẫn đỏ vì lý do KHÔNG liên quan tới DELTA-04."
     },
     "WARRANTY_STAFF": {
       "name": "Warranty Staff",
@@ -159,6 +160,19 @@
       "disposition": "OPEN_NEEDS_TECH_LEAD_DECISION",
       "owner": "Tech Lead",
       "raisedBy": "WWHN-267 (BE2)"
+    },
+    {
+      "id": "DELTA-04",
+      "severity": "P1",
+      "role": "WAREHOUSE_KEEPER",
+      "srsRow": "Inbound create/cancel/scan/post — Admin A, Quản lý kho A, NV kho A*, Permission key: inbound.create / inbound.cancel|inbound.create / inbound.scan / inbound.post",
+      "observed": "Seed cấp cho WAREHOUSE_KEEPER đủ inbound.view/scan/post/cancel nhưng THIẾU inbound.create, trong khi actorMapping ở chính hồ sơ này ánh xạ WAREHOUSE_KEEPER về actor 'Quản lý kho' — actor mà §3 đánh A cho đúng hàng này. Hệ quả đo được trên dev 05/09/2026 với tài khoản warehouse-keeper-01@gmail.com: POST /api/v1/mini-app/inbound/record trả 403 ACCESS_DENIED, POST /api/v1/mini-app/inbound-documents 403, POST /api/v1/inbound-documents (đường fallback của Mini App) 403; cùng lúc warehouse-staff-01@gmail.com trả 422 tức chỉ vướng validate. Thiếu quyền là thiếu ở mức role, không phải mức tài khoản.",
+      "whyItMatters": "Đây là lệch THIẾU quyền so với §3 chứ không phải nới quyền: Thủ kho quét xong cả phiếu nhưng không gửi duyệt được, chặn đứng Mini App ở bước 'Gửi duyệt' và làm luồng nhập kho scan-driven không dùng được với đúng vai được thiết kế để đứng ở bãi nhận hàng. Lệch này lọt qua WWHN-267 vì RBAC_MATRIX của test chỉ phủ LEADERSHIP/WAREHOUSE_STAFF/WARRANTY_STAFF, không có ô nào cho WAREHOUSE_KEEPER.",
+      "compensatingControl": "Không cần kiểm soát bù: inbound.create chỉ tạo chứng từ ở trạng thái chờ duyệt (stock_effect NONE, movement_created false). Việc tăng tồn vẫn nằm sau inbound.post và middleware EnsureCanonicalInboundWarehouse/EnforceInboundWarehouseScope, không đổi.",
+      "recommendation": "ĐÃ SỬA 05/09/2026: thêm 'inbound.create' vào hằng ROLES['WAREHOUSE_KEEPER'] của AuthDatabaseSeeder và cấp bù đúng 1 dòng role_permissions trên DB dev. Đề nghị bổ sung ô WAREHOUSE_KEEPER vào RBAC_MATRIX của Wwhn267ContractClosureTest để cùng loại lệch không lọt lần nữa (chưa làm, nằm ngoài phạm vi lần sửa này).",
+      "disposition": "RESOLVED_CONFORMS_TO_SRS",
+      "owner": "BE (đã sửa) + Tech Lead (xác nhận RBAC_MATRIX)",
+      "raisedBy": "Báo lỗi từ đội FE Mini App 05/09/2026 (đăng nhập được nhưng 403 khi gửi duyệt phiếu)"
     }
   ],
   "measuredAt": {
