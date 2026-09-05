@@ -409,7 +409,7 @@ class WmsContractController extends Controller
             'source_type' => ['nullable', 'string', 'max:50'],
             'source_id' => ['nullable', 'uuid'],
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
-            'codes' => ['nullable', 'array'],
+            'codes' => ['nullable', 'array', 'max:500'],
             'codes.*' => ['string', 'max:100'],
         ]);
 

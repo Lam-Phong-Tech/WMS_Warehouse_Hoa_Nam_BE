@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Requests;
 
+use App\Support\Validation\InputLimits;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -17,7 +18,7 @@ class StoreContainerItemRequest extends FormRequest
         return [
             'item_id' => ['nullable', 'uuid', 'exists:item_instances,item_id'],
             'sku_id' => ['nullable', 'uuid', 'exists:sku,sku_id'],
-            'quantity' => ['nullable', 'integer', 'min:1'],
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
         ];
     }
 

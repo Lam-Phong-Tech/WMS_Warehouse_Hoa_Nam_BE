@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -146,7 +147,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                                     new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true, example: 'DCH-DRILL-DJZ10A-220V-V1'),
                                     new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
                                     new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
-                                    new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, example: 2),
+                                    new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, example: 2),
                                     new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Giao theo yêu cầu đại lý'),
                                 ]
                             )),
@@ -280,10 +281,10 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                 new OA\Property(property: 'lines', type: 'array', maxItems: 10000, nullable: true, description: 'Mapping lại từng source line theo row_no.', items: new OA\Items(
                     required: ['row_no'],
                     properties: [
-                        new OA\Property(property: 'row_no', type: 'integer', minimum: 1, example: 1),
+                        new OA\Property(property: 'row_no', type: 'integer', minimum: 1, maximum: InputLimits::VERSION_MAX, example: 1),
                         new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
                         new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true, example: 'DCH-DRILL-DJZ10A-220V-V1'),
-                        new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, nullable: true, example: 2),
+                        new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, nullable: true, example: 2),
                     ]
                 )),
                 new OA\Property(property: 'receiver_name', type: 'string', maxLength: 200, nullable: true, description: 'Override người nhận áp cho mọi request_no không có override riêng.', example: 'Nguyễn Văn A'),
@@ -548,20 +549,21 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
     {
         $validated = $request->validate([
             'lines' => ['nullable', 'array', 'max:10000'],
-            'lines.*.row_no' => ['required_with:lines', 'integer', 'min:1'],
+            // row_no ghi vào cột integer của Postgres — trần là ràng buộc kỹ thuật (int4), không phải nghiệp vụ.
+            'lines.*.row_no' => ['required_with:lines', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
             'lines.*.sku_id' => ['nullable', 'uuid'],
             'lines.*.sku_code' => ['nullable', 'string', 'max:100'],
-            'lines.*.required_qty' => ['nullable', 'integer', 'min:1'],
+            'lines.*.required_qty' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'receiver_name' => ['nullable', 'string', 'max:200'],
             'receiver_address' => ['nullable', 'string', 'max:1000'],
             'receiver_contact_phone' => ['nullable', 'string', 'max:50'],
-            'request_date' => ['nullable', 'date_format:Y-m-d'],
+            'request_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.InputLimits::DATE_MIN, 'before_or_equal:'.InputLimits::pastDateMax()],
             'requests' => ['nullable', 'array', 'max:500'],
             'requests.*.request_no' => ['required_with:requests', 'string', 'max:80'],
             'requests.*.receiver_name' => ['nullable', 'string', 'max:200'],
             'requests.*.receiver_address' => ['nullable', 'string', 'max:1000'],
             'requests.*.receiver_contact_phone' => ['nullable', 'string', 'max:50'],
-            'requests.*.request_date' => ['nullable', 'date_format:Y-m-d'],
+            'requests.*.request_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.InputLimits::DATE_MIN, 'before_or_equal:'.InputLimits::pastDateMax()],
         ]);
 
         $lines = [];

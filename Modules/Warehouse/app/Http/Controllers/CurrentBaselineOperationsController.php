@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\ConflictCode;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Client\ConnectionException;
@@ -78,7 +79,7 @@ class CurrentBaselineOperationsController extends Controller
                                 new OA\Property(property: 'sku_code', type: 'string', maxLength: 100, nullable: true, example: 'SKU-000123'),
                                 new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                                 new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
-                                new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, example: 5),
+                                new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, example: 5),
                                 new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Giao trong giờ hành chính'),
                             ]
                         )
@@ -113,7 +114,7 @@ class CurrentBaselineOperationsController extends Controller
             'rows.*.sku_id' => ['nullable', 'uuid'],
             // BR-AGY-01 được kiểm ở Confirm nên agency_id phải đi qua validate.
             'rows.*.agency_id' => ['nullable', 'uuid'],
-            'rows.*.required_qty' => ['required_with:rows', 'integer', 'min:1'],
+            'rows.*.required_qty' => ['required_with:rows', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'rows.*.note' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -276,7 +277,7 @@ class CurrentBaselineOperationsController extends Controller
             'customer_name' => ['required', 'string', 'max:200'],
             'customer_phone' => ['required', 'string', 'max:50'],
             'customer_address' => ['nullable', 'string', 'max:1000'],
-            'purchase_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'purchase_date' => array_merge(['nullable'], InputLimits::pastDate()),
             'missing_code_reason' => ['nullable', 'string', 'max:500'],
             'manual_product_description' => ['nullable', 'string', 'max:2000'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -358,7 +359,7 @@ class CurrentBaselineOperationsController extends Controller
             'status' => ['required', 'in:RECEIVED,CHECKING,REPAIRING,COMPLETED,RETURNED,CANCELLED'],
             'condition_status' => ['nullable', 'string', 'max:30'],
             'description' => ['nullable', 'string', 'max:2000'],
-            'version' => ['nullable', 'integer', 'min:1'],
+            'version' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
         ]);
         $expectedVersion = $this->expectedVersion($request, $validated['version'] ?? null);
 

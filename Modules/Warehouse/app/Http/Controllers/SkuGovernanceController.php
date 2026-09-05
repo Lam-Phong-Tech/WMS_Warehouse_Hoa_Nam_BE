@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -55,7 +56,7 @@ class SkuGovernanceController extends Controller
             'code_type' => ['sometimes', Rule::in(['BARCODE', 'QR', 'RFID', 'SERIAL'])],
             'carrier_type' => ['sometimes', Rule::in(['BARCODE', 'QR', 'RFID', 'NFC', 'MANUAL'])],
             'status' => ['sometimes', Rule::in(['ACTIVE', 'INACTIVE'])],
-            'version' => ['sometimes', 'integer', 'min:1'],
+            'version' => ['sometimes', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
         ]);
         $expectedVersion = $this->expectedVersion($request);
 
@@ -69,7 +70,7 @@ class SkuGovernanceController extends Controller
 
     public function revokePhysicalCode(Request $request, string $id, string $physicalCodeId): JsonResponse
     {
-        $request->validate(['version' => ['sometimes', 'integer', 'min:1']]);
+        $request->validate(['version' => ['sometimes', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX]]);
         $expectedVersion = $this->expectedVersion($request);
 
         return $this->idempotent($request, "sku_physical_code_revoke_{$id}_{$physicalCodeId}", fn (): array => [
@@ -97,10 +98,10 @@ class SkuGovernanceController extends Controller
             'status' => ['sometimes', Rule::in(['ACTIVE', 'INACTIVE', 'DRAFT'])],
             'published_to_app' => ['sometimes', 'boolean'],
             'is_serial_tracked' => ['sometimes', 'boolean'],
-            'version' => ['sometimes', 'integer', 'min:1'],
+            'version' => ['sometimes', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
             'components' => ['sometimes', 'array', 'max:100'],
             'components.*.component_id' => ['required', 'uuid'],
-            'components.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'components.*.quantity' => ['required', 'numeric', 'gt:0', 'max:'.InputLimits::QUANTITY_MAX, 'decimal:0,'.InputLimits::QUANTITY_DECIMALS],
             'physical_codes' => ['sometimes', 'array', 'max:100'],
             'physical_codes.*.code_value' => ['required', 'string', 'max:150'],
             'physical_codes.*.code_type' => ['sometimes', Rule::in(['BARCODE', 'QR', 'RFID', 'SERIAL'])],

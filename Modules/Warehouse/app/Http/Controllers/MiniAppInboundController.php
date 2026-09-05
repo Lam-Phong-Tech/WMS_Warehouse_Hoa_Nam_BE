@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\ScanRequestFingerprint;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -114,7 +115,7 @@ class MiniAppInboundController extends Controller
     {
         if (! $request->has('lines')) {
             $shortcut = $request->validate([
-                'expected_qty' => ['required', 'integer', 'min:1'],
+                'expected_qty' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
                 'product_id' => ['nullable', 'uuid', 'required_without_all:sku_id,sku_code'],
                 'sku_id' => ['nullable', 'uuid', 'required_without_all:product_id,sku_code'],
                 'sku_code' => ['nullable', 'string', 'max:100', 'required_without_all:product_id,sku_id'],
@@ -335,8 +336,8 @@ class MiniAppInboundController extends Controller
 
         $validated = $request->validate([
             'line_id' => ['nullable', 'required_without:code_value', 'uuid'],
-            'quantity' => ['required_without:qty', 'integer', 'min:1'],
-            'qty' => ['required_without:quantity', 'integer', 'min:1'],
+            'quantity' => ['required_without:qty', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
+            'qty' => ['required_without:quantity', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'code_value' => ['nullable', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'item_id' => ['nullable', 'uuid'],
             'container_id' => ['nullable', 'uuid'],

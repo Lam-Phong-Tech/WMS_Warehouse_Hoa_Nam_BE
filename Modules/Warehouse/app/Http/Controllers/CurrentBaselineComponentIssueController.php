@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,15 +33,15 @@ class CurrentBaselineComponentIssueController extends Controller
             'component_issue_no' => ['nullable', 'string', 'max:80', 'unique:component_issue_documents,component_issue_no'],
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'warranty_case_id' => ['required', 'uuid', 'exists:warranty_case,warranty_case_id'],
-            'document_date' => ['required', 'date'],
+            'document_date' => array_merge(['required'], InputLimits::pastDate()),
             'purpose' => ['nullable', 'in:WARRANTY'],
-            'lines' => ['required', 'array', 'min:1'],
+            'lines' => ['required', 'array', 'min:1', 'max:500'],
             'lines.*.sku_id' => ['required', 'uuid', 'exists:sku,sku_id'],
-            'lines.*.required_qty' => ['required', 'integer', 'min:1'],
-            'lines.*.items' => ['required', 'array', 'min:1'],
+            'lines.*.required_qty' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
+            'lines.*.items' => ['required', 'array', 'min:1', 'max:500'],
             'lines.*.items.*.item_id' => ['nullable', 'uuid', 'exists:item_instances,item_id'],
             'lines.*.items.*.container_id' => ['nullable', 'uuid', 'exists:containers,container_id'],
-            'lines.*.items.*.quantity' => ['required', 'integer', 'min:1'],
+            'lines.*.items.*.quantity' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
         ]);
 
         $id = DB::transaction(function () use ($validated, $request): string {

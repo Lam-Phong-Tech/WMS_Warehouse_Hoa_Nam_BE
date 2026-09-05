@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Requests;
 
+use App\Support\Validation\InputLimits;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class UpdateContainerRequest extends FormRequest
             'zone_code' => ['nullable', 'string', 'max:50'],
             'location_hint' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'max:20'],
-            'version' => ['nullable', 'integer', 'min:1'],
+            'version' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
         ];
     }
 

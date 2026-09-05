@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Support\ApiError;
+use App\Support\Validation\InputLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,9 +65,9 @@ class BaM1WarrantyController extends CurrentBaselineWarrantyController
     private function normalizeAliases(Request $request): void
     {
         $request->validate([
-            'defect_codes' => ['sometimes', 'array', 'min:1'],
+            'defect_codes' => ['sometimes', 'array', 'min:1', 'max:500'],
             'defect_codes.*' => ['string', 'max:80', 'distinct'],
-            'expected_completion_date' => ['nullable', 'date', 'after_or_equal:today'],
+            'expected_completion_date' => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:'.InputLimits::futureDateMax()],
         ]);
 
         if ($request->has('expected_completion_date') && ! $request->has('estimated_completion_date')) {

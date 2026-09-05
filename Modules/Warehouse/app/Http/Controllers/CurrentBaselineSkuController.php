@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +59,7 @@ class CurrentBaselineSkuController extends Controller
                         required: ['component_id', 'quantity'],
                         properties: [
                             new OA\Property(property: 'component_id', type: 'string', format: 'uuid', example: 'ab12cd34-ef56-4a78-9b01-c23d45e67f89'),
-                            new OA\Property(property: 'quantity', type: 'number', minimum: 0.001, example: 1),
+                            new OA\Property(property: 'quantity', type: 'number', minimum: 0.001, maximum: InputLimits::QUANTITY_MAX, example: 1),
                         ]
                     )),
                     new OA\Property(property: 'physical_codes', type: 'array', maxItems: 100, items: new OA\Items(
@@ -132,7 +133,7 @@ class CurrentBaselineSkuController extends Controller
                     required: ['component_id', 'quantity'],
                     properties: [
                         new OA\Property(property: 'component_id', type: 'string', format: 'uuid', example: 'ab12cd34-ef56-4a78-9b01-c23d45e67f89'),
-                        new OA\Property(property: 'quantity', type: 'number', minimum: 0.001, example: 1),
+                        new OA\Property(property: 'quantity', type: 'number', minimum: 0.001, maximum: InputLimits::QUANTITY_MAX, example: 1),
                     ]
                 )),
                 new OA\Property(property: 'physical_codes', type: 'array', maxItems: 100, items: new OA\Items(
@@ -199,15 +200,15 @@ class CurrentBaselineSkuController extends Controller
             'published_to_app' => ['sometimes', 'boolean'],
             'is_serial_tracked' => ['sometimes', 'boolean'],
             'warranty_applicable' => ['sometimes', 'boolean'],
-            'specification' => ['sometimes', 'nullable', 'array'],
+            'specification' => ['sometimes', 'nullable', 'array', 'max:500'],
             'components' => ['sometimes', 'array', 'max:100'],
             'components.*.component_id' => ['required', 'uuid'],
-            'components.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            'components.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:'.InputLimits::QUANTITY_MAX, 'decimal:0,'.InputLimits::QUANTITY_DECIMALS],
             'physical_codes' => ['sometimes', 'array', 'max:100'],
             'physical_codes.*.code_value' => ['required', 'string', 'max:150'],
-            'physical_codes.*.code_type' => ['sometimes', 'nullable', 'string'],
-            'physical_codes.*.carrier_type' => ['sometimes', 'nullable', 'string'],
-            'physical_codes.*.status' => ['sometimes', 'nullable', 'string'],
+            'physical_codes.*.code_type' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'physical_codes.*.carrier_type' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'physical_codes.*.status' => ['sometimes', 'nullable', 'string', 'max:50'],
         ];
     }
 

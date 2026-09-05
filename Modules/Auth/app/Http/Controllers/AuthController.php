@@ -219,7 +219,7 @@ class AuthController extends Controller
     )]
     public function refresh(Request $request)
     {
-        $request->validate(['refresh_token' => ['required', 'string']]);
+        $request->validate(['refresh_token' => ['required', 'string', 'max:255']]);
         $rawToken = (string) $request->input('refresh_token');
         $rotated = $this->refreshTokens->rotate($rawToken, $request);
 
@@ -268,7 +268,7 @@ class AuthController extends Controller
     )]
     public function logout(Request $request)
     {
-        $request->validate(['refresh_token' => ['nullable', 'string']]);
+        $request->validate(['refresh_token' => ['nullable', 'string', 'max:255']]);
         /** @var User $user */
         $user = auth('api')->user();
 
@@ -325,8 +325,8 @@ class AuthController extends Controller
     public function changePassword(Request $request)
     {
         $data = $request->validate([
-            'current_password' => ['required', 'string'],
-            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
+            'current_password' => ['required', 'string', 'max:255'],
+            'new_password' => ['required', 'string', 'min:8', 'max:128', 'confirmed'],
         ]);
         /** @var User $user */
         $user = auth('api')->user();

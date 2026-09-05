@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\ConflictCode;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +29,7 @@ class CurrentBaselineContainerController extends Controller
             'zone_code' => ['nullable', 'string', 'max:50'],
             'location_hint' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:ACTIVE,SEALED,CLOSED,INACTIVE'],
-            'version' => ['nullable', 'integer', 'min:1'],
+            'version' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
         ]);
         $expectedVersion = $this->expectedVersion($request, $validated['version'] ?? null);
         unset($validated['version']);

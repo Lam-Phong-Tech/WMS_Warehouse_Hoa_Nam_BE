@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -461,7 +462,7 @@ class ReversalDocumentController extends Controller
                         required: ['sku', 'reversal_qty'],
                         properties: [
                             new OA\Property(property: 'sku', type: 'string', example: 'SKU-000123'),
-                            new OA\Property(property: 'reversal_qty', type: 'integer', minimum: 1, example: 10),
+                            new OA\Property(property: 'reversal_qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, example: 10),
                             new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: 'b6f2a1d4-3c9e-4a2b-8f1d-7e6c5b4a3210'),
                             new OA\Property(property: 'reason', type: 'string', nullable: true, example: 'Hoàn trả do nhập sai số lượng'),
                         ]
@@ -476,19 +477,19 @@ class ReversalDocumentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'reversal_type' => ['nullable', 'string'],
-            'reference_document_id' => ['required', 'string'],
-            'reference_document_type' => ['required', 'string'],
+            'reversal_type' => ['nullable', 'string', 'max:50'],
+            'reference_document_id' => ['required', 'string', 'max:100'],
+            'reference_document_type' => ['required', 'string', 'max:50'],
             'reason' => ['required', 'string', 'min:5', 'max:2000'],
             // BR-REV-06/07: Reverse Issue phải khai tình trạng hàng quay về;
             // chỉ SELLABLE mới cộng available_qty. Mặc định giữ hành vi cũ.
             'return_condition' => ['nullable', 'in:SELLABLE,DEFECTIVE,NON_SELLABLE'],
             'physical_return_confirmed' => ['nullable', 'boolean'],
-            'lines' => ['required', 'array', 'min:1'],
-            'lines.*.sku' => ['required', 'string'],
-            'lines.*.reversal_qty' => ['required', 'integer', 'min:1'],
+            'lines' => ['required', 'array', 'min:1', 'max:500'],
+            'lines.*.sku' => ['required', 'string', 'max:100'],
+            'lines.*.reversal_qty' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'lines.*.item_id' => ['nullable', 'uuid'],
-            'lines.*.reason' => ['nullable', 'string'],
+            'lines.*.reason' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $idempotencyKey = IdempotencyKeyGuard::require($request);

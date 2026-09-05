@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Requests;
 
+use App\Support\Validation\InputLimits;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class UpdateItemInstanceRequest extends FormRequest
             'item_status' => ['nullable', Rule::in(['NEW', 'IN_STOCK', 'ISSUED', 'IN_WARRANTY', 'RETURNED_TO_CUSTOMER', 'LOST', 'ADJUSTED_OUT'])],
             'item_condition' => ['nullable', Rule::in(['NORMAL', 'DEMO', 'DEFECTIVE', 'WARRANTY_RETURN', 'NON_SELLABLE'])],
             'import_batch_id' => ['nullable', 'uuid', 'exists:import_batches,import_batch_id'],
-            'version' => ['nullable', 'integer', 'min:1'],
+            'version' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
         ];
     }
 

@@ -8,6 +8,7 @@ use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
 use App\Support\ScanRequestFingerprint;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -67,8 +68,8 @@ class CurrentBaselineStockFlowController extends Controller
             content: new OA\JsonContent(
                 properties: [
                     new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU). Bắt buộc cho scan quantity-mode không kèm code_value.', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
-                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
-                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.', example: 1),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
+                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.', example: 1),
                     new OA\Property(property: 'code_value', type: 'string', minLength: 1, maxLength: 512, nullable: true, description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse authoritative, FE không tự tách. Plain code legacy vẫn nhận theo transition flag.', example: 'HN1|SKU-000123|ITEM-000456'),
                     new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                     new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
@@ -468,7 +469,7 @@ class CurrentBaselineStockFlowController extends Controller
                         required: ['movement_id', 'quantity'],
                         properties: [
                             new OA\Property(property: 'movement_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
-                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1, example: 5),
+                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, example: 5),
                             new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                         ]
                     )),
@@ -504,7 +505,7 @@ class CurrentBaselineStockFlowController extends Controller
                         required: ['movement_id', 'quantity'],
                         properties: [
                             new OA\Property(property: 'movement_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
-                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1, example: 5),
+                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, example: 5),
                             new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                         ]
                     )),
@@ -649,9 +650,9 @@ class CurrentBaselineStockFlowController extends Controller
             'reason' => ['required_without:reversal_document_id', 'string', 'max:2000'],
             'condition_status' => [$type === 'issue' ? 'required_without:reversal_document_id' : 'nullable', 'in:SELLABLE,DEFECTIVE,NON_SELLABLE'],
             'physical_return_confirmed' => ['nullable', 'boolean'],
-            'lines' => ['required_without:reversal_document_id', 'array', 'min:1'],
+            'lines' => ['required_without:reversal_document_id', 'array', 'min:1', 'max:500'],
             'lines.*.movement_id' => ['required_with:lines', 'uuid'],
-            'lines.*.quantity' => ['required_with:lines', 'integer', 'min:1'],
+            'lines.*.quantity' => ['required_with:lines', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'lines.*.item_id' => ['nullable', 'uuid', 'exists:item_instances,item_id'],
         ]);
         $expectedVersion = $this->expectedVersion($request);
@@ -755,8 +756,8 @@ class CurrentBaselineStockFlowController extends Controller
         // composite QR (nguồn số: config warehouse.product_qr.max_payload_length).
         $validated = $request->validate([
             'line_id' => ['nullable', 'required_without:code_value', 'uuid'],
-            'quantity' => ['required_without:qty', 'integer', 'min:1'],
-            'qty' => ['required_without:quantity', 'integer', 'min:1'],
+            'quantity' => ['required_without:qty', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
+            'qty' => ['required_without:quantity', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'code_value' => ['nullable', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'item_id' => ['nullable', 'uuid'],
             'container_id' => ['nullable', 'uuid'],

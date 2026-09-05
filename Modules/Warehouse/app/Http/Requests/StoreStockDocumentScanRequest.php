@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Requests;
 
+use App\Support\Validation\InputLimits;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreStockDocumentScanRequest extends FormRequest
@@ -15,7 +16,7 @@ class StoreStockDocumentScanRequest extends FormRequest
     {
         return [
             'line_id' => ['required', 'uuid'],
-            'qty' => ['required', 'numeric', 'gt:0'],
+            'qty' => ['required', 'numeric', 'gt:0', 'max:'.InputLimits::QUANTITY_MAX, 'decimal:0,'.InputLimits::QUANTITY_DECIMALS],
             'raw_code' => ['nullable', 'string', 'max:100'],
         ];
     }

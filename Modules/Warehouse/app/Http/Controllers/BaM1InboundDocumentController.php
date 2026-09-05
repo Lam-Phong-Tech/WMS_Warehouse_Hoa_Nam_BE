@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -77,7 +78,7 @@ class BaM1InboundDocumentController extends Controller
         $this->rejectManualLines($request);
         $validated = $request->validate([
             'doc_no' => ['nullable', 'string', 'max:80', 'unique:stock_documents,doc_no'],
-            'doc_date' => ['nullable', 'date'],
+            'doc_date' => array_merge(['nullable'], InputLimits::pastDate()),
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'source_name' => ['nullable', 'string', 'max:200'],
             'source_reference' => ['nullable', 'string', 'max:200'],
@@ -156,7 +157,7 @@ class BaM1InboundDocumentController extends Controller
         $this->rejectManualLines($request);
         $validated = $request->validate([
             'doc_no' => ['sometimes', 'string', 'max:80', Rule::unique('stock_documents', 'doc_no')->ignore($id, 'id')],
-            'doc_date' => ['sometimes', 'date'],
+            'doc_date' => array_merge(['sometimes'], InputLimits::pastDate()),
             'source_name' => ['nullable', 'string', 'max:200'],
             'source_reference' => ['nullable', 'string', 'max:200'],
             'note' => ['nullable', 'string', 'max:1000'],

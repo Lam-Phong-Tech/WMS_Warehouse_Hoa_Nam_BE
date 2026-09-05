@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Requests\Concerns;
 
+use App\Support\Validation\InputLimits;
 use Illuminate\Contracts\Validation\Validator;
 
 /**
@@ -29,8 +30,11 @@ trait ValidatesSkuStockThresholds
     protected function skuStockThresholdRules(): array
     {
         return [
-            'min_stock' => ['nullable', 'numeric', 'min:0'],
-            'max_stock' => ['nullable', 'numeric', 'min:1'],
+            // Trần + số chữ số thập phân lấy từ InputLimits (khớp numeric(18,3)
+            // của DB): trước đây hai vế này KHÔNG có trần nên nhận cả
+            // 10000000000000 (phản hồi người dùng 05/09/2026).
+            'min_stock' => array_merge(['nullable'], InputLimits::quantity(0)),
+            'max_stock' => array_merge(['nullable'], InputLimits::quantity(1)),
         ];
     }
 

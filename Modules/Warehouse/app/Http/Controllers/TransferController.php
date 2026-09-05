@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -196,7 +197,7 @@ use OpenApi\Attributes as OA;
                 new OA\Property(property: 'lines', type: 'array', items: new OA\Items(
                     properties: [
                         new OA\Property(property: 'line_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
-                        new OA\Property(property: 'qty_actual', type: 'number', format: 'float', example: 10),
+                        new OA\Property(property: 'qty_actual', type: 'number', format: 'float', maximum: InputLimits::QUANTITY_MAX, example: 10),
                     ]
                 )),
             ]
@@ -231,7 +232,7 @@ use OpenApi\Attributes as OA;
                 new OA\Property(property: 'lines', type: 'array', items: new OA\Items(
                     properties: [
                         new OA\Property(property: 'line_id', type: 'string', format: 'uuid', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
-                        new OA\Property(property: 'qty_lost', type: 'number', format: 'float', example: 2),
+                        new OA\Property(property: 'qty_lost', type: 'number', format: 'float', maximum: InputLimits::QUANTITY_MAX, example: 2),
                         new OA\Property(property: 'reason', type: 'string', example: 'Hư hỏng trong quá trình vận chuyển'),
                     ]
                 )),
@@ -349,9 +350,9 @@ class TransferController extends Controller
     public function receive(Request $request, string $id)
     {
         $validator = Validator::make($request->all(), [
-            'lines' => ['required', 'array', 'min:1'],
+            'lines' => ['required', 'array', 'min:1', 'max:500'],
             'lines.*.line_id' => ['required', 'uuid'],
-            'lines.*.qty_actual' => ['required', 'numeric', 'gte:0'],
+            'lines.*.qty_actual' => ['required', 'numeric', 'gte:0', 'max:'.InputLimits::QUANTITY_MAX, 'decimal:0,'.InputLimits::QUANTITY_DECIMALS],
         ]);
         if ($validator->fails()) {
             return $this->respondError('Dữ liệu đầu vào không hợp lệ', $validator->errors()->toArray(), 422, 'VALIDATION_FAILED');
@@ -372,9 +373,9 @@ class TransferController extends Controller
     public function recordLoss(Request $request, string $id)
     {
         $validator = Validator::make($request->all(), [
-            'lines' => ['required', 'array', 'min:1'],
+            'lines' => ['required', 'array', 'min:1', 'max:500'],
             'lines.*.line_id' => ['required', 'uuid'],
-            'lines.*.qty_lost' => ['required', 'numeric', 'gt:0'],
+            'lines.*.qty_lost' => ['required', 'numeric', 'gt:0', 'max:'.InputLimits::QUANTITY_MAX, 'decimal:0,'.InputLimits::QUANTITY_DECIMALS],
             'lines.*.reason' => ['required', 'string', 'max:500'],
         ]);
         if ($validator->fails()) {

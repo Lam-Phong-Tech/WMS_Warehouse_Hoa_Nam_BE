@@ -9,6 +9,7 @@ use App\Support\Cache\CacheTtl;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\ReportExportFileName;
+use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Dompdf\Dompdf;
@@ -234,7 +235,7 @@ class OperationalReportController extends Controller
         $validated = $request->validate([
             'report_code' => ['required', 'string', Rule::in(array_keys(self::EXPORT_DOWNLOAD_PATHS))],
             'format' => ['nullable', 'in:xlsx,pdf'],
-            'filters' => ['nullable', 'array'],
+            'filters' => ['nullable', 'array', 'max:500'],
         ]);
         $key = IdempotencyKeyGuard::require($request);
         $reportCode = (string) $validated['report_code'];
@@ -1166,7 +1167,7 @@ class OperationalReportController extends Controller
             'product_id' => ['nullable', 'uuid'],
             'category_id' => ['nullable', 'uuid'],
             'stock_status' => ['nullable', 'in:'.implode(',', self::STOCK_STATUSES)],
-            'as_of' => ['nullable', 'date'],
+            'as_of' => array_merge(['nullable'], InputLimits::pastDate()),
             'keyword' => ['nullable', 'string', 'max:200'],
             // Dashboard/report "Top SKU tồn cao nhất" cần sort thật ở SQL/collection,
             // không được suy ra top-N từ 1 trang đã phân trang (sai khi có nhiều trang).
@@ -2504,8 +2505,9 @@ class OperationalReportController extends Controller
     private function period(Request $request, bool $required = false): array
     {
         $rules = [
-            'from_date' => [$required ? 'required' : 'nullable', 'date'],
-            'to_date' => [$required ? 'required' : 'nullable', 'date', 'after_or_equal:from_date'],
+            // date() chứ không pastDate(): client vẫn gửi to_date = ngày mai làm mốc chặn trên của kỳ.
+            'from_date' => array_merge([$required ? 'required' : 'nullable'], InputLimits::date()),
+            'to_date' => array_merge([$required ? 'required' : 'nullable'], InputLimits::date(), ['after_or_equal:from_date']),
         ];
         $validated = $request->validate($rules);
         $from = (string) ($validated['from_date'] ?? $request->input('from') ?? now()->subDays(30)->toDateString());

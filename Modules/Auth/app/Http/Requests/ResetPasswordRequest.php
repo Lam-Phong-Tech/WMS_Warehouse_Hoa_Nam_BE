@@ -21,9 +21,11 @@ class ResetPasswordRequest extends FormRequest
     {
         return [
             'email' => ['required', 'email', 'max:255'],
-            'reset_token' => ['required', 'string'],
+            // Token do server sinh bằng Str::random(64); trần 255 chặn chuỗi
+            // khổng lồ phải đi qua Hash::check.
+            'reset_token' => ['required', 'string', 'max:255'],
             'new_password' => [
-                'required', 'string', 'min:8', 'confirmed',
+                'required', 'string', 'min:8', 'max:128', 'confirmed',
                 'regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}$/',
                 function (string $attribute, mixed $value, \Closure $fail): void {
                     if (is_string($value) && $value !== trim($value)) {

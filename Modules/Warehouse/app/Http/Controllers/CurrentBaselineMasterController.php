@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\Cache\CacheKey;
 use App\Support\Cache\CacheService;
 use App\Support\Cache\CacheTtl;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -72,7 +73,7 @@ class CurrentBaselineMasterController extends Controller
                     new OA\Property(property: 'brand_name', type: 'string', maxLength: 200, example: 'Samsung'),
                     new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
                 ]
             )
         ),
@@ -103,7 +104,7 @@ class CurrentBaselineMasterController extends Controller
                     new OA\Property(property: 'category_name', type: 'string', maxLength: 200, example: 'Điện thoại di động'),
                     new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Danh mục điện thoại di động'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
                 ]
             )
         ),
@@ -134,7 +135,7 @@ class CurrentBaselineMasterController extends Controller
                     new OA\Property(property: 'power_source_name', type: 'string', maxLength: 200, example: 'Điện AC 220V'),
                     new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Nguồn điện AC 220V tiêu chuẩn'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
                 ]
             )
         ),
@@ -166,7 +167,7 @@ class CurrentBaselineMasterController extends Controller
                     new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                     new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Model điện thoại Samsung Galaxy S24'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
                 ]
             )
         ),
@@ -185,7 +186,7 @@ class CurrentBaselineMasterController extends Controller
             'brand_id' => ['nullable', 'uuid', 'exists:brands,id'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['nullable', 'in:ACTIVE,INACTIVE'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ]);
 
         if (! empty($validated['brand_id'])) {
@@ -213,7 +214,7 @@ class CurrentBaselineMasterController extends Controller
                     new OA\Property(property: 'package_name', type: 'string', maxLength: 200, example: 'Đóng gói tiêu chuẩn'),
                     new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Đóng gói tiêu chuẩn dạng hộp carton'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
                 ]
             )
         ),
@@ -231,7 +232,7 @@ class CurrentBaselineMasterController extends Controller
             'package_name' => ['required', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['nullable', 'in:ACTIVE,INACTIVE'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ]);
 
         if (Schema::hasColumn('package_variants', 'variant_code')) {
@@ -258,7 +259,7 @@ class CurrentBaselineMasterController extends Controller
                 new OA\Property(property: 'brand_name', type: 'string', maxLength: 200, example: 'Samsung'),
                 new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -290,7 +291,7 @@ class CurrentBaselineMasterController extends Controller
                 new OA\Property(property: 'category_name', type: 'string', maxLength: 200, example: 'Điện thoại di động'),
                 new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Danh mục điện thoại di động'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -322,7 +323,7 @@ class CurrentBaselineMasterController extends Controller
                 new OA\Property(property: 'power_source_name', type: 'string', maxLength: 200, example: 'Điện AC 220V'),
                 new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Nguồn điện AC 220V tiêu chuẩn'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -355,7 +356,7 @@ class CurrentBaselineMasterController extends Controller
                 new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                 new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Model điện thoại Samsung Galaxy S24'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -387,7 +388,7 @@ class CurrentBaselineMasterController extends Controller
                 new OA\Property(property: 'package_name', type: 'string', maxLength: 200, example: 'Đóng gói tiêu chuẩn'),
                 new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Đóng gói tiêu chuẩn dạng hộp carton'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
             ])
         ),
         responses: [
@@ -456,7 +457,7 @@ class CurrentBaselineMasterController extends Controller
                     new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Samsung'),
                     new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
-                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                    new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
                     new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ áp dụng cho product-models; brand tham chiếu phải ACTIVE', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                 ]
             )
@@ -498,7 +499,7 @@ class CurrentBaselineMasterController extends Controller
                 new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Samsung'),
                 new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
-                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, nullable: true, example: 1),
+                new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
                 new OA\Property(property: 'brand_id', type: 'string', format: 'uuid', nullable: true, description: 'Chỉ áp dụng cho product-models', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
             ])
         ),
@@ -558,7 +559,7 @@ class CurrentBaselineMasterController extends Controller
             $nameColumn => ['sometimes', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['sometimes', 'in:ACTIVE,INACTIVE'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ];
         if ($table === 'product_models') {
             $rules['brand_id'] = ['nullable', 'uuid', 'exists:brands,id'];
@@ -664,7 +665,7 @@ class CurrentBaselineMasterController extends Controller
             $name => ['required', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['nullable', 'in:ACTIVE,INACTIVE'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ]);
 
         return $this->insert($table, $validated);

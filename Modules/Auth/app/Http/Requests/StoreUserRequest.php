@@ -28,7 +28,7 @@ class StoreUserRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:255', 'unique:app_user,email'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'department_id' => ['nullable', 'uuid', 'exists:department,department_id'],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string', 'min:8', 'max:128'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE', 'LOCKED'])],
         ];
     }

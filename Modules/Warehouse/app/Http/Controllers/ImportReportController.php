@@ -111,7 +111,8 @@ class ImportReportController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'mode' => ['nullable', 'string', 'in:DRY_RUN,COMMIT'],
             'status' => ['nullable', 'string', 'in:VALID,REJECTED,COMMITTED'],
-            'file_sha256' => ['nullable', 'string'],
+            // import_reports.file_sha256 là varchar(64) — hex sha256 luôn đúng 64 ký tự.
+            'file_sha256' => ['nullable', 'string', 'max:64'],
         ]);
 
         $query = $this->scopedQuery();

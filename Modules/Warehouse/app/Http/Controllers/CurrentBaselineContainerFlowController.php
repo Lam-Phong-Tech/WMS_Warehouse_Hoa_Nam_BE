@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\CacheService;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -303,7 +304,7 @@ class CurrentBaselineContainerFlowController extends Controller
                 properties: [
                     new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
                     new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', nullable: true, example: '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'),
-                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, nullable: true, description: 'Bắt buộc khi dùng sku_id-mode', example: 10),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, nullable: true, description: 'Bắt buộc khi dùng sku_id-mode', example: 10),
                     new OA\Property(property: 'source_type', type: 'string', enum: ['RECEIPT', 'PUTAWAY', 'MIGRATION', 'CORRECTION'], nullable: true, example: 'RECEIPT'),
                     new OA\Property(property: 'source_id', type: 'string', format: 'uuid', nullable: true, example: '2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f'),
                 ]
@@ -325,7 +326,7 @@ class CurrentBaselineContainerFlowController extends Controller
         $validated = $request->validate([
             'item_id' => ['nullable', 'uuid', 'exists:item_instances,item_id'],
             'sku_id' => ['nullable', 'uuid', 'exists:sku,sku_id'],
-            'quantity' => ['nullable', 'integer', 'min:1'],
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'source_type' => ['nullable', Rule::in(['RECEIPT', 'PUTAWAY', 'MIGRATION', 'CORRECTION'])],
             'source_id' => ['nullable', 'uuid'],
         ]);

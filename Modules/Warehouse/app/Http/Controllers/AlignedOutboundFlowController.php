@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,8 +48,8 @@ class AlignedOutboundFlowController extends Controller
             content: new OA\JsonContent(
                 properties: [
                     new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Tùy chọn khi gửi code_value: server tự match dòng theo SKU parse từ QR composite (Change Pack QR/SKU).', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
-                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
-                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.', example: 1),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).', example: 1),
+                    new OA\Property(property: 'qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, nullable: true, description: 'Alias của quantity; bắt buộc khi không gửi quantity.', example: 1),
                     new OA\Property(property: 'code_value', type: 'string', maxLength: 512, nullable: true, description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse + cross-check SKU embedded với item/dòng (WRONG_SKU khi lệch, UNKNOWN_CODE khi item chưa đăng ký).', example: 'HN1|SKU-000123|ITEM-000456'),
                     new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
                     new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
@@ -759,8 +760,8 @@ class AlignedOutboundFlowController extends Controller
             // Change Pack QR/SKU 20/08/2026: line_id tùy chọn khi có code_value —
             // server tự match dòng theo SKU embedded trong composite QR.
             'line_id' => ['nullable', 'required_without:code_value', 'uuid'],
-            'quantity' => ['required_without:qty', 'integer', 'min:1'],
-            'qty' => ['required_without:quantity', 'integer', 'min:1'],
+            'quantity' => ['required_without:qty', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
+            'qty' => ['required_without:quantity', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             // DEV195-P1-05R2: contract và runtime cùng một trần ký tự. Change Pack
             // QR/SKU nâng 150 -> 512 cho raw composite payload; WWHN-195 pin cả
             // hai phía (yaml + literal dưới đây) nên đổi số là đổi đồng bộ.

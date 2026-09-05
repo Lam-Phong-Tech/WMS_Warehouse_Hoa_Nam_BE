@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -105,7 +106,7 @@ class MiniAppInboundStagingController extends Controller
             'name' => ['required', 'string', 'max:200'],
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'expected_total_qty' => ['nullable', 'integer', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
-            'doc_date' => ['nullable', 'date'],
+            'doc_date' => array_merge(['nullable'], InputLimits::pastDate()),
             'note' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
             'items.*' => ['required', 'array'],

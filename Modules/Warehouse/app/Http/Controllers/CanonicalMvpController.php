@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
+use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -85,7 +86,7 @@ class CanonicalMvpController extends Controller
             'model_name' => ['required', 'string', 'max:200'],
             'brand_id' => ['nullable', 'uuid'],
             'status' => ['nullable', 'in:ACTIVE,INACTIVE'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ]);
 
         return $this->insertAndReturn('product_models', $validated);
@@ -98,11 +99,12 @@ class CanonicalMvpController extends Controller
             'source_file_name' => ['required', 'string', 'max:255'],
             'source_checksum' => ['required', 'string', 'max:128'],
             'rows' => ['required', 'array', 'min:1', 'max:10000'],
-            'rows.*.row_no' => ['required', 'integer', 'min:1'],
+            // row_no ghi vào cột integer của Postgres — trần là ràng buộc kỹ thuật (int4), không phải nghiệp vụ.
+            'rows.*.row_no' => ['required', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
             'rows.*.recipient_name' => ['required', 'string', 'max:200'],
             'rows.*.recipient_address' => ['required', 'string', 'max:1000'],
             'rows.*.sku_id' => ['required', 'uuid', 'exists:sku,sku_id'],
-            'rows.*.required_qty' => ['required', 'integer', 'min:1'],
+            'rows.*.required_qty' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
         ]);
 
         $id = (string) Str::uuid();
@@ -510,7 +512,7 @@ class CanonicalMvpController extends Controller
             $columns['code'] => ['required', 'string', 'max:80', "unique:{$table},{$columns['code']}"],
             $columns['name'] => ['required', 'string', 'max:200'],
             'status' => ['nullable', 'in:ACTIVE,INACTIVE'],
-            'sort_order' => ['nullable', 'integer', 'min:0'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ]);
 
         return $this->insertAndReturn($table, $validated);

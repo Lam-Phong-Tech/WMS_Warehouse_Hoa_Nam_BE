@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -107,7 +108,7 @@ class CurrentBaselineDocumentController extends Controller
         $validated = $request->validate([
             'doc_no' => ['nullable', 'string', 'max:80', 'unique:stock_documents,doc_no'],
             // Không nhận phiếu nhập ghi ngày tương lai — chứng từ chỉ ghi nhận việc đã xảy ra.
-            'doc_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'doc_date' => array_merge(['nullable'], InputLimits::pastDate()),
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             // Annex A / Annex D SCR-IN-01 đặt tên field là `source_reference` max 200;
             // ERD bảng 26 lưu cột `source_name` varchar(255). Nhận cả hai tên và siết
@@ -118,10 +119,10 @@ class CurrentBaselineDocumentController extends Controller
             // 2026_01_01_000032_create_stock_documents_table.php); max cũ (2000) rộng hơn cột
             // DB nên note 1001-2000 ký tự sẽ vỡ ở QueryException 500 thay vì 422.
             'note' => ['nullable', 'string', 'max:1000'],
-            'lines' => ['required', 'array', 'min:1'],
+            'lines' => ['required', 'array', 'min:1', 'max:500'],
             'lines.*.product_id' => ['required', 'uuid', 'exists:sku,sku_id'],
             'lines.*.import_batch_id' => ['nullable', 'uuid', 'exists:import_batches,import_batch_id'],
-            'lines.*.qty_planned' => ['required', 'integer', 'min:1'],
+            'lines.*.qty_planned' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'lines.*.note' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -140,16 +141,16 @@ class CurrentBaselineDocumentController extends Controller
             // DB có UNIQUE(doc_no); thiếu rule ở update sẽ nổ QueryException 500
             // thay vì 422 VALIDATION_ERROR theo §8.2.
             'doc_no' => ['sometimes', 'string', 'max:80', Rule::unique('stock_documents', 'doc_no')->ignore($id, 'id')],
-            'doc_date' => ['sometimes', 'date', 'before_or_equal:today'],
+            'doc_date' => array_merge(['sometimes'], InputLimits::pastDate()),
             'source_name' => ['nullable', 'string', 'max:200'],
             'source_reference' => ['nullable', 'string', 'max:200'],
             // note ghi thẳng vào stock_documents.note varchar(1000); xem lý do ở storeInbound().
             'note' => ['nullable', 'string', 'max:1000'],
-            'lines' => ['sometimes', 'array', 'min:1'],
+            'lines' => ['sometimes', 'array', 'min:1', 'max:500'],
             'lines.*.id' => ['nullable', 'uuid'],
             'lines.*.product_id' => ['required_with:lines', 'uuid', 'exists:sku,sku_id'],
             'lines.*.import_batch_id' => ['nullable', 'uuid', 'exists:import_batches,import_batch_id'],
-            'lines.*.qty_planned' => ['required_with:lines', 'integer', 'min:1'],
+            'lines.*.qty_planned' => ['required_with:lines', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'lines.*.note' => ['nullable', 'string', 'max:2000'],
         ]);
 

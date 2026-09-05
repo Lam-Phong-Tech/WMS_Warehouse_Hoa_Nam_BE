@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -109,10 +110,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             // Change Pack QR/SKU: item_code chấp nhận cả RAW composite QR (trần 512).
             'item_code' => ['nullable', 'string', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
             'defect_id' => ['nullable', 'uuid'],
-            'defect_ids' => ['nullable', 'array', 'min:1'],
+            'defect_ids' => ['nullable', 'array', 'min:1', 'max:500'],
             'defect_ids.*' => ['uuid', 'distinct'],
             'defect_code' => ['nullable', 'string', 'max:80'],
-            'estimated_completion_date' => ['nullable', 'date', 'after_or_equal:today'],
+            'estimated_completion_date' => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:'.InputLimits::futureDateMax()],
             'customer_name' => ['required', 'string', 'max:200'],
             // Rà soát validate định dạng input (Flow04 Warranty): SĐT khách VN —
             // bắt đầu bằng 0, đúng 10 chữ số. Không đổi required/max hiện có, chỉ
@@ -120,7 +121,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'customer_phone' => ['required', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             // Annex A/D: customer_address tối đa 500 ký tự.
             'customer_address' => ['nullable', 'string', 'max:500'],
-            'purchase_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'purchase_date' => array_merge(['nullable'], InputLimits::pastDate()),
             'description' => ['required', 'string', 'max:2000'],
             'reported_defect' => ['nullable', 'string', 'max:2000'],
             'accessories_received' => ['nullable', 'string', 'max:1000'],
@@ -348,17 +349,17 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             // defect phải sửa được khi CHECKING kết luận khác, và PII sai lúc tiếp
             // nhận phải sửa được thay vì mở case mới.
             'defect_id' => ['nullable', 'uuid'],
-            'defect_ids' => ['nullable', 'array', 'min:1'],
+            'defect_ids' => ['nullable', 'array', 'min:1', 'max:500'],
             'defect_ids.*' => ['uuid', 'distinct'],
             'defect_code' => ['nullable', 'string', 'max:80'],
-            'estimated_completion_date' => ['nullable', 'date', 'after_or_equal:today'],
+            'estimated_completion_date' => ['nullable', 'date', 'after_or_equal:today', 'before_or_equal:'.InputLimits::futureDateMax()],
             'customer_name' => ['sometimes', 'string', 'max:200'],
             // Rà soát validate định dạng input (Flow04 Warranty): giữ nguyên
             // 'sometimes' (PII sửa được sau tiếp nhận), chỉ thêm định dạng SĐT VN
             // khi field này thực sự có mặt trong payload.
             'customer_phone' => ['sometimes', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'customer_address' => ['nullable', 'string', 'max:500'],
-            'purchase_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'purchase_date' => array_merge(['nullable'], InputLimits::pastDate()),
         ], [
             'customer_phone.regex' => 'Số điện thoại phải bắt đầu bằng số 0 và đủ 10 chữ số.',
         ]);

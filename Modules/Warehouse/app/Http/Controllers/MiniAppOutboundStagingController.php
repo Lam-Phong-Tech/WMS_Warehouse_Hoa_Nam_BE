@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -108,7 +109,7 @@ class MiniAppOutboundStagingController extends Controller
             'name' => ['required', 'string', 'max:200'],
             'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'request_no' => ['nullable', 'string', 'max:80'],
-            'request_date' => ['nullable', 'date_format:Y-m-d'],
+            'request_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.InputLimits::DATE_MIN, 'before_or_equal:'.InputLimits::pastDateMax()],
             'recipient_name' => ['required', 'string', 'max:200'],
             'recipient_address' => ['nullable', 'string', 'max:1000'],
             'recipient_contact_phone' => ['nullable', 'string', 'max:50', 'regex:/^0\d{9}$/'],

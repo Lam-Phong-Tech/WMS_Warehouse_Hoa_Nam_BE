@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -53,8 +54,9 @@ class BaM1ReportController extends Controller
     private function outboundByRecipientData(Request $request): array
     {
         $validated = $request->validate([
-            'from_date' => ['nullable', 'date'],
-            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
+            // date() chứ không pastDate(): client vẫn gửi to_date = ngày mai làm mốc chặn trên của kỳ.
+            'from_date' => array_merge(['nullable'], InputLimits::date()),
+            'to_date' => array_merge(['nullable'], InputLimits::date(), ['after_or_equal:from_date']),
             'recipient_type' => ['nullable', Rule::in(self::RECIPIENT_TYPES)],
             'recipient_id' => ['nullable', 'uuid'],
             'agency_id' => ['nullable', 'uuid'],
@@ -249,11 +251,12 @@ class BaM1ReportController extends Controller
     private function warrantyDefectsData(Request $request): array
     {
         $validated = $request->validate([
-            'from_date' => ['nullable', 'date'],
-            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
+            // date() chứ không pastDate(): client vẫn gửi to_date = ngày mai làm mốc chặn trên của kỳ.
+            'from_date' => array_merge(['nullable'], InputLimits::date()),
+            'to_date' => array_merge(['nullable'], InputLimits::date(), ['after_or_equal:from_date']),
             'status' => ['nullable', Rule::in(self::WARRANTY_STATUSES)],
             'defect_id' => ['nullable', 'uuid'],
-            'defect_ids' => ['nullable', 'array'],
+            'defect_ids' => ['nullable', 'array', 'max:500'],
             'defect_ids.*' => ['uuid', 'distinct'],
             'model' => ['nullable', 'string', 'max:200'],
             'identification_status' => ['nullable', Rule::in(['IDENTIFIED', 'TEMP_ONLY'])],
@@ -475,13 +478,14 @@ class BaM1ReportController extends Controller
     private function defectSkuBreakdownData(Request $request): array
     {
         $validated = $request->validate([
-            'from_date' => ['nullable', 'date'],
-            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
+            // date() chứ không pastDate(): client vẫn gửi to_date = ngày mai làm mốc chặn trên của kỳ.
+            'from_date' => array_merge(['nullable'], InputLimits::date()),
+            'to_date' => array_merge(['nullable'], InputLimits::date(), ['after_or_equal:from_date']),
             'sku_id' => ['nullable', 'uuid'],
-            'sku_ids' => ['nullable', 'array'],
+            'sku_ids' => ['nullable', 'array', 'max:500'],
             'sku_ids.*' => ['uuid', 'distinct'],
             'defect_id' => ['nullable', 'uuid'],
-            'defect_ids' => ['nullable', 'array'],
+            'defect_ids' => ['nullable', 'array', 'max:500'],
             'defect_ids.*' => ['uuid', 'distinct'],
         ]);
         $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
@@ -554,10 +558,11 @@ class BaM1ReportController extends Controller
     private function componentUsageData(Request $request): array
     {
         $validated = $request->validate([
-            'from_date' => ['nullable', 'date'],
-            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
+            // date() chứ không pastDate(): client vẫn gửi to_date = ngày mai làm mốc chặn trên của kỳ.
+            'from_date' => array_merge(['nullable'], InputLimits::date()),
+            'to_date' => array_merge(['nullable'], InputLimits::date(), ['after_or_equal:from_date']),
             'defect_id' => ['nullable', 'uuid'],
-            'defect_ids' => ['nullable', 'array'],
+            'defect_ids' => ['nullable', 'array', 'max:500'],
             'defect_ids.*' => ['uuid', 'distinct'],
         ]);
         $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());

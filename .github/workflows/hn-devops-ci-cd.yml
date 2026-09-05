@@ -119,6 +119,13 @@ jobs:
             echo "REDIS_CLIENT=predis"
             echo "REDIS_HOST=127.0.0.1"
             echo "REDIS_PORT=$CI_REDIS_PORT"
+            # Pipeline này KHÔNG dựng Reverb (không có service nào nghe :6001),
+            # trong khi .env.example để BROADCAST_CONNECTION=reverb. Seeder
+            # thông báo phát sự kiện realtime -> PusherBroadcaster ném
+            # "cURL error 7: Failed to connect to localhost:6001" -> `db:seed`
+            # thoát khác 0 -> job ci đỏ -> deploy-uat bị skip. CI không cần
+            # broadcast thật; ghi ra log là đủ và vẫn chạy qua đúng code path.
+            echo "BROADCAST_CONNECTION=log"
             echo "L5_SWAGGER_CONST_HOST=$CI_APP_URL"
             # WWHN-295: artifact chạy trong pipeline này phải tự khai đúng commit
             # đã build, để reviewer/QA đọc SHA từ GET /api/v1/health (data.build)

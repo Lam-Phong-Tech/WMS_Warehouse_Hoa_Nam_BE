@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\ReportExportFileName;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -506,8 +507,9 @@ class AlignedImportMatchReportController extends Controller
     private function period(Request $request): array
     {
         $validated = $request->validate([
-            'from_date' => ['nullable', 'date'],
-            'to_date' => ['nullable', 'date', 'after_or_equal:from_date'],
+            // date() chứ không pastDate(): client vẫn gửi to_date = ngày mai làm mốc chặn trên của kỳ.
+            'from_date' => array_merge(['nullable'], InputLimits::date()),
+            'to_date' => array_merge(['nullable'], InputLimits::date(), ['after_or_equal:from_date']),
         ]);
 
         return [

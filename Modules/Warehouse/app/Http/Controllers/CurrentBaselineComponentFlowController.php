@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
+use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -49,7 +50,7 @@ class CurrentBaselineComponentFlowController extends Controller
                         required: ['sku_id', 'required_qty'],
                         properties: [
                             new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', description: 'Chỉ nhận SKU COMPONENT ACTIVE.', example: '4b6f1c2a-8e3d-4f5a-9b2c-1d3e4f5a6b7c'),
-                            new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, example: 2),
+                            new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, example: 2),
                             new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true, example: 'Thay bo mạch nguồn'),
                         ]
                     )),
@@ -68,12 +69,12 @@ class CurrentBaselineComponentFlowController extends Controller
             'warranty_case_id' => ['required', 'uuid', 'exists:warranty_case,warranty_case_id'],
             // ERD §48 không có document_date — cột chỉ tồn tại ở runtime legacy nên
             // không được bắt client gửi; thiếu thì lấy ngày lập phiếu = hôm nay.
-            'document_date' => ['nullable', 'date'],
+            'document_date' => array_merge(['nullable'], InputLimits::pastDate()),
             'purpose' => ['nullable', 'in:WARRANTY'],
             'note' => ['nullable', 'string', 'max:2000'],
-            'lines' => ['required', 'array', 'min:1'],
+            'lines' => ['required', 'array', 'min:1', 'max:500'],
             'lines.*.sku_id' => ['required', 'uuid', 'exists:sku,sku_id'],
-            'lines.*.required_qty' => ['required', 'integer', 'min:1'],
+            'lines.*.required_qty' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'lines.*.note' => ['nullable', 'string', 'max:2000'],
         ]);
 
@@ -157,7 +158,7 @@ class CurrentBaselineComponentFlowController extends Controller
                     new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Barcode/QR/RFID; resolve về đúng một item hoặc BOX container.', example: 'HN1|DCH-DRILL-DJZ10A-220V-V1|IT000123'),
                     new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
                     new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true, example: '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'),
-                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, description: 'Serial component bắt buộc quantity = 1.', example: 1),
+                    new OA\Property(property: 'quantity', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, description: 'Serial component bắt buộc quantity = 1.', example: 1),
                 ]
             )
         ),
@@ -172,7 +173,7 @@ class CurrentBaselineComponentFlowController extends Controller
             'code_value' => ['nullable', 'string', 'max:200'],
             'item_id' => ['nullable', 'uuid', 'exists:item_instances,item_id'],
             'container_id' => ['nullable', 'uuid', 'exists:containers,container_id'],
-            'quantity' => ['required', 'integer', 'min:1'],
+            'quantity' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
         ]);
         $expectedVersion = $this->expectedVersion($request);
 

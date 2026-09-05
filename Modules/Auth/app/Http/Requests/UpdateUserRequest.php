@@ -2,6 +2,7 @@
 
 namespace Modules\Auth\Http\Requests;
 
+use App\Support\Validation\InputLimits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -34,9 +35,9 @@ class UpdateUserRequest extends FormRequest
             ],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'department_id' => ['nullable', 'uuid', 'exists:department,department_id'],
-            'password' => ['sometimes', 'string', 'min:8'],
+            'password' => ['sometimes', 'string', 'min:8', 'max:128'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE', 'LOCKED'])],
-            'version' => ['nullable', 'integer', 'min:1'],
+            'version' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::VERSION_MAX],
         ];
     }
 

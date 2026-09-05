@@ -51,7 +51,9 @@ class UpdateProductRequest extends FormRequest
             'package_variant' => ['nullable', 'string', 'max:50'],
             'version_code' => ['nullable', 'string', 'max:30'],
             'warranty_applicable' => ['nullable', 'boolean'],
-            'specification' => ['nullable', 'array'],
+            // max:500 khoá: specification là map thuộc tính mở của SKU, không
+            // phải chỗ chứa dữ liệu — trần chặn payload JSON phình vô hạn.
+            'specification' => ['nullable', 'array', 'max:500'],
             'published_to_app' => ['nullable', 'boolean'],
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
             // Định mức tồn theo SKU, toàn hệ thống (không theo kho) — phục vụ báo

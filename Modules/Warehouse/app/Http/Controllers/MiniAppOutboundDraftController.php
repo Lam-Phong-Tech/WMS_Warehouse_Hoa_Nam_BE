@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\Validation\InputLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -57,7 +58,7 @@ class MiniAppOutboundDraftController extends Controller
             'warehouse_id' => ['required', 'uuid'],
             'name' => ['nullable', 'string', 'max:200', $utf8Rule],
             'request_no' => ['nullable', 'string', 'max:80', $utf8Rule],
-            'request_date' => ['nullable', 'date_format:Y-m-d'],
+            'request_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.InputLimits::DATE_MIN, 'before_or_equal:'.InputLimits::pastDateMax()],
             'recipient_name' => ['required', 'string', 'max:200', $utf8Rule],
             'recipient_address' => ['nullable', 'string', 'max:1000', $utf8Rule],
             'recipient_contact_phone' => ['nullable', 'string', 'max:50', 'regex:/^0\d{9}$/'],
