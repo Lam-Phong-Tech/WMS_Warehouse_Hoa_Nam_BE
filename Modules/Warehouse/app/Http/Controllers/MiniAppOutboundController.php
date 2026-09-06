@@ -4,8 +4,10 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\Warehouse\Models\StockDocument;
@@ -24,6 +26,15 @@ use Modules\Warehouse\Models\StockDocument;
 class MiniAppOutboundController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
+
+    /**
+     * Máy quét đọc dữ liệu này nên dùng TTL ngắn nhất ('stock_short' = 20s) và bám vào
+     * `stock:version`. Mọi lệnh ghi ở đây (scan/unmatch/label/post-issue) đều uỷ quyền
+     * sang controller khác nhưng vẫn bump ngay sau khi lệnh đó trả về — xem
+     * invalidateAfterWrite().
+     */
+    private const CACHE_VERSION_NS = 'stock:version';
 
     public function __construct(
         private readonly CurrentBaselineDocumentController $documents,
@@ -33,12 +44,50 @@ class MiniAppOutboundController extends Controller
 
     public function index(Request $request)
     {
+        // Kiểm tra tham số TRƯỚC cache: status sai phải trả 422 ngay.
         $status = strtoupper(trim((string) $request->query('status', '')));
         if ($status !== '' && ! in_array($status, ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'], true)) {
             ApiError::abort(422, 'VALIDATION_ERROR', 'status không hợp lệ cho danh sách phiếu xuất Mini App.');
         }
 
         $readyForIssue = $this->booleanQuery($request, 'ready_for_issue');
+        $perPage = $this->perPage($request);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        // TTL 'stock_short' (20s): tiến độ pick/match đổi liên tục. Warehouse-scope đã nằm
+        // sẵn trong khoá qua readCacheScopeIds(); phân trang chạy TRONG SQL nên page/
+        // per_page cũng phải nằm trong khoá.
+        $cached = $this->cachedReadPayload(
+            'miniapp:outbound:list',
+            $this->readFiltersWithPaging($request),
+            function () use ($request, $status, $readyForIssue, $perPage): array {
+                $page = $this->indexQuery($request, $status, $readyForIssue)
+                    ->orderByDesc('created_at')
+                    ->paginate($perPage);
+
+                return [
+                    'items' => collect($page->items())
+                        ->map(fn (StockDocument $document): array => $this->decorateDocument($document))
+                        ->all(),
+                    'total' => $page->total(),
+                ];
+            },
+            'stock_short',
+            self::CACHE_VERSION_NS,
+        );
+
+        return $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
+    }
+
+    /** Truy vấn danh sách phiếu xuất Mini App — tách khỏi index() để nằm gọn trong closure cache. */
+    private function indexQuery(Request $request, string $status, ?bool $readyForIssue)
+    {
         $query = StockDocument::query()
             ->with('lines')
             ->where('doc_type', StockDocument::TYPE_ISSUE);
@@ -69,32 +118,62 @@ class MiniAppOutboundController extends Controller
 
         $this->applyKeyword($query, $request, ['doc_no', 'recipient_name', 'recipient_address', 'note']);
 
-        $page = $query->orderByDesc('created_at')->paginate($this->perPage($request));
-        $page->setCollection($page->getCollection()->map(fn (StockDocument $document) => $this->decorateDocument($document)));
-
-        return $this->respondPaginated($page);
+        return $query;
     }
 
     public function show(string $id)
     {
-        $document = StockDocument::query()
-            ->with(['lines', 'movements', 'statusHistory'])
-            ->where('doc_type', StockDocument::TYPE_ISSUE)
-            ->find($id);
+        // Cùng TTL/version với index(). Route param không nằm trong query string nên phải
+        // đưa vào khoá thủ công; 404 cũng được cache và được các đường ghi bump giải toả.
+        $cached = $this->cachedReadPayload(
+            'miniapp:outbound:detail',
+            ['document_id' => $id],
+            function () use ($id): array {
+                $document = StockDocument::query()
+                    ->with(['lines', 'movements', 'statusHistory'])
+                    ->where('doc_type', StockDocument::TYPE_ISSUE)
+                    ->find($id);
 
-        if ($document === null) {
+                if ($document === null) {
+                    return ['document' => null];
+                }
+
+                $payload = $this->decorateDocument($document);
+                $payload['item_matches'] = $this->scanEntryQuery($id, 'ALL')->get()->map(fn (object $row) => (array) $row)->values()->all();
+
+                return ['document' => $payload];
+            },
+            'stock_short',
+            self::CACHE_VERSION_NS,
+        );
+
+        if (($cached['document'] ?? null) === null) {
             return $this->respondNotFound('Không tìm thấy phiếu xuất.');
         }
 
-        $payload = $this->decorateDocument($document);
-        $payload['item_matches'] = $this->scanEntryQuery($id, 'ALL')->get()->map(fn (object $row) => (array) $row)->values()->all();
+        return $this->respondSuccess($cached['document']);
+    }
 
-        return $this->respondSuccess($payload);
+    /**
+     * Bump cache đọc sau MỌI đường ghi của controller này.
+     *
+     * Scan/unmatch/preview/ready/print/apply/cancel đều là chuyển trạng thái STOCK-NEUTRAL
+     * nên KHÔNG đi qua CurrentBaselineStockService::mutateBalance() — không có ai bump
+     * `stock:version` hộ. Thiếu lời gọi này thì máy quét đọc lại tiến độ match hoặc trạng
+     * thái Packing Label cũ tới 20s. Các lệnh uỷ quyền đã commit trước khi trả về nên
+     * callback của DB::afterCommit chạy ngay.
+     */
+    private function invalidateAfterWrite(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
     }
 
     public function cancel(Request $request, string $id)
     {
-        return $this->documents->cancelOutbound($request, $id);
+        $response = $this->documents->cancelOutbound($request, $id);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     /** Camera Mini App may send SCANNER as a friendly alias of canonical HARDWARE. */
@@ -104,59 +183,113 @@ class MiniAppOutboundController extends Controller
             $request->merge(['scan_source' => 'HARDWARE']);
         }
 
-        return $this->flow->outboundScan($request, $id);
+        $response = $this->flow->outboundScan($request, $id);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function unmatch(Request $request, string $id)
     {
-        return $this->flow->outboundUnmatch($request, $id);
+        $response = $this->flow->outboundUnmatch($request, $id);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function scanEntries(Request $request, string $id)
     {
+        // Phiếu không tồn tại phải trả 404 và status sai phải trả 422 NGAY — cả hai kiểm
+        // tra đứng TRƯỚC cache để một cache hit không nuốt mất chúng.
         $this->requireDocument($id);
         $status = strtoupper(trim((string) $request->query('status', 'ACTIVE')));
         if (! in_array($status, ['ACTIVE', 'REMOVED', 'ALL'], true)) {
             ApiError::abort(422, 'VALIDATION_ERROR', 'status scan-entry chỉ nhận ACTIVE, REMOVED hoặc ALL.');
         }
 
-        $page = $this->scanEntryQuery($id, $status)
-            ->orderByDesc('m.created_at')
-            ->paginate($this->perPage($request, 50));
+        $perPage = $this->perPage($request, 50);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
 
-        return $this->respondPaginated($page);
+        // TTL 'stock_short' (20s): bằng chứng match mà máy quét vừa ghi xong đọc lại ngay;
+        // scan()/unmatch() bump `stock:version` nên danh sách đổi tức thì.
+        $cached = $this->cachedReadPayload(
+            'miniapp:outbound:scan-entries',
+            // array_merge chứ KHÔNG dùng `+`: `+` để vế trái thắng khi trùng khoá, nên
+            // `?document_id=<phiếu khác>` sẽ ghi đè id thật của route và hai phiếu dùng
+            // chung một entry.
+            array_merge($this->readFiltersWithPaging($request), ['document_id' => $id]),
+            function () use ($id, $status, $perPage): array {
+                $page = $this->scanEntryQuery($id, $status)
+                    ->orderByDesc('m.created_at')
+                    ->paginate($perPage);
+
+                return ['items' => $page->items(), 'total' => $page->total()];
+            },
+            'stock_short',
+            self::CACHE_VERSION_NS,
+        );
+
+        return $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
     }
 
     public function packingLabel(string $id)
     {
+        // 404 phiếu xuất phải trả NGAY, trước cache.
         $this->requireDocument($id);
-        $label = $this->labelForDocument($id);
 
-        if ($label === null) {
+        // TTL 'stock_short' (20s): trạng thái nhãn (PREVIEWED/READY/PRINTED/applied) đổi
+        // theo từng lệnh in; các lệnh đó bump `stock:version` ngay trong controller này.
+        $cached = $this->cachedReadPayload(
+            'miniapp:outbound:packing-label',
+            ['document_id' => $id],
+            fn (): array => ['label' => $this->labelForDocument($id)],
+            'stock_short',
+            self::CACHE_VERSION_NS,
+        );
+
+        if (($cached['label'] ?? null) === null) {
             ApiError::abort(404, 'LABEL_NOT_FOUND', 'Phiếu xuất chưa có Packing Label. Chỉ full match mới tạo Packing Label.');
         }
 
-        return $this->respondSuccess($label);
+        return $this->respondSuccess($cached['label']);
     }
 
     public function previewPackingLabel(Request $request, string $id, string $labelId)
     {
-        return $this->flow->previewPackingLabel($request, $id, $labelId);
+        $response = $this->flow->previewPackingLabel($request, $id, $labelId);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function readyPackingLabel(Request $request, string $id, string $labelId)
     {
-        return $this->flow->readyPackingLabel($request, $id, $labelId);
+        $response = $this->flow->readyPackingLabel($request, $id, $labelId);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function printPackingLabel(Request $request, string $id, string $labelId)
     {
-        return $this->operations->printPackingLabelForDocument($request, $id, $labelId);
+        $response = $this->operations->printPackingLabelForDocument($request, $id, $labelId);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function reprintPackingLabel(Request $request, string $id, string $labelId)
     {
-        return $this->operations->reprintPackingLabelForDocument($request, $id, $labelId);
+        $response = $this->operations->reprintPackingLabelForDocument($request, $id, $labelId);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function applyPackingLabel(Request $request, string $id, string $labelId)
@@ -169,13 +302,19 @@ class MiniAppOutboundController extends Controller
             ApiError::abort(404, 'LABEL_NOT_FOUND', 'Không tìm thấy Packing Label của phiếu xuất này.');
         }
 
-        return $this->flow->applyPackingLabel($request, $labelId);
+        $response = $this->flow->applyPackingLabel($request, $labelId);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     /** The only inventory-decreasing action in the Mini App outbound adapter. */
     public function postIssue(Request $request, string $id)
     {
-        return $this->flow->postIssue($request, $id, bypassPackingLabelGate: true, bypassSource: 'MINI_APP');
+        $response = $this->flow->postIssue($request, $id, bypassPackingLabelGate: true, bypassSource: 'MINI_APP');
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     private function requireDocument(string $id): object

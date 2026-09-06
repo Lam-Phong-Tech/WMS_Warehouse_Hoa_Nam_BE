@@ -252,6 +252,9 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                     'updated_at' => now(),
                 ]);
             }
+            // Import/validate là stock-neutral nhưng đổi trạng thái phiếu import mà
+            // báo cáo đối soát import đang đọc qua cache.
+            $this->invalidateReadCache();
         }, 3);
 
         return $this->respondCreated($this->importPayloadCurrent($importId), 'Đã kiểm tra file Excel theo quy tắc chỉ áp dụng cho SKU loại PRODUCT.');
@@ -523,6 +526,10 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                         requestId: request()?->attributes->get('request_id'),
                         afterData: ['status' => 'CONSUMED', 'outbound_request_ids' => $requestIds, 'outbound_document_ids' => $documentIds],
                     );
+                    // Consume tạo toa + phiếu xuất DRAFT: stock-neutral nhưng phải hiện
+                    // ngay ở read cache danh sách toa/phiếu xuất. Bump nằm trong closure
+                    // IdempotencyStore nên replay không xoá cache vô ích.
+                    $this->invalidateReadCache();
 
                     return [
                         'import_id' => $id,

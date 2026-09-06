@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ use Modules\Warehouse\Support\PvRelations;
 class MiniAppProductController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     private const CANONICAL_WAREHOUSE_CODE = 'KHO-TONG-HN';
 
@@ -34,47 +36,70 @@ class MiniAppProductController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
+        // Giải kho canonical TRƯỚC cache: thiếu kho ACTIVE phải trả 422 ngay, một cache
+        // hit không được nuốt mất lỗi này.
         $warehouseId = $this->canonicalWarehouseId();
-
-        $query = DB::table('sku as s')
-            ->leftJoin('brands as b', 'b.id', '=', 's.brand_id')
-            ->leftJoin('product_categories as c', 'c.id', '=', 's.category_id')
-            ->leftJoin('product_models as m', 'm.id', '=', 's.model_id')
-            ->leftJoin(PvRelations::READ_PROFILE.' as pv', 'pv.product_id', '=', 's.sku_id')
-            ->select([
-                's.sku_id', 's.sku_code', 's.sku_name', 's.sku_type', 's.unit',
-                's.is_serial_tracked', 's.status', 's.specification',
-                'b.brand_name', 'c.category_name', 'm.model_name',
-                'pv.description as description',
-            ])
-            ->where('s.status', $validated['status'] ?? 'ACTIVE');
-
-        if (! empty($validated['sku_type'])) {
-            $query->where('s.sku_type', $validated['sku_type']);
-        }
-
-        if (! empty($validated['keyword'])) {
-            $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
-            $query->where(function ($nested) use ($keyword): void {
-                $nested->whereRaw('LOWER(s.sku_code) LIKE ?', [$keyword])
-                    ->orWhereRaw('LOWER(s.sku_name) LIKE ?', [$keyword]);
-            });
-        }
 
         $perPage = (int) ($validated['per_page'] ?? 20);
         $page = (int) ($validated['page'] ?? 1);
-        $total = (clone $query)->count();
-        $rows = $query->orderBy('s.sku_name')->forPage($page, $perPage)->get();
 
-        $availableQtyBySku = $this->availableQtyBySku($warehouseId, $rows->pluck('sku_id')->all());
+        // TTL 'stock_short' (20s) + version `stock:version`: payload mang available_qty,
+        // tức là SỐ TỒN — mọi mutation tồn kho đi qua CurrentBaselineStockService::
+        // mutateBalance() đều bump namespace này nên số tồn đổi ngay sau khi ghi sổ; 20s
+        // chỉ là lưới an toàn cho đường ghi nào chưa qua điểm chốt đó. Đây là dữ liệu máy
+        // quét đọc nên không được dùng TTL dài hơn. Phân trang chạy TRONG SQL (forPage)
+        // nên page/per_page BẮT BUỘC nằm trong khoá.
+        $cached = $this->cachedReadPayload(
+            'miniapp:product:list',
+            // array_merge chứ KHÔNG dùng `+`: `+` để vế trái thắng khi trùng khoá, nên một
+            // `?warehouse_id=...` gửi kèm sẽ ghi đè kho canonical do server giải.
+            array_merge($this->readFiltersWithPaging($request), ['warehouse_id' => $warehouseId]),
+            function () use ($validated, $warehouseId, $perPage, $page): array {
+                $query = DB::table('sku as s')
+                    ->leftJoin('brands as b', 'b.id', '=', 's.brand_id')
+                    ->leftJoin('product_categories as c', 'c.id', '=', 's.category_id')
+                    ->leftJoin('product_models as m', 'm.id', '=', 's.model_id')
+                    ->leftJoin(PvRelations::READ_PROFILE.' as pv', 'pv.product_id', '=', 's.sku_id')
+                    ->select([
+                        's.sku_id', 's.sku_code', 's.sku_name', 's.sku_type', 's.unit',
+                        's.is_serial_tracked', 's.status', 's.specification',
+                        'b.brand_name', 'c.category_name', 'm.model_name',
+                        'pv.description as description',
+                    ])
+                    ->where('s.status', $validated['status'] ?? 'ACTIVE');
 
-        $data = $rows->map(function (object $row) use ($availableQtyBySku): array {
-            return $this->decorate((array) $row, $availableQtyBySku);
-        })->values()->all();
+                if (! empty($validated['sku_type'])) {
+                    $query->where('s.sku_type', $validated['sku_type']);
+                }
 
+                if (! empty($validated['keyword'])) {
+                    $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
+                    $query->where(function ($nested) use ($keyword): void {
+                        $nested->whereRaw('LOWER(s.sku_code) LIKE ?', [$keyword])
+                            ->orWhereRaw('LOWER(s.sku_name) LIKE ?', [$keyword]);
+                    });
+                }
+
+                $total = (clone $query)->count();
+                $rows = $query->orderBy('s.sku_name')->forPage($page, $perPage)->get();
+                $availableQtyBySku = $this->availableQtyBySku($warehouseId, $rows->pluck('sku_id')->all());
+
+                return [
+                    'total' => $total,
+                    'data' => $rows->map(fn (object $row): array => $this->decorate((array) $row, $availableQtyBySku))
+                        ->values()->all(),
+                ];
+            },
+            'stock_short',
+            'stock:version',
+        );
+
+        $total = (int) $cached['total'];
+
+        // `meta.request_id`/`timestamp` dựng NGOÀI cache để log truy vết còn dùng được.
         return response()->json([
             'success' => true,
-            'data' => $data,
+            'data' => $cached['data'],
             'meta' => [
                 'current_page' => $page,
                 'per_page' => $perPage,
@@ -89,32 +114,47 @@ class MiniAppProductController extends Controller
 
     public function show(string $id)
     {
+        // Cùng lý do với index(): kho canonical phải giải TRƯỚC cache.
         $warehouseId = $this->canonicalWarehouseId();
 
-        $row = DB::table('sku as s')
-            ->leftJoin('brands as b', 'b.id', '=', 's.brand_id')
-            ->leftJoin('product_categories as c', 'c.id', '=', 's.category_id')
-            ->leftJoin('product_models as m', 'm.id', '=', 's.model_id')
-            ->leftJoin('power_sources as ps', 'ps.id', '=', 's.power_source_id')
-            ->leftJoin('package_variants as pkg', 'pkg.id', '=', 's.package_variant_id')
-            ->leftJoin(PvRelations::READ_PROFILE.' as pv', 'pv.product_id', '=', 's.sku_id')
-            ->where('s.sku_id', $id)
-            ->select([
-                's.sku_id', 's.sku_code', 's.sku_name', 's.sku_type', 's.unit',
-                's.is_serial_tracked', 's.status', 's.specification', 's.warranty_applicable',
-                'b.brand_name', 'c.category_name', 'm.model_name',
-                'ps.power_source_name', 'pkg.variant_name as package_variant_name',
-                'pv.description as description', 'pv.display_name as pv_display_name',
-            ])
-            ->first();
+        // Cùng TTL/version với index() vì payload cũng mang available_qty. Route param
+        // không nằm trong query string nên phải đưa vào khoá thủ công.
+        $cached = $this->cachedReadPayload(
+            'miniapp:product:detail',
+            ['sku_id' => $id, 'warehouse_id' => $warehouseId],
+            function () use ($id, $warehouseId): array {
+                $row = DB::table('sku as s')
+                    ->leftJoin('brands as b', 'b.id', '=', 's.brand_id')
+                    ->leftJoin('product_categories as c', 'c.id', '=', 's.category_id')
+                    ->leftJoin('product_models as m', 'm.id', '=', 's.model_id')
+                    ->leftJoin('power_sources as ps', 'ps.id', '=', 's.power_source_id')
+                    ->leftJoin('package_variants as pkg', 'pkg.id', '=', 's.package_variant_id')
+                    ->leftJoin(PvRelations::READ_PROFILE.' as pv', 'pv.product_id', '=', 's.sku_id')
+                    ->where('s.sku_id', $id)
+                    ->select([
+                        's.sku_id', 's.sku_code', 's.sku_name', 's.sku_type', 's.unit',
+                        's.is_serial_tracked', 's.status', 's.specification', 's.warranty_applicable',
+                        'b.brand_name', 'c.category_name', 'm.model_name',
+                        'ps.power_source_name', 'pkg.variant_name as package_variant_name',
+                        'pv.description as description', 'pv.display_name as pv_display_name',
+                    ])
+                    ->first();
 
-        if ($row === null) {
+                if ($row === null) {
+                    return ['product' => null];
+                }
+
+                return ['product' => $this->decorate((array) $row, $this->availableQtyBySku($warehouseId, [$id]))];
+            },
+            'stock_short',
+            'stock:version',
+        );
+
+        if (($cached['product'] ?? null) === null) {
             return $this->respondNotFound('Không tìm thấy sản phẩm.');
         }
 
-        $availableQtyBySku = $this->availableQtyBySku($warehouseId, [$id]);
-
-        return $this->respondSuccess($this->decorate((array) $row, $availableQtyBySku));
+        return $this->respondSuccess($cached['product']);
     }
 
     /** @param array<string,mixed> $row @param array<string,int> $availableQtyBySku @return array<string,mixed> */

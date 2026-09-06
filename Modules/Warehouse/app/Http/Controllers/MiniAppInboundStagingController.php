@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
@@ -35,6 +36,7 @@ use Throwable;
 class MiniAppInboundStagingController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
 
     private const CANONICAL_WAREHOUSE_CODE = 'KHO-TONG-HN';
@@ -252,6 +254,11 @@ class MiniAppInboundStagingController extends Controller
                         ],
                         idempotencyKey: $idempotencyKey,
                     );
+                    // Tạo phiếu nhập + bằng chứng quét là stock-neutral (chưa
+                    // post-receipt) nhưng đã hiện trong read cache danh sách/chi tiết
+                    // phiếu nhập của Mini App. Bump nằm trong closure IdempotencyStore
+                    // nên replay không xoá cache vô ích.
+                    DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
 
                     return [
                         'document_id' => $documentId,

@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
@@ -17,7 +18,19 @@ use OpenApi\Attributes as OA;
 
 class CurrentBaselineSkuController extends Controller
 {
+    use CachesReadPayload;
     use ResolvesActorOrNull { actorIdOrNull as actorId; }
+
+    /**
+     * SKU là master data: sku_code/sku_name/status/đơn vị của nó nằm trong payload
+     * của các read cache khoá theo 'stock:version' (danh sách sản phẩm Mini App,
+     * phiếu nhập/xuất, truy vết, báo cáo). Repository chỉ bump 'warehouse.sku:list'
+     * nên không ai vô hiệu hoá những cache đó hộ.
+     */
+    private function invalidateMasterReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     public function __construct(private readonly SkuAggregateService $service) {}
 
@@ -89,6 +102,7 @@ class CurrentBaselineSkuController extends Controller
                 $snapshot = $this->service->create($validated, $this->actorId(), $this->requestId());
                 $skuId = (string) $snapshot['id'];
                 $this->applyCanonicalMasters($skuId, $validated, 1);
+                $this->invalidateMasterReadCache();
 
                 return $this->service->snapshot($skuId, true);
             }, 3);
@@ -167,6 +181,7 @@ class CurrentBaselineSkuController extends Controller
                 $validated = $this->assertPublishRequiresActive($id, $validated);
                 $this->service->update($id, $validated, $expectedVersion, $this->actorId(), $this->requestId());
                 $this->applyCanonicalMasters($id, $validated, $expectedVersion + 1);
+                $this->invalidateMasterReadCache();
 
                 return $this->service->snapshot($id, true);
             }, 3);

@@ -4,12 +4,14 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\ScanRequestFingerprint;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\Warehouse\Models\StockDocument;
@@ -33,7 +35,16 @@ use Modules\Warehouse\Support\Concerns\ResolvesActor;
 class MiniAppInboundController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
+
+    /**
+     * Dữ liệu Mini App là dữ liệu MÁY QUÉT đọc: cũ một nhịp ở đây nguy hiểm hơn hẳn mọi
+     * chỗ khác, nên dùng TTL ngắn nhất ('stock_short' = 20s) và bám vào `stock:version`
+     * — namespace đã được mọi mutation tồn kho bump. Mọi đường ghi của chính controller
+     * này (scan + các lệnh uỷ quyền) cũng bump, xem từng phương thức bên dưới.
+     */
+    private const CACHE_VERSION_NS = 'stock:version';
 
     public function __construct(
         private readonly CurrentBaselineDocumentController $documents,
@@ -44,6 +55,8 @@ class MiniAppInboundController extends Controller
 
     public function index(Request $request)
     {
+        // Kiểm tra tham số TRƯỚC cache: status sai phải trả 422 ngay, không phụ thuộc
+        // việc khoá cache đã có entry hay chưa.
         $status = strtoupper(trim((string) $request->query('status', '')));
         $readyFilter = $this->readyFilter($request);
 
@@ -56,6 +69,43 @@ class MiniAppInboundController extends Controller
             ApiError::abort(422, 'VALIDATION_ERROR', 'status không hợp lệ cho danh sách phiếu nhập Mini App.');
         }
 
+        $perPage = $this->perPage($request);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        // TTL 'stock_short' (20s): tiến độ scan đổi liên tục. Warehouse-scope đã nằm sẵn
+        // trong khoá qua readCacheScopeIds(), phân trang chạy TRONG SQL nên page/per_page
+        // cũng phải nằm trong khoá.
+        $cached = $this->cachedReadPayload(
+            'miniapp:inbound:list',
+            $this->readFiltersWithPaging($request),
+            function () use ($request, $status, $readyFilter, $perPage): array {
+                $page = $this->indexQuery($request, $status, $readyFilter)
+                    ->orderByDesc('created_at')
+                    ->paginate($perPage);
+
+                return [
+                    'items' => collect($page->items())
+                        ->map(fn (StockDocument $document): array => $this->decorateDocument($document))
+                        ->all(),
+                    'total' => $page->total(),
+                ];
+            },
+            'stock_short',
+            self::CACHE_VERSION_NS,
+        );
+
+        return $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
+    }
+
+    /** Truy vấn danh sách phiếu nhập Mini App — tách khỏi index() để nằm gọn trong closure cache. */
+    private function indexQuery(Request $request, string $status, ?bool $readyFilter)
+    {
         $query = StockDocument::query()
             ->with('lines')
             ->where('doc_type', StockDocument::TYPE_RECEIPT);
@@ -86,24 +136,34 @@ class MiniAppInboundController extends Controller
 
         $this->applyKeyword($query, $request, ['doc_no', 'source_name', 'note']);
 
-        $page = $query->orderByDesc('created_at')->paginate($this->perPage($request));
-        $page->setCollection($page->getCollection()->map(fn (StockDocument $document) => $this->decorateDocument($document)));
-
-        return $this->respondPaginated($page);
+        return $query;
     }
 
     public function show(string $id)
     {
-        $document = StockDocument::query()
-            ->with(['lines', 'statusHistory'])
-            ->where('doc_type', StockDocument::TYPE_RECEIPT)
-            ->find($id);
+        // Cùng TTL/version với index(). Route param không nằm trong query string nên phải
+        // đưa vào khoá thủ công. 404 cũng được cache, an toàn vì store() bump ngay khi
+        // tạo phiếu mới.
+        $cached = $this->cachedReadPayload(
+            'miniapp:inbound:detail',
+            ['document_id' => $id],
+            function () use ($id): array {
+                $document = StockDocument::query()
+                    ->with(['lines', 'statusHistory'])
+                    ->where('doc_type', StockDocument::TYPE_RECEIPT)
+                    ->find($id);
 
-        if ($document === null) {
+                return ['document' => $document === null ? null : $this->decorateDocument($document)];
+            },
+            'stock_short',
+            self::CACHE_VERSION_NS,
+        );
+
+        if (($cached['document'] ?? null) === null) {
             return $this->respondNotFound('Không tìm thấy phiếu nhập.');
         }
 
-        return $this->respondSuccess($this->decorateDocument($document));
+        return $this->respondSuccess($cached['document']);
     }
 
     /**
@@ -144,12 +204,35 @@ class MiniAppInboundController extends Controller
             ]);
         }
 
-        return $this->documents->storeInbound($request);
+        $response = $this->documents->storeInbound($request);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function cancel(Request $request, string $id)
     {
-        return $this->documents->cancelInbound($request, $id);
+        $response = $this->documents->cancelInbound($request, $id);
+        $this->invalidateAfterWrite();
+
+        return $response;
+    }
+
+    /**
+     * Bump cache đọc sau MỌI đường ghi của controller này.
+     *
+     * Scan/unscan/box/post-receipt đổi `scanned_qty` và trạng thái phiếu — thứ mà
+     * index()/show()/scanEntries() đang cache. Riêng scan nhập là stock-neutral nên
+     * KHÔNG đi qua CurrentBaselineStockService::mutateBalance(), tức là không có ai bump
+     * `stock:version` hộ; thiếu lời gọi này thì máy quét đọc lại tiến độ cũ tới 20s.
+     *
+     * Đặt trong DB::afterCommit: nếu còn transaction đang mở thì chờ commit xong mới
+     * bump (không nạp lại cache từ dữ liệu chưa commit); các lệnh uỷ quyền ở đây đã
+     * commit trước khi trả về nên callback chạy ngay.
+     */
+    private function invalidateAfterWrite(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
     }
 
     /**
@@ -224,6 +307,9 @@ class MiniAppInboundController extends Controller
             $body['data']['replayed'] = $replayed;
         }
 
+        // Transaction bên trong IdempotencyStore::handle() đã commit tại đây.
+        $this->invalidateAfterWrite();
+
         $response = response()->json($body, $code)
             ->header('Idempotent-Replay', $replayed ? 'true' : 'false');
         $version = data_get($body, 'data.version');
@@ -236,17 +322,26 @@ class MiniAppInboundController extends Controller
 
     public function unscan(Request $request, string $id)
     {
-        return $this->stockFlow->inboundUnscan($request, $id);
+        $response = $this->stockFlow->inboundUnscan($request, $id);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function registerBox(Request $request, string $id)
     {
-        return $this->boxes->store($request, $id);
+        $response = $this->boxes->store($request, $id);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function completeCartonScan(Request $request, string $id, string $containerId)
     {
-        return $this->stockFlow->completeInboundCartonScan($request, $id, $containerId);
+        $response = $this->stockFlow->completeInboundCartonScan($request, $id, $containerId);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     /**
@@ -255,11 +350,16 @@ class MiniAppInboundController extends Controller
      */
     public function approve(Request $request, string $id)
     {
-        return $this->stockFlow->postReceipt($request, $id);
+        $response = $this->stockFlow->postReceipt($request, $id);
+        $this->invalidateAfterWrite();
+
+        return $response;
     }
 
     public function scanEntries(Request $request, string $id)
     {
+        // Phiếu không tồn tại phải trả 404 NGAY — kiểm tra TRƯỚC cache, nếu để sau thì
+        // một cache hit sẽ nuốt mất 404.
         $document = DB::table('stock_documents')
             ->where('id', $id)
             ->where('doc_type', 'receipt')
@@ -268,6 +368,45 @@ class MiniAppInboundController extends Controller
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiếu nhập.');
         }
 
+        $statusFilter = strtoupper(trim((string) $request->query('status', 'ACTIVE')));
+        if (! in_array($statusFilter, ['ACTIVE', 'REMOVED', 'ALL'], true)) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'status scan-entry chỉ nhận ACTIVE, REMOVED hoặc ALL.');
+        }
+
+        $perPage = $this->perPage($request, 50);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        // TTL 'stock_short' (20s): đây là bằng chứng scan mà máy quét vừa ghi xong đọc lại
+        // ngay; scan()/unscan() bên trên bump `stock:version` nên danh sách đổi tức thì.
+        $cached = $this->cachedReadPayload(
+            'miniapp:inbound:scan-entries',
+            // array_merge chứ KHÔNG dùng `+`: `+` để vế trái thắng khi trùng khoá, nên
+            // `?document_id=<phiếu khác>` sẽ ghi đè id thật của route và hai phiếu dùng
+            // chung một entry.
+            array_merge($this->readFiltersWithPaging($request), ['document_id' => $id]),
+            function () use ($id, $statusFilter, $perPage): array {
+                $page = $this->scanEntriesQuery($id, $statusFilter)
+                    ->orderByDesc('e.created_at')
+                    ->paginate($perPage);
+
+                return ['items' => $page->items(), 'total' => $page->total()];
+            },
+            'stock_short',
+            self::CACHE_VERSION_NS,
+        );
+
+        return $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
+    }
+
+    /** Truy vấn scan-entry của một phiếu nhập — tách khỏi scanEntries() để nằm gọn trong closure cache. */
+    private function scanEntriesQuery(string $id, string $statusFilter)
+    {
         $columns = [
             'e.id',
             'e.inbound_line_id',
@@ -309,23 +448,13 @@ class MiniAppInboundController extends Controller
             $columns[] = DB::raw('NULL as raw_code');
         }
 
-        $statusFilter = strtoupper(trim((string) $request->query('status', 'ACTIVE')));
-        if (! in_array($statusFilter, ['ACTIVE', 'REMOVED', 'ALL'], true)) {
-            ApiError::abort(422, 'VALIDATION_ERROR', 'status scan-entry chỉ nhận ACTIVE, REMOVED hoặc ALL.');
-        }
-
         $query->when($statusFilter === 'ACTIVE', function ($builder): void {
             $builder->where(function ($nested): void {
                 $nested->whereNull('e.status')->orWhere('e.status', '<>', 'REMOVED');
             });
         })->when($statusFilter === 'REMOVED', fn ($builder) => $builder->where('e.status', 'REMOVED'));
 
-        $page = $query
-            ->orderByDesc('e.created_at')
-            ->select($columns)
-            ->paginate($this->perPage($request, 50));
-
-        return $this->respondPaginated($page);
+        return $query->select($columns);
     }
 
     private function scanPayload(Request $request): array

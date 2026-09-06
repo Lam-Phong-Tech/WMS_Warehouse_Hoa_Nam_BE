@@ -3,8 +3,12 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Http\Requests\StoreStockRequestRequest;
 use Modules\Warehouse\Http\Requests\UpdateStockRequestRequest;
 use Modules\Warehouse\Models\StockRequest;
@@ -189,6 +193,7 @@ use OpenApi\Attributes as OA;
 class StockRequestController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     public function __construct(private readonly StockRequestService $service) {}
 
@@ -204,6 +209,28 @@ class StockRequestController extends Controller
 
     public function index(Request $request)
     {
+        // TTL 'search' (120s): yêu cầu kho là chứng từ đang lưu thông (draft →
+        // pending → approved → converted). Mọi đường ghi trong chính controller này
+        // bump `stock:version` sau commit nên danh sách đổi ngay khi có thao tác.
+        $payload = $this->cachedReadPayload(
+            'warehouse:stock-request:list',
+            // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
+            $this->readFiltersWithPaging($request),
+            fn (): array => $this->buildIndexPayload($request),
+            'search',
+            'stock:version',
+        );
+
+        return $this->respondPaginated($this->paginatorFromReadCache($payload));
+    }
+
+    /**
+     * Phần chạy SQL của index(), tách ra để cache được (mảng thuần).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildIndexPayload(Request $request): array
+    {
         $query = StockRequest::query()->with($this->relations());
 
         if ($request->filled('status')) {
@@ -214,20 +241,69 @@ class StockRequestController extends Controller
         }
         $this->applyKeyword($query, $request, ['request_no', 'note']);
 
-        return $this->respondPaginated($query->orderByDesc('created_at')->paginate($this->perPage($request)));
+        $paginator = $query->orderByDesc('created_at')->paginate($this->perPage($request));
+
+        return [
+            'items' => $paginator->items(),
+            'total' => $paginator->total(),
+            'per_page' => $paginator->perPage(),
+            'current_page' => $paginator->currentPage(),
+        ];
+    }
+
+    /**
+     * Dựng lại paginator từ payload đã cache để `respondPaginated()` phát ra ĐÚNG
+     * envelope cũ. `meta.request_id`/`meta.timestamp` sinh trong respondPaginated()
+     * nên luôn tươi; options trùng `Builder::paginate()` nên `links` không đổi.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function paginatorFromReadCache(array $payload): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator(
+            $payload['items'] ?? [],
+            (int) ($payload['total'] ?? 0),
+            max(1, (int) ($payload['per_page'] ?? 10)),
+            max(1, (int) ($payload['current_page'] ?? 1)),
+            ['path' => Paginator::resolveCurrentPath(), 'pageName' => 'page'],
+        );
     }
 
     public function show(string $id)
     {
-        $request = StockRequest::with($this->relations())->find($id);
+        // Payload rỗng = không tìm thấy: một model bao giờ cũng có thuộc tính nên `[]`
+        // không thể trùng với dữ liệu thật. Bản ghi mới chỉ sinh qua store() — đường
+        // ghi đó bump `stock:version` nên entry "không tìm thấy" chết ngay sau khi tạo.
+        $payload = $this->cachedReadPayload(
+            'warehouse:stock-request:detail',
+            ['id' => $id],
+            function () use ($id): array {
+                $stockRequest = StockRequest::with($this->relations())->find($id);
 
-        return $request ? $this->respondSuccess($request) : $this->respondNotFound('Không tìm thấy yêu cầu.');
+                return $stockRequest?->toArray() ?? [];
+            },
+            'search',
+            'stock:version',
+        );
+
+        return $payload === [] ? $this->respondNotFound('Không tìm thấy yêu cầu.') : $this->respondSuccess($payload);
+    }
+
+    /**
+     * Ghi là vô hiệu hoá NGAY (điều 4 của CachesReadPayload). Gọi sau khi service đã
+     * chạy xong: trong transaction thì afterCommit() hoãn tới lúc commit thật, ngoài
+     * transaction thì chạy luôn — không đường ghi nào nạp lại cache từ dữ liệu chưa commit.
+     */
+    private function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
     }
 
     public function store(StoreStockRequestRequest $request)
     {
         $data = $request->validated();
         $created = $this->service->create($data['request_type'], $data, $this->userId());
+        $this->invalidateReadCache();
 
         return $this->respondCreated($created, 'Tạo yêu cầu thành công');
     }
@@ -239,6 +315,7 @@ class StockRequestController extends Controller
         }
 
         $updated = $this->service->update($id, $request->validated(), $this->userId());
+        $this->invalidateReadCache();
 
         return $this->respondSuccess($updated, 'Cập nhật yêu cầu thành công');
     }
@@ -254,6 +331,7 @@ class StockRequestController extends Controller
         }
 
         $stockRequest->delete();
+        $this->invalidateReadCache();
 
         return $this->respondSuccess(null, 'Xóa yêu cầu thành công');
     }
@@ -264,7 +342,10 @@ class StockRequestController extends Controller
             return $this->respondNotFound('Không tìm thấy yêu cầu.');
         }
 
-        return $this->respondSuccess($this->service->submit($id, $this->userId()), 'Đã gửi duyệt yêu cầu');
+        $result = $this->service->submit($id, $this->userId());
+        $this->invalidateReadCache();
+
+        return $this->respondSuccess($result, 'Đã gửi duyệt yêu cầu');
     }
 
     public function approve(string $id)
@@ -273,7 +354,10 @@ class StockRequestController extends Controller
             return $this->respondNotFound('Không tìm thấy yêu cầu.');
         }
 
-        return $this->respondSuccess($this->service->approve($id, $this->userId()), 'Đã duyệt yêu cầu');
+        $result = $this->service->approve($id, $this->userId());
+        $this->invalidateReadCache();
+
+        return $this->respondSuccess($result, 'Đã duyệt yêu cầu');
     }
 
     public function reject(Request $request, string $id)
@@ -286,7 +370,10 @@ class StockRequestController extends Controller
             return $this->respondError('Lý do từ chối không được để trống.', [], 422, 'VALIDATION_FAILED');
         }
 
-        return $this->respondSuccess($this->service->reject($id, $reason, $this->userId()), 'Đã từ chối duyệt yêu cầu');
+        $result = $this->service->reject($id, $reason, $this->userId());
+        $this->invalidateReadCache();
+
+        return $this->respondSuccess($result, 'Đã từ chối duyệt yêu cầu');
     }
 
     public function convert(string $id)
@@ -295,7 +382,10 @@ class StockRequestController extends Controller
             return $this->respondNotFound('Không tìm thấy yêu cầu.');
         }
 
-        return $this->respondSuccess($this->service->convert($id, $this->userId()), 'Chuyển đổi sang phiếu nghiệp vụ thành công');
+        $result = $this->service->convert($id, $this->userId());
+        $this->invalidateReadCache();
+
+        return $this->respondSuccess($result, 'Chuyển đổi sang phiếu nghiệp vụ thành công');
     }
 
     public function cancel(Request $request, string $id)
@@ -304,6 +394,9 @@ class StockRequestController extends Controller
             return $this->respondNotFound('Không tìm thấy yêu cầu.');
         }
 
-        return $this->respondSuccess($this->service->cancel($id, $request->input('reason'), $this->userId()), 'Đã hủy yêu cầu thành công');
+        $result = $this->service->cancel($id, $request->input('reason'), $this->userId());
+        $this->invalidateReadCache();
+
+        return $this->respondSuccess($result, 'Đã hủy yêu cầu thành công');
     }
 }

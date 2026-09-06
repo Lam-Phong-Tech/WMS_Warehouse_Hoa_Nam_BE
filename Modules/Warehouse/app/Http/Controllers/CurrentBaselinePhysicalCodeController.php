@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,18 @@ use OpenApi\Attributes as OA;
 class CurrentBaselinePhysicalCodeController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
+
+    /**
+     * Gán/gán RFID/đổi trạng thái mã vật lý là ghi STOCK-NEUTRAL: không qua
+     * mutateBalance() nên không ai bump 'stock:version' hộ, trong khi read cache tra
+     * cứu mã và chi tiết phiếu xuất đọc thẳng physical_codes/containers vừa ghi.
+     */
+    private function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     #[OA\Post(
         path: '/api/v1/physical-codes',
@@ -130,6 +142,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 requestId: $request->attributes->get('request_id'),
                 afterData: ['target_type' => $targetType, 'target_id' => $targetId, 'carrier_type' => $validated['carrier_type']],
             );
+            $this->invalidateReadCache();
 
             return $physicalCodeId;
         }, 3);
@@ -243,6 +256,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 requestId: $request->attributes->get('request_id'),
                 afterData: ['item_id' => $itemId, 'hardware_uid' => $hardwareUid, 'stock_effect' => 'NONE'],
             );
+            $this->invalidateReadCache();
 
             return [
                 'physical_code' => DB::table('physical_codes')->where('physical_code_id', $physicalCodeId)->first(),
@@ -348,6 +362,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 beforeData: ['status' => $code->status, 'version' => $code->version ?? 0],
                 afterData: ['status' => $after->status, 'version' => $after->version],
             );
+            $this->invalidateReadCache();
 
             return $after;
         }, 3);

@@ -3,14 +3,26 @@
 namespace Modules\Notification\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Modules\Notification\Models\NotificationRecipient;
 use OpenApi\Attributes as OA;
 
 class NotificationController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
+
+    /**
+     * Thông báo là dữ liệu RIÊNG TỪNG NGƯỜI nên dùng namespace phiên bản riêng chứ
+     * không dùng chung `stock:version`: một lần đánh dấu đã đọc không được kéo theo
+     * invalidate toàn bộ cache tồn kho/báo cáo, và ngược lại một mutation tồn kho
+     * cũng không cần dựng lại danh sách thông báo.
+     */
+    private const CACHE_VERSION_NS = 'notification:version';
 
     #[OA\Get(
         path: '/api/v1/notifications',
@@ -31,20 +43,50 @@ class NotificationController extends Controller
     )]
     public function index(Request $request)
     {
-        $query = NotificationRecipient::query()
-            ->with('notification')
-            ->where('user_id', $request->user()->user_id)
-            ->when($request->boolean('unread'), fn ($q) => $q->whereNull('read_at'))
-            ->when($request->filled('severity'), fn ($q) => $q->whereHas(
-                'notification',
-                fn ($n) => $n->where('severity', $request->input('severity'))
-            ))
-            ->orderByDesc('created_at');
+        $perPage = (int) $request->input('per_page', 15);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
 
-        $recipients = $query->paginate((int) $request->input('per_page', 15));
-        $recipients->getCollection()->transform(fn (NotificationRecipient $r) => $this->present($r));
+        // TTL 'stock_short' (20s): danh sách thông báo phải bám sát thao tác của chính
+        // người đang xem. actorId BẮT BUỘC nằm trong khoá — thiếu nó là người này đọc
+        // được thông báo của người kia, lỗi nặng hơn hẳn dữ liệu cũ. Phân trang chạy
+        // TRONG SQL nên page/per_page phải nằm trong khoá (readFiltersWithPaging).
+        $cached = $this->cachedReadPayload(
+            'notification:list',
+            $this->readFiltersWithPaging($request),
+            function () use ($request, $perPage): array {
+                $recipients = NotificationRecipient::query()
+                    ->with('notification')
+                    ->where('user_id', $request->user()->user_id)
+                    ->when($request->boolean('unread'), fn ($q) => $q->whereNull('read_at'))
+                    ->when($request->filled('severity'), fn ($q) => $q->whereHas(
+                        'notification',
+                        fn ($n) => $n->where('severity', $request->input('severity'))
+                    ))
+                    ->orderByDesc('created_at')
+                    ->paginate($perPage);
 
-        return $this->respondPaginated($recipients);
+                return [
+                    'items' => collect($recipients->items())
+                        ->map(fn (NotificationRecipient $r): array => $this->present($r))
+                        ->all(),
+                    'total' => $recipients->total(),
+                ];
+            },
+            'stock_short',
+            self::CACHE_VERSION_NS,
+            $this->readCacheActorId(),
+        );
+
+        // Dựng lại paginator để envelope (meta phân trang + links) giữ NGUYÊN hình dạng
+        // cũ — cùng path/pageName mà ->paginate() vẫn dùng. `meta.request_id`/`timestamp`
+        // do respondPaginated() sinh mới mỗi request nên không bị cache.
+        return $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
     }
 
     #[OA\Get(
@@ -60,12 +102,23 @@ class NotificationController extends Controller
     )]
     public function unreadCount(Request $request)
     {
-        $count = NotificationRecipient::query()
-            ->where('user_id', $request->user()->user_id)
-            ->whereNull('read_at')
-            ->count();
+        // Badge chưa đọc: cùng TTL/namespace/actor với danh sách để hai chỗ không bao
+        // giờ lệch nhau, và cùng được bump ngay khi người dùng đánh dấu đã đọc.
+        $payload = $this->cachedReadPayload(
+            'notification:unread-count',
+            [],
+            fn (): array => [
+                'unread_count' => NotificationRecipient::query()
+                    ->where('user_id', $request->user()->user_id)
+                    ->whereNull('read_at')
+                    ->count(),
+            ],
+            'stock_short',
+            self::CACHE_VERSION_NS,
+            $this->readCacheActorId(),
+        );
 
-        return $this->respondSuccess(['unread_count' => $count]);
+        return $this->respondSuccess($payload);
     }
 
     #[OA\Patch(
@@ -97,6 +150,10 @@ class NotificationController extends Controller
             $recipient->save();
         }
 
+        // Bump SAU commit: gọi trước commit thì một request khác có thể nạp lại cache từ
+        // dữ liệu CHƯA commit, và badge chưa đọc vẫn sai suốt phần đời còn lại của TTL.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+
         return $this->respondSuccess($this->present($recipient->fresh('notification')), 'Đã đánh dấu đã đọc');
     }
 
@@ -117,6 +174,10 @@ class NotificationController extends Controller
             ->where('user_id', $request->user()->user_id)
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
+
+        // Cùng lý do với markRead(): danh sách và badge phải mới NGAY sau khi ghi, không
+        // được chờ hết 20s TTL.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
 
         return $this->respondSuccess(['updated_count' => $updated], 'Đã đánh dấu tất cả đã đọc');
     }

@@ -4,9 +4,11 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\WarrantyAttachmentScanner;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -22,7 +24,15 @@ use OpenApi\Attributes as OA;
 class CurrentBaselineWarrantyAttachmentController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActorOrNull { actorIdOrNull as actorId; }
+
+    /**
+     * Bảng `warranty_attachments` CHỈ được ghi từ chính controller này (store /
+     * recordQuarantine / destroy) nên namespace phiên bản riêng là đủ chính xác, và
+     * tránh việc upload một tấm ảnh đi invalidate toàn bộ cache tồn kho/báo cáo.
+     */
+    private const CACHE_VERSION_NS = 'warranty:version';
 
     private const DISK = 'local';
 
@@ -60,18 +70,48 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
     )]
     public function index(Request $request, string $id)
     {
+        // Case không tồn tại phải trả 404 NGAY — kiểm tra TRƯỚC cache, nếu để sau thì một
+        // cache hit sẽ nuốt mất 404.
         $this->requireCase($id);
 
-        $page = DB::table('warranty_attachments')
-            ->where('warranty_case_id', $id)
-            ->where(function ($query): void {
-                $query->whereNull('status')->orWhere('status', '!=', 'DELETED');
-            })
-            ->orderByDesc('created_at')
-            ->paginate($this->perPage($request));
-        $page->getCollection()->transform(fn (object $row): array => $this->payload($row));
+        $perPage = $this->perPage($request);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
 
-        return $this->respondPaginated($page);
+        // Chỉ METADATA (payload() đã bỏ storage path) nên cache được; nội dung tệp ở
+        // download() thì KHÔNG. TTL 'search' (120s) làm lưới an toàn, còn store()/
+        // destroy() ngay dưới bump `warranty:version` nên danh sách đổi ngay khi có ghi.
+        // Phân trang chạy TRONG SQL nên page/per_page phải nằm trong khoá; id của case
+        // đi kèm vì route param không nằm trong query string.
+        $cached = $this->cachedReadPayload(
+            'warehouse:warranty-attachment:list',
+            // array_merge chứ KHÔNG dùng `+`: `+` để vế trái thắng khi trùng khoá, nên
+            // `?warranty_case_id=<case khác>` sẽ ghi đè id thật của route.
+            array_merge($this->readFiltersWithPaging($request), ['warranty_case_id' => $id]),
+            function () use ($id, $perPage): array {
+                $page = DB::table('warranty_attachments')
+                    ->where('warranty_case_id', $id)
+                    ->where(function ($query): void {
+                        $query->whereNull('status')->orWhere('status', '!=', 'DELETED');
+                    })
+                    ->orderByDesc('created_at')
+                    ->paginate($perPage);
+
+                return [
+                    'items' => collect($page->items())->map(fn (object $row): array => $this->payload($row))->all(),
+                    'total' => $page->total(),
+                ];
+            },
+            'search',
+            self::CACHE_VERSION_NS,
+        );
+
+        return $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
     }
 
     #[OA\Post(
@@ -196,6 +236,9 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
 
         $row = DB::table('warranty_attachments')->where('id', $attachmentId)->first();
 
+        // Bump SAU commit: danh sách đính kèm của case phải thấy tệp vừa tải lên ngay.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+
         return $this->respondCreated(
             $this->payload($row) + ['scan_result' => $scan['result']],
             'Đã tải lên tệp đính kèm bảo hành; tồn kho chưa thay đổi (stock_effect=NONE).'
@@ -303,6 +346,11 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
                 'stock_effect' => 'NONE',
             ],
         );
+
+        // Dòng QUARANTINED KHÔNG bị index() lọc bỏ (chỉ DELETED mới bị lọc) nên đây cũng
+        // là một đường ghi phải invalidate. Bump ngay tại đây vì store() abort 422 ngay
+        // sau khi gọi hàm này — code phía sau lời gọi không bao giờ chạy.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
     }
 
     #[OA\Get(
@@ -321,6 +369,8 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
     )]
     public function download(Request $request, string $attachmentId)
     {
+        // KHÔNG cache: đây là nội dung tệp nhị phân (StreamedResponse), không phải payload
+        // JSON — quy tắc 6. Chỉ metadata ở index() mới đi qua cache.
         $row = $this->requireAttachment($attachmentId);
         $path = (string) ($row->storage_key ?? $row->storage_path);
         $disk = (string) ($row->storage_disk ?? self::DISK);
@@ -374,6 +424,9 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             beforeData: ['status' => (string) ($row->status ?? 'ACTIVE')],
             afterData: ['status' => 'DELETED', 'warranty_case_id' => (string) $row->warranty_case_id],
         );
+
+        // Bump SAU commit: tệp vừa xoá logic phải biến khỏi danh sách ngay.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
 
         return $this->respondSuccess([
             'id' => $attachmentId,

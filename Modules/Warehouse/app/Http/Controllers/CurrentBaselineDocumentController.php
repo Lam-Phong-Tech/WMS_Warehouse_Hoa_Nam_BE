@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
@@ -20,6 +21,7 @@ use OpenApi\Attributes as OA;
 class CurrentBaselineDocumentController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
 
     /**
@@ -552,6 +554,10 @@ class CurrentBaselineDocumentController extends Controller
                 $warehouseId !== null ? (string) $warehouseId : null,
                 $this->actorId(),
             ));
+            // Huỷ chứng từ là stock-neutral (không qua mutateBalance) nhưng đổi status
+            // phiếu và trạng thái toa nguồn — dữ liệu mà read cache phiếu nhập/xuất và
+            // danh sách toa đang phục vụ.
+            DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
 
             return $this->documentPayload($id);
         }, 3);

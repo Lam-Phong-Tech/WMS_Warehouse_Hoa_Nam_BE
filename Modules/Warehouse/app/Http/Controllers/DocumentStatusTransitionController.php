@@ -3,8 +3,12 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\DocumentStatusTransition;
 use OpenApi\Attributes as OA;
 
@@ -12,6 +16,7 @@ use OpenApi\Attributes as OA;
 class DocumentStatusTransitionController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     #[OA\Get(
         path: '/api/v1/document-status-transitions',
@@ -34,6 +39,28 @@ class DocumentStatusTransitionController extends Controller
     )]
     public function index(Request $request)
     {
+        // TTL 'search' (120s) chứ không 'master': danh mục này có endpoint ghi ngay
+        // trong chính controller (toggle) nên phải nhìn thấy thay đổi nhanh; toggle()
+        // bump cùng namespace `stock:version` nên thực tế entry chết ngay khi bật/tắt.
+        $payload = $this->cachedReadPayload(
+            'warehouse:document-status-transition:list',
+            // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
+            $this->readFiltersWithPaging($request),
+            fn (): array => $this->buildIndexPayload($request),
+            'search',
+            'stock:version',
+        );
+
+        return $this->respondPaginated($this->paginatorFromReadCache($payload));
+    }
+
+    /**
+     * Phần chạy SQL của index(), tách ra để cache được (mảng thuần).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildIndexPayload(Request $request): array
+    {
         $query = DocumentStatusTransition::query();
 
         if ($request->filled('doc_type')) {
@@ -44,8 +71,31 @@ class DocumentStatusTransitionController extends Controller
         }
         $this->applyKeyword($query, $request, ['from_status', 'to_status', 'action']);
 
-        return $this->respondPaginated(
-            $query->orderBy('doc_type')->orderBy('from_status')->paginate($this->perPage($request))
+        $paginator = $query->orderBy('doc_type')->orderBy('from_status')->paginate($this->perPage($request));
+
+        return [
+            'items' => $paginator->items(),
+            'total' => $paginator->total(),
+            'per_page' => $paginator->perPage(),
+            'current_page' => $paginator->currentPage(),
+        ];
+    }
+
+    /**
+     * Dựng lại paginator từ payload đã cache để `respondPaginated()` phát ra ĐÚNG
+     * envelope cũ. `meta.request_id`/`meta.timestamp` sinh trong respondPaginated()
+     * nên luôn tươi; options trùng `Builder::paginate()` nên `links` không đổi.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function paginatorFromReadCache(array $payload): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator(
+            $payload['items'] ?? [],
+            (int) ($payload['total'] ?? 0),
+            max(1, (int) ($payload['per_page'] ?? 10)),
+            max(1, (int) ($payload['current_page'] ?? 1)),
+            ['path' => Paginator::resolveCurrentPath(), 'pageName' => 'page'],
         );
     }
 
@@ -72,6 +122,11 @@ class DocumentStatusTransitionController extends Controller
         }
 
         $transition->update(['is_active' => ! $transition->is_active]);
+
+        // Ghi là vô hiệu hoá NGAY (điều 4 của CachesReadPayload): bump sau commit để
+        // index() không phục vụ lại danh mục cũ. Ngoài transaction thì afterCommit()
+        // chạy luôn, nên đường ghi không bọc transaction vẫn đúng.
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
 
         return $this->respondSuccess($transition, $transition->is_active ? 'Đã bật transition' : 'Đã tắt transition');
     }

@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\ConflictCode;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
@@ -25,7 +26,19 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
 class CurrentBaselineOperationsController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActorOrNull { actorIdOrNull as actorId; }
+
+    /**
+     * Nhãn/lệnh in/cấu hình máy in/phiếu import đều là ghi STOCK-NEUTRAL: không qua
+     * mutateBalance() nên không ai bump 'stock:version' hộ, trong khi read cache của
+     * phiếu xuất (label_status, label_printed_count) và của báo cáo nhãn/đối soát
+     * import đọc đúng các bảng vừa ghi.
+     */
+    protected function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     /**
      * WWHN-247: bản sao thứ hai của state machine bảo hành. Nó KHÔNG được route nào trỏ
@@ -168,6 +181,7 @@ class CurrentBaselineOperationsController extends Controller
                     'created_at' => now(),
                 ]);
             }
+            $this->invalidateReadCache();
         }, 3);
 
         AuditLogger::record(
@@ -510,6 +524,7 @@ class CurrentBaselineOperationsController extends Controller
             'updated_by' => $this->actorId(),
             'version' => 0,
         ]);
+        $this->invalidateReadCache();
 
         return $this->respondCreated(DB::table('printer_configs')->where('id', $id)->first(), 'Đã tạo cấu hình máy in.');
     }
@@ -564,6 +579,7 @@ class CurrentBaselineOperationsController extends Controller
             'updated_at' => now(),
             'updated_by' => $this->actorId(),
         ]);
+        $this->invalidateReadCache();
 
         AuditLogger::record(
             action: 'UPDATE_PRINTER_CONFIG',
@@ -1153,6 +1169,7 @@ class CurrentBaselineOperationsController extends Controller
             if ($updated !== 1) {
                 ApiError::abort(409, ConflictCode::CONCURRENCY, 'Label snapshot đã bị thay đổi bởi lệnh in khác; tải lại rồi thử lại.');
             }
+            $this->invalidateReadCache();
         });
 
         if ($status !== 'PRINTED') {
@@ -1250,6 +1267,7 @@ class CurrentBaselineOperationsController extends Controller
             if ($updated !== 1) {
                 ApiError::abort(409, ConflictCode::CONCURRENCY, 'Label snapshot đã bị thay đổi bởi lệnh in khác; tải lại rồi thử lại.');
             }
+            $this->invalidateReadCache();
         });
         // `details` để rỗng — xem chú thích ở nhánh PRINT_FAILED khác trong
         // dispatchLabelOnce(): metadata này không phải câu chữ và FE không đọc

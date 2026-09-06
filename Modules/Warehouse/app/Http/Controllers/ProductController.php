@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -19,8 +20,20 @@ use OpenApi\Attributes as OA;
 class ProductController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     public function __construct(private readonly ProductRepositoryInterface $products) {}
+
+    /**
+     * SKU là master data: sku_code/sku_name/status/hồ sơ App PV của nó nằm trong
+     * payload của các read cache khoá theo 'stock:version' (danh sách sản phẩm Mini
+     * App, phiếu nhập/xuất, truy vết, báo cáo). ProductRepository chỉ bump
+     * 'warehouse.sku:list' nên không ai vô hiệu hoá những cache đó hộ.
+     */
+    private function invalidateMasterReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     #[OA\Get(
         path: '/api/v1/products',
@@ -99,6 +112,8 @@ class ProductController extends Controller
             requestId: $request->attributes->get('request_id'),
             afterData: $product->toArray(),
         );
+
+        $this->invalidateMasterReadCache();
 
         return $this->respondCreated($product, 'Tạo SKU thành công');
     }
@@ -194,6 +209,8 @@ class ProductController extends Controller
             afterData: $product->toArray(),
         );
 
+        $this->invalidateMasterReadCache();
+
         return $this->respondSuccess($product, 'Cập nhật SKU thành công');
     }
 
@@ -267,6 +284,8 @@ class ProductController extends Controller
             beforeData: $beforeData,
             afterData: $product->toArray(),
         );
+
+        $this->invalidateMasterReadCache();
 
         return $this->respondSuccess(
             $product->toArray() + ['pv_profile_version' => $nextProfileVersion],

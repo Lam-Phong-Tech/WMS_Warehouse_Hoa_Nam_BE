@@ -3,8 +3,10 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreProductMasterRequest;
 use Modules\Warehouse\Http\Requests\UpdateProductMasterRequest;
@@ -18,8 +20,21 @@ use OpenApi\Attributes as OA;
 class ProductMasterController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     public function __construct(private readonly ProductMasterRepositoryInterface $productMasters) {}
+
+    /**
+     * Trigger `hn_sync_product_master_to_canonical` đẩy mọi ghi vào product_masters
+     * sang bảng canonical brands/product_categories/product_models/power_sources/
+     * package_variants — đúng những bảng mà danh sách sản phẩm Mini App join để lấy
+     * brand_name/category_name/model_name. Các read đó khoá theo 'stock:version',
+     * còn repository chỉ bump 'warehouse.product_master:list'.
+     */
+    private function invalidateMasterReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     #[OA\Get(
         path: '/api/v1/product-masters',
@@ -85,6 +100,8 @@ class ProductMasterController extends Controller
             requestId: $request->attributes->get('request_id'),
             afterData: $productMaster->toArray(),
         );
+
+        $this->invalidateMasterReadCache();
 
         return $this->respondCreated($productMaster, 'Tạo product master thành công');
     }
@@ -153,6 +170,8 @@ class ProductMasterController extends Controller
             beforeData: $beforeData,
             afterData: $productMaster->toArray(),
         );
+
+        $this->invalidateMasterReadCache();
 
         return $this->respondSuccess($productMaster, 'Cập nhật product master thành công');
     }

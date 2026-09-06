@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
@@ -22,12 +23,24 @@ use OpenApi\Attributes as OA;
 class CurrentBaselineComponentFlowController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
 
     public function __construct(
         private readonly CurrentBaselineStockService $stock,
         private readonly ComponentContainerSubledgerService $containers,
     ) {}
+
+    /**
+     * Tạo/scan/huỷ Component Issue là STOCK-NEUTRAL: không đi qua mutateBalance() nên
+     * không ai bump 'stock:version' hộ, trong khi read cache của Component Issue
+     * (danh sách/chi tiết, scanned_qty, status) đọc đúng những cột vừa đổi. Trong
+     * transaction thì afterCommit() hoãn tới commit thật.
+     */
+    private function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     #[OA\Post(
         path: '/api/v1/component-issue-documents',
@@ -134,6 +147,7 @@ class CurrentBaselineComponentFlowController extends Controller
                 requestId: $request->attributes->get('request_id'),
                 afterData: ['status' => 'DRAFT', 'purpose' => 'WARRANTY', 'version' => 1],
             );
+            $this->invalidateReadCache();
 
             return $documentId;
         }, 3);
@@ -275,6 +289,7 @@ class CurrentBaselineComponentFlowController extends Controller
                 'updated_at' => now(),
                 'updated_by' => $this->actorId(),
             ]);
+            $this->invalidateReadCache();
 
             return [
                 'component_issue_document_id' => $id,
@@ -353,6 +368,7 @@ class CurrentBaselineComponentFlowController extends Controller
                 beforeData: ['status' => $document->status, 'version' => $expectedVersion],
                 afterData: ['status' => 'CANCELLED', 'version' => $expectedVersion + 1],
             );
+            $this->invalidateReadCache();
 
             return ['component_issue_document_id' => $id, 'status' => 'CANCELLED', 'version' => $expectedVersion + 1, 'stock_effect' => 'NONE'];
         }, 3);

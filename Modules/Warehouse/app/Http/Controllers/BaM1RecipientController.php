@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -17,7 +18,16 @@ use OpenApi\Attributes as OA;
  */
 class BaM1RecipientController extends Controller
 {
+    use CachesReadPayload;
+
     public const TYPES = ['DISTRIBUTOR', 'AGENCY', 'PROJECT_CUSTOMER', 'RETAIL_CUSTOMER'];
+
+    /**
+     * Nơi nhận hàng là master data (mọi form tạo phiếu xuất đều load; ghi chỉ qua
+     * store()/update() ngay trong controller này). Namespace riêng `master:version`
+     * dùng chung với các danh mục khác — bump ở đây làm mới cả nhóm danh mục.
+     */
+    private const CACHE_VERSION_NS = 'master:version';
 
     #[OA\Get(
         path: '/api/v1/recipients',
@@ -52,32 +62,50 @@ class BaM1RecipientController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:200'],
         ]);
 
-        $query = DB::table('agencies');
-        foreach (['recipient_type', 'market', 'region', 'status'] as $field) {
-            if (! empty($validated[$field])) {
-                $query->where($field, $validated[$field]);
-            }
-        }
-        if (! empty($validated['keyword'])) {
-            $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
-            $query->where(function ($nested) use ($keyword): void {
-                $nested->whereRaw('LOWER(agency_code) LIKE ?', [$keyword])
-                    ->orWhereRaw('LOWER(agency_name) LIKE ?', [$keyword])
-                    ->orWhereRaw("LOWER(COALESCE(contact_name, '')) LIKE ?", [$keyword])
-                    ->orWhereRaw("LOWER(COALESCE(phone, '')) LIKE ?", [$keyword])
-                    ->orWhereRaw("LOWER(COALESCE(market, '')) LIKE ?", [$keyword])
-                    ->orWhereRaw("LOWER(COALESCE(region, '')) LIKE ?", [$keyword]);
-            });
-        }
-
         $perPage = (int) ($validated['per_page'] ?? 10);
         $page = (int) ($validated['page'] ?? 1);
-        $total = (clone $query)->count();
-        $rows = $query->orderBy('agency_name')->forPage($page, $perPage)->get();
 
+        // TTL 'master' (1800s): danh mục nơi nhận thay đổi cực hiếm và mọi đường ghi đều
+        // nằm trong chính controller này (store/update bump `master:version`), nên danh
+        // sách không bao giờ cũ quá một nhịp ghi. Phân trang chạy TRONG SQL (forPage) nên
+        // page/per_page BẮT BUỘC nằm trong khoá.
+        $cached = $this->cachedReadPayload(
+            'warehouse:recipient:list',
+            $this->readFiltersWithPaging($request),
+            function () use ($validated, $perPage, $page): array {
+                $query = DB::table('agencies');
+                foreach (['recipient_type', 'market', 'region', 'status'] as $field) {
+                    if (! empty($validated[$field])) {
+                        $query->where($field, $validated[$field]);
+                    }
+                }
+                if (! empty($validated['keyword'])) {
+                    $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
+                    $query->where(function ($nested) use ($keyword): void {
+                        $nested->whereRaw('LOWER(agency_code) LIKE ?', [$keyword])
+                            ->orWhereRaw('LOWER(agency_name) LIKE ?', [$keyword])
+                            ->orWhereRaw("LOWER(COALESCE(contact_name, '')) LIKE ?", [$keyword])
+                            ->orWhereRaw("LOWER(COALESCE(phone, '')) LIKE ?", [$keyword])
+                            ->orWhereRaw("LOWER(COALESCE(market, '')) LIKE ?", [$keyword])
+                            ->orWhereRaw("LOWER(COALESCE(region, '')) LIKE ?", [$keyword]);
+                    });
+                }
+
+                return [
+                    'total' => (clone $query)->count(),
+                    'rows' => $query->orderBy('agency_name')->forPage($page, $perPage)->get()->all(),
+                ];
+            },
+            'master',
+            self::CACHE_VERSION_NS,
+        );
+
+        $total = (int) $cached['total'];
+
+        // `meta.request_id` dựng NGOÀI cache để log truy vết còn dùng được.
         return response()->json([
             'success' => true,
-            'data' => $rows,
+            'data' => $cached['rows'],
             'meta' => [
                 'current_page' => $page,
                 'per_page' => $perPage,
@@ -141,6 +169,10 @@ class BaM1RecipientController extends Controller
         $after = DB::table('agencies')->where('agency_id', $id)->first();
         $this->audit('RECIPIENT_CREATE', $id, $request, null, $after);
 
+        // Bump SAU commit: danh sách/chi tiết nơi nhận phải thấy bản ghi mới ngay.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+        $this->invalidateReportReadCache();
+
         return response()->json(['success' => true, 'data' => $after], 201);
     }
 
@@ -159,12 +191,22 @@ class BaM1RecipientController extends Controller
     )]
     public function show(string $id)
     {
-        $row = DB::table('agencies')->where('agency_id', $id)->first();
-        if ($row === null) {
+        // Cùng TTL/namespace với index(): id nằm trong khoá thay cho query string vì
+        // route param không đi qua $request->query(). 404 cũng được cache — an toàn vì
+        // store() bump `master:version` nên bản ghi mới tạo hiện ra ngay.
+        $cached = $this->cachedReadPayload(
+            'warehouse:recipient:detail',
+            ['agency_id' => $id],
+            fn (): array => ['row' => DB::table('agencies')->where('agency_id', $id)->first()],
+            'master',
+            self::CACHE_VERSION_NS,
+        );
+
+        if (($cached['row'] ?? null) === null) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy đối tượng nhận hàng.');
         }
 
-        return response()->json(['success' => true, 'data' => $row]);
+        return response()->json(['success' => true, 'data' => $cached['row']]);
     }
 
     #[OA\Patch(
@@ -224,7 +266,21 @@ class BaM1RecipientController extends Controller
         $after = DB::table('agencies')->where('agency_id', $id)->first();
         $this->audit('RECIPIENT_UPDATE', $id, $request, $before, $after);
 
+        // Cùng namespace với index()/show(): sửa xong là đọc ra bản mới, không chờ TTL.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+        $this->invalidateReportReadCache();
+
         return response()->json(['success' => true, 'data' => $after]);
+    }
+
+    /**
+     * agency_name/agency_code của nơi nhận còn nằm trong payload của các read cache
+     * khoá theo 'stock:version' (báo cáo xuất theo người nhận, nhật ký nhãn/tem),
+     * không chỉ riêng cache master của chính danh mục này.
+     */
+    private function invalidateReportReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
     }
 
     private function assertVersionIfProvided(Request $request, object $current): void

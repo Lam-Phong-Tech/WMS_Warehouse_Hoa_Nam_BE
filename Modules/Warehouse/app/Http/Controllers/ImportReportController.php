@@ -4,10 +4,12 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
@@ -20,6 +22,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ImportReportController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
+
+    /**
+     * Import báo cáo SKU không có đường GHI nào trong controller này — bản ghi do
+     * ImportController tạo ra. Vì vậy namespace phiên bản `master:version` chỉ được
+     * bump bởi các danh mục khác, và lưới an toàn thật sự ở đây là TTL: dùng 'search'
+     * (120s) thay vì 'master' (1800s) để một lần import vừa chạy xong không bị khuất
+     * khỏi danh sách quá lâu.
+     */
+    private const CACHE_VERSION_NS = 'master:version';
 
     /**
      * WWHN-331 FE331-P1-06R3 — data-scope của Import báo cáo SKU, áp cho CẢ BA route
@@ -115,22 +127,45 @@ class ImportReportController extends Controller
             'file_sha256' => ['nullable', 'string', 'max:64'],
         ]);
 
-        $query = $this->scopedQuery();
+        $perPage = (int) ($validated['per_page'] ?? 10);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
 
-        if (isset($validated['mode'])) {
-            $query->where('mode', $validated['mode']);
-        }
-        if (isset($validated['status'])) {
-            $query->where('status', $validated['status']);
-        }
-        if (isset($validated['file_sha256'])) {
-            $query->where('file_sha256', $validated['file_sha256']);
-        }
+        // actorId BẮT BUỘC trong khoá: scopedQuery() lọc theo `actor_id` khi người gọi bị
+        // giới hạn kho (FE331-P1-06R3), nên hai người CÙNG warehouse-scope vẫn phải thấy
+        // hai danh sách khác nhau — thiếu actorId là để người này đọc báo cáo import của
+        // người kia. TTL 'search' (120s): xem ghi chú ở CACHE_VERSION_NS.
+        $cached = $this->cachedReadPayload(
+            'warehouse:sku-import-report:list',
+            $this->readFiltersWithPaging($request),
+            function () use ($validated, $perPage): array {
+                $query = $this->scopedQuery();
 
-        $reports = $query->orderByDesc('created_at')
-            ->paginate((int) ($validated['per_page'] ?? 10));
+                if (isset($validated['mode'])) {
+                    $query->where('mode', $validated['mode']);
+                }
+                if (isset($validated['status'])) {
+                    $query->where('status', $validated['status']);
+                }
+                if (isset($validated['file_sha256'])) {
+                    $query->where('file_sha256', $validated['file_sha256']);
+                }
 
-        $response = $this->respondPaginated($reports);
+                $page = $query->orderByDesc('created_at')->paginate($perPage);
+
+                return ['items' => $page->items(), 'total' => $page->total()];
+            },
+            'search',
+            self::CACHE_VERSION_NS,
+            $this->readCacheActorId(),
+        );
+
+        $response = $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
 
         // WWHN-331 FE331-P1-03R3: đây là endpoint đọc duy nhất mà màn hình import gọi
         // được TRƯỚC khi người dùng chọn file, nên hợp đồng hạn mức đi kèm ngay trong
@@ -175,10 +210,19 @@ class ImportReportController extends Controller
 
         // FE331-P1-06R3: bản ghi ngoài data-scope trả 404 y hệt bản ghi không tồn tại —
         // fail-closed và không lộ việc "có tồn tại một báo cáo id này của người khác".
-        $report = $this->scopedQuery()->find($id);
+        // Vì thế actorId BẮT BUỘC nằm trong khoá: một cache hit dùng chung giữa hai
+        // người sẽ biến 404 fail-closed thành 200 lộ dữ liệu. TTL 'search' (120s).
+        $cached = $this->cachedReadPayload(
+            'warehouse:sku-import-report:detail',
+            ['import_report_id' => $id],
+            fn (): array => ['report' => $this->scopedQuery()->find($id)],
+            'search',
+            self::CACHE_VERSION_NS,
+            $this->readCacheActorId(),
+        );
 
-        return $report
-            ? $this->respondSuccess($report)
+        return ($cached['report'] ?? null) !== null
+            ? $this->respondSuccess($cached['report'])
             : $this->respondNotFound('Không tìm thấy Import báo cáo.');
     }
 
@@ -219,6 +263,8 @@ class ImportReportController extends Controller
     )]
     public function downloadErrorFile(string $id): JsonResponse|StreamedResponse
     {
+        // KHÔNG cache: endpoint này trả nội dung tệp (StreamedResponse) chứ không phải
+        // payload JSON, và hạn dùng file lỗi phải được đánh giá tại đúng thời điểm gọi.
         // Cùng lý do với show(): chặn chuỗi rác trước khi chạm Eloquent find() để
         // không lộ QueryException/500 khi cột id là uuid trên PostgreSQL.
         $this->assertValidId($id);

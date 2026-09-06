@@ -3,7 +3,9 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
+use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\Sku;
 use OpenApi\Attributes as OA;
@@ -12,6 +14,7 @@ use OpenApi\Attributes as OA;
 class ProductStatusCompatibilityController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     #[OA\Patch(
         path: '/api/v1/products/{id}/enable',
@@ -74,6 +77,11 @@ class ProductStatusCompatibilityController extends Controller
             beforeData: $before,
             afterData: $sku->fresh()->toArray(),
         );
+
+        // status của SKU vừa đổi là master data nằm trong read cache khoá theo
+        // 'stock:version' (danh sách sản phẩm Mini App lọc đúng cột này, phiếu và báo
+        // cáo hiển thị kèm); Eloquent/repository chỉ bump 'warehouse.sku:list'.
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
 
         return $this->respondSuccess($sku->fresh(), 'Cập nhật trạng thái SKU thành công');
     }

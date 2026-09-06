@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
@@ -28,6 +29,7 @@ use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
  */
 class MiniAppOutboundDraftController extends Controller
 {
+    use CachesReadPayload;
     use ResolvesActorOrNull;
 
     private function actorId(): string
@@ -313,6 +315,9 @@ class MiniAppOutboundDraftController extends Controller
                 'source' => 'MINI_APP',
             ],
         );
+        // Tạo toa + phiếu xuất DRAFT là stock-neutral nhưng đã hiện ngay trong read
+        // cache danh sách toa/phiếu xuất; không bump là màn hình vẫn trống hết TTL.
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
 
         return [
             'document_id' => $documentId,

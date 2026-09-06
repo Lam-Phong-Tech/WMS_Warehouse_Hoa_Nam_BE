@@ -254,6 +254,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             );
 
             event(new \Modules\Warehouse\Events\WarrantyCaseCreated($caseId, $caseCode, $this->currentActorId()));
+            // Mở hồ sơ bảo hành là stock-neutral nhưng đổi warranty_case/item_instances
+            // — dữ liệu mà read cache tra cứu bảo hành và báo cáo lỗi đang phục vụ.
+            $this->invalidateReadCache();
 
             return $caseId;
         }, 3);
@@ -570,6 +573,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'stock_effect' => 'NONE',
                 ],
             );
+            // Đổi trạng thái hồ sơ bảo hành là stock-neutral nhưng read cache tra cứu
+            // bảo hành + báo cáo lỗi đọc thẳng cột vừa update.
+            $this->invalidateReadCache();
         }, 3);
     }
 

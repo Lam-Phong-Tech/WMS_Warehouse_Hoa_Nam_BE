@@ -3,9 +3,11 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Services\PvCatalogImportService;
 use OpenApi\Attributes as OA;
 
@@ -20,6 +22,7 @@ use OpenApi\Attributes as OA;
 class PvCatalogImportController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     public function __construct(private readonly PvCatalogImportService $importService) {}
 
@@ -113,6 +116,14 @@ class PvCatalogImportController extends Controller
             : null;
 
         $result = $this->importService->import($validated['items'], $dryRun, $actorId, $requestId);
+
+        // Import này tạo ĐỒNG THỜI sku + hồ sơ App PV — đúng những cột (sku_code,
+        // sku_name, description) mà danh sách/chi tiết sản phẩm của máy quét đọc qua
+        // read cache khoá theo 'stock:version'. Transaction trong service đã đóng ở
+        // đây nên afterCommit chạy ngay; dry-run và nhánh lỗi không ghi gì.
+        if (! $dryRun && ! isset($result['_http_status']) && ($result['row_errors'] ?? []) === []) {
+            DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+        }
 
         if (isset($result['_http_status'])) {
             return $this->respondError($result['_message'], [], $result['_http_status'], $result['_error_code']);

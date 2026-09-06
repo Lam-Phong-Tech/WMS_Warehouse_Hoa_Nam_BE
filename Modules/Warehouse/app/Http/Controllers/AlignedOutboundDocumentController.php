@@ -30,6 +30,29 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
     )]
     public function index(Request $request)
     {
+        // Cùng chính sách với OutboundDocumentController::index() — TTL 'search'
+        // (120s, chứng từ đang lưu thông) trên version `stock:version`. Namespace
+        // RIÊNG vì payload khác (thêm packing_label_*): dùng chung namespace sẽ trả
+        // nhầm hình dạng của route kia. Trait CachesReadPayload kế thừa từ lớp cha.
+        $payload = $this->cachedReadPayload(
+            'warehouse:outbound-document:aligned-list',
+            // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
+            $this->readFiltersWithPaging($request),
+            fn (): array => $this->buildAlignedIndexPayload($request),
+            'search',
+            'stock:version',
+        );
+
+        return $this->respondPaginated($this->paginatorFromReadCache($payload));
+    }
+
+    /**
+     * Phần chạy SQL của index(), tách ra để cache được (mảng thuần).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildAlignedIndexPayload(Request $request): array
+    {
         $query = StockDocument::query()
             ->with('lines')
             ->where('doc_type', $this->docType());
@@ -64,7 +87,12 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
             ];
         });
 
-        return $this->respondPaginated($paginator);
+        return [
+            'items' => $paginator->items(),
+            'total' => $paginator->total(),
+            'per_page' => $paginator->perPage(),
+            'current_page' => $paginator->currentPage(),
+        ];
     }
 
     /** @return array<string, object> */

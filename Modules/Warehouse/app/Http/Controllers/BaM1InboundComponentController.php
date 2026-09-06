@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,6 +19,8 @@ use Modules\AuditLog\Services\AuditLogger;
  */
 class BaM1InboundComponentController extends Controller
 {
+    use CachesReadPayload;
+
     public function ensureLine(Request $request, string $id)
     {
         $validated = $request->validate([
@@ -86,6 +89,9 @@ class BaM1InboundComponentController extends Controller
                         'qty_planned' => 0,
                     ],
                 );
+                // Thêm dòng COMPONENT là stock-neutral nhưng đổi danh sách dòng của
+                // phiếu nhập mà read cache đang phục vụ.
+                DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
             }
 
             return [

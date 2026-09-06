@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Traits\ApiResponse;
@@ -19,7 +20,20 @@ use OpenApi\Attributes as OA;
 class CurrentBaselineItemIdentityController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
+
+    /**
+     * Gán/cấp/thu hồi định danh vật lý là ghi STOCK-NEUTRAL: không qua mutateBalance()
+     * nên không ai bump 'stock:version' hộ, trong khi read cache tra cứu mã (Mini App
+     * bảo hành, truy vết theo mã, chi tiết phiếu xuất) đọc thẳng item_instances /
+     * physical_codes vừa ghi. Bump nằm trong closure IdempotencyStore nên replay
+     * không xoá cache vô ích.
+     */
+    private function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     #[OA\Post(
         path: '/api/v1/skus/{id}/physical-codes',
@@ -117,6 +131,7 @@ class CurrentBaselineItemIdentityController extends Controller
                             'hardware_uid' => $validated['hardware_uid'] ?? null,
                         ],
                     );
+                    $this->invalidateReadCache();
 
                     return [
                         'physical_code_id' => $id,
@@ -293,6 +308,7 @@ class CurrentBaselineItemIdentityController extends Controller
                             'stock_effect' => 'NONE',
                         ],
                     );
+                    $this->invalidateReadCache();
 
                     return [
                         'item_id' => $itemId,
@@ -418,6 +434,7 @@ class CurrentBaselineItemIdentityController extends Controller
                         beforeData: ['status' => $code->status, 'version' => $code->version ?? 0],
                         afterData: ['status' => 'INACTIVE', 'item_id' => $itemId, 'version' => $expectedVersion + 1],
                     );
+                    $this->invalidateReadCache();
 
                     return [
                         'physical_code_id' => $physicalCodeId,

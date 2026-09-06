@@ -173,6 +173,10 @@ class CurrentBaselineContainerFlowController extends Controller
                 requestId: $request->attributes->get('request_id'),
                 afterData: (array) $container,
             );
+            // Tạo container là stock-neutral nhưng "Vị trí gợi ý"
+            // (InventoryBalanceController::buildContainerHints) và truy vết đọc bảng
+            // containers qua cache chung 'stock:version'.
+            DB::afterCommit(fn () => app(CacheService::class)->bumpVersion('stock:version'));
 
             return $container;
         }, 3);
@@ -280,6 +284,9 @@ class CurrentBaselineContainerFlowController extends Controller
                 beforeData: (array) $container,
                 afterData: (array) $after,
             );
+            // Sửa container (zone/vị trí/trạng thái) là stock-neutral nhưng đổi đúng
+            // dữ liệu mà "Vị trí gợi ý" và truy vết đang đọc qua cache 'stock:version'.
+            DB::afterCommit(fn () => app(CacheService::class)->bumpVersion('stock:version'));
 
             return ['container' => $after, 'stock_effect' => 'NONE'];
         }, 3);

@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,7 @@ use Modules\AuditLog\Services\AuditLogger;
 class BaM1InboundScanCorrectionController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     public function unscan(Request $request, string $id)
     {
@@ -96,6 +98,9 @@ class BaM1InboundScanCorrectionController extends Controller
                 beforeData: ['status' => 'ACTIVE', 'actual_qty' => $previous],
                 afterData: ['status' => 'REMOVED', 'actual_qty' => $newScanned],
             );
+            // Gỡ mã là stock-neutral (không qua mutateBalance) nhưng đổi scanned_qty
+            // của phiếu — cột mà read cache phiếu nhập đang phục vụ.
+            DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
 
             return [
                 'document_id' => $id,

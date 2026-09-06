@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -23,8 +24,19 @@ use OpenApi\Attributes as OA;
 class DefectCatalogController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     public function __construct(private readonly DefectCatalogRepositoryInterface $defects) {}
+
+    /**
+     * defect_name/mã lỗi là master data hiện trong read cache báo cáo bảo hành và
+     * truy vết bảo hành — đều khoá theo 'stock:version'. DefectCatalogRepository chỉ
+     * bump 'warehouse.defect_catalog:list' nên không chạm tới các cache đó.
+     */
+    private function invalidateMasterReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     #[OA\Get(
         path: '/api/v1/defect-catalogs',
@@ -110,6 +122,8 @@ class DefectCatalogController extends Controller
             requestId: $request->attributes->get('request_id'),
             afterData: $defect->toArray(),
         );
+
+        $this->invalidateMasterReadCache();
 
         return $this->respondCreated($defect, 'Tạo danh mục lỗi thành công');
     }
@@ -200,6 +214,8 @@ class DefectCatalogController extends Controller
             beforeData: $beforeData,
             afterData: $defect->toArray(),
         );
+
+        $this->invalidateMasterReadCache();
 
         return $this->respondSuccess($defect, 'Cập nhật danh mục lỗi thành công');
     }

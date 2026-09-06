@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,8 +26,20 @@ use OpenApi\Attributes as OA;
 class WarehouseController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     public function __construct(private readonly WarehouseRepositoryInterface $warehouses) {}
+
+    /**
+     * Tên/mã/trạng thái kho là master data hiện trong các read cache khoá theo
+     * 'stock:version' (truy vết biến động tồn, chứng từ điều chỉnh, báo cáo).
+     * WarehouseRepository chỉ bump 'warehouse.warehouse:list' nên không chạm tới
+     * những cache đó.
+     */
+    private function invalidateMasterReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     #[OA\Get(
         path: '/api/v1/warehouses',
@@ -105,6 +118,8 @@ class WarehouseController extends Controller
             requestId: $request->attributes->get('request_id'),
             afterData: $warehouse->toArray(),
         );
+
+        $this->invalidateMasterReadCache();
 
         return $this->respondCreated($warehouse, 'Tạo kho thành công');
     }
@@ -193,6 +208,8 @@ class WarehouseController extends Controller
             beforeData: $beforeData,
             afterData: $warehouse->toArray(),
         );
+
+        $this->invalidateMasterReadCache();
 
         return $this->respondSuccess($warehouse, 'Cập nhật kho thành công');
     }

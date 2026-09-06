@@ -4,10 +4,13 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\HoaNamErdSchema;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockMovement;
@@ -16,10 +19,19 @@ use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\ProductQrPayload;
 use OpenApi\Attributes as OA;
 
-/** Lịch sử biến động tồn (inventory_movement) — append-only, không cho sửa/xoá. */
+/**
+ * Lịch sử biến động tồn (inventory_movement) — append-only, không cho sửa/xoá.
+ *
+ * Controller này KHÔNG có đường ghi: mọi dòng `stock_movements` chỉ sinh trong
+ * `CurrentBaselineStockService::mutateBalance()`, và chính chỗ đó đã
+ * `DB::afterCommit(bumpVersion('stock:version'))`. Vì vậy toàn bộ read ở đây dùng
+ * version namespace `stock:version` và tự mồ côi ngay khi có bất kỳ mutation tồn kho
+ * nào — không cần (và không thể) thêm bump ở đây.
+ */
 class StockMovementController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     /**
      * WWHN-240 / BR-REV-04, BR-REV-08: correction chain là append-only và một Reversal có
@@ -51,6 +63,28 @@ class StockMovementController extends Controller
     )]
     public function index(Request $request)
     {
+        // TTL 'stock_short' (20s): sổ biến động tồn là dữ liệu tồn kho, đổi theo từng
+        // lần Post. Data-scope kho (global scope ScopesWarehouseData) đã nằm trong
+        // khoá qua readCacheScopeIds() nên hai người khác scope không dùng chung entry.
+        $payload = $this->cachedReadPayload(
+            'warehouse:stock-movement:list',
+            // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
+            $this->readFiltersWithPaging($request),
+            fn (): array => $this->buildIndexPayload($request),
+            'stock_short',
+            'stock:version',
+        );
+
+        return $this->respondPaginated($this->paginatorFromReadCache($payload));
+    }
+
+    /**
+     * Phần chạy SQL của index(), tách ra để cache được (mảng thuần).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildIndexPayload(Request $request): array
+    {
         $query = StockMovement::query()->with(['product', 'warehouse', 'document:id,doc_no,doc_type,status', 'creator:user_id,display_name'])->orderByDesc('occurred_at');
 
         if ($request->filled('warehouse_id')) {
@@ -64,7 +98,33 @@ class StockMovementController extends Controller
         }
         $this->applyKeyword($query, $request, ['movement_no', 'business_key', 'source_type']);
 
-        return $this->respondPaginated($query->paginate($this->perPage($request)));
+        $paginator = $query->paginate($this->perPage($request));
+
+        return [
+            'items' => $paginator->items(),
+            'total' => $paginator->total(),
+            'per_page' => $paginator->perPage(),
+            'current_page' => $paginator->currentPage(),
+        ];
+    }
+
+    /**
+     * Dựng lại paginator từ payload đã cache để `respondPaginated()` phát ra ĐÚNG
+     * envelope cũ (data/meta/links). `meta.request_id` + `meta.timestamp` sinh trong
+     * respondPaginated() nên luôn tươi; options trùng `Builder::paginate()` nên
+     * `links` không đổi.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function paginatorFromReadCache(array $payload): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator(
+            $payload['items'] ?? [],
+            (int) ($payload['total'] ?? 0),
+            max(1, (int) ($payload['per_page'] ?? 10)),
+            max(1, (int) ($payload['current_page'] ?? 1)),
+            ['path' => Paginator::resolveCurrentPath(), 'pageName' => 'page'],
+        );
     }
 
     #[OA\Get(
@@ -82,9 +142,18 @@ class StockMovementController extends Controller
     )]
     public function show(string $id)
     {
-        $movement = StockMovement::with(['product', 'warehouse', 'document'])->find($id);
+        // TTL 'stock_short' (20s). `[]` = không tìm thấy: một movement luôn có thuộc
+        // tính nên không thể trùng dữ liệu thật. Movement chỉ sinh trong mutateBalance()
+        // — chỗ đó bump `stock:version` nên entry rỗng chết ngay khi movement ra đời.
+        $payload = $this->cachedReadPayload(
+            'warehouse:stock-movement:detail',
+            ['id' => $id],
+            fn (): array => StockMovement::with(['product', 'warehouse', 'document'])->find($id)?->toArray() ?? [],
+            'stock_short',
+            'stock:version',
+        );
 
-        return $movement ? $this->respondSuccess($movement) : $this->respondNotFound('Không tìm thấy movement.');
+        return $payload === [] ? $this->respondNotFound('Không tìm thấy movement.') : $this->respondSuccess($payload);
     }
 
     #[OA\Get(
@@ -111,10 +180,31 @@ class StockMovementController extends Controller
     )]
     public function traceSource(string $id)
     {
+        // TTL 'stock_short' (20s): correction chain là dữ liệu tồn kho. 403 của
+        // EnforceInventoryWarehouseScope chạy ở tầng route nên luôn xảy ra TRƯỚC cache;
+        // scope kho cũng nằm trong khoá. `[]` = không tìm thấy (payload thật luôn có key).
+        $payload = $this->cachedReadPayload(
+            'warehouse:stock-movement:trace-source',
+            ['id' => $id],
+            fn (): array => $this->buildTraceSourcePayload($id),
+            'stock_short',
+            'stock:version',
+        );
+
+        return $payload === [] ? $this->respondNotFound('Không tìm thấy movement.') : $this->respondSuccess($payload);
+    }
+
+    /**
+     * Phần chạy SQL của traceSource(), tách ra để cache được. `[]` = không tìm thấy.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildTraceSourcePayload(string $id): array
+    {
         $movement = StockMovement::with(['product', 'warehouse', 'creator:user_id,display_name', 'document.statusHistory', 'document.lines.product'])->find($id);
 
         if (! $movement) {
-            return $this->respondNotFound('Không tìm thấy movement.');
+            return [];
         }
 
         // BR-REV-11: một movement có thể bị đảo NHIỀU lần (BR-REV-05 cho phép đảo từng
@@ -125,7 +215,7 @@ class StockMovementController extends Controller
 
         $chain = $this->correctionChain($movement);
 
-        return $this->respondSuccess([
+        return [
             'movement' => $movement,
             'document' => $movement->document,
             'status_history' => $movement->document?->statusHistory,
@@ -138,7 +228,7 @@ class StockMovementController extends Controller
             'reversal_movements' => $directReversals->values(),
             'correction_chain' => $chain['chain'],
             'net_effect' => $chain['net_effect'],
-        ]);
+        ];
     }
 
     /**
@@ -340,6 +430,8 @@ class StockMovementController extends Controller
     {
         // Change Pack QR/SKU: chấp nhận cả raw composite payload (trần 512);
         // resolveTraceTarget parse + chuẩn hoá trước khi tra movement chain.
+        // Validate + resolve NẰM NGOÀI cache: 404/422 (UNSUPPORTED_PAYLOAD_VERSION,
+        // INVALID_PAYLOAD, SKU không ACTIVE) phải trả ngay và không bao giờ được cache.
         $request->validate(['code' => ['required', 'string', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)]]);
         $codeValue = trim((string) $request->input('code'));
 
@@ -349,7 +441,6 @@ class StockMovementController extends Controller
         }
 
         [$resolvedType, $resolvedId, $physicalCode, $resolvedBy] = $resolution;
-        $resolvedObject = null;
 
         if (! $resolvedType || ! $resolvedId) {
             return $this->respondSuccess([
@@ -362,6 +453,38 @@ class StockMovementController extends Controller
                 'container_items' => [],
             ]);
         }
+
+        // TTL 'stock_short' (20s): đây là read do máy quét gọi.
+        // BẮT BUỘC có actorId: warranty_history mask customer_name/phone theo quyền
+        // `warranty.pii.view` của CHÍNH người gọi — hai người cùng data-scope nhưng
+        // khác quyền PII mà dùng chung entry là RÒ PII, nặng hơn hẳn dữ liệu cũ.
+        // `code` nằm trong khoá vì hai mã vật lý khác nhau của cùng một item cho ra
+        // `physical_code` khác nhau dù resolved_type/resolved_id trùng.
+        $payload = $this->cachedReadPayload(
+            'warehouse:stock-movement:trace-by-code',
+            ['code' => $codeValue, 'type' => $resolvedType, 'id' => $resolvedId, 'by' => $resolvedBy],
+            fn (): array => $this->buildTracePayload($request, $resolvedType, $resolvedId, $physicalCode, $resolvedBy),
+            'stock_short',
+            'stock:version',
+            $this->readCacheActorId(),
+        );
+
+        return $this->respondSuccess($payload);
+    }
+
+    /**
+     * Phần chạy SQL của traceByPhysicalCode(), tách ra để cache được (mảng thuần).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildTracePayload(
+        Request $request,
+        string $resolvedType,
+        string $resolvedId,
+        ?object $physicalCode,
+        string $resolvedBy,
+    ): array {
+        $resolvedObject = null;
 
         if ($resolvedType === 'ITEM') {
             $resolvedObject = DB::table('item_instances')
@@ -437,7 +560,7 @@ class StockMovementController extends Controller
             ? $this->traceWarrantyHistory($resolvedId, $request)
             : collect();
 
-        return $this->respondSuccess([
+        return [
             'physical_code' => $physicalCode,
             'resolved_type' => $resolvedType,
             'resolved_id' => $resolvedId,
@@ -446,7 +569,7 @@ class StockMovementController extends Controller
             'movements' => $movements,
             'container_items' => $containerItems,
             'warranty_history' => $warrantyHistory,
-        ]);
+        ];
     }
 
     /**
@@ -627,6 +750,29 @@ class StockMovementController extends Controller
     )]
     public function reversible(Request $request)
     {
+        // TTL 'stock_short' (20s): preflight dependency guard phải bám sát tồn kho —
+        // nói sai một nhịp là REV-01 hiện "Reversible" rồi Post mới 409.
+        // Endpoint tự cắt trang TRONG SQL nhưng KHÔNG trả meta phân trang, nên
+        // page/per_page vẫn đổi kết quả ⇒ phải giữ trong khoá (readFiltersWithPaging).
+        $payload = $this->cachedReadPayload(
+            'warehouse:stock-movement:reversible',
+            $this->readFiltersWithPaging($request),
+            fn (): array => $this->buildReversiblePayload($request),
+            'stock_short',
+            'stock:version',
+        );
+
+        return $this->respondSuccess($payload);
+    }
+
+    /**
+     * Phần chạy SQL của reversible(), tách ra để cache được. Trả về ĐÚNG list mà
+     * respondSuccess() vẫn nhận trước đây — không đổi hình dạng response.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildReversiblePayload(Request $request): array
+    {
         $query = DB::table('stock_movements')
             ->leftJoin('warehouses', 'stock_movements.warehouse_id', '=', 'warehouses.id')
             ->leftJoin('stock_documents', 'stock_movements.stock_document_id', '=', 'stock_documents.id')
@@ -790,7 +936,7 @@ class StockMovementController extends Controller
             ];
         }
 
-        return $this->respondSuccess($result);
+        return $result;
     }
 
     /**

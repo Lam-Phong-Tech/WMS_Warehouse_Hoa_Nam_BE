@@ -4,12 +4,15 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
@@ -19,9 +22,39 @@ use OpenApi\Attributes as OA;
 class ReversalDocumentController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
 
     public function __construct(private readonly CurrentBaselineReversalService $reversalService) {}
+
+    /**
+     * Ghi là vô hiệu hoá NGAY (điều 4 của CachesReadPayload). Trong transaction thì
+     * afterCommit() hoãn tới lúc commit thật, ngoài transaction thì chạy luôn — không
+     * đường ghi nào nạp lại cache từ dữ liệu chưa commit.
+     */
+    private function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
+
+    /**
+     * Dựng lại paginator từ payload đã cache để `respondPaginated()` phát ra ĐÚNG
+     * envelope cũ (data/meta/links). `meta.request_id` + `meta.timestamp` sinh trong
+     * respondPaginated() nên luôn tươi; options trùng `Builder::paginate()` nên
+     * `links` không đổi.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    private function paginatorFromReadCache(array $payload): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator(
+            $payload['items'] ?? [],
+            (int) ($payload['total'] ?? 0),
+            max(1, (int) ($payload['per_page'] ?? 10)),
+            max(1, (int) ($payload['current_page'] ?? 1)),
+            ['path' => Paginator::resolveCurrentPath(), 'pageName' => 'page'],
+        );
+    }
 
     #[OA\Get(
         path: '/api/v1/reversal-documents',
@@ -41,6 +74,29 @@ class ReversalDocumentController extends Controller
         ]
     )]
     public function index(Request $request)
+    {
+        // TTL 'search' (120s): chứng từ điều chỉnh là chứng từ đang lưu thông.
+        // Data scope kho được giải NGAY TRONG KHOÁ (readCacheScopeIds) và vẫn được
+        // applyWarehouseScope() lọc trong SQL — hai user khác scope không bao giờ
+        // dùng chung entry, nên cache hit không thể nuốt mất giới hạn phạm vi.
+        $payload = $this->cachedReadPayload(
+            'warehouse:reversal-document:list',
+            // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
+            $this->readFiltersWithPaging($request),
+            fn (): array => $this->buildIndexPayload($request),
+            'search',
+            'stock:version',
+        );
+
+        return $this->respondPaginated($this->paginatorFromReadCache($payload));
+    }
+
+    /**
+     * Phần chạy SQL của index(), tách ra để cache được (mảng thuần).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildIndexPayload(Request $request): array
     {
         $query = DB::table('reversal_documents')
             ->leftJoin('warehouses', 'reversal_documents.warehouse_id', '=', 'warehouses.id')
@@ -102,7 +158,14 @@ class ReversalDocumentController extends Controller
             });
         }
 
-        return $this->respondPaginated($query->paginate($this->perPage($request)));
+        $paginator = $query->paginate($this->perPage($request));
+
+        return [
+            'items' => $paginator->items(),
+            'total' => $paginator->total(),
+            'per_page' => $paginator->perPage(),
+            'current_page' => $paginator->currentPage(),
+        ];
     }
 
     #[OA\Get(
@@ -120,7 +183,26 @@ class ReversalDocumentController extends Controller
     )]
     public function show(string $id)
     {
-        $doc = DB::table('reversal_documents')
+        // TTL 'search' (120s): chứng từ đang lưu thông. `[]` = không tìm thấy — một
+        // dòng DB luôn có cột nên không thể trùng với dữ liệu thật. Chứng từ mới chỉ
+        // sinh qua store() (bump ngay sau commit) nên entry rỗng không sống lâu.
+        $payload = $this->cachedReadPayload(
+            'warehouse:reversal-document:detail',
+            ['id' => $id],
+            fn (): array => (array) ($this->reversalDocumentRow($id) ?? []),
+            'search',
+            'stock:version',
+        );
+
+        return $payload === []
+            ? $this->respondNotFound('Không tìm thấy reversal document.')
+            : $this->respondSuccess($payload);
+    }
+
+    /** Header chứng từ điều chỉnh đã join sẵn tên kho/người thực hiện; `null` = không có. */
+    private function reversalDocumentRow(string $id): ?object
+    {
+        return DB::table('reversal_documents')
             ->leftJoin('warehouses', 'reversal_documents.warehouse_id', '=', 'warehouses.id')
             ->leftJoin('stock_documents', 'reversal_documents.original_document_id', '=', 'stock_documents.id')
             // DEC-REV-COMPONENT-001: chứng từ gốc COMPONENT_ISSUE nằm ở bảng riêng;
@@ -162,12 +244,6 @@ class ReversalDocumentController extends Controller
             ])
             ->where('reversal_documents.id', $id)
             ->first();
-
-        if (! $doc) {
-            return $this->respondNotFound('Không tìm thấy reversal document.');
-        }
-
-        return $this->respondSuccess($doc);
     }
 
     /**
@@ -204,6 +280,9 @@ class ReversalDocumentController extends Controller
             $this->requiredVersion($request),
             $validated['return_condition'] ?? null
         );
+        // Confirm là stock-neutral nên KHÔNG đi qua mutateBalance() — phải tự bump,
+        // nếu không REV-00/REV-01 còn thấy bản DRAFT cũ suốt TTL.
+        $this->invalidateReadCache();
 
         return $this->respondSuccess($result, 'Đã xác nhận hàng vật lý quay lại kho; chưa phát sinh stock effect.');
     }
@@ -246,6 +325,9 @@ class ReversalDocumentController extends Controller
                     IdempotencyStore::requestHash($request),
                     $expectedVersion
                 );
+                // Bump NẰM TRONG closure của IdempotencyStore: lần replay không thực
+                // thi lại nghiệp vụ nên cũng không được xoá cache vô ích.
+                $this->invalidateReadCache();
 
                 return [200, [
                     'success' => true,
@@ -294,6 +376,8 @@ class ReversalDocumentController extends Controller
             $this->requiredVersion($request),
             (string) $validated['reason']
         );
+        // Cancel DRAFT là stock-neutral nên không đi qua mutateBalance() — tự bump.
+        $this->invalidateReadCache();
 
         return $this->respondSuccess($result, 'Đã huỷ reversal DRAFT; không phát sinh stock effect.');
     }
@@ -334,11 +418,33 @@ class ReversalDocumentController extends Controller
     )]
     public function lines(string $id)
     {
+        // Kiểm tra tồn tại NẰM NGOÀI cache: 404 không được cache, và payload thật có
+        // thể là danh sách RỖNG nên `[]` không dùng làm cờ "không tìm thấy" được.
         $doc = DB::table('reversal_documents')->where('id', $id)->first();
         if (! $doc) {
             return $this->respondNotFound('Không tìm thấy reversal document.');
         }
 
+        // TTL 'search' (120s): dòng chứng từ đang lưu thông. `status` nằm trong khoá
+        // vì cột line_status suy ra từ trạng thái header.
+        $payload = $this->cachedReadPayload(
+            'warehouse:reversal-document:lines',
+            ['id' => $id, 'status' => (string) ($doc->status ?? '')],
+            fn (): array => $this->buildLinesPayload($id, $doc),
+            'search',
+            'stock:version',
+        );
+
+        return $this->respondSuccess($payload);
+    }
+
+    /**
+     * Phần chạy SQL của lines(), tách ra để cache được (mảng thuần).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildLinesPayload(string $id, object $doc): array
+    {
         $lines = DB::table('reversal_lines as rl')
             ->leftJoin('stock_movements as mv', 'mv.id', '=', 'rl.original_movement_id')
             ->leftJoin('sku', 'sku.sku_id', '=', 'rl.sku_id')
@@ -377,7 +483,7 @@ class ReversalDocumentController extends Controller
 
         $docStatus = strtoupper((string) $doc->status);
 
-        return $this->respondSuccess($lines->map(function (object $line) use ($reversedByMovement, $docStatus): array {
+        return $lines->map(function (object $line) use ($reversedByMovement, $docStatus): array {
             $originalQty = (int) abs((int) ($line->original_movement_quantity ?? $line->original_movement_qty_delta ?? 0));
             $reversalQty = (int) $line->quantity_to_reverse;
             $reversedQty = (int) ($reversedByMovement[(string) $line->original_movement_id] ?? 0);
@@ -410,7 +516,7 @@ class ReversalDocumentController extends Controller
                 'version' => (int) $line->version,
                 'created_at' => $line->created_at,
             ];
-        })->all());
+        })->all();
     }
 
     /**
@@ -582,6 +688,9 @@ class ReversalDocumentController extends Controller
                 $result = $this->reversalService->execute(
                     $stockDocId, $type, $servicePayload, $actorId, $idempotencyKey, $hash, $expectedVersion
                 );
+                // Bump NẰM TRONG closure của IdempotencyStore: lần replay không thực
+                // thi lại nghiệp vụ nên cũng không được xoá cache vô ích.
+                $this->invalidateReadCache();
 
                 $reversalId = $result['reversal_document_id'];
                 $doc = DB::table('reversal_documents')->where('id', $reversalId)->first();

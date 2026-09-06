@@ -4,8 +4,10 @@ namespace Modules\Auth\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -15,6 +17,14 @@ use OpenApi\Attributes as OA;
 class DepartmentController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
+
+    /**
+     * Phòng ban là master data (đọc rất nhiều ở mọi form chọn người/đơn vị, ghi cực
+     * hiếm và CHỈ qua store()/update() ngay trong controller này). Namespace riêng
+     * `master:version` để mutation danh mục không phải bump chung với tồn kho.
+     */
+    private const CACHE_VERSION_NS = 'master:version';
 
     #[OA\Get(
         path: '/api/v1/departments',
@@ -36,27 +46,53 @@ class DepartmentController extends Controller
     )]
     public function index(Request $request)
     {
+        // Validate NGOÀI cache: tham số sai phải trả 422 ngay, không phụ thuộc việc
+        // khoá cache đã có entry hay chưa.
         $validated = $request->validate([
             'status' => ['nullable', Rule::in(['ACTIVE', 'INACTIVE'])],
             'keyword' => ['nullable', 'string', 'max:200'],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
-        $query = DB::table('department');
-        if (! empty($validated['status'])) {
-            $query->where('status', $validated['status']);
-        }
-        if (! empty($validated['keyword'])) {
-            $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
-            $query->where(function ($nested) use ($keyword): void {
-                $nested->whereRaw('LOWER(department_code) LIKE ?', [$keyword])
-                    ->orWhereRaw('LOWER(department_name) LIKE ?', [$keyword]);
-            });
-        }
 
-        return $this->respondPaginated(
-            $query->orderBy('department_name')->paginate((int) ($validated['per_page'] ?? 10))
+        $perPage = (int) ($validated['per_page'] ?? 10);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        // TTL 'master' (1800s) — danh mục gần như tĩnh; store()/update() bên dưới bump
+        // `master:version` nên danh sách đổi ngay khi có ghi, TTL chỉ là lưới an toàn.
+        // Phân trang chạy TRONG SQL nên page/per_page phải nằm trong khoá.
+        $cached = $this->cachedReadPayload(
+            'auth:department:list',
+            $this->readFiltersWithPaging($request),
+            function () use ($validated, $perPage): array {
+                $query = DB::table('department');
+                if (! empty($validated['status'])) {
+                    $query->where('status', $validated['status']);
+                }
+                if (! empty($validated['keyword'])) {
+                    $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
+                    $query->where(function ($nested) use ($keyword): void {
+                        $nested->whereRaw('LOWER(department_code) LIKE ?', [$keyword])
+                            ->orWhereRaw('LOWER(department_name) LIKE ?', [$keyword]);
+                    });
+                }
+                $page = $query->orderBy('department_name')->paginate($perPage);
+
+                return ['items' => $page->items(), 'total' => $page->total()];
+            },
+            'master',
+            self::CACHE_VERSION_NS,
         );
+
+        // Dựng lại paginator với đúng path/pageName mà ->paginate() vẫn dùng, để envelope
+        // (meta phân trang + links) giữ nguyên hình dạng cũ.
+        return $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
     }
 
     #[OA\Post(
@@ -111,6 +147,10 @@ class DepartmentController extends Controller
             requestId: $request->attributes->get('request_id'),
             afterData: (array) $row,
         );
+
+        // Bump SAU commit: gọi trước commit thì request khác có thể nạp lại danh sách
+        // từ dữ liệu chưa commit.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
 
         return $this->respondCreated($row, 'Tạo phòng ban thành công.');
     }
@@ -176,6 +216,9 @@ class DepartmentController extends Controller
             beforeData: (array) $before,
             afterData: (array) $after,
         );
+
+        // Cùng namespace với index(): danh sách phòng ban phải đổi ngay sau khi sửa.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
 
         return $this->respondSuccess($after, 'Cập nhật phòng ban thành công.');
     }

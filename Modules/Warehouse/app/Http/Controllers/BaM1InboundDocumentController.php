@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
@@ -26,6 +27,7 @@ use OpenApi\Attributes as OA;
 class BaM1InboundDocumentController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActorOrNull;
 
     private function actorId(): string
@@ -209,6 +211,9 @@ class BaM1InboundDocumentController extends Controller
                 beforeData: (array) $document,
                 afterData: (array) $after,
             );
+            // Sửa header phiếu là stock-neutral nhưng đổi đúng các cột mà read cache
+            // danh sách/chi tiết phiếu nhập đang phục vụ.
+            DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
 
             return $after;
         }, 3);
@@ -261,6 +266,9 @@ class BaM1InboundDocumentController extends Controller
                 $validated['dst_warehouse_id'] !== null ? (string) $validated['dst_warehouse_id'] : null,
                 $actorId,
             ));
+            // Tạo phiếu nhập là stock-neutral nhưng phiếu mới phải hiện ngay ở danh
+            // sách phiếu nhập đang đọc qua cache.
+            DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
 
             return $this->normalizeDocument($row);
         }, 3);

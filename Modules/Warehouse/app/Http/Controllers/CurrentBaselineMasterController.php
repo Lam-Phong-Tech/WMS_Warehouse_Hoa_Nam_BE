@@ -760,6 +760,12 @@ class CurrentBaselineMasterController extends Controller
     {
         $namespace = $this->listVersionNamespace($table);
         DB::afterCommit(fn () => $this->cacheService()->bumpVersion($namespace));
+
+        // brand_name/category_name/model_name/quy cách đóng gói/nguồn điện vừa đổi ở
+        // đây còn nằm trong payload của các read cache khoá theo 'stock:version' —
+        // danh sách + chi tiết sản phẩm mà máy quét đọc join thẳng 5 bảng này. Bump
+        // riêng theo bảng ở trên chỉ vô hiệu hoá cache list của chính catalog master.
+        DB::afterCommit(fn () => $this->cacheService()->bumpVersion('stock:version'));
     }
 
     private function cacheService(): CacheService

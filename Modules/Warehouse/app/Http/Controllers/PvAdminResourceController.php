@@ -4,9 +4,11 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
@@ -33,6 +35,14 @@ use OpenApi\Attributes as OA;
 class PvAdminResourceController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
+
+    /**
+     * Master App PV: đọc rất nhiều (mọi màn PV Admin và form gán ngành/tag đều load),
+     * ghi chỉ qua store()/update() ngay trong controller này. Namespace riêng
+     * `master:version` dùng chung với các danh mục khác.
+     */
+    private const CACHE_VERSION_NS = 'master:version';
 
     private const RESOURCE_INDUSTRIES = 'industries';
 
@@ -68,14 +78,41 @@ class PvAdminResourceController extends Controller
     )]
     public function index(Request $request, string $resourceType): JsonResponse
     {
+        // resource_type sai phải trả 404 NGAY, không phụ thuộc cache.
         $this->assertKnownResource($resourceType);
 
-        return match ($resourceType) {
-            self::RESOURCE_INDUSTRIES => $this->respondPaginated($this->listSimpleMaster($request, PvRelations::industry(), 'industry_code', 'industry_name')),
-            self::RESOURCE_TAGS => $this->respondPaginated($this->listSimpleMaster($request, PvRelations::tag(), 'tag_code', 'tag_name')),
-            self::RESOURCE_RULES => $this->respondPaginated($this->listRules($request)),
-            default => $this->respondPaginated($this->listProfiles($request)),
-        };
+        $perPage = $this->adminPageSize($request);
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        // TTL 'master' (1800s): danh mục App PV gần như tĩnh; store()/update() bên dưới
+        // bump `master:version` nên danh sách đổi ngay khi có ghi. resourceType nằm
+        // trong namespace, phân trang chạy TRONG SQL nên page/per_page nằm trong khoá.
+        $cached = $this->cachedReadPayload(
+            'warehouse:pv-admin:'.$resourceType,
+            $this->readFiltersWithPaging($request),
+            function () use ($request, $resourceType): array {
+                $page = match ($resourceType) {
+                    self::RESOURCE_INDUSTRIES => $this->listSimpleMaster($request, PvRelations::industry(), 'industry_code', 'industry_name'),
+                    self::RESOURCE_TAGS => $this->listSimpleMaster($request, PvRelations::tag(), 'tag_code', 'tag_name'),
+                    self::RESOURCE_RULES => $this->listRules($request),
+                    default => $this->listProfiles($request),
+                };
+
+                return ['items' => $page->items(), 'total' => $page->total()];
+            },
+            'master',
+            self::CACHE_VERSION_NS,
+        );
+
+        // Dựng lại paginator với đúng path/pageName mà ->paginate() vẫn dùng, để envelope
+        // (meta phân trang + links) giữ nguyên hình dạng cũ.
+        return $this->respondPaginated(new LengthAwarePaginator(
+            $cached['items'],
+            $cached['total'],
+            $perPage,
+            $currentPage,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
+        ));
     }
 
     #[OA\Post(
@@ -135,6 +172,11 @@ class PvAdminResourceController extends Controller
 
         $this->audit($request, 'CREATE', $resourceType, (string) $created['id'], null, $created);
 
+        // Bump SAU commit (DB::transaction ở trên đã đóng): danh sách phải thấy bản ghi
+        // mới ngay, không chờ hết TTL 'master'.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+        $this->invalidateProductReadCache();
+
         return $this->respondCreated($created, 'Tạo dữ liệu App PV thành công.');
     }
 
@@ -177,7 +219,22 @@ class PvAdminResourceController extends Controller
 
         $this->audit($request, 'UPDATE', $resourceType, $id, $before, $after);
 
+        // Cùng namespace với index(): sửa xong là danh sách đọc ra bản mới.
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+        $this->invalidateProductReadCache();
+
         return $this->respondSuccess($after, 'Cập nhật dữ liệu App PV thành công.');
+    }
+
+    /**
+     * Hồ sơ App PV mang description/display_name mà danh sách + chi tiết sản phẩm của
+     * máy quét join vào, và các read đó khoá theo 'stock:version' chứ không phải
+     * 'master:version'. Bump cả hai: master data sửa rất hiếm nên một lần bump thừa
+     * cho industries/tags/rules rẻ hơn nhiều so với việc máy quét đọc mô tả cũ.
+     */
+    private function invalidateProductReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
     }
 
     // ------------------------------------------------------------------

@@ -3,8 +3,11 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Http\Controllers\Concerns\InteractsWithStockDocuments;
 use Modules\Warehouse\Models\StockDocument;
@@ -199,6 +202,10 @@ use OpenApi\Attributes as OA;
 class OutboundDocumentController extends Controller
 {
     use ApiResponse;
+
+    // AlignedOutboundDocumentController kế thừa class này nên cũng nhận luôn trait —
+    // không khai lại ở lớp con để tránh hai bản cấu hình cache lệch nhau.
+    use CachesReadPayload;
     use InteractsWithStockDocuments;
 
     public function __construct(private readonly StockDocumentService $documentService) {}
@@ -219,6 +226,28 @@ class OutboundDocumentController extends Controller
      * và physical-codes.
      */
     public function index(Request $request)
+    {
+        // TTL 'search' (120s): phiếu xuất là chứng từ đang lưu thông. Version
+        // `stock:version` nên mọi mutation tồn kho (post-issue, reversal) làm entry
+        // cũ mồ côi tức thì; data-scope kho đã nằm sẵn trong khoá qua readCacheScopeIds().
+        $payload = $this->cachedReadPayload(
+            'warehouse:outbound-document:list',
+            // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
+            $this->readFiltersWithPaging($request),
+            fn (): array => $this->buildIndexPayload($request),
+            'search',
+            'stock:version',
+        );
+
+        return $this->respondPaginated($this->paginatorFromReadCache($payload));
+    }
+
+    /**
+     * Phần chạy SQL của index(), tách ra để cache được (mảng thuần).
+     *
+     * @return array<string, mixed>
+     */
+    private function buildIndexPayload(Request $request): array
     {
         $query = StockDocument::query()
             ->with('lines')
@@ -252,7 +281,31 @@ class OutboundDocumentController extends Controller
             ];
         });
 
-        return $this->respondPaginated($paginator);
+        return [
+            'items' => $paginator->items(),
+            'total' => $paginator->total(),
+            'per_page' => $paginator->perPage(),
+            'current_page' => $paginator->currentPage(),
+        ];
+    }
+
+    /**
+     * Dựng lại paginator từ payload đã cache để `respondPaginated()` phát ra ĐÚNG
+     * envelope cũ (data/meta/links). `meta.request_id` + `meta.timestamp` sinh trong
+     * respondPaginated() nên luôn tươi; options trùng `Builder::paginate()` nên
+     * `links` không đổi. `protected` vì AlignedOutboundDocumentController dùng lại.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function paginatorFromReadCache(array $payload): LengthAwarePaginator
+    {
+        return new LengthAwarePaginator(
+            $payload['items'] ?? [],
+            (int) ($payload['total'] ?? 0),
+            max(1, (int) ($payload['per_page'] ?? 10)),
+            max(1, (int) ($payload['current_page'] ?? 1)),
+            ['path' => Paginator::resolveCurrentPath(), 'pageName' => 'page'],
+        );
     }
 
     /**
@@ -317,18 +370,40 @@ class OutboundDocumentController extends Controller
      */
     public function show(string $id)
     {
+        // TTL 'search' (120s): chi tiết phiếu xuất là chứng từ đang lưu thông.
+        // Payload rỗng = không tìm thấy (một chứng từ luôn có thuộc tính nên `[]`
+        // không thể trùng dữ liệu thật); phiếu mới chỉ sinh qua Confirm toa, đường
+        // ghi đó đi qua mutateBalance()/bump nên entry "không tìm thấy" không sống lâu.
+        $payload = $this->cachedReadPayload(
+            'warehouse:outbound-document:detail',
+            ['doc_type' => $this->docType(), 'id' => $id],
+            fn (): array => $this->buildShowPayload($id),
+            'search',
+            'stock:version',
+        );
+
+        return $payload === [] ? $this->respondNotFound('Không tìm thấy chứng từ.') : $this->respondSuccess($payload);
+    }
+
+    /**
+     * Phần chạy SQL của show(), tách ra để cache được. `[]` nghĩa là không tìm thấy.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildShowPayload(string $id): array
+    {
         $doc = StockDocument::with(['lines', 'movements', 'statusHistory'])
             ->where('doc_type', $this->docType())
             ->find($id);
         if ($doc === null) {
-            return $this->respondNotFound('Không tìm thấy chứng từ.');
+            return [];
         }
 
         $payload = $doc->toArray();
         $payload['lines'] = $this->enrichLinesWithSku($payload['lines'] ?? []);
         $payload['item_matches'] = $this->outboundItemMatches($id);
 
-        return $this->respondSuccess($payload);
+        return $payload;
     }
 
     /**

@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
@@ -29,12 +30,25 @@ use OpenApi\Attributes as OA;
 class AlignedOutboundFlowController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
 
     public function __construct(
         private readonly CurrentBaselineStockService $stock,
         private readonly CurrentBaselineStockFlowController $legacyFlow,
     ) {}
+
+    /**
+     * Ghi STOCK-NEUTRAL (scan/unmatch/nhãn) không đi qua mutateBalance() nên không ai
+     * bump 'stock:version' hộ, trong khi read cache của phiếu xuất phục vụ đúng những
+     * cột vừa đổi (scanned_qty, matched_count, label_status/packing_label_*) — không
+     * bump là màn hình quét đứng yên tới hết TTL. Trong transaction thì afterCommit()
+     * hoãn tới commit thật; ngoài transaction nó chạy ngay.
+     */
+    private function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     #[OA\Post(
         path: '/api/v1/outbound-documents/{id}/scans',
@@ -123,6 +137,9 @@ class AlignedOutboundFlowController extends Controller
             // được, thay vì phải suy luận ngược từ payload đã gửi.
             $result['scan_source'] = (string) $payload['scan_source'];
             $result['scan_source_origin'] = (string) $payload['scan_source_origin'];
+            // Scan là stock-neutral nhưng đổi scanned_qty/match/nhãn DRAFT mà read
+            // cache phiếu xuất đang phục vụ.
+            $this->invalidateReadCache();
 
             return $result;
         }, 3);
@@ -196,6 +213,9 @@ class AlignedOutboundFlowController extends Controller
             beforeData: ['status' => (string) $label->status],
             afterData: ['outbound_document_id' => $documentId, 'reason' => 'MATCH_CHANGED_BEFORE_FREEZE', 'stock_effect' => 'NONE'],
         );
+        // Xoá nhãn chạy NGOÀI transaction của outboundUnmatch (autocommit) nên bump
+        // ngay tại đây: bước unmatch phía sau có abort thì nhãn vẫn đã biến mất thật.
+        $this->invalidateReadCache();
     }
 
     /**
@@ -239,7 +259,14 @@ class AlignedOutboundFlowController extends Controller
             ? trim((string) ($validated['customer_phone'] ?? ''))
             : null;
 
-        $snapshotId = DB::transaction(fn (): string => $this->ensurePackingLabel($documentId, $phone), 3);
+        $snapshotId = DB::transaction(function () use ($documentId, $phone): string {
+            $snapshot = $this->ensurePackingLabel($documentId, $phone);
+            // Stock-neutral nhưng đổi packing_label_* và SĐT người nhận mà read cache
+            // phiếu xuất/toa đang phục vụ.
+            $this->invalidateReadCache();
+
+            return $snapshot;
+        }, 3);
 
         return $this->respondCreated($this->labelPayload($snapshotId), 'Đã đảm bảo đúng 01 Packing Label bất biến cho phiếu/lô xuất; chưa trừ tồn.');
     }
@@ -476,6 +503,9 @@ class AlignedOutboundFlowController extends Controller
                     requestId: $request->attributes->get('request_id'),
                     afterData: ['from_status' => $current, 'to_status' => $target, 'stock_effect' => 'NONE'],
                 );
+                // Đổi label_status là stock-neutral nhưng read cache phiếu xuất đọc
+                // thẳng cột vừa update (label_status, label_printed_count).
+                $this->invalidateReadCache();
             }
 
             return $this->respondSuccess($this->labelPayload($labelId) + [
@@ -554,6 +584,9 @@ class AlignedOutboundFlowController extends Controller
                 requestId: $request->attributes->get('request_id'),
                 afterData: ['outbound_document_id' => (string) $snapshot->outbound_document_id, 'applied' => true],
             );
+            // Stock-neutral nhưng đổi applied_at/version của nhãn — cột mà read cache
+            // phiếu xuất đang phục vụ.
+            $this->invalidateReadCache();
         }
 
         return $this->respondSuccess($this->labelPayload($id), 'Đã xác nhận dán Packing Label; stock_effect=NONE.');
@@ -649,6 +682,12 @@ class AlignedOutboundFlowController extends Controller
                     $result['packing_label_warning'] = 'Không chuẩn bị được nhãn đóng gói do lỗi hệ thống. '
                         .'Phiếu đã ghi nhận xuất kho; tồn kho không bị rollback. Vui lòng thử chuẩn bị/in lại nhãn sau.';
                 }
+
+                // Chuẩn bị nhãn nằm NGOÀI transaction trừ tồn, tức chạy SAU khi
+                // mutateBalance() đã bump xong, nên nhãn vừa tạo/xoá ở đây không được
+                // lần bump đó bao. Bump thêm một lần (ngoài transaction ⇒ chạy ngay),
+                // nằm trong closure IdempotencyStore nên replay không xoá cache vô ích.
+                $this->invalidateReadCache();
 
                 return [200, $this->envelope('Post Issue thành công; tồn được trừ tại bước hoàn tất này.', $result)];
             }

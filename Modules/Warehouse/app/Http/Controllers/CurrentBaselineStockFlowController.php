@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\IdempotentEnvelope;
@@ -22,7 +23,20 @@ use OpenApi\Attributes as OA;
 class CurrentBaselineStockFlowController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
+
+    /**
+     * Scan/unscan/unmatch và tạo reversal DRAFT đều STOCK-NEUTRAL: không đi qua
+     * mutateBalance() nên không ai bump 'stock:version' hộ, trong khi read cache của
+     * phiếu nhập/xuất và của chứng từ điều chỉnh phục vụ đúng những cột vừa đổi
+     * (scanned_qty, trạng thái entry/match, reversal DRAFT). Trong transaction thì
+     * afterCommit() hoãn tới commit thật; ngoài transaction nó chạy ngay.
+     */
+    private function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     public function __construct(
         private readonly CurrentBaselineStockService $stock,
@@ -214,6 +228,7 @@ class CurrentBaselineStockFlowController extends Controller
                 beforeData: ['status' => 'ACTIVE', 'scanned_qty' => $previousScanned],
                 afterData: ['status' => 'REMOVED', 'scanned_qty' => $newScanned, 'item_id' => $entry->item_id],
             );
+            $this->invalidateReadCache();
 
             return [
                 'document_id' => $id,
@@ -396,6 +411,7 @@ class CurrentBaselineStockFlowController extends Controller
                 beforeData: ['status' => 'ACTIVE', 'scanned_qty' => $previousScanned],
                 afterData: ['status' => 'REMOVED', 'scanned_qty' => $newScanned, 'item_id' => $match->item_id],
             );
+            $this->invalidateReadCache();
 
             return [
                 'document_id' => $id,
@@ -560,6 +576,7 @@ class CurrentBaselineStockFlowController extends Controller
             ]);
             $this->attachScanEventToEvidence($documentId, $type, (string) $result['line_id'], $result['item_id'] ?? null);
             $result['version'] = $newVersion;
+            $this->invalidateReadCache();
 
             return $result;
         }, 3);
@@ -667,6 +684,11 @@ class CurrentBaselineStockFlowController extends Controller
             $hash,
             function () use ($id, $type, $payload, $key, $hash, $expectedVersion): array {
                 $result = $this->reversal->execute($id, $type, $payload, $this->actorId(), $key, $hash, $expectedVersion);
+                // execute() LUÔN dừng ở DRAFT (không còn nhánh auto-post) ⇒ chưa chạm
+                // mutateBalance, nhưng chứng từ điều chỉnh mới đã hiện trong read cache
+                // REV-00/REV-01. Bump nằm trong closure IdempotencyStore nên replay
+                // không xoá cache vô ích.
+                $this->invalidateReadCache();
 
                 return [200, $this->envelope('Đã xử lý lệnh điều chỉnh; chứng từ gốc vẫn giữ trạng thái POSTED.', $result)];
             }

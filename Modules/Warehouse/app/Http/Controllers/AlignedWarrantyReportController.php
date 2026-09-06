@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\ReportExportFileName;
 use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
@@ -22,6 +23,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 class AlignedWarrantyReportController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     private const EXPORT_ROW_LIMIT = 10000;
 
@@ -157,7 +159,38 @@ class AlignedWarrantyReportController extends Controller
         return Carbon::parse($receivedAt)->diffInDays(Carbon::parse((string) $closedAt));
     }
 
+    /**
+     * Cùng khuôn cache với các báo cáo khác (TTL 'report' 300s + version `stock:version`
+     * được bump ngay sau mỗi mutation tồn kho). warranty_case không đi qua
+     * mutateBalance() nên chỉ TTL bảo vệ — chấp nhận được cho một báo cáo tổng hợp, đúng
+     * như ghi chú đã có ở OperationalReportController::dashboardQuick().
+     *
+     * `include_pii` BẮT BUỘC nằm trong khoá: cùng bộ lọc nhưng khác quyền/lý do xuất cho
+     * ra hai payload khác nhau (mask vs. PII thô) — dùng chung một entry là rò rỉ PII.
+     *
+     * Phân trang cắt TRONG BỘ NHỚ ở paginate() -> bỏ page/per_page khỏi khoá.
+     */
     private function build(Request $request, bool $includePii): array
+    {
+        // `reason`/`format` KHÔNG đổi nội dung báo cáo (chỉ quyết định include_pii và định
+        // dạng tệp) nên loại khỏi khoá, tránh băm cache thành từng mảnh theo mỗi câu lý do.
+        $filters = collect($this->readFiltersWithoutPaging($request))
+            ->except(['reason', 'format'])
+            ->all();
+
+        // array_merge chứ KHÔNG dùng `+`: với `+` thì vế TRÁI thắng khi trùng khoá, nên một
+        // client gửi `?include_pii=1` sẽ ghi đè cờ do server tính — tức là dùng chung entry
+        // giữa bản mask và bản PII thô. array_merge cho giá trị server tính luôn thắng.
+        return $this->cachedReadPayload(
+            'warehouse:report:warranty-defects',
+            array_merge($filters, ['include_pii' => $includePii]),
+            fn (): array => $this->buildUncached($request, $includePii),
+            'report',
+            'stock:version',
+        );
+    }
+
+    private function buildUncached(Request $request, bool $includePii): array
     {
         $validated = $request->validate([
             // date() chứ không pastDate(): client vẫn gửi to_date = ngày mai làm mốc chặn trên của kỳ.

@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\WarrantyPiiMasker;
@@ -49,7 +50,18 @@ use Modules\Warehouse\Support\Concerns\ResolvesActor;
 class MiniAppNfcController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
     use ResolvesActor;
+
+    /**
+     * Gán/thu hồi chip NFC là ghi STOCK-NEUTRAL: không qua mutateBalance() nên không
+     * ai bump 'stock:version' hộ, trong khi read cache tra cứu theo mã (Mini App bảo
+     * hành, truy vết) đọc thẳng physical_codes vừa ghi.
+     */
+    private function invalidateReadCache(): void
+    {
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
 
     /** Tiền tố alias `code_value` cho dòng physical_codes của chip NFC. */
     private const CODE_VALUE_PREFIX = 'NFC-';
@@ -420,6 +432,9 @@ class MiniAppNfcController extends Controller
                             'stock_effect' => 'NONE',
                         ],
                     );
+                    // Bump nằm trong closure IdempotencyStore nên replay không xoá
+                    // cache vô ích.
+                    $this->invalidateReadCache();
 
                     return [
                         'tag' => DB::table('physical_codes')->where('physical_code_id', $physicalCodeId)->first(),
@@ -619,6 +634,7 @@ class MiniAppNfcController extends Controller
                 beforeData: ['status' => (string) $tag->status],
                 afterData: ['status' => (string) $validated['status'], 'stock_effect' => 'NONE'],
             );
+            $this->invalidateReadCache();
 
             return DB::table('physical_codes')->where('physical_code_id', $physicalCodeId)->first();
         }, 3);

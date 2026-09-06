@@ -3,9 +3,11 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -23,6 +25,7 @@ use Throwable;
 class ImportController extends Controller
 {
     use ApiResponse;
+    use CachesReadPayload;
 
     public function __construct(
         private readonly ImportService $importService,
@@ -182,6 +185,15 @@ class ImportController extends Controller
             );
 
             $result = $this->withContract($result, $updateExisting);
+
+            // ImportService ghi thẳng qua Eloquent rồi gọi ProductRepository::forgetCache(),
+            // tức chỉ bump 'warehouse.sku:list'. Nhưng sku_code/sku_name/status vừa ghi còn
+            // nằm trong các read cache khoá theo 'stock:version' (danh sách sản phẩm Mini
+            // App, phiếu, truy vết, báo cáo). Transaction của service đã đóng ở đây nên
+            // afterCommit chạy ngay; dry-run không ghi gì nên không cần bump.
+            if (($result['committed'] ?? false) === true) {
+                DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+            }
 
             // WWHN-330 P1-03 + WWHN-331 FE331-P1-02R3: file trùng ĐỦ định danh
             // (sha256 + actor + options_fingerprint) với 1 lần COMMIT gần đây — trả lại
