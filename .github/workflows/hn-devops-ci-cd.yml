@@ -196,6 +196,17 @@ jobs:
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'php artisan optimize:clear && php artisan migrate --force && php artisan db:seed --force && php artisan l5-swagger:generate'
 
+      # Nâng memory_limit qua PHP_INI_SCAN_DIR chứ KHÔNG qua `php -d`:
+      # `artisan test` spawn một tiến trình con, nên `-d` của tiến trình cha không
+      # truyền xuống và test đọc .xlsx chết ở 128M mặc định ("Allowed memory size
+      # exhausted" trong PhpSpreadsheet — run 33975888469). Biến môi trường thì
+      # tiến trình con kế thừa, nên cả hai tầng cùng có 1G.
+      #
+      # Vẫn giữ `artisan test` chứ không gọi thẳng vendor/bin/phpunit: thử gọi
+      # thẳng thì PHPUnit 12 báo hàng loạt "did not remove its own error handlers"
+      # cho các handler mà Laravel cố ý đăng ký — Collision (artisan test) cấu
+      # hình khác nên không dính. Đổi runner là đổi thêm một biến, trong khi việc
+      # cần sửa ở đây chỉ là giới hạn bộ nhớ.
       - name: Run tests
         run: |
           docker run --rm --network host \
@@ -204,7 +215,7 @@ jobs:
             -v "$PWD:/var/www/html" \
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
-            -lc 'php artisan test'
+            -lc 'mkdir -p /tmp/phpini && echo memory_limit=1G > /tmp/phpini/zz-memory.ini && PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d:/tmp/phpini php artisan test'
 
       - name: Run local smoke
         run: |
