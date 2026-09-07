@@ -107,7 +107,7 @@ export const options = {
 export function setup() {
   randomSeed(20260903);
   const tokens = loginPool();
-  const admin = tokens.find((t) => t.username === 'admin') || tokens[0];
+  const admin = tokens.find((t) => t.email === 'admin@gmail.com') || tokens[0];
   console.log(
     `setup: ${tokens.length} phiên đăng nhập | profile=${CONFIG.profile} | ` +
       `users=${CONFIG.users} think=${CONFIG.thinkSeconds}s => mục tiêu ${TARGET_RPS} req/s`,

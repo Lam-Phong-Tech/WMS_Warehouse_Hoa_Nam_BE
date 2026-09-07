@@ -18,6 +18,7 @@ use Modules\Auth\Http\Requests\UpdateUserRequest;
 use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
 use Modules\Auth\Support\AuthCache;
 use Modules\Auth\Support\PermissionDelegation;
+use Modules\Auth\Support\RefreshTokenService;
 use OpenApi\Attributes as OA;
 
 /**
@@ -29,7 +30,10 @@ class UserController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly UserRepositoryInterface $users) {}
+    public function __construct(
+        private readonly UserRepositoryInterface $users,
+        private readonly RefreshTokenService $refreshTokens,
+    ) {}
 
     #[OA\Get(
         path: '/api/v1/users',
@@ -177,7 +181,9 @@ class UserController extends Controller
         unset($data['version']);
         $this->assertVersionMatches($request, $before);
 
-        if (array_key_exists('password', $data)) {
+        $passwordWasReset = array_key_exists('password', $data);
+
+        if ($passwordWasReset) {
             $data['password_hash'] = Hash::make($data['password']);
             unset($data['password']);
         }
@@ -185,6 +191,20 @@ class UserController extends Controller
         $data['version'] = $before->version + 1;
 
         $user = $this->users->update($id, $data);
+
+        // WWHN-SEC-02 (SCR-IAM-03): admin đặt lại mật khẩu hộ là đường xử lý sự
+        // cố chiếm tài khoản. Trước đây thao tác này KHÔNG thu hồi gì cả — cả
+        // refresh token lẫn access token của phiên đang bị chiếm đều sống tiếp,
+        // nên "đặt lại mật khẩu cho nhân viên bị lộ tài khoản" không thực sự
+        // đuổi được kẻ tấn công ra.
+        //
+        // markPasswordChangedNow() (không đi qua $data của repository) là CÓ CHỦ
+        // Ý: password_changed_at nằm ngoài $fillable để không bao giờ nhận giá
+        // trị từ payload client, nên $record->update() sẽ âm thầm bỏ qua nó.
+        if ($passwordWasReset && $user !== null) {
+            $user->markPasswordChangedNow();
+            $this->refreshTokens->revokeAllForUser($id);
+        }
 
         AuditLogger::record(
             action: 'UPDATE',

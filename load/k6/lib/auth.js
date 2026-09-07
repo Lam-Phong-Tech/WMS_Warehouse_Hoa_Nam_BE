@@ -9,15 +9,15 @@ import { CONFIG } from './config.js';
 export function loginPool() {
   const tokens = [];
 
-  for (const username of CONFIG.usernames) {
+  for (const email of CONFIG.emails) {
     const res = http.post(
       `${CONFIG.baseUrl}/api/v1/auth/login`,
-      JSON.stringify({ username, password: CONFIG.password }),
+      JSON.stringify({ email, password: CONFIG.password }),
       { headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, tags: { name: 'setup:login' } },
     );
 
     if (res.status !== 200) {
-      console.warn(`setup: đăng nhập thất bại cho ${username} (HTTP ${res.status})`);
+      console.warn(`setup: đăng nhập thất bại cho ${email} (HTTP ${res.status})`);
       continue;
     }
 
@@ -29,7 +29,7 @@ export function loginPool() {
     }
 
     if (token) {
-      tokens.push({ username, token });
+      tokens.push({ email, token });
     }
   }
 

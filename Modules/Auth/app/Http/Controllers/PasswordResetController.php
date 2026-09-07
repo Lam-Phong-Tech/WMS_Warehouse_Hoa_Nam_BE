@@ -201,6 +201,11 @@ class PasswordResetController extends Controller
             'version' => ((int) $user->version) + 1,
         ])->save();
 
+        // WWHN-SEC-02: đây là luồng "quên mật khẩu" — thường được dùng CHÍNH VÌ
+        // nghi tài khoản đã bị chiếm. Nếu chỉ thu hồi refresh token thì access
+        // token kẻ tấn công đang giữ vẫn sống tới khi hết hạn, đúng lúc người
+        // dùng tin rằng mình vừa lấy lại được tài khoản.
+        $user->markPasswordChangedNow();
         $this->refreshTokens->revokeAllForUser($user->user_id);
         $record->forceFill(['consumed_at' => now()])->save();
 

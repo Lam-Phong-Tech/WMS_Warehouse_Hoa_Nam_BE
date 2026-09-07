@@ -225,9 +225,9 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
     public function test_replay_dimension_rotated_refresh_token_and_revoked_session_cannot_be_replayed(): void
     {
         $username = 'wwhn289-replay-'.Str::lower(Str::random(6));
-        $this->createUserWithPassword($username, 'Cntt@1234');
+        $email = $this->createUserWithPassword($username, 'Cntt@1234')->email;
 
-        $login = $this->postJson('/api/v1/auth/login', ['username' => $username, 'password' => 'Cntt@1234']);
+        $login = $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'Cntt@1234']);
         $login->assertOk();
         $refreshToken = (string) $login->json('data.refresh_token');
         $this->assertNotSame('', $refreshToken);
@@ -257,23 +257,23 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
     public function test_rate_limit_dimension_login_locks_out_after_configured_failed_attempts(): void
     {
         $username = 'wwhn289-brute-'.Str::lower(Str::random(6));
-        $this->createUserWithPassword($username, 'Cntt@1234');
+        $email = $this->createUserWithPassword($username, 'Cntt@1234')->email;
 
         config(['rate_limit.auth_login_per_minute' => 3]);
 
         for ($attempt = 1; $attempt <= 3; $attempt++) {
-            $this->postJson('/api/v1/auth/login', ['username' => $username, 'password' => 'sai-mat-khau'])
+            $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'sai-mat-khau'])
                 ->assertStatus(401);
         }
 
-        $throttled = $this->postJson('/api/v1/auth/login', ['username' => $username, 'password' => 'sai-mat-khau']);
+        $throttled = $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'sai-mat-khau']);
         $throttled->assertStatus(429);
         $this->assertSame('RATE_LIMIT_EXCEEDED', $throttled->json('error.code'));
         $this->assertNotNull($throttled->headers->get('Retry-After'));
 
         // Kể cả mật khẩu ĐÚNG cũng bị chặn trong cửa sổ khoá — nếu không, kẻ tấn
         // công chỉ cần thử tiếp là thoát khoá.
-        $this->postJson('/api/v1/auth/login', ['username' => $username, 'password' => 'Cntt@1234'])
+        $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'Cntt@1234'])
             ->assertStatus(429);
 
         $this->assertDatabaseHas('audit_log', ['action' => 'LOGIN_THROTTLED']);
@@ -325,9 +325,9 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
     {
         $username = 'wwhn289-secret-'.Str::lower(Str::random(6));
         $password = 'Cntt@1234';
-        $this->createUserWithPassword($username, $password);
+        $email = $this->createUserWithPassword($username, $password)->email;
 
-        $login = $this->postJson('/api/v1/auth/login', ['username' => $username, 'password' => $password]);
+        $login = $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => $password]);
         $login->assertOk();
         $loginBody = $login->getContent();
         foreach (['password_hash', $password, 'JWT_SECRET', 'APP_KEY'] as $secret) {
@@ -335,7 +335,7 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
         }
 
         // Audit trail của lần đăng nhập sai không được lưu mật khẩu thô.
-        $this->postJson('/api/v1/auth/login', ['username' => $username, 'password' => 'mat-khau-sai-de-audit']);
+        $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'mat-khau-sai-de-audit']);
         $auditPayloads = DB::table('audit_log')
             ->whereIn('action', ['LOGIN_FAILED', 'LOGIN'])
             ->get()
@@ -611,6 +611,7 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
         return User::create([
             'username' => $username,
             'display_name' => 'WWHN-289 security fixture',
+            'email' => $username.'@wms-hoanam.test',
             'password_hash' => Hash::make($password),
             'status' => 'ACTIVE',
             'version' => 1,

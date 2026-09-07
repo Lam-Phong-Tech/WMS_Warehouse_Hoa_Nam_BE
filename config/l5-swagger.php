@@ -224,12 +224,18 @@ return [
 
             /*
              * Middleware allows to prevent unexpected access to API documentation
+             *
+             * WWHN-SEC-04: trước đây cả 4 nhóm đều rỗng nên Swagger UI và tệp
+             * OpenAPI (bản đồ đầy đủ 345 endpoint) được phát công khai, không
+             * cần đăng nhập, ở mọi môi trường kể cả production.
+             * EnsureApiDocsEnabled tắt chúng trên production và giữ nguyên hành
+             * vi hiện tại trên DEV/UAT/QA.
              */
             'middleware' => [
-                'api' => [],
-                'asset' => [],
-                'docs' => [],
-                'oauth2_callback' => [],
+                'api' => [\App\Http\Middleware\EnsureApiDocsEnabled::class],
+                'asset' => [\App\Http\Middleware\EnsureApiDocsEnabled::class],
+                'docs' => [\App\Http\Middleware\EnsureApiDocsEnabled::class],
+                'oauth2_callback' => [\App\Http\Middleware\EnsureApiDocsEnabled::class],
             ],
 
             /*

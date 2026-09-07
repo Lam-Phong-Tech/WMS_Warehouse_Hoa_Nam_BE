@@ -36,13 +36,31 @@ docker compose -f load/docker-compose.k6.yml run --rm k6 run -e PROFILE=smoke //
 | `BASE_URL` | `http://nginx` | Đích đo. Mặc định gọi thẳng container nginx trong mạng docker |
 | `P95_MS` | `800` | Ngưỡng đạt: 95% request phải nhanh hơn mức này |
 | `ERROR_RATE` | `0.01` | Ngưỡng đạt: tỉ lệ lỗi tối đa |
-| `LOAD_USERS` | `admin,manager01,...` | Danh sách tài khoản lấy JWT trong `setup()` |
+| `LOAD_USERS` | `admin@gmail.com,manager01@gmail.com,...` | Danh sách EMAIL lấy JWT trong `setup()` (login chỉ nhận email) |
 | `LOAD_PASSWORD` | `Cntt@1234` | Mật khẩu của các tài khoản trên |
 
 Tải mục tiêu suy ra từ hai tham số đầu:
 
 ```
 số request mỗi giây = USERS / THINK
+```
+
+## Bắt buộc: tắt trần gọi API trước khi đo
+
+Từ WWHN-SEC-01, nhóm endpoint đã đăng nhập có trần gọi khoá theo **user_id**
+(`config/rate_limit.php`). `setup()` chỉ đăng nhập bằng 6 tài khoản trong
+`LOAD_USERS` rồi chia cho toàn bộ `USERS` người dùng ảo, nên toàn bộ tải dồn vào
+6 bộ đếm và chạm trần 600 đọc/phút gần như ngay lập tức — kết quả đo sẽ là tỉ lệ
+429 chứ không phải hiệu năng thật.
+
+Đặt bốn biến sau về `0` trên môi trường đo (mẫu đầy đủ trong `.env.perf.example`),
+và **không** mang giá trị này sang môi trường thật:
+
+```
+RATE_LIMIT_API_READ_PER_MINUTE=0
+RATE_LIMIT_API_WRITE_PER_MINUTE=0
+RATE_LIMIT_API_EXPORT_PER_MINUTE=0
+RATE_LIMIT_API_UNAUTHENTICATED_PER_MINUTE=0
 ```
 
 3000 người với think-time 8 giây tạo ra **375 request/giây**.

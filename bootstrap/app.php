@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Middleware\ApiConventionMiddleware;
+use App\Http\Middleware\ApiRateLimit;
 use App\Http\Middleware\EnsurePublicApiEnvelope;
 use App\Http\Middleware\NoStoreApiResponses;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SlowRequestLog;
 use App\Http\Middleware\Wwhn172AggregateLock;
 use App\Support\UserFacingMessageLocalizer;
@@ -17,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Modules\Auth\Http\Middleware\CheckPermission;
 use Modules\Auth\Http\Middleware\EnforceActiveAccountStatus;
+use Modules\Auth\Http\Middleware\EnforceCredentialFreshness;
 use Modules\Auth\Http\Middleware\EnforcePasswordChangeRequired;
 use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -60,6 +63,21 @@ return Application::configure(basePath: dirname(__DIR__))
         // Ngoài cùng: đo trọn thời gian của mọi middleware + controller, ghi
         // request vượt ngưỡng wms_perf.slow_request_ms kèm phân rã SQL/cache.
         $middleware->prepend(SlowRequestLog::class);
+        // WWHN-SEC-03: đặt NGOÀI CÙNG để phủ cả response do middleware/exception
+        // handler sinh ra (401/403/404/429/500), không chỉ response của controller.
+        $middleware->prepend(SecurityHeaders::class);
+        // WWHN-SEC-01: trần gọi API cho nhóm đã đăng nhập. Gắn vào NHÓM `api`
+        // (không phải global) vì cùng lý do với EnforceInventoryWarehouseScope —
+        // gắn `throttle:` thủ công vào từng nhóm route thì một lần refactor quên
+        // một nhóm là mất trần ở đó mà không có gì báo; gắn ở nhóm `api` thì mọi
+        // route api/* mới sinh ra đã có trần sẵn.
+        //
+        // PHẢI là nhóm `api` chứ KHÔNG phải global: middleware global chạy TRƯỚC
+        // bước khớp route nên `$request->route()` luôn null ở đó, và
+        // ApiRateLimit::hasExplicitThrottle() sẽ không bao giờ thấy được
+        // `throttle:pv-public`. Hệ quả nếu đăng ký global: nhóm PV công khai bị
+        // đếm hai lần và bị hạ trần từ 120/phút xuống 60/phút.
+        $middleware->api(append: [ApiRateLimit::class]);
         // Global registration is deliberate: the middleware itself is a no-op
         // outside the six WWHN-211 read/trace endpoints. Registering centrally
         // prevents a future route refactor from silently dropping data-scope.
@@ -71,6 +89,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Cấp tài khoản nhân viên: bắt buộc đổi mật khẩu lần đầu trước khi
         // dùng bất kỳ endpoint nào khác (trừ change-password/logout).
         $middleware->append(EnforcePasswordChangeRequired::class);
+        // WWHN-SEC-02: từ chối access token phát hành TRƯỚC lần đổi mật khẩu
+        // gần nhất. Thu hồi refresh token là chưa đủ vì access token JWT
+        // stateless vẫn sống tới khi hết hạn tự nhiên.
+        $middleware->append(EnforceCredentialFreshness::class);
 
         $middleware->alias([
             'permission' => CheckPermission::class,

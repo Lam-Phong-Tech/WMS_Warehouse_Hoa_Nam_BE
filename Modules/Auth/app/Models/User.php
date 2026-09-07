@@ -36,6 +36,8 @@ class User extends Model implements AuthenticatableContract, JWTSubject
         'must_change_password' => 'boolean',
         'first_login_deadline_at' => 'datetime',
         'last_login_at' => 'datetime',
+        // WWHN-SEC-02: password_changed_at CỐ Ý KHÔNG khai cast 'datetime' — xem
+        // markPasswordChangedNow()/passwordChangedAtEpoch() bên dưới.
     ];
 
     private ?EloquentCollection $activeRolesMemo = null;
@@ -45,6 +47,53 @@ class User extends Model implements AuthenticatableContract, JWTSubject
     public function getAuthPassword(): string
     {
         return $this->password_hash;
+    }
+
+    /**
+     * WWHN-SEC-02 — ghi mốc đổi mật khẩu, dùng để vô hiệu hoá access token cũ.
+     *
+     * PHẢI dùng hai hàm này thay cho việc đọc/ghi thẳng thuộc tính, và cột CỐ Ý
+     * không khai cast 'datetime'. Lý do là một cái bẫy đã đo được trên chính hệ
+     * thống này:
+     *
+     *   `now()` trả Carbon ở Asia/Ho_Chi_Minh (+07). Laravel bind giá trị datetime
+     *   xuống DB bằng format 'Y-m-d H:i:s' — KHÔNG kèm offset. PostgreSQL nhận
+     *   chuỗi "trần" đó và hiểu theo TimeZone của session (UTC), nên thời điểm
+     *   16:29:35+07 bị lưu thành 16:29:35+00, tức lệch +7 GIỜ so với thực tế.
+     *   Đo được: mốc vừa ghi xong đứng trước "hiện tại" 25 170 giây.
+     *
+     * Hệ quả nếu để nguyên: `password_changed_at` nằm ở TƯƠNG LAI nên
+     * EnforceCredentialFreshness từ chối cả token vừa cấp — người dùng đổi mật
+     * khẩu xong không đăng nhập lại được suốt 7 giờ.
+     *
+     * Cách xử lý ở đây là chuẩn hoá cả hai đầu về UTC "trần", không phụ thuộc
+     * driver: ghi bằng ->utc() nên chuỗi bind là UTC; đọc thì parse thẳng chuỗi
+     * thô với timezone UTC. Đúng trên cả PostgreSQL (chạy thật) lẫn sqlite (test).
+     *
+     * Không sửa quy ước datetime chung của repo trong phạm vi này: các cột khác
+     * (last_login_at, first_login_deadline_at...) dùng để HIỂN THỊ nên lệch giờ
+     * không đổi hành vi bảo mật, còn đổi quy ước toàn cục là thay đổi rộng cần
+     * đợt riêng có dữ liệu backfill.
+     */
+    public function markPasswordChangedNow(): void
+    {
+        $this->forceFill(['password_changed_at' => now()->utc()])->save();
+    }
+
+    /** Mốc đổi mật khẩu quy về epoch giây, hoặc null nếu chưa từng đổi. */
+    public function passwordChangedAtEpoch(): ?int
+    {
+        $raw = $this->getAttributeValue('password_changed_at');
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if ($raw instanceof \DateTimeInterface) {
+            return $raw->getTimestamp();
+        }
+
+        return \Illuminate\Support\Carbon::parse((string) $raw, 'UTC')->getTimestamp();
     }
 
     /** GĐ1-REQ-011: user thuộc một phòng ban (nullable). */
