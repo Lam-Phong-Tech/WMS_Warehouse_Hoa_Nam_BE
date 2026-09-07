@@ -2368,9 +2368,27 @@ class OperationalReportController extends Controller
     {
         return $this->cachedReportPayload(
             'warehouse:report:movement-trace',
-            // Phân trang cắt TRONG BỘ NHỚ ở paginateReport() nên một entry phục vụ
-            // được mọi trang -> bỏ page/per_page ra khỏi key.
-            $this->reportFiltersWithoutPaging($request),
+            // KHOÁ CACHE PHẢI MANG page/per_page KHI REQUEST CÓ PHÂN TRANG.
+            //
+            // Ghi chú cũ ở đây nói "phân trang cắt TRONG BỘ NHỚ ở paginateReport()
+            // nên một entry phục vụ được mọi trang" — điều đó KHÔNG đúng với báo
+            // cáo này: buildMovementTraceUncached() gọi $query->forPage() và cắt
+            // NGAY Ở TẦNG SQL khi request có per_page, rồi tự đặt $report['pagination']
+            // để paginateReport() bỏ qua. Mỗi trang vì thế là một payload KHÁC NHAU.
+            //
+            // Hậu quả đã tái hiện được trên stack local (2026-09-07):
+            //   GET ...?from_date=2026-01-01&to_date=2026-12-31&per_page=5  -> nạp cache 5 dòng
+            //   GET ...?from_date=2026-01-01&to_date=2026-12-31             -> nhận lại ĐÚNG 5 dòng
+            // trong khi summary.total_movements vẫn báo 3.434. Màn Truy vết hàng hoá
+            // im lặng hiện 5/3.434 biến động suốt cả TTL — sai dữ liệu trên một báo
+            // cáo truy vết, không chỉ là vấn đề hiệu năng.
+            //
+            // reportFiltersWithPaging() có sẵn cho đúng tình huống này (xem
+            // CachesReportPayload). Request KHÔNG phân trang vẫn dùng khoá cũ nên
+            // entry "toàn kỳ" không bị tách làm đôi.
+            $request->filled('per_page')
+                ? $this->reportFiltersWithPaging($request)
+                : $this->reportFiltersWithoutPaging($request),
             // Giải scope Ở ĐÂY, trước khi vào cache: đối số được tính ngay, nên 403
             // của warehouse_id ngoài scope vẫn bắn ra kể cả khi sau đó là cache hit.
             $this->reportWarehouseScope($request),
