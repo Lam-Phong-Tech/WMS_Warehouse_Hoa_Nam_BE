@@ -11,26 +11,24 @@ class LoginRequest extends FormRequest
         return true;
     }
 
+    /**
+     * Định danh đăng nhập DUY NHẤT là email. Trước đây endpoint nhận thêm
+     * `username`, nghĩa là một tài khoản có hai cách vào (`admin` và
+     * `admin@gmail.com`) — gây nhầm lẫn cho người dùng và mở rộng bề mặt dò
+     * tài khoản. Cột `username` vẫn tồn tại và vẫn là khoá nghiệp vụ của IAM,
+     * chỉ không còn dùng để đăng nhập.
+     */
     public function rules(): array
     {
         return [
             'email' => [
-                'required_without:username',
-                'prohibits:username',
-                'nullable',
+                'required',
                 'string',
                 'max:200',
                 'email',
                 'regex:/\A[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\z/',
             ],
-            'username' => [
-                'required_without:email',
-                'prohibits:email',
-                'nullable',
-                'string',
-                'max:100',
-                'regex:/\A[^\s[:cntrl:]]+\z/u',
-            ],
+            'username' => ['prohibited'],
             'password' => [
                 'required',
                 'string',
@@ -54,9 +52,7 @@ class LoginRequest extends FormRequest
     {
         return [
             'email.regex' => 'Email phải đúng định dạng chữ thường, không có khoảng trắng hoặc chữ hoa.',
-            'email.prohibits' => 'Chỉ được gửi một trường đăng nhập: email hoặc tài khoản.',
-            'username.regex' => 'Tài khoản không được chứa khoảng trắng hoặc ký tự điều khiển.',
-            'username.prohibits' => 'Chỉ được gửi một trường đăng nhập: email hoặc tài khoản.',
+            'username.prohibited' => 'Đăng nhập chỉ nhận email đầy đủ; không dùng tên đăng nhập.',
             'password.regex' => 'Mật khẩu không được chứa khoảng trắng hoặc ký tự điều khiển.',
         ];
     }

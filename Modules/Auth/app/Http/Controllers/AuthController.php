@@ -52,11 +52,10 @@ class AuthController extends Controller
     )]
     public function login(LoginRequest $request)
     {
-        if ($request->filled('username')) {
-            $credentials = ['username' => (string) $request->input('username'), 'password' => (string) $request->input('password')];
-        } else {
-            $credentials = ['email' => (string) $request->input('email'), 'password' => (string) $request->input('password')];
-        }
+        // Định danh đăng nhập DUY NHẤT là email (xem LoginRequest): trước đây
+        // endpoint nhận thêm `username` nên `admin` và `admin@gmail.com` cùng vào
+        // được một tài khoản.
+        $credentials = ['email' => (string) $request->input('email'), 'password' => (string) $request->input('password')];
 
         // WWHN-289 (DEV289-P1-04): trước đây /auth/login không có bất kỳ giới hạn
         // nào — dò mật khẩu không giới hạn tốc độ. Chỉ đếm lần THẤT BẠI và khoá
@@ -90,9 +89,7 @@ class AuthController extends Controller
             if ($maxAttempts > 0) {
                 RateLimiter::hit($throttleKey, 60);
             }
-            $user = $request->filled('username')
-                ? User::query()->where('username', $credentials['username'])->first()
-                : User::query()->where('email', $credentials['email'] ?? null)->first();
+            $user = User::query()->where('email', $credentials['email'] ?? null)->first();
 
             // Chỉ ghi diagnostic không nhạy cảm. Tuyệt đối không log password,
             // password hash/fingerprint hoặc token. `account_found=true` + ACTIVE
@@ -100,7 +97,7 @@ class AuthController extends Controller
             // khi đối chiếu HTTP UAT và Laravel CLI mà không mở đường bypass auth.
             $logData = $credentials;
             unset($logData['password']);
-            $logData['identity_field'] = $request->filled('username') ? 'username' : 'email';
+            $logData['identity_field'] = 'email';
             $logData['account_found'] = $user !== null;
             $logData['account_status'] = $user?->status;
             $logData['content_type'] = $request->header('Content-Type');
@@ -342,6 +339,15 @@ class AuthController extends Controller
             'must_change_password' => false,
             'version' => ((int) $user->version) + 1,
         ])->save();
+        // WWHN-SEC-02: thu hồi refresh token là CHƯA đủ — access token JWT
+        // stateless đã phát hành vẫn gọi API được tới khi hết hạn tự nhiên. Mốc
+        // này khiến EnforceCredentialFreshness từ chối mọi access token cũ hơn
+        // nó, nên đổi mật khẩu thực sự cắt được phiên của kẻ đã lấy được token.
+        //
+        // Contract response giữ NGUYÊN (data = null): FE đã chủ động xoá auth
+        // state và bắt đăng nhập lại sau khi đổi mật khẩu thành công
+        // (use-change-password.ts), nên không phát sinh thao tác mới cho người dùng.
+        $user->markPasswordChangedNow();
         $this->refreshTokens->revokeAllForUser($user->user_id);
         $this->auditLogger->log('CHANGE_PASSWORD', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
 
@@ -410,7 +416,7 @@ class AuthController extends Controller
      */
     private function loginThrottleKey(Request $request, array $credentials): string
     {
-        $identifier = Str::lower(trim((string) ($credentials['username'] ?? $credentials['email'] ?? '')));
+        $identifier = Str::lower(trim((string) ($credentials['email'] ?? '')));
 
         return 'auth-login:'.sha1($request->ip().'|'.$identifier);
     }
@@ -423,11 +429,7 @@ class AuthController extends Controller
      */
     private function credentialsMatchExactly(User $user, array $credentials): bool
     {
-        if (array_key_exists('email', $credentials)) {
-            return hash_equals((string) $user->email, (string) $credentials['email']);
-        }
-
-        return hash_equals((string) $user->username, (string) ($credentials['username'] ?? ''));
+        return hash_equals((string) $user->email, (string) ($credentials['email'] ?? ''));
     }
 
     private function userPayload(User $user): array
