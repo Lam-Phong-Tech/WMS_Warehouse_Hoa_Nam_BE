@@ -39,9 +39,95 @@ trait InteractsWithStockDocuments
 
         $this->applyKeyword($query, $request, $keywordColumns);
 
-        return $this->respondPaginated(
-            $query->orderByDesc('created_at')->paginate($this->perPage($request))
+        $pendingInfoOnly = $this->pendingProductInfoFilter($request);
+        if ($pendingInfoOnly !== null) {
+            $this->applyPendingProductInfoFilter($query, $pendingInfoOnly);
+        }
+
+        $page = $query->orderByDesc('created_at')->paginate($this->perPage($request));
+
+        $this->decoratePendingProductInfo($page->getCollection());
+
+        return $this->respondPaginated($page);
+    }
+
+    /**
+     * `pending_product_info=1|0` — lọc phiếu nhập còn/không còn SKU mới thiếu
+     * thông tin. Không gửi = không lọc (giữ nguyên hành vi cũ của danh sách).
+     */
+    private function pendingProductInfoFilter(Request $request): ?bool
+    {
+        if ($this->docType() !== StockDocument::TYPE_RECEIPT || ! $request->filled('pending_product_info')) {
+            return null;
+        }
+
+        $value = filter_var($request->input('pending_product_info'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($value === null) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'pending_product_info chỉ nhận true/false (1/0).');
+        }
+
+        return $value;
+    }
+
+    /**
+     * Lọc NGAY TRONG SQL (không lọc sau khi phân trang, nếu không trang 1 sẽ
+     * thiếu dòng). Luật "thiếu thông tin" phải khớp SkuInboundInfoRule: tên rỗng
+     * HOẶC tên trùng mã, hoặc ĐVT rỗng — chỉ xét phiếu còn mở (DRAFT/SCANNING),
+     * vì phiếu đã POSTED thì SKU đổi tên về sau không còn liên quan.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<StockDocument>  $query
+     */
+    private function applyPendingProductInfoFilter($query, bool $pending): void
+    {
+        $hasIncompleteSku = function ($line): void {
+            $line->whereHas('product', function ($sku): void {
+                $sku->where(function ($group): void {
+                    $group->whereNull('sku_name')
+                        ->orWhereRaw('TRIM(sku_name) = ?', [''])
+                        ->orWhereRaw('UPPER(TRIM(sku_name)) = UPPER(TRIM(sku_code))')
+                        ->orWhereNull('unit')
+                        ->orWhereRaw('TRIM(unit) = ?', ['']);
+                });
+            });
+        };
+
+        if ($pending) {
+            $query->whereIn('status', [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING])
+                ->whereHas('lines', $hasIncompleteSku);
+
+            return;
+        }
+
+        $query->where(function ($outer) use ($hasIncompleteSku): void {
+            $outer->whereNotIn('status', [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING])
+                ->orWhereDoesntHave('lines', $hasIncompleteSku);
+        });
+    }
+
+    /**
+     * Gắn cờ `pending_product_info` (+ số SKU đang thiếu) lên từng phiếu của
+     * trang hiện tại bằng ĐÚNG một truy vấn — để danh sách phiếu nhập trên web
+     * hiện được chip "Chờ bổ sung thông tin" mà không phải mở từng phiếu.
+     *
+     * @param  \Illuminate\Support\Collection<int,StockDocument>  $documents
+     */
+    private function decoratePendingProductInfo($documents): void
+    {
+        if ($this->docType() !== StockDocument::TYPE_RECEIPT || $documents->isEmpty()) {
+            return;
+        }
+
+        $incomplete = SkuInboundInfoRule::incompleteSkusOfDocuments(
+            $documents->map(fn (StockDocument $document): string => (string) $document->id)->all()
         );
+
+        $documents->each(function (StockDocument $document) use ($incomplete): void {
+            $open = in_array((string) $document->status, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING], true);
+            $pending = $open ? ($incomplete[(string) $document->id] ?? []) : [];
+
+            $document->setAttribute('pending_product_info', $pending !== []);
+            $document->setAttribute('pending_product_info_count', count($pending));
+        });
     }
 
     public function show(string $id)

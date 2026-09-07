@@ -30,6 +30,14 @@ class EnsureCanonicalInboundWarehouse
             }
         }
 
+        // Mini App inbound/record chấp nhận `warehouse_id` như alias của
+        // dst_warehouse_id (cùng tên field với bước resolve-code). Không đọc
+        // alias ở đây thì guard canonical im lặng bỏ qua đúng những request đó.
+        // Đặt sau lookup theo document để không đổi hành vi của route có {id}.
+        if ($warehouseId === '') {
+            $warehouseId = trim((string) $request->input('warehouse_id', ''));
+        }
+
         // Missing required payload is still handled by the controller validator.
         // This middleware owns only the canonical-warehouse invariant.
         if ($warehouseId === '') {

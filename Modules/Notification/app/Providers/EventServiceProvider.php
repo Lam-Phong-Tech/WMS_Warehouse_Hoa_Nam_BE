@@ -7,6 +7,7 @@ use Modules\Auth\Events\RolePermissionsChanged;
 use Modules\Auth\Events\SecurityAlertRaised;
 use Modules\Auth\Events\UserAccountChanged;
 use Modules\Notification\Listeners\SendInboundCompletedNotification;
+use Modules\Notification\Listeners\SendInboundSkuInfoPendingNotification;
 use Modules\Notification\Listeners\SendOutboundPostedNotification;
 use Modules\Notification\Listeners\SendReversalCancelledNotification;
 use Modules\Notification\Listeners\SendReversalDraftCreatedNotification;
@@ -21,6 +22,7 @@ use Modules\Notification\Listeners\SendUserAccountChangedNotification;
 use Modules\Notification\Listeners\SendWarrantyCaseCreatedNotification;
 use Modules\Notification\Listeners\SendWarrantyStatusChangedNotification;
 use Modules\Warehouse\Events\InboundCompleted;
+use Modules\Warehouse\Events\InboundSkuInfoPending;
 use Modules\Warehouse\Events\OutboundPosted;
 use Modules\Warehouse\Events\ReversalCancelled;
 use Modules\Warehouse\Events\ReversalDraftCreated;
@@ -45,6 +47,7 @@ class EventServiceProvider extends ServiceProvider
      */
     protected $listen = [
         InboundCompleted::class => [SendInboundCompletedNotification::class],
+        InboundSkuInfoPending::class => [SendInboundSkuInfoPendingNotification::class],
         OutboundPosted::class => [SendOutboundPostedNotification::class],
         StockShortageDetected::class => [SendStockShortageNotification::class],
         WarrantyStatusChanged::class => [SendWarrantyStatusChangedNotification::class],

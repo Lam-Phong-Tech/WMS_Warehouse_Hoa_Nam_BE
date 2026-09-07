@@ -58,9 +58,10 @@ class InboundDocumentController extends Controller
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])),
+            new OA\Parameter(name: 'pending_product_info', in: 'query', required: false, description: 'true = chỉ phiếu còn mở (DRAFT/SCANNING) đang có SKU sinh ra lúc quét chưa đủ thông tin (thiếu tên thật hoặc đơn vị tính); false = phần còn lại. Không gửi = không lọc.', schema: new OA\Schema(type: 'boolean')),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'Danh sách phiếu nhập kho'),
+            new OA\Response(response: 200, description: 'Danh sách phiếu nhập kho. Mỗi phiếu kèm pending_product_info (bool) + pending_product_info_count để hiện dấu "Chờ bổ sung thông tin" ngay trên danh sách.'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có permission inbound.view'),
         ]

@@ -79,4 +79,44 @@ final class SkuInboundInfoRule
 
         return $incomplete;
     }
+
+    /**
+     * Cùng câu hỏi với incompleteSkusOfDocument() nhưng cho NHIỀU phiếu trong ĐÚNG
+     * một truy vấn — dùng cho danh sách phiếu nhập (web) và danh sách phiếu Mini
+     * App, nơi hỏi từng phiếu một sẽ thành N+1 ngay ở trang đầu.
+     *
+     * @param  list<string>  $documentIds
+     * @return array<string, list<array{sku_id:string, sku_code:string, sku_name:string, missing_fields:list<string>}>>
+     *                                   khoá là document_id; phiếu đã đủ thông tin KHÔNG xuất hiện trong kết quả
+     */
+    public static function incompleteSkusOfDocuments(array $documentIds): array
+    {
+        $documentIds = array_values(array_unique(array_filter(array_map('strval', $documentIds))));
+        if ($documentIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('stock_document_lines as l')
+            ->join('sku as s', 's.sku_id', '=', 'l.product_id')
+            ->whereIn('l.stock_document_id', $documentIds)
+            ->distinct()
+            ->get(['l.stock_document_id', 's.sku_id', 's.sku_code', 's.sku_name', 's.unit']);
+
+        $incomplete = [];
+        foreach ($rows as $row) {
+            $missing = self::missingFields($row->sku_code, $row->sku_name, $row->unit);
+            if ($missing === []) {
+                continue;
+            }
+
+            $incomplete[(string) $row->stock_document_id][] = [
+                'sku_id' => (string) $row->sku_id,
+                'sku_code' => (string) $row->sku_code,
+                'sku_name' => (string) $row->sku_name,
+                'missing_fields' => $missing,
+            ];
+        }
+
+        return $incomplete;
+    }
 }

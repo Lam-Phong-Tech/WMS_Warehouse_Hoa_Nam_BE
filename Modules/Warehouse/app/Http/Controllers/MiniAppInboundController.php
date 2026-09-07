@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Schema;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
+use Modules\Warehouse\Support\SkuInboundInfoRule;
 
 /**
  * Thin adapter for the warehouse Mini App.
@@ -85,9 +86,7 @@ class MiniAppInboundController extends Controller
                     ->paginate($perPage);
 
                 return [
-                    'items' => collect($page->items())
-                        ->map(fn (StockDocument $document): array => $this->decorateDocument($document))
-                        ->all(),
+                    'items' => $this->decorateDocuments($page->items()),
                     'total' => $page->total(),
                 ];
             },
@@ -546,13 +545,96 @@ class MiniAppInboundController extends Controller
     /** @return array<string,mixed> */
     private function decorateDocument(StockDocument $document): array
     {
+        return $this->decorateDocuments([$document])[0];
+    }
+
+    /**
+     * Trang trí theo LÔ: thông tin SKU của mọi dòng trong cả trang được đọc bằng
+     * đúng hai truy vấn (sku + luật thiếu thông tin), thay vì mỗi phiếu một lần.
+     *
+     * @param  iterable<int,StockDocument>  $documents
+     * @return list<array<string,mixed>>
+     */
+    private function decorateDocuments(iterable $documents): array
+    {
+        $documents = is_array($documents) ? $documents : iterator_to_array($documents);
+
+        $documentIds = [];
+        $productIds = [];
+        foreach ($documents as $document) {
+            $documentIds[] = (string) $document->id;
+            foreach ($this->linesOf($document) as $line) {
+                if ($line->product_id !== null) {
+                    $productIds[] = (string) $line->product_id;
+                }
+            }
+        }
+
+        $skus = $productIds === []
+            ? collect()
+            : DB::table('sku')
+                ->whereIn('sku_id', array_values(array_unique($productIds)))
+                ->get(['sku_id', 'sku_code', 'sku_name', 'sku_type', 'unit'])
+                ->keyBy(fn ($row) => (string) $row->sku_id);
+
+        $incompleteByDocument = SkuInboundInfoRule::incompleteSkusOfDocuments($documentIds);
+
+        $decorated = [];
+        foreach ($documents as $document) {
+            $decorated[] = $this->decorateOneDocument(
+                $document,
+                $skus,
+                $incompleteByDocument[(string) $document->id] ?? [],
+            );
+        }
+
+        return $decorated;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<string,object>  $skus
+     * @param  list<array{sku_id:string, sku_code:string, sku_name:string, missing_fields:list<string>}>  $incompleteSkus
+     * @return array<string,mixed>
+     */
+    private function decorateOneDocument(StockDocument $document, $skus, array $incompleteSkus): array
+    {
         $data = $document->toArray();
-        $lines = $document->relationLoaded('lines') ? $document->lines : $document->lines()->get();
+        $lines = $this->linesOf($document);
         $expected = (float) $lines->sum(fn ($line) => (float) $line->qty_planned);
         $scanned = (float) $lines->sum(fn ($line) => (float) $line->scanned_qty);
         $ready = $document->status === StockDocument::STATUS_SCANNING
             && $lines->isNotEmpty()
             && $lines->every(fn ($line) => (float) $line->scanned_qty === (float) $line->qty_planned);
+
+        // `lines[].product_id` chỉ là UUID thô: Mini App không tra được tên SKU từ
+        // đó (danh sách SKU của Mini App có phân trang, KHÔNG chứa SKU vừa sinh ra
+        // lúc quét). Gắn thẳng mã/tên/ĐVT + cờ thiếu thông tin lên từng dòng, cùng
+        // tên field với kênh canonical (InteractsWithStockDocuments::show()).
+        if (isset($data['lines']) && is_array($data['lines'])) {
+            $data['lines'] = array_map(function (array $line) use ($skus): array {
+                $sku = $skus->get((string) ($line['product_id'] ?? ''));
+                $missingInfo = SkuInboundInfoRule::missingFields(
+                    $sku->sku_code ?? null,
+                    $sku->sku_name ?? null,
+                    $sku->unit ?? null,
+                );
+
+                return $line + [
+                    'product_code' => $sku->sku_code ?? null,
+                    'product_name' => $sku->sku_name ?? null,
+                    'product_type' => $sku->sku_type ?? null,
+                    'product_unit' => $sku->unit ?? null,
+                    'product_missing_info' => $sku === null ? [] : $missingInfo,
+                    'product_info_complete' => $sku === null ? true : $missingInfo === [],
+                ];
+            }, $data['lines']);
+        }
+
+        // Phiếu ĐÃ POSTED thì luật thiếu thông tin không còn ý nghĩa (SKU có thể bị
+        // đổi tên sau đó); chỉ soi phiếu còn mở.
+        $open = in_array((string) $document->status, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING], true);
+        $pendingInfo = $open ? $incompleteSkus : [];
+        $infoComplete = $pendingInfo === [];
 
         return $data + [
             'expected_total_qty' => $this->number($expected),
@@ -560,8 +642,26 @@ class MiniAppInboundController extends Controller
             'remaining_qty' => $this->number(max(0, $expected - $scanned)),
             'progress_percent' => $expected > 0 ? round(min(100, ($scanned / $expected) * 100), 2) : 0,
             'ready_for_post' => $ready,
+            // mini_app_status GIỮ NGUYÊN nghĩa cũ (quét đủ = WAITING_APPROVAL) để
+            // bản Mini App đang chạy không mất phiếu khỏi hàng chờ duyệt. Việc
+            // "chưa Post được vì thiếu thông tin SKU" nói bằng các field MỚI dưới
+            // đây, client cũ không đọc thì hành vi y như trước.
             'mini_app_status' => $ready ? 'WAITING_APPROVAL' : (string) $document->status,
+            'product_info_complete' => $infoComplete,
+            'pending_product_info_count' => count($pendingInfo),
+            'skus_pending_info' => $pendingInfo,
+            // Post Receipt sẽ 422 INBOUND_SKU_INFO_INCOMPLETE nếu còn SKU thiếu
+            // thông tin: nói trước ở đây để Mini App ẩn/khoá nút duyệt và chỉ
+            // đường "vào web bổ sung" thay vì để người quét bấm rồi ăn lỗi.
+            'can_post' => $ready && $infoComplete,
+            'post_blocked_reason' => $ready && ! $infoComplete ? 'INBOUND_SKU_INFO_INCOMPLETE' : null,
         ];
+    }
+
+    /** @return \Illuminate\Support\Collection<int,\Modules\Warehouse\Models\StockDocumentLine> */
+    private function linesOf(StockDocument $document)
+    {
+        return $document->relationLoaded('lines') ? $document->lines : $document->lines()->get();
     }
 
     /** @return array<string,mixed> */
