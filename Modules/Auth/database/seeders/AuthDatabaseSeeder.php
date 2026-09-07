@@ -65,6 +65,31 @@ class AuthDatabaseSeeder extends Seeder
         ['pv.publish', 'Công bố danh mục PV'],
         ['report.view', 'Xem báo cáo'],
         ['report.export', 'Xuất báo cáo'],
+        /*
+         * ───────── QUYỀN XEM THEO TỪNG MÀN BÁO CÁO (BA 07/09/2026) ─────────
+         *
+         * `report.view` vẫn là quyền ĐỌC DỮ LIỆU báo cáo: phần lớn endpoint reports/*
+         * dùng chung giữa nhiều màn và cả Dashboard, nên vẫn gác bằng nó. Chín mã dưới
+         * đây là quyền VÀO TỪNG MÀN — BA yêu cầu Nhân viên kho và Nhân viên bảo hành
+         * chỉ thấy một TẬP CON của menu Báo cáo, mà một mã `report.view` duy nhất thì
+         * chỉ biểu diễn được "thấy hết 9 màn" hoặc "không thấy màn nào".
+         *
+         * Quy ước: có `report.view` KHÔNG tự động mở màn nào. Route FE
+         * (src/app/router/access.ts) gate mỗi màn bằng ĐÚNG mã của màn đó, và những
+         * endpoint chỉ phục vụ một màn duy nhất đã đổi sang gác bằng mã đó
+         * (Modules/Warehouse/routes/api.php). Vì vậy khi cấp `report.view` cho một vai
+         * mới, phải cấp KÈM các mã màn tương ứng — thiếu thì vai đó có quyền đọc dữ
+         * liệu nhưng không có cửa nào để vào.
+         */
+        ['report.inventory_flow.view', 'Xem báo cáo Nhập kho (RPT-01)'],
+        ['report.outbound_flow.view', 'Xem báo cáo Xuất kho (RPT-01B)'],
+        ['report.stock_reconcile.view', 'Xem báo cáo Tồn kho & đối soát (RPT-02)'],
+        ['report.traceability.view', 'Xem báo cáo Truy vết hàng hóa (RPT-03)'],
+        ['report.import_quality.view', 'Xem báo cáo Nhập dữ liệu / đối chiếu & lỗi dữ liệu (RPT-04)'],
+        ['report.packing_label.view', 'Xem báo cáo Nhãn đóng gói – In / In lại (RPT-05)'],
+        ['report.warranty.view', 'Xem báo cáo Bảo hành & linh kiện (RPT-06)'],
+        ['report.recipient.view', 'Xem báo cáo Xuất theo người nhận / đại lý (RPT-07)'],
+        ['report.io_history.view', 'Xem báo cáo Lịch sử nhập – xuất kho (RPT-08)'],
         ['audit_log.view', 'Xem nhật ký audit'],
         // Mục 6 (audit log theo module): audit_log.view giờ bị giới hạn theo
         // module/quyền của actor (xem AuditLogController::allowedModulesFor).
@@ -112,6 +137,27 @@ class AuthDatabaseSeeder extends Seeder
         ['item_instance.manage', 'Quản lý instance mặt hàng'],
     ];
 
+    /**
+     * Trọn bộ 9 màn báo cáo. Dùng cho các vai vốn đã thấy TOÀN BỘ menu Báo cáo trước
+     * đợt BA 07/09/2026 — trải hằng này vào tập quyền của họ giữ nguyên hành vi cũ,
+     * thay vì để `report.view` một mình mở cả 9 màn như trước.
+     *
+     * Vai nào BA chốt chỉ thấy một tập con (WAREHOUSE_STAFF, WARRANTY_STAFF) thì liệt
+     * kê tay từng mã ở block của vai đó, KHÔNG dùng hằng này — để diff của lần sửa sau
+     * đọc ra ngay ai bị siết.
+     */
+    private const REPORT_SCREENS_ALL = [
+        'report.inventory_flow.view',
+        'report.outbound_flow.view',
+        'report.stock_reconcile.view',
+        'report.traceability.view',
+        'report.import_quality.view',
+        'report.packing_label.view',
+        'report.warranty.view',
+        'report.recipient.view',
+        'report.io_history.view',
+    ];
+
     private const ROLES = [
         'ADMIN' => [
             'name' => 'Quản trị viên',
@@ -134,7 +180,8 @@ class AuthDatabaseSeeder extends Seeder
                 // export PII là quyền riêng và chỉ cấp khi thực sự cần". Cấp cho từng
                 // tài khoản qua user_permission (POST /users/{id}/permissions) thay vì
                 // seed sẵn cho cả vai — xuất PII là hành vi để lại dấu vết pháp lý.
-                'scan.classify', 'pv.publish', 'report.view', 'report.export', 'audit_log.view', 'audit_log.view_all',
+                'scan.classify', 'pv.publish', 'report.view', 'report.export', ...self::REPORT_SCREENS_ALL,
+                'audit_log.view', 'audit_log.view_all',
                 'import_batch.view', 'import_batch.manage',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
                 'putaway.view', 'putaway.manage', 'warranty.view', 'scan.execute',
@@ -168,13 +215,30 @@ class AuthDatabaseSeeder extends Seeder
                 'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
                 'outbound.view', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'report.view',
+                // BA 07/09/2026 — menu Báo cáo của Nhân viên kho chỉ còn 6/9 màn:
+                // Nhập kho, Xuất kho, Tồn kho & đối soát, Truy vết hàng hoá, Nhập liệu
+                // đối chiếu & lỗi, Nhãn đóng gói In/In lại. KHÔNG cấp
+                // report.warranty.view (RPT-06), report.recipient.view (RPT-07) và
+                // report.io_history.view (RPT-08) — ba màn này trước đây vai kho vẫn
+                // vào được vì cả 9 màn dùng chung một mã `report.view`.
+                //
+                // Thiếu-ba-quyền ở đây là CỐ Ý, đừng "sửa giúp" bằng
+                // ...self::REPORT_SCREENS_ALL như các vai khác.
+                'report.inventory_flow.view', 'report.outbound_flow.view',
+                'report.stock_reconcile.view', 'report.traceability.view',
+                'report.import_quality.view', 'report.packing_label.view',
                 // inventory.trace thay cho physical_code.view đã thu hồi: màn SCAN/
                 // tra cứu mã vật lý (GET /physical-codes, /inventory/trace/{code})
                 // cưỡng chế bằng inventory.trace. Trước đây vai này vào được màn nhờ
                 // scan.execute nhưng mọi lời gọi danh sách đều 403 — physical_code.view
                 // mà họ đang giữ không có cổng nào đọc tới.
                 'inventory.trace',
-                'agency.view', 'defect.view',
+                // defect.view ĐÃ GỠ 07/09/2026: mã này chỉ mở DUY NHẤT màn danh mục
+                // Bệnh / lỗi (DEF-01) và ô chọn bệnh/lỗi trong hồ sơ bảo hành. Nhân
+                // viên kho không có warranty.view nên không bao giờ mở tới ô đó, còn
+                // DEF-01 là danh mục của nghiệp vụ bảo hành — hiện trong menu của vai
+                // kho là thừa. Cần cho một người thì cấp lẻ qua user_permission.
+                'agency.view',
                 'import_batch.view', 'container.view', 'item_instance.view',
                 'putaway.view', 'putaway.manage', 'scan.execute',
                 // packing_label.reprint bổ sung: BA ghi "Nhãn: Preview/In/Reprint
@@ -209,7 +273,7 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'inbound.post', 'inbound.cancel',
                 'outbound.view', 'outbound.post', 'outbound.cancel',
-                'inventory.view', 'inventory.trace', 'report.view',
+                'inventory.view', 'inventory.trace', 'report.view', ...self::REPORT_SCREENS_ALL,
                 'agency.view', 'defect.view',
                 'import_batch.view', 'container.view', 'item_instance.view',
                 'putaway.view', 'warranty.view',
@@ -230,7 +294,7 @@ class AuthDatabaseSeeder extends Seeder
                 'outbound.view', 'outbound.import', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
                 'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',
-                'warranty.manage', 'warranty.component_issue', 'report.view',
+                'warranty.manage', 'warranty.component_issue', 'report.view', ...self::REPORT_SCREENS_ALL,
                 'import_batch.view',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
                 'putaway.view', 'putaway.manage', 'warranty.view', 'scan.execute',
@@ -259,16 +323,24 @@ class AuthDatabaseSeeder extends Seeder
                 'warranty.temp_only',
                 'scan.classify', 'item_instance.view',
                 'warranty.view', 'scan.execute',
-                // KHÔNG cấp report.view — BA chốt 07/09/2026: "nhân viên bảo hành không
-                // được xem báo cáo". Tài liệu BA để ngỏ điểm này ("có thể xem ... NẾU
-                // ĐƯỢC CẤP report.view", ma trận ghi "Theo scope"), nên đã hỏi lại và
-                // đây là câu trả lời. Ghi ra thành lời vì thiếu-một-quyền trông y hệt
-                // sót seed: người sau rất dễ "sửa giúp".
+                // report.view ĐƯỢC CẤP LẠI 07/09/2026 — ĐẢO NGƯỢC chốt trước đó cùng
+                // ngày ("nhân viên bảo hành không được xem báo cáo"). BA ra yêu cầu mới:
+                // NV bảo hành xem 4/9 màn — Tồn kho & đối soát, Nhập liệu đối chiếu &
+                // lỗi, Nhãn đóng gói In/In lại, Bảo hành & linh kiện.
                 //
-                // Cổng canh: Wwhn267ContractClosureTest::RBAC_MATRIX ghim ô
-                // (WARRANTY_STAFF × report) = 403, và pin băm quyền của role sẽ đỏ ngay
-                // nếu ai thêm mã này. Cần cho một người cụ thể thì cấp lẻ qua
-                // user_permission, đừng mở cho cả vai.
+                // Chốt cũ diễn đạt được bằng "không có report.view" vì hồi đó cả 9 màn
+                // dùng chung một mã. Nay tập con biểu diễn bằng 4 mã màn dưới đây, còn
+                // report.view quay lại đúng vai trò của nó: quyền ĐỌC dữ liệu báo cáo
+                // (các endpoint reports/* dùng chung + widget Dashboard).
+                'report.view',
+                'report.stock_reconcile.view', 'report.import_quality.view',
+                'report.packing_label.view', 'report.warranty.view',
+                // KHÔNG cấp 5 mã còn lại (inventory_flow, outbound_flow, traceability,
+                // recipient, io_history) — cố ý, đừng "sửa giúp" bằng REPORT_SCREENS_ALL.
+                //
+                // Cổng canh cần sửa kèm: Wwhn267ContractClosureTest::RBAC_MATRIX từng
+                // ghim ô (WARRANTY_STAFF × report) = 403; pin băm quyền của role cũng
+                // đổi theo đợt này.
             ],
         ],
         'LEADERSHIP' => [
@@ -279,7 +351,7 @@ class AuthDatabaseSeeder extends Seeder
                 // read-only khi cần drill-down". Trước đây lãnh đạo bấm từ báo cáo vào
                 // một phiếu là nhận 403 — báo cáo tổng hợp không tra ngược được.
                 'inbound.view', 'outbound.view',
-                'inventory.view', 'inventory.trace', 'report.view',
+                'inventory.view', 'inventory.trace', 'report.view', ...self::REPORT_SCREENS_ALL,
                 'agency.view', 'defect.view',
                 // audit_log.view + audit_log.view_all ĐÃ GỠ: BA ghi "Không xem Audit Log
                 // toàn hệ thống mặc định. Nếu lãnh đạo thực sự cần Audit, cấp audit.view
@@ -292,7 +364,7 @@ class AuthDatabaseSeeder extends Seeder
             'name' => 'Người xem',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
-                'inbound.view', 'outbound.view', 'inventory.view', 'report.view',
+                'inbound.view', 'outbound.view', 'inventory.view', 'report.view', ...self::REPORT_SCREENS_ALL,
                 // audit_log.view_all ĐÃ GỠ 27/08 (cờ bỏ qua giới hạn audit theo module
                 // của actor — một vai "chỉ xem" mà đọc được nhật ký của MỌI module, kể
                 // cả IAM). Nay audit_log.view CŨNG GỠ: ma trận BA đánh ❌ cho ô
@@ -365,7 +437,7 @@ class AuthDatabaseSeeder extends Seeder
                 'inventory.view', 'inventory.trace',
                 'putaway.view', 'warranty.view',
                 'import_batch.view', 'container.view', 'item_instance.view',
-                'report.view', 'report.export', 'audit_log.view',
+                'report.view', 'report.export', 'audit_log.view', ...self::REPORT_SCREENS_ALL,
             ],
         ],
         'SKU_MANAGER' => [
@@ -387,7 +459,7 @@ class AuthDatabaseSeeder extends Seeder
                 'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
                 'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',
-                'report.view',
+                'report.view', ...self::REPORT_SCREENS_ALL,
                 'import_batch.view',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
                 'putaway.view', 'putaway.manage', 'scan.execute',

@@ -201,11 +201,16 @@ class Wwhn237VarianceReportDeferredGateTest extends TestCase
             'RPT-INV-01 phải tiếp tục trả reconciliation_status.'
         );
 
+        // Từ 07/09/2026 endpoint này gác `report.stock_reconcile.view` thay cho
+        // `report.view`: BA tách quyền xem báo cáo theo TỪNG MÀN, mà
+        // reports/inventory-reconciliation chỉ phục vụ RPT-02 (Tồn kho & đối soát).
+        // Điều AC-SRS-037 cần giữ là "báo cáo đối soát vẫn nằm sau một permission
+        // riêng, không phải route mở" — vẫn đúng, chỉ đổi mã.
         $route = Route::getRoutes()->match(Request::create('/api/v1/reports/inventory-reconciliation', 'GET'));
         $this->assertContains(
-            'permission:report.view',
+            'permission:report.stock_reconcile.view',
             $route->gatherMiddleware(),
-            'Báo cáo đối soát phải giữ nguyên permission report.view.'
+            'Báo cáo đối soát phải nằm sau permission riêng của màn RPT-02.'
         );
     }
 
@@ -395,6 +400,7 @@ class Wwhn237VarianceReportDeferredGateTest extends TestCase
 
             if (($row['status'] ?? null) === 'N/A') {
                 $this->assertNotEmpty($row['na_reason'] ?? null, "[{$id}] N/A phải kèm na_reason.");
+
                 continue;
             }
             $log = base_path((string) ($row['raw_log'] ?? ''));

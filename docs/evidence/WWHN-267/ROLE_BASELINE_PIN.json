@@ -70,50 +70,50 @@
   "pinnedRoles": {
     "ADMIN": {
       "name": "Administrator",
-      "permissionCount": 60,
-      "permissionsSha256": "3a85c34c20ff3af661a1cd2df3afb6bbc93d8e736021a3016fa532c979a9ef04",
+      "permissionCount": 69,
+      "permissionsSha256": "0e5e962242595278e4debcfdb7b3827cd8df5de6777c8cf7126fe412ba224b95",
       "note": "Cập nhật 06/09/2026 cùng DELTA-06 (tài liệu BA taikhoantheorole v2). Số quyền đi 61 -> 60 vì HAI nguyên nhân, đừng đọc thành 'thu hồi 1 quyền': (a) bản pin 61 đã trôi từ trước — seeder trước lần sửa này là 60; (b) lần sửa này CỘNG warranty.temp_only và TRỪ warranty.pii.export, net 0. warranty.pii.export gỡ theo ô ma trận 'Warranty PII export | ADMIN: Permission riêng' — cấp lẻ qua user_permission, không seed cho cả vai."
     },
     "WAREHOUSE_STAFF": {
       "name": "Warehouse Staff",
-      "permissionCount": 30,
-      "permissionsSha256": "ef918f43d566d7dc9931ec308aa04d78586850a2bfdfe8e12b64eea637061dba",
-      "note": "Cập nhật 06/09/2026 cùng DELTA-06. Seeder trước lần sửa là 25 quyền (pin 31 đã trôi từ đợt thu hồi 21 mã cũ 27/08); lần sửa này CỘNG đúng 5: inbound.post, inbound.cancel, outbound.post, outbound.cancel, packing_label.reprint. Đây là NỚI quyền có chủ ý — BA bãi bỏ bước chờ role khác Post, và bốn quyền post/cancel được chuyển sang từ WAREHOUSE_APPROVER/WAREHOUSE_KEEPER."
+      "permissionCount": 35,
+      "permissionsSha256": "b5075917b2413744af11e0f83288de5a643a7520d0cfc2bef512a3b99af0efef",
+      "note": "Cập nhật lần 2 ngày 07/09/2026: GỠ defect.view (36 → 35). Mã đó chỉ mở màn danh mục Bệnh / lỗi (DEF-01) và ô chọn bệnh/lỗi trong hồ sơ bảo hành; vai kho không có warranty.view nên chưa bao giờ chạm ô thứ hai, còn DEF-01 là danh mục của nghiệp vụ bảo hành. Đây là THU HỒI quyền, không phải nới. — Cập nhật 07/09/2026 cùng DELTA-07 (tách quyền xem báo cáo theo từng màn). Seeder trước lần sửa là 30; CỘNG đúng 6 mã màn: report.inventory_flow.view, report.outbound_flow.view, report.stock_reconcile.view, report.traceability.view, report.import_quality.view, report.packing_label.view. Đây KHÔNG phải nới quyền: trước đây một mã report.view mở cả 9 màn, nay vai này chỉ còn 6 — ba màn RPT-06/07/08 (Bảo hành và linh kiện, Xuất theo người nhận, Lịch sử nhập – xuất) bị THU HỒI. Số quyền tăng trong khi quyền hiệu dụng giảm; đừng đọc con số 30 lên 36 thành cấp thêm."
     },
     "WAREHOUSE_APPROVER": {
       "name": "Warehouse Approver",
-      "permissionCount": 19,
-      "permissionsSha256": "aec7b662c0bc778e0d4d1e1d08e0ac571b5ca5541f04c0e387a2864ead93d4c1",
+      "permissionCount": 28,
+      "permissionsSha256": "043cfec09921b225650c8626c01ef67d5945a25f5677adfc454082152fc3ce57",
       "note": "Re-pin 06/09/2026 để khôi phục hiệu lực cổng — xem DELTA-05. Tập quyền KHÔNG đổi trong lần sửa này; 22 -> 19 là phần trôi có sẵn từ migration 2026_08_27_170000 thu hồi 21 mã cũ (role này giữ stock_document.* và physical_code.view). Vai đã ngừng dùng ở production."
     },
     "WAREHOUSE_KEEPER": {
       "name": "Warehouse Keeper",
-      "permissionCount": 39,
-      "permissionsSha256": "14658b58624a78ba790918d5421fde23170b734930c8ccfe226331707dab83d7",
+      "permissionCount": 48,
+      "permissionsSha256": "e9ea0240ec7259f0f2aff35e9a1f90c245d110ca954aff45b9becaafdfdb65ac",
       "note": "Cập nhật 05/09/2026 cùng DELTA-04 (thêm inbound.create). Số quyền đi từ 46 xuống 39 vì HAI nguyên nhân khác nhau, đừng đọc nhầm thành 'thu hồi quyền': (a) bản pin 46 đã trôi từ trước — seeder tại thời điểm sửa chỉ còn 38 quyền, và WWHN-267 KHÔNG truy nguyên phần trôi đó ở đây; (b) lần sửa này CỘNG đúng 1 quyền (inbound.create) đưa 38 lên 39. Cảnh báo: mọi role còn lại trong pinnedRoles vẫn đang trôi so với seeder tại thời điểm này, nên test_role_baseline_matches_the_pin vẫn đỏ vì lý do KHÔNG liên quan tới DELTA-04."
     },
     "WARRANTY_STAFF": {
       "name": "Warranty Staff",
-      "permissionCount": 13,
-      "permissionsSha256": "beb29c9a20be550cdd3faf1007aa9967de959f79d030076b377bbb82462e3d7d",
-      "note": "Cập nhật 06/09/2026 cùng DELTA-06. Seeder trước lần sửa là 11; CỘNG đúng 2: warranty.pii.view (ma trận BA đánh ✅ — trước đây vai này xử lý hồ sơ nhưng tên/SĐT khách bị che nên không gọi lại khách được) và warranty.temp_only. warranty.pii.EXPORT vẫn KHÔNG cấp: BA ghi 'không mặc định được phép'."
+      "permissionCount": 18,
+      "permissionsSha256": "580175921ae9ef492c3aeb34a4718fc1c5aa6961b20d5baabf3352f9f89a6972",
+      "note": "Cập nhật 07/09/2026 cùng DELTA-07. Seeder trước lần sửa là 13; CỘNG đúng 5: report.view + 4 mã màn (report.stock_reconcile.view, report.import_quality.view, report.packing_label.view, report.warranty.view). Đây là ĐẢO NGƯỢC chốt 07/09/2026 buổi trước (“nhân viên bảo hành không được xem báo cáo”, ô RBAC_MATRIX ghim 403) theo yêu cầu BA mới: vai này xem 4/9 màn. Năm màn còn lại vẫn KHÔNG cấp. warranty.pii.export vẫn không thay đổi."
     },
     "LEADERSHIP": {
       "name": "Leadership",
-      "permissionCount": 12,
-      "permissionsSha256": "008cd6d9918de61f8d5f61b66670a8348eb02f8d74e53885efff72fff3fb0666",
+      "permissionCount": 21,
+      "permissionsSha256": "017a2920adaf9c7263a6c6dbaf7698c6854a5a77efbc1e8c1be16ac0965cc027",
       "note": "Cập nhật 06/09/2026 cùng DELTA-06. Seeder trước lần sửa cũng là 12, nhưng TẬP quyền đổi: CỘNG inbound.view + outbound.view (drill-down read-only từ báo cáo), TRỪ audit_log.view + audit_log.view_all (BA: 'Không xem Audit Log toàn hệ thống mặc định'). Net 0 về số lượng — đây đúng là loại thay đổi mà chỉ có hash bắt được, count thì không."
     },
     "VIEWER": {
       "name": "Viewer",
-      "permissionCount": 14,
-      "permissionsSha256": "57bed422f7715ad0178a6646858c563cebc6298280f66f4a5c403fdaa8915332",
+      "permissionCount": 23,
+      "permissionsSha256": "563db5948a2a6b6dd11c5f90693ad3453dff4d8cfe8cc81b7704f3a0aa2e3939",
       "note": "Cập nhật 06/09/2026 cùng DELTA-06. Seeder trước lần sửa cũng là 14 (pin 17 đã trôi từ đợt 27/08); TẬP quyền đổi: TRỪ audit_log.view (ma trận BA đánh ❌ ô Viewer × Audit Log), CỘNG putaway.view (ma trận đánh ✅ ô Viewer × Putaway xem)."
     },
     "WAREHOUSE_MANAGER": {
       "name": "Warehouse Manager",
-      "permissionCount": 17,
-      "permissionsSha256": "3327fa68fd0762d509618e777f1f1195b8d7eaa9dd13244e43346949f27803a6",
+      "permissionCount": 26,
+      "permissionsSha256": "e773bcbe22b2f2af30f9d702843e0fb4d06f949d9e14742e31aeaf0129656093",
       "refreshedAt": "2026-09-06 (DELTA-01 đóng theo tài liệu BA taikhoantheorole v2)",
       "refreshReason": "THU HỒI QUYỀN quy mô lớn, không phải nới: 50 -> 17 (pin cũ 69 đã trôi). BA chọn phương án (B) của DELTA-01: giữ tên 'Quản lý kho' và gỡ toàn bộ nhóm quyền thao tác. Gỡ 5 mã iam.*, 5 mã master *.manage, 4 mã inbound ghi, 5 mã outbound ghi, inventory.reversal.post, 2 mã physical_code.*, 2 mã label.*, 4 mã bảo hành (manage/component_issue/temp_only/pii.export), warranty.pii.view, pv.publish, pv.master.manage, import_batch.manage, container.manage, item_instance.manage, scan.classify, audit_log.view_all. Cộng 2 mã đọc mà ma trận đánh ✅ nhưng seed cũ thiếu: warranty.view, putaway.view. Phần thu hồi phải làm ở HAI chỗ — hằng ROLES và WmsPermissionCompatibilitySeeder::ROLE_ASSIGNMENTS (nơi inbound.post/outbound.post/warranty.manage quay lại qua danh nghĩa 'alias FE')."
     },
@@ -136,8 +136,8 @@
     },
     "INBOUND_ONLY_TEST": {
       "name": "Inbound Only Test",
-      "permissionCount": 24,
-      "permissionsSha256": "d7973c5e6573c52c889e52d51556cdb5185c9ce83de16f7160011cdf828f26c3",
+      "permissionCount": 33,
+      "permissionsSha256": "5eb37ba5f99513d37bf49b3cf3a7cfaf520d8093e954d003edb6661f85174620",
       "note": "Pin LẦN ĐẦU 06/09/2026 — xem DELTA-05. Role này được thêm vào seeder sau khi hồ sơ WWHN-267 chốt và CHƯA BAO GIỜ có dòng pin, nên test_role_baseline_matches_the_pin đỏ ngay ở phép so danh sách key và không bao giờ chạy tới phần băm của 11 role còn lại. Tập quyền không đổi trong lần sửa này."
     }
   },
@@ -238,6 +238,21 @@
       "disposition": "APPLIED_BA_DECISIONS_CLOSED_PENDING_QA_RETEST",
       "owner": "BA (nguồn, đã chốt 07/09/2026) + BE (đã áp) + QA (retest)",
       "raisedBy": "Tài liệu BA taikhoantheorole_da_sua_v2, áp ngày 06/09/2026"
+    },
+    {
+      "id": "DELTA-07",
+      "severity": "P2",
+      "role": "WAREHOUSE_STAFF / WARRANTY_STAFF",
+      "srsRow": "§3 hàng \"Reports\" — Nhân viên kho V*, Nhân viên bảo hành \"Theo scope\". Không hàng nào của §3 phân giải tới TỪNG BÁO CÁO.",
+      "observed": "Trước 07/09/2026 cả 9 màn báo cáo (RPT-01, 01B, 02..08) dùng chung đúng một mã report.view, ở cả FE (src/app/router/access.ts) lẫn BE (mọi route reports/* gác permission:report.view). Hệ quả: một vai chỉ có thể 'thấy hết 9 màn' hoặc 'không thấy màn nào'. Nhân viên kho vì thế đọc được cả báo cáo Bảo hành, Xuất theo người nhận và Lịch sử nhập – xuất; nhân viên bảo hành thì bị khoá sạch.",
+      "whyItMatters": "BA yêu cầu tập con: Nhân viên kho 6/9 màn, Nhân viên bảo hành 4/9. Yêu cầu này KHÔNG biểu diễn được bằng một mã quyền duy nhất, nên hoặc phải tách mã, hoặc phải gate theo TÊN VAI ở FE — cách sau phá nguyên tắc 'FE gate theo mã quyền, không theo tên vai' và làm BE hết là nơi cưỡng chế.",
+      "change": "Thêm 9 mã report.<màn>.view (AuthDatabaseSeeder::REPORT_SCREENS_ALL). report.view giữ nguyên nghĩa 'đọc dữ liệu báo cáo' và vẫn gác các endpoint dùng chung + widget Dashboard; 9 mã mới là cửa vào từng màn. Bảy vai vốn thấy đủ 9 màn được cấp trọn bộ nên hành vi không đổi; chỉ WAREHOUSE_STAFF (6) và WARRANTY_STAFF (4, kèm cấp lại report.view) bị cắt.",
+      "compensatingControl": "BE cưỡng chế thật, không chỉ ẩn menu: endpoint chỉ phục vụ một màn đã đổi sang gác đúng mã màn đó (reports/inventory-balance, reports/import-match, reports/label-log, reports/warranty-*, reports/outbound-by-*); endpoint dùng chung gác OR các mã màn tiêu thụ nó. Cổng canh: Wwhn267ContractClosureTest::test_report_screen_subset_is_enforced_per_role đo 12 ô bằng HTTP thật, và AuthorizationCoverageInvariantTest chặn mã quyền không có route nào đọc tới.",
+      "residualRisk": "RPT-08 (Lịch sử nhập – xuất) KHÔNG có endpoint riêng — nó là một cách cắt khác của dữ liệu RPT-01, nên WAREHOUSE_STAFF vẫn gọi được reports/inventory-ledger và reports/document-history nhờ mã RPT-01 họ giữ. Việc ẩn MÀN đó chỉ do ROUTE_PERMISSIONS bên FE. Siết được ở API thì phải tách endpoint riêng cho RPT-08 trước; đã ghi thành lời trong REPORT_SCREEN_MATRIX để người sau không tưởng là sót gác.",
+      "recommendation": "BA bổ sung vào §3 một hàng phân giải tới từng báo cáo, hoặc xác nhận ma trận 9 màn × vai này là nguồn thay thế cho ô 'Theo scope'.",
+      "disposition": "APPLIED_PENDING_SRS_ROW",
+      "owner": "BA (nguồn) + BE (đã áp) + FE (đã áp ROUTE_PERMISSIONS)",
+      "raisedBy": "Yêu cầu BA 07/09/2026 (phân quyền phần Báo cáo)"
     }
   ],
   "measuredAt": {

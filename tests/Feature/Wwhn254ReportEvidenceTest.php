@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
@@ -65,10 +66,21 @@ class Wwhn254ReportEvidenceTest extends TestCase
             'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE',
         ]);
 
-        $this->globalUser = $this->makeUser('rpt254-global', ['report.view', 'report.export'], null, 'SUPER_ADMIN');
+        // Lớp này đo DATA SCOPE theo kho, không đo phân quyền theo màn: cả hai người
+        // dùng phải mở được MỌI báo cáo để 403 quan sát được chỉ có thể do scope.
+        // Từ 07/09/2026 `report.view` không còn tự mở màn nào (BA tách theo từng màn),
+        // nên phải cấp kèm trọn bộ mã màn — thiếu thì test đỏ vì permission và bài đo
+        // scope không còn nói lên điều gì.
+        $reportPermissions = array_merge(
+            ['report.view', 'report.export'],
+            (new \ReflectionClass(AuthDatabaseSeeder::class))
+                ->getConstant('REPORT_SCREENS_ALL'),
+        );
+
+        $this->globalUser = $this->makeUser('rpt254-global', $reportPermissions, null, 'SUPER_ADMIN');
         $this->globalToken = JWTAuth::fromUser($this->globalUser);
 
-        $scoped = $this->makeUser('rpt254-scoped', ['report.view', 'report.export'], (string) $this->warehouseA->id);
+        $scoped = $this->makeUser('rpt254-scoped', $reportPermissions, (string) $this->warehouseA->id);
         $this->scopedToken = JWTAuth::fromUser($scoped);
     }
 

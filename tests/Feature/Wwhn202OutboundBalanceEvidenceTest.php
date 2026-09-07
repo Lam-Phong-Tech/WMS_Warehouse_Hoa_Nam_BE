@@ -62,7 +62,10 @@ class Wwhn202OutboundBalanceEvidenceTest extends TestCase
         'GET /api/v1/stock-movements/{id}/trace-source' => 'inventory.trace',
         'GET /api/v1/stock-movements/trace-by-code' => 'inventory.trace',
         'GET /api/v1/stock-movements/reversible' => 'inventory.reversal.post',
-        'GET /api/v1/reports/inventory-reconciliation' => 'report.view',
+        // 07/09/2026: đổi từ `report.view` sang mã riêng của màn RPT-02 (Tồn kho & đối
+        // soát) khi BA tách quyền xem báo cáo theo từng màn. Endpoint này chỉ phục vụ
+        // RPT-02 nên gác được bằng đúng mã màn.
+        'GET /api/v1/reports/inventory-reconciliation' => 'report.stock_reconcile.view',
     ];
 
     /** @var array<int, array<string, mixed>> */

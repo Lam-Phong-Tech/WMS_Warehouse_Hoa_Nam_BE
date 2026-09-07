@@ -9,7 +9,6 @@
             "ADMIN",
             "SUPER_ADMIN",
             "WAREHOUSE_KEEPER",
-            "WAREHOUSE_MANAGER",
             "WAREHOUSE_STAFF",
             "WARRANTY_STAFF"
         ],
@@ -20,9 +19,9 @@
         "permission_status": "ACTIVE",
         "roles": [
             "ADMIN",
+            "INBOUND_ONLY_TEST",
             "SUPER_ADMIN",
             "WAREHOUSE_KEEPER",
-            "WAREHOUSE_MANAGER",
             "WAREHOUSE_STAFF",
             "WARRANTY_STAFF"
         ],
@@ -34,6 +33,8 @@
         "backend_enforced": true
     },
     "missing_roles": [],
-    "unexpected_roles": [],
-    "status": "PASS"
+    "unexpected_roles": [
+        "INBOUND_ONLY_TEST"
+    ],
+    "status": "FAIL"
 }

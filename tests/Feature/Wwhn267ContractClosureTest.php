@@ -107,19 +107,71 @@ class Wwhn267ContractClosureTest extends TestCase
         ],
         // Nhân viên bảo hành: §3 cho V* ở inventory, A ở warranty, D ở inbound/outbound.
         //
-        // 'report' => 403 là QUYẾT ĐỊNH, không phải quan sát. Tài liệu BA để ngỏ điểm
-        // này ("có thể xem báo cáo bảo hành NẾU ĐƯỢC CẤP report.view"; ma trận ghi "Theo
-        // scope"), nên đã hỏi lại — BA chốt 07/09/2026: nhân viên bảo hành KHÔNG được
-        // xem báo cáo. Ô này vì thế phải giữ 403; ai muốn đổi thì phải có quyết định mới
-        // của BA, không phải sửa cho khỏi đỏ.
+        // 'report' => 200 từ 07/09/2026 — ĐẢO NGƯỢC chốt trước đó cùng ngày ("nhân viên
+        // bảo hành KHÔNG được xem báo cáo", ô này từng ghim 403). BA ra yêu cầu mới: NV
+        // bảo hành xem 4/9 màn báo cáo (Tồn kho & đối soát, Nhập liệu đối chiếu & lỗi,
+        // Nhãn đóng gói In/In lại, Bảo hành & linh kiện).
+        //
+        // Bề mặt đo ở đây là /reports/hub — endpoint DÙNG CHUNG, vẫn gác `report.view`,
+        // nên nó chỉ trả lời "vai này có đọc được báo cáo không", KHÔNG phân giải được
+        // 4/9 màn. Phần tập con do 9 mã `report.<màn>.view` cưỡng chế trên từng endpoint
+        // riêng của màn; xem AuthDatabaseSeeder::REPORT_SCREENS_ALL và bảng gác trong
+        // Modules/Warehouse/routes/api.php.
         'WARRANTY_STAFF' => [
             'stock.inbound' => 403,
             'stock.outbound' => 403,
             'stock.balance' => 200,
             'reversal' => 200,
             'warranty' => 200,
-            'report' => 403,
+            'report' => 200,
         ],
+    ];
+
+    /**
+     * Tập con menu Báo cáo theo BA 07/09/2026, đo trên endpoint RIÊNG của từng màn.
+     *
+     * RBAC_MATRIX ở trên đo /reports/hub (dùng chung, gác `report.view`) nên không thấy
+     * được phần tách này — hai vai dưới đây đều 200 ở hub nhưng chỉ mở được một tập con.
+     *
+     * @var array<string, array<string, int>>
+     */
+    private const REPORT_SCREEN_MATRIX = [
+        // 6/9 màn: KHÔNG có Bảo hành & linh kiện (RPT-06), Xuất theo người nhận
+        // (RPT-07), Lịch sử nhập – xuất (RPT-08).
+        //
+        // 'report.io_history' => 200 ở đây KHÔNG mâu thuẫn: RPT-08 không có endpoint
+        // riêng nào — nó là một cách cắt khác của cùng dữ liệu RPT-01, nên bề mặt đo
+        // (reports/inventory-ledger) gác OR cả inventory_flow lẫn io_history và vai kho
+        // qua được nhờ mã RPT-01 họ vẫn giữ. Việc ẩn MÀN RPT-08 khỏi vai này do
+        // ROUTE_PERMISSIONS bên FE làm; API không phân giải được vì không có gì để
+        // phân giải. Muốn siết ở API thì phải tách endpoint riêng cho RPT-08 trước.
+        'WAREHOUSE_STAFF' => [
+            'report.stock_reconcile' => 200,
+            'report.import_quality' => 200,
+            'report.packing_label' => 200,
+            'report.warranty' => 403,
+            'report.recipient' => 403,
+            'report.io_history' => 200,
+        ],
+        // 4/9 màn: có Bảo hành & linh kiện, không có nhóm nhập/xuất/truy vết.
+        'WARRANTY_STAFF' => [
+            'report.stock_reconcile' => 200,
+            'report.import_quality' => 200,
+            'report.packing_label' => 200,
+            'report.warranty' => 200,
+            'report.recipient' => 403,
+            'report.io_history' => 403,
+        ],
+    ];
+
+    /** @var array<string, string> */
+    private const REPORT_SCREEN_SURFACES = [
+        'report.stock_reconcile' => '/api/v1/reports/inventory-balance',
+        'report.import_quality' => '/api/v1/reports/import-match',
+        'report.packing_label' => '/api/v1/reports/label-log',
+        'report.warranty' => '/api/v1/reports/warranty-defects',
+        'report.recipient' => '/api/v1/reports/outbound-by-recipient',
+        'report.io_history' => '/api/v1/reports/inventory-ledger',
     ];
 
     /** @var array<string, string> */
@@ -373,6 +425,37 @@ class Wwhn267ContractClosureTest extends TestCase
                 $this->assertNotEmpty(
                     $response->json('meta.request_id'),
                     "Ô ({$role} × {$area}): 403 vẫn phải trả request_id (§8.2)."
+                );
+            }
+        }
+    }
+
+    /**
+     * BA 07/09/2026 — menu Báo cáo cắt theo từng màn, không còn "được xem báo cáo" là
+     * mở cả 9.
+     *
+     * Tách khỏi test ô-theo-ô ở trên vì bề mặt khác nhau: ở đó là /reports/hub dùng
+     * chung (gác `report.view`, cả hai vai đều 200), còn ở đây là endpoint riêng của
+     * từng màn (gác `report.<màn>.view`). Trộn vào một bảng sẽ khiến ô 'report' trông
+     * như tự mâu thuẫn.
+     */
+    public function test_report_screen_subset_is_enforced_per_role(): void
+    {
+        $this->seed(AuthDatabaseSeeder::class);
+
+        foreach (self::REPORT_SCREEN_MATRIX as $role => $expectations) {
+            $headers = $this->authHeadersWithRole($role);
+            unset($headers['__user_id']);
+
+            foreach ($expectations as $screen => $expectedStatus) {
+                $response = $this->getJson(self::REPORT_SCREEN_SURFACES[$screen], $headers);
+
+                $this->assertSame(
+                    $expectedStatus,
+                    $response->getStatusCode(),
+                    "Ô ({$role} × {$screen}) lệch kỳ vọng. Thu hồi/cấp một màn báo cáo phải sửa "
+                    .'ĐỒNG THỜI: AuthDatabaseSeeder (mã report.<màn>.view của vai), bảng gác trong '
+                    .'Modules/Warehouse/routes/api.php, và ROUTE_PERMISSIONS bên FE.'
                 );
             }
         }
