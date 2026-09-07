@@ -6,6 +6,7 @@ use App\Support\ApiError;
 use Illuminate\Http\Request;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\StockDocumentService;
+use Modules\Warehouse\Support\SkuInboundInfoRule;
 
 /**
  * Read-side logic shared by InboundDocumentController/OutboundDocumentController.
@@ -55,7 +56,7 @@ trait InteractsWithStockDocuments
         // (PRODUCT/COMPONENT) cho phép FE hiện badge "Sản phẩm/Linh kiện" ngay trên
         // dòng, không phụ thuộc danh sách SKU tải sẵn (bị giới hạn per_page) như
         // product_code/product_name ở trên.
-        $doc = StockDocument::with(['lines.product:sku_id,sku_code,sku_name,sku_type', 'movements', 'statusHistory'])
+        $doc = StockDocument::with(['lines.product:sku_id,sku_code,sku_name,sku_type,unit', 'movements', 'statusHistory'])
             ->where('doc_type', $this->docType())
             ->find($id);
 
@@ -67,6 +68,22 @@ trait InteractsWithStockDocuments
             $line->setAttribute('product_code', $line->product?->sku_code);
             $line->setAttribute('product_name', $line->product?->sku_name);
             $line->setAttribute('product_type', $line->product?->sku_type);
+            // ĐVT đi kèm để form "Bổ sung thông tin" prefill đúng giá trị đang có,
+            // không bắt người dùng gõ lại (gõ lại = có ngày gõ thiếu, ghi đè mất).
+            $line->setAttribute('product_unit', $line->product?->unit);
+            // SKU sinh tự động lúc quét (materializeSkuIfMissing) mới chỉ có mã:
+            // tên tạm bằng chính mã, ĐVT rỗng. FE cần biết NGAY trên từng dòng để
+            // hiện nút bổ sung thông tin và khoá nút Ghi nhận — không suy ra được từ
+            // danh sách SKU tải sẵn ở màn khác (danh sách đó bị giới hạn per_page
+            // nên thiếu đúng những SKU vừa sinh ra). Cùng MỘT luật với guard chặn
+            // Post Receipt ở CurrentBaselineStockFlowController::postDocument().
+            $missingInfo = SkuInboundInfoRule::missingFields(
+                $line->product?->sku_code,
+                $line->product?->sku_name,
+                $line->product?->unit,
+            );
+            $line->setAttribute('product_missing_info', $missingInfo);
+            $line->setAttribute('product_info_complete', $missingInfo === []);
             $line->unsetRelation('product');
         });
 

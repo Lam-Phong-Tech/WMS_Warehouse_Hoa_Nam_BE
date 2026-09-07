@@ -82,6 +82,12 @@ class BaM1StockService extends DiagnosticCurrentBaselineStockService
         $attributes = [
             'sku_code' => $skuCode,
             'sku_name' => $skuCode,
+            // ĐVT để RỖNG là CÓ CHỦ ĐÍCH: cột skus.unit_code là NOT NULL
+            // DEFAULT 'PCS', không ghi rõ thì SKU tự tạo mặc nhiên "đã có ĐVT"
+            // và luật chặn Post Receipt (SkuInboundInfoRule) mất hẳn tín hiệu
+            // để đòi người nhận hàng xác nhận. Trigger ghi của view `sku` dùng
+            // COALESCE(NEW.unit, 'cai') — chỉ thay NULL, chuỗi rỗng giữ nguyên.
+            'unit' => '',
             'sku_type' => $skuType,
             'status' => 'ACTIVE',
         ];

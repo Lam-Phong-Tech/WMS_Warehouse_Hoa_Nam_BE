@@ -19,6 +19,7 @@ use Modules\Warehouse\Events\InboundCompleted;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
+use Modules\Warehouse\Support\SkuInboundInfoRule;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineStockFlowController extends Controller
@@ -609,6 +610,25 @@ class CurrentBaselineStockFlowController extends Controller
                     // KHÔNG chặn cứng ở đây (không giống Reversal) vì phần lớn phiếu
                     // nhập hiện có được tạo trước khi tính năng này tồn tại, chặn cứng
                     // sẽ khoá luôn các luồng nhập tay hợp lệ đã chạy production.
+                    // Ngược lại với chứng từ đính kèm ở trên, SKU thiếu thông tin thì
+                    // CHẶN CỨNG: SKU sinh tự động lúc quét chỉ có mã (tên tạm bằng
+                    // chính mã, ĐVT rỗng), để lọt qua đây là đưa hàng vào kho dưới một
+                    // dòng không ai đọc được và không sửa lại được nữa
+                    // (SKU_IDENTITY_IMMUTABLE_AFTER_STOCK khoá mã/tracking ngay khi có
+                    // movement). Chặn Ở ĐÂY chứ không chỉ ở FE nên MỌI kênh cùng chịu
+                    // luật — Mini App cũng post qua đúng endpoint này.
+                    if ($type === 'receipt') {
+                        $incompleteSkus = SkuInboundInfoRule::incompleteSkusOfDocument($id);
+                        if ($incompleteSkus !== []) {
+                            ApiError::abort(
+                                422,
+                                'INBOUND_SKU_INFO_INCOMPLETE',
+                                'Còn SKU mới chưa đủ thông tin. Bổ sung tên và đơn vị tính cho các SKU này trước khi ghi nhận nhập kho.',
+                                ['skus' => $incompleteSkus]
+                            );
+                        }
+                    }
+
                     if ($type === 'issue') {
                         if ($document->outbound_request_id === null) {
                             ApiError::abort(422, 'OUTBOUND_REQUEST_REQUIRED', 'Outbound phải liên kết toa/request nguồn.');

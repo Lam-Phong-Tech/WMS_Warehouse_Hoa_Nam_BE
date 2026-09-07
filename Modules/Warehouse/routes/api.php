@@ -29,6 +29,7 @@ use Modules\Warehouse\Http\Controllers\DocumentAttachmentController;
 use Modules\Warehouse\Http\Controllers\DocumentStatusHistoryController;
 use Modules\Warehouse\Http\Controllers\ImportBatchController;
 use Modules\Warehouse\Http\Controllers\InboundDocumentController;
+use Modules\Warehouse\Http\Controllers\InboundSkuInfoController;
 use Modules\Warehouse\Http\Controllers\InventoryBalanceController;
 use Modules\Warehouse\Http\Controllers\ItemInstanceController;
 use Modules\Warehouse\Http\Controllers\OperationalReportController;
@@ -120,6 +121,14 @@ Route::prefix('v1')->group(function (): void {
         // ERD bảng 28 inbound_scan_entries.status ACTIVE/REMOVED "cho sửa trước Post":
         // đối xứng với outbound-documents/{id}/unmatch, stock-neutral.
         Route::post('inbound-documents/{id}/unscan', [CurrentBaselineStockFlowController::class, 'inboundUnscan'])
+            ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
+        // Bổ sung thông tin cho SKU MỚI ngay trong phiếu: quyền inbound.scan chứ
+        // KHÔNG phải sku.manage — vai Nhân viên kho không có sku.manage, mà chính họ
+        // là người đứng quét và Post. Phạm vi bị bó trong controller: chỉ SKU trên
+        // dòng của phiếu này, phiếu còn DRAFT/SCANNING.
+        Route::patch('inbound-documents/{id}/lines/{lineId}/sku', [InboundSkuInfoController::class, 'complete'])
+            ->whereUuid('id')
+            ->whereUuid('lineId')
             ->middleware(['permission:inbound.scan', EnforceInboundWarehouseScope::class]);
         // Inbound Carton Scan v1.0 §3.3: mốc "Đã quét xong thùng" — audit-only,
         // stock-neutral, không đổi container.status, không bump document version.
@@ -230,8 +239,30 @@ Route::prefix('v1')->group(function (): void {
         Route::get('document-status-history', [DocumentStatusHistoryController::class, 'index'])->middleware('permission:inventory.view');
 
         // Flow 06 · Báo cáo: read và export là hai quyền độc lập, BE enforce authoritative.
+        //
+        // BA 07/09/2026 — quyền đọc tách theo MÀN, không còn một `report.view` cho cả
+        // menu (Nhân viên kho thấy 6/9 màn, Nhân viên bảo hành thấy 4/9). Ba nhóm:
+        //
+        //  1. Endpoint chỉ phục vụ MỘT màn -> gác bằng đúng mã màn đó
+        //     (inventory-balance/inventory-reconciliation = RPT-02, import-match =
+        //     RPT-04, label-log = RPT-05, warranty-* = RPT-06, outbound-by-* = RPT-07).
+        //
+        //  2. Endpoint dùng chung giữa vài màn -> OR các mã màn tiêu thụ nó
+        //     (document-history, movement-trace, inventory-ledger). Ai vào được ít nhất
+        //     một màn tiêu thụ thì đọc được — siết hơn nữa sẽ phải tách endpoint, và
+        //     dữ liệu trả về vốn là một tập, chỉ khác bộ lọc/cách trình bày.
+        //     RPT-01 và RPT-01B dùng CHUNG component InventoryFlowXntReport nên mã
+        //     outbound_flow luôn đi kèm inventory_flow ở nhóm này.
+        //
+        //  3. Endpoint mà Dashboard cũng đọc -> GIỮ `report.view` (hub, inventory-xnt*,
+        //     dashboard-*, catch-all {report_code}). Đổi sang mã màn sẽ làm trắng
+        //     Dashboard của vai không có màn tương ứng — Dashboard không thuộc menu
+        //     Báo cáo và mọi vai đều thấy nó.
+        //
+        // Hệ quả: cấp `report.view` cho vai mới KHÔNG còn tự mở 9 màn; phải cấp kèm mã
+        // màn (xem AuthDatabaseSeeder::REPORT_SCREENS_ALL).
         Route::get('reports/hub', [OperationalReportController::class, 'hub'])->middleware('permission:report.view');
-        Route::get('reports/inventory-balance', [OperationalReportController::class, 'inventoryBalance'])->middleware('permission:report.view');
+        Route::get('reports/inventory-balance', [OperationalReportController::class, 'inventoryBalance'])->middleware('permission:report.stock_reconcile.view');
         Route::get('reports/inventory-balance/export-excel', [OperationalReportController::class, 'inventoryBalanceExport'])->middleware('permission:report.export');
         Route::get('reports/inventory-xnt', [OperationalReportController::class, 'inventoryXnt'])->middleware('permission:report.view');
         Route::get('reports/inventory-xnt/export-excel', [OperationalReportController::class, 'inventoryXntExport'])->middleware('permission:report.export');
@@ -240,30 +271,30 @@ Route::prefix('v1')->group(function (): void {
         // GĐ1 chart FE: chuỗi Nhập/Xuất/Tồn cuối theo ngày (không có time-series
         // nào khác trong hệ thống) — đăng ký trước catch-all như mọi route cụ thể khác.
         Route::get('reports/inventory-xnt-daily', [OperationalReportController::class, 'inventoryXntDaily'])->middleware('permission:report.view');
-        Route::get('reports/document-history', [OperationalReportController::class, 'documentHistory'])->middleware('permission:report.view');
+        Route::get('reports/document-history', [OperationalReportController::class, 'documentHistory'])->middleware('permission:report.inventory_flow.view|report.outbound_flow.view|report.recipient.view|report.io_history.view');
         Route::get('reports/document-history/export-excel', [OperationalReportController::class, 'documentHistoryExport'])->middleware('permission:report.export');
-        Route::get('reports/movement-trace', [OperationalReportController::class, 'movementTrace'])->middleware('permission:report.view');
+        Route::get('reports/movement-trace', [OperationalReportController::class, 'movementTrace'])->middleware('permission:report.inventory_flow.view|report.outbound_flow.view|report.stock_reconcile.view|report.traceability.view');
         Route::get('reports/movement-trace/export-excel', [OperationalReportController::class, 'movementTraceExport'])->middleware('permission:report.export');
         // RPT-OUT-MATCH-01 / RPT-LABEL-01: trỏ thẳng controller Aligned (giống
         // warranty-defects) thay vì để Flow06AlignmentServiceProvider override runtime.
         // Handler legacy trong OperationalReportController đã được gỡ hẳn.
-        Route::get('reports/import-match', [AlignedImportMatchReportController::class, 'index'])->middleware('permission:report.view');
+        Route::get('reports/import-match', [AlignedImportMatchReportController::class, 'index'])->middleware('permission:report.import_quality.view');
         Route::get('reports/import-match/export-excel', [AlignedImportMatchReportController::class, 'export'])->middleware('permission:report.export');
-        Route::get('reports/label-log', [AlignedLabelLogReportController::class, 'index'])->middleware('permission:report.view');
+        Route::get('reports/label-log', [AlignedLabelLogReportController::class, 'index'])->middleware('permission:report.packing_label.view');
         Route::get('reports/label-log/export-excel', [AlignedLabelLogReportController::class, 'export'])->middleware('permission:report.export');
-        Route::get('reports/outbound-by-agency', [OperationalReportController::class, 'outboundByAgency'])->middleware('permission:report.view');
+        Route::get('reports/outbound-by-agency', [OperationalReportController::class, 'outboundByAgency'])->middleware('permission:report.recipient.view');
         Route::get('reports/outbound-by-agency/export-excel', [OperationalReportController::class, 'outboundByAgencyExport'])->middleware('permission:report.export');
         // GĐ1 scope report (Nơi nhận/Thị trường/Khu vực/SKU) — trỏ thẳng controller GĐ1
         // thay vì để Flow06AlignmentServiceProvider override runtime, cùng lý do với
         // import-match/label-log/warranty-defects ở trên: route cụ thể đăng ký sau
         // "reports/{report_code}" catch-all thì không bao giờ được match tới.
-        Route::get('reports/outbound-by-recipient', [BaM1ReportController::class, 'outboundByRecipient'])->middleware('permission:report.view');
-        Route::get('reports/warranty-defect-sku-breakdown', [BaM1ReportController::class, 'defectSkuBreakdown'])->middleware('permission:report.view');
+        Route::get('reports/outbound-by-recipient', [BaM1ReportController::class, 'outboundByRecipient'])->middleware('permission:report.recipient.view');
+        Route::get('reports/warranty-defect-sku-breakdown', [BaM1ReportController::class, 'defectSkuBreakdown'])->middleware('permission:report.warranty.view');
         // GĐ1 chart FE: top linh kiện đã xuất trong sửa chữa bảo hành (component
         // issue POSTED, join warranty_case theo received_at/created_at cùng quy ước
         // với defectSkuBreakdown/warrantyDefects ở trên).
-        Route::get('reports/warranty-component-usage', [BaM1ReportController::class, 'componentUsage'])->middleware('permission:report.view');
-        Route::get('reports/inventory-reconciliation', [OperationalReportController::class, 'inventoryReconciliation'])->middleware('permission:report.view');
+        Route::get('reports/warranty-component-usage', [BaM1ReportController::class, 'componentUsage'])->middleware('permission:report.warranty.view');
+        Route::get('reports/inventory-reconciliation', [OperationalReportController::class, 'inventoryReconciliation'])->middleware('permission:report.stock_reconcile.view');
         Route::get('reports/dashboard-quick', [OperationalReportController::class, 'dashboardQuick'])->middleware('permission:report.view');
         // Màn Dashboard tổng quan: một payload cho cả màn hình (KPI tách theo sku_type,
         // chuỗi nhập-xuất 4 chiều, cơ cấu tồn, bảo hành + quá hạn, vấn đề cần xử lý).
@@ -274,11 +305,11 @@ Route::prefix('v1')->group(function (): void {
         // status §6 — handler Aligned cũ chỉ join defect chính nên đếm thiếu case
         // nhiều lỗi; trước đây BaM1 chỉ sống nhờ override runtime của
         // Flow06AlignmentServiceProvider, nay trỏ thẳng tại đây.
-        Route::get('reports/warranty-defects', [BaM1ReportController::class, 'warrantyDefects'])->middleware('permission:report.view');
+        Route::get('reports/warranty-defects', [BaM1ReportController::class, 'warrantyDefects'])->middleware('permission:report.warranty.view');
         Route::get('reports/warranty-defects/export-excel', [AlignedWarrantyReportController::class, 'export'])->middleware('permission:report.export');
         // Annex C REQ-SRS-031/032. "reports/{report_code}" là catch-all nên phải
         // đăng ký sau mọi route reports/* cụ thể ở trên.
-        Route::get('reports/inventory-ledger', [OperationalReportController::class, 'inventoryLedger'])->middleware('permission:report.view');
+        Route::get('reports/inventory-ledger', [OperationalReportController::class, 'inventoryLedger'])->middleware('permission:report.inventory_flow.view|report.outbound_flow.view|report.io_history.view');
         Route::post('reports/export', [OperationalReportController::class, 'createExport'])->middleware('permission:report.export');
         // Poll/download của job nền tạo bởi createExport() — cùng lý do phải đứng TRƯỚC
         // catch-all reports/{report_code} dù về mặt số segment không thực sự đụng nhau
@@ -325,9 +356,14 @@ Route::prefix('v1')->group(function (): void {
         Route::get('import-batches/{id}', [ImportBatchController::class, 'show'])->middleware('permission:import_batch.view');
         Route::patch('import-batches/{id}', [ImportBatchController::class, 'update'])->middleware('permission:import_batch.manage');
 
-        Route::get('containers', [ContainerController::class, 'index'])->middleware('permission:container.view');
+        // putaway.view bổ sung: PTW-01 và màn tổng quan khay đọc danh sách khay từ
+        // đây, mà vai giám sát chỉ-đọc (LEADERSHIP, WAREHOUSE_MANAGER) được BA cấp
+        // putaway.view chứ không cấp container.view — họ vào được màn nhưng lời gọi
+        // khay 403, hiện banner "Không có quyền truy cập" trên trang xem được.
+        // Cùng bộ quyền mà GET putaway/tasks đã nhận. Ghi khay vẫn giữ container.manage.
+        Route::get('containers', [ContainerController::class, 'index'])->middleware('permission:container.view|putaway.view|putaway.manage');
         Route::post('containers', [CurrentBaselineContainerFlowController::class, 'store'])->middleware('permission:container.manage');
-        Route::get('containers/{id}', [ContainerController::class, 'show'])->middleware('permission:container.view');
+        Route::get('containers/{id}', [ContainerController::class, 'show'])->middleware('permission:container.view|putaway.view|putaway.manage');
         Route::patch('containers/{id}', [CurrentBaselineContainerFlowController::class, 'update'])->middleware('permission:container.manage');
         Route::post('containers/{id}/items', [CurrentBaselineContainerFlowController::class, 'addItem'])->middleware('permission:container.manage');
         Route::delete('containers/{id}/items/{containerItemId}', [CurrentBaselineContainerFlowController::class, 'removeItem'])->middleware('permission:container.manage');
@@ -368,7 +404,13 @@ Route::prefix('v1')->group(function (): void {
         Route::get('label-snapshots/{id}', [CurrentBaselineOperationsController::class, 'showLabelSnapshot'])->middleware('permission:label.print');
         Route::post('label-snapshots/{id}/print', [CurrentBaselineOperationsController::class, 'printLabelSnapshot'])->middleware('permission:label.print');
         Route::post('label-snapshots/{id}/reprint', [CurrentBaselineOperationsController::class, 'reprintLabelSnapshot'])->middleware('permission:label.reprint');
-        Route::get('label-print-events', [CurrentBaselineOperationsController::class, 'listLabelPrintEvents'])->middleware('permission:label.print');
+        // RPT-05 đọc nhật ký TỪNG LẦN IN từ đây. Gate cũ chỉ có label.print — một
+        // quyền THAO TÁC (gửi lệnh in) — nên mọi vai chỉ-đọc có màn báo cáo nhãn
+        // (LEADERSHIP, WAREHOUSE_MANAGER, VIEWER) và cả NV kho (giữ packing_label.*,
+        // không giữ label.print) đều nhận 403 ở đây: /reports/label-log trả số nhưng
+        // bảng sự kiện và 4 KPI của màn luôn rỗng. Đây là endpoint ĐỌC, gate đúng
+        // bằng quyền đọc màn báo cáo tương ứng; label.print giữ lại cho luồng in.
+        Route::get('label-print-events', [CurrentBaselineOperationsController::class, 'listLabelPrintEvents'])->middleware('permission:label.print|packing_label.print|report.packing_label.view');
         Route::get('printer-configs', [CanonicalMvpController::class, 'listPrinterConfigs'])->middleware('permission:label.print');
         Route::post('printer-configs', [CurrentBaselineOperationsController::class, 'storePrinterConfig'])->middleware('permission:label.print');
         Route::patch('printer-configs/{id}', [CurrentBaselineOperationsController::class, 'updatePrinterConfig'])->middleware('permission:label.print');
