@@ -492,19 +492,73 @@ class PvCatalogReadModel
     }
 
     /**
+     * Bảng thông số của mặt CÔNG KHAI: khoá kỹ thuật → nhãn người mua đọc được,
+     * theo đúng thứ tự người ta muốn đọc (nguồn điện → công suất → khả năng →
+     * tốc độ → … → mã vạch).
+     *
+     * Trước đây trang chi tiết in thẳng khoá JSON của SKU nên khách nhìn thấy
+     * "no_load_speed", "pack_ratio", "catalog_pdf_page" — vừa khó hiểu vừa lộ
+     * trường nội bộ (số trang catalog, mã phiên bản, định mức tồn).
+     *
+     * @var array<string,string>
+     */
+    private const PUBLIC_SPEC_LABELS = [
+        'power_input' => 'Nguồn điện',
+        'rated_power' => 'Công suất',
+        'capability' => 'Khả năng',
+        'no_load_speed' => 'Tốc độ không tải',
+        'impact_rate' => 'Tần suất va đập',
+        'max_torque' => 'Momen xoắn tối đa',
+        'weight' => 'Trọng lượng',
+        'packaging' => 'Phụ kiện & đóng gói',
+        'pack_ratio' => 'Quy cách đóng thùng',
+        'target_users' => 'Đối tượng sử dụng',
+        'barcode' => 'Mã vạch',
+    ];
+
+    /**
+     * Khoá chỉ dùng cho vận hành nội bộ — KHÔNG đẩy ra mặt công khai.
+     *
+     * @var list<string>
+     */
+    private const INTERNAL_SPEC_KEYS = [
+        'catalog_page', 'catalog_pdf_page', 'version_code', 'package_variant',
+        'power_or_voltage', 'warranty_applicable', 'min_stock', 'max_stock',
+    ];
+
+    /**
      * @return array<string, mixed>
      */
     private function decodeSpecification(mixed $raw): array
     {
         if (is_array($raw)) {
-            return $raw;
-        }
-        if (! is_string($raw) || trim($raw) === '') {
+            $decoded = $raw;
+        } elseif (is_string($raw) && trim($raw) !== '') {
+            $parsed = json_decode($raw, true);
+            $decoded = is_array($parsed) ? $parsed : [];
+        } else {
             return [];
         }
-        $decoded = json_decode($raw, true);
 
-        return is_array($decoded) ? $decoded : [];
+        $out = [];
+        foreach (self::PUBLIC_SPEC_LABELS as $key => $label) {
+            if (isset($decoded[$key]) && $decoded[$key] !== '' && ! is_array($decoded[$key])) {
+                $out[$label] = $decoded[$key];
+            }
+        }
+
+        // Thông số riêng của SKU tự nhập (không nằm trong bảng nhãn) vẫn hiển thị
+        // — chỉ loại trường nội bộ; chặn mất dữ liệu của mã hàng ngoài catalog.
+        foreach ($decoded as $key => $value) {
+            if (isset(self::PUBLIC_SPEC_LABELS[$key])
+                || in_array($key, self::INTERNAL_SPEC_KEYS, true)
+                || $value === '' || $value === null || is_array($value)) {
+                continue;
+            }
+            $out[$key] = $value;
+        }
+
+        return $out;
     }
 
     private function toIso(mixed $value): ?string

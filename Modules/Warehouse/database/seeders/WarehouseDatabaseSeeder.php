@@ -24,9 +24,17 @@ class WarehouseDatabaseSeeder extends Seeder
 
     private const LEGACY_WAREHOUSE_CODE = 'WH-MAIN';
 
+    /**
+     * SKU nền — HÀNG THẬT của Hoa Nam (nhà phân phối DongCheng), không còn mã demo
+     * `HN-PV-BASE-*`/`HN-COMP-BASE-*`. Ở đây chỉ khai những mã dùng nhóm hàng đã
+     * được chính seeder này tạo (dụng cụ cầm tay + phụ tùng); toàn bộ 992 mã còn
+     * lại — kể cả 15 nhóm hàng máy PT_* — do DongChengCatalogSeeder nạp ngay sau.
+     *
+     * Xem DongChengAnchorSkus: mọi seeder nghiệp vụ đều neo vào cùng bộ mã này.
+     */
     private const BASELINE_SKU = [
-        'sku_code' => 'HN-PV-BASE-001',
-        'sku_name' => 'SKU cơ sở Hoa Nam',
+        'sku_code' => DongChengAnchorSkus::BASELINE_PRODUCT,
+        'sku_name' => 'Kìm điện đa năng 6 inch',
         'sku_type' => 'PRODUCT',
         'unit' => 'cái',
         'is_serial_tracked' => false,
@@ -34,19 +42,20 @@ class WarehouseDatabaseSeeder extends Seeder
         'warranty_applicable' => false,
         'published_to_app' => true,
         'status' => 'ACTIVE',
-        'brand_code' => 'HOANAM',
-        'category_code' => 'PUMP',
-        'model_code' => 'MDL-HN-01',
-        'power_source_code' => 'MAINS_DIRECT',
+        'brand_code' => 'DONGCHENG',
+        'category_code' => 'CLAMPING_TOOLS',
+        'model_code' => null,
+        'power_source_code' => 'MANUAL',
         'package_code' => 'BARE',
     ];
 
-    /** SKU mẫu bổ sung — đảm bảo bảng sku có tối thiểu 5 dòng. */
+    /** Linh kiện nền — đảm bảo bảng sku có tối thiểu 5 dòng ngay sau bước này. */
     private const EXTRA_SKUS = [
-        ['sku_code' => 'HN-PV-BASE-002', 'sku_name' => 'Máy bơm nước PV mẫu 002', 'sku_type' => 'PRODUCT', 'unit' => 'cái', 'is_serial_tracked' => true, 'version_code' => 'V1', 'warranty_applicable' => true, 'published_to_app' => true, 'status' => 'ACTIVE', 'brand_code' => 'HOANAM', 'category_code' => 'PUMP', 'model_code' => 'MDL-HN-01', 'power_source_code' => 'SOLAR', 'package_code' => 'KIT'],
-        ['sku_code' => 'HN-PV-BASE-003', 'sku_name' => 'Máy phát điện PV mẫu 003', 'sku_type' => 'PRODUCT', 'unit' => 'cái', 'is_serial_tracked' => true, 'version_code' => 'V1', 'warranty_applicable' => true, 'published_to_app' => true, 'status' => 'ACTIVE', 'brand_code' => 'KUBOTA', 'category_code' => 'ENGINE', 'model_code' => 'MDL-KB-01', 'power_source_code' => 'DIESEL', 'package_code' => 'SET'],
-        ['sku_code' => 'HN-COMP-BASE-002', 'sku_name' => 'Bo mạch điều khiển mẫu 002', 'sku_type' => 'COMPONENT', 'unit' => 'cái', 'is_serial_tracked' => false, 'version_code' => 'V1', 'warranty_applicable' => false, 'published_to_app' => true, 'status' => 'ACTIVE', 'brand_code' => 'HOANAM', 'category_code' => 'SPARE_PART', 'model_code' => 'MDL-HN-01', 'power_source_code' => 'BATTERY', 'package_code' => 'BARE'],
-        ['sku_code' => 'HN-COMP-BASE-003', 'sku_name' => 'Dây curoa mẫu 003', 'sku_type' => 'COMPONENT', 'unit' => 'cái', 'is_serial_tracked' => false, 'version_code' => 'V1', 'warranty_applicable' => false, 'published_to_app' => true, 'status' => 'ACTIVE', 'brand_code' => 'HOANAM', 'category_code' => 'SPARE_PART', 'model_code' => 'MDL-HN-01', 'power_source_code' => null, 'package_code' => 'BARE'],
+        ['sku_code' => DongChengAnchorSkus::COMPONENT_1, 'sku_name' => 'Bộ mũi vít thay thế DongCheng', 'sku_type' => 'COMPONENT', 'unit' => 'bộ', 'is_serial_tracked' => false, 'version_code' => 'V1', 'warranty_applicable' => false, 'published_to_app' => false, 'status' => 'ACTIVE', 'brand_code' => 'DONGCHENG', 'category_code' => 'SPARE_PART', 'model_code' => null, 'power_source_code' => 'MANUAL', 'package_code' => 'BARE'],
+        ['sku_code' => DongChengAnchorSkus::COMPONENT_2, 'sku_name' => 'Sạc nhanh DongCheng 20V MAX 2A', 'sku_type' => 'COMPONENT', 'unit' => 'cái', 'is_serial_tracked' => false, 'version_code' => 'V1', 'warranty_applicable' => false, 'published_to_app' => false, 'status' => 'ACTIVE', 'brand_code' => 'DONGCHENG', 'category_code' => 'SPARE_PART', 'model_code' => null, 'power_source_code' => 'MAINS_DIRECT', 'package_code' => 'BARE'],
+        ['sku_code' => DongChengAnchorSkus::COMPONENT_3, 'sku_name' => 'Đầu kẹp mũi khoan 13mm DongCheng', 'sku_type' => 'COMPONENT', 'unit' => 'cái', 'is_serial_tracked' => false, 'version_code' => 'V1', 'warranty_applicable' => false, 'published_to_app' => false, 'status' => 'ACTIVE', 'brand_code' => 'DONGCHENG', 'category_code' => 'SPARE_PART', 'model_code' => null, 'power_source_code' => 'MANUAL', 'package_code' => 'BARE'],
+        ['sku_code' => DongChengAnchorSkus::COMPONENT_BOX, 'sku_name' => 'Túi hứng bụi DongCheng', 'sku_type' => 'COMPONENT', 'unit' => 'cái', 'is_serial_tracked' => false, 'version_code' => 'V1', 'warranty_applicable' => false, 'published_to_app' => false, 'status' => 'ACTIVE', 'brand_code' => 'DONGCHENG', 'category_code' => 'SPARE_PART', 'model_code' => null, 'power_source_code' => 'MANUAL', 'package_code' => 'BARE'],
+        ['sku_code' => DongChengAnchorSkus::COMPONENT_WARRANTY, 'sku_name' => 'Công tắc nguồn thay thế DongCheng', 'sku_type' => 'COMPONENT', 'unit' => 'cái', 'is_serial_tracked' => false, 'version_code' => 'V1', 'warranty_applicable' => false, 'published_to_app' => false, 'status' => 'ACTIVE', 'brand_code' => 'DONGCHENG', 'category_code' => 'SPARE_PART', 'model_code' => null, 'power_source_code' => 'MANUAL', 'package_code' => 'BARE'],
     ];
 
     private const AGENCIES = [
@@ -57,20 +66,17 @@ class WarehouseDatabaseSeeder extends Seeder
         ['agency_code' => 'AG-005', 'agency_name' => 'Đại lý Hoa Nam Cần Thơ', 'contact_name' => 'Hoàng Thị Em', 'phone' => '0955555555', 'address' => 'Cần Thơ'],
     ];
 
+    /**
+     * Hoa Nam là NHÀ PHÂN PHỐI DONGCHENG — toàn bộ 992 mã hàng trong kho đều của
+     * hãng này. Năm hãng máy nông nghiệp cũ (Kubota/Yanmar/Honda/Husqvarna + nhãn
+     * nội bộ "Hoa Nam") chỉ tồn tại để bộ seeder demo bịa tên sản phẩm, chưa bao
+     * giờ có hàng thật, nên đã gỡ khỏi danh mục.
+     */
     private const BRANDS = [
-        ['brand_code' => 'KUBOTA', 'brand_name' => 'Kubota', 'description' => 'Hãng máy nông nghiệp và động cơ diesel Nhật Bản.'],
-        ['brand_code' => 'YANMAR', 'brand_name' => 'Yanmar', 'description' => 'Hãng động cơ và máy nông nghiệp Nhật Bản.'],
-        ['brand_code' => 'HONDA', 'brand_name' => 'Honda', 'description' => 'Hãng động cơ đa dụng và máy cầm tay Nhật Bản.'],
-        ['brand_code' => 'HUSQVARNA', 'brand_name' => 'Husqvarna', 'description' => 'Hãng thiết bị cắt cỏ, lâm nghiệp Thụy Điển.'],
-        ['brand_code' => 'HOANAM', 'brand_name' => 'Hoa Nam', 'description' => 'Thương hiệu nội bộ Hoa Nam — sản phẩm lắp ráp/gia công trong nước.'],
-        ['brand_code' => 'DONGCHENG', 'brand_name' => 'DongCheng', 'description' => 'Hãng dụng cụ cầm tay và máy cầm tay Trung Quốc.'],
+        ['brand_code' => 'DONGCHENG', 'brand_name' => 'DongCheng', 'description' => 'Hãng dụng cụ cầm tay và máy cầm tay Trung Quốc — Hoa Nam là nhà phân phối.'],
     ];
 
     private const PRODUCT_CATEGORIES = [
-        ['category_code' => 'TRACTOR', 'category_name' => 'Máy kéo', 'description' => 'Máy kéo phục vụ canh tác, làm đất.'],
-        ['category_code' => 'HARVESTER', 'category_name' => 'Máy gặt', 'description' => 'Máy gặt đập liên hợp và thiết bị thu hoạch.'],
-        ['category_code' => 'PUMP', 'category_name' => 'Máy bơm nước', 'description' => 'Máy bơm nước tưới tiêu, thoát nước.'],
-        ['category_code' => 'ENGINE', 'category_name' => 'Động cơ', 'description' => 'Động cơ xăng/diesel dùng cho máy phát điện, máy nông nghiệp.'],
         ['category_code' => 'SPARE_PART', 'category_name' => 'Phụ tùng', 'description' => 'Linh kiện, phụ tùng thay thế cho máy móc.'],
         // Hand Tools DongCheng (P0) — 12 category cha, ánh xạ 1:1 với cột "Phân
         // loại theo chức năng chung" của catalog nguồn. "Chủng loại máy" (172 giá
@@ -89,12 +95,15 @@ class WarehouseDatabaseSeeder extends Seeder
         ['category_code' => 'GARDEN_HAND_TOOLS', 'category_name' => 'Dụng cụ làm vườn cầm tay', 'description' => 'Kéo cắt tỉa và dụng cụ làm vườn cầm tay.'],
     ];
 
+    /**
+     * Dòng máy (sê-ri) đến từ chính mã catalog DongCheng — DongChengCatalogSeeder
+     * nạp 113 sê-ri thật (DCPB, DCSM, DCZC, D07...). Ở đây chỉ giữ sê-ri phụ kiện
+     * để 5 SKU linh kiện nền phía trên có dòng máy ngay từ bước master.
+     */
     private const PRODUCT_MODELS = [
-        ['model_code' => 'MDL-KB-01', 'model_name' => 'Kubota Model 01', 'brand_code' => 'KUBOTA', 'description' => 'Dòng model tiêu chuẩn của Kubota cho máy phát điện/động cơ diesel.'],
-        ['model_code' => 'MDL-YM-01', 'model_name' => 'Yanmar Model 01', 'brand_code' => 'YANMAR', 'description' => 'Dòng model tiêu chuẩn của Yanmar cho máy xới đất.'],
-        ['model_code' => 'MDL-HD-01', 'model_name' => 'Honda Model 01', 'brand_code' => 'HONDA', 'description' => 'Dòng model tiêu chuẩn của Honda cho động cơ đa dụng.'],
-        ['model_code' => 'MDL-HQ-01', 'model_name' => 'Husqvarna Model 01', 'brand_code' => 'HUSQVARNA', 'description' => 'Dòng model tiêu chuẩn của Husqvarna cho máy cắt cỏ.'],
-        ['model_code' => 'MDL-HN-01', 'model_name' => 'Hoa Nam Model 01', 'brand_code' => 'HOANAM', 'description' => 'Dòng model nội bộ Hoa Nam cho máy bơm/bo mạch/dây curoa.'],
+        ['model_code' => 'DC-DCA', 'model_name' => 'DongCheng sê-ri DCA', 'brand_code' => 'DONGCHENG', 'description' => 'Sê-ri phụ kiện & linh kiện thay thế DongCheng.'],
+        ['model_code' => 'DC-DCB', 'model_name' => 'DongCheng sê-ri DCB', 'brand_code' => 'DONGCHENG', 'description' => 'Sê-ri pin Li-ion 20V MAX DongCheng.'],
+        ['model_code' => 'DC-DCC', 'model_name' => 'DongCheng sê-ri DCC', 'brand_code' => 'DONGCHENG', 'description' => 'Sê-ri bộ sạc pin 20V MAX DongCheng.'],
     ];
 
     /**
@@ -146,6 +155,11 @@ class WarehouseDatabaseSeeder extends Seeder
         ['power_source_code' => 'DIESEL', 'power_source_name' => 'Dầu diesel', 'description' => 'Động cơ đốt trong dùng nhiên liệu diesel.'],
         ['power_source_code' => 'GASOLINE', 'power_source_name' => 'Xăng', 'description' => 'Động cơ đốt trong dùng nhiên liệu xăng.'],
         ['power_source_code' => 'SOLAR', 'power_source_name' => 'Năng lượng mặt trời', 'description' => 'Vận hành bằng tấm pin năng lượng mặt trời.'],
+        // Hai nguồn dưới đây là của danh mục DongCheng thật (539 dụng cụ cầm tay
+        // dùng MANUAL, 4 dụng cụ khí nén dùng PNEUMATIC) — phải có NGAY ở bước
+        // master gốc, không đợi MasterCatalogCoverageSeeder chạy sau.
+        ['power_source_code' => 'MANUAL', 'power_source_name' => 'Cơ tay (không động cơ)', 'description' => 'Dụng cụ cầm tay vận hành bằng sức người, không có động cơ.'],
+        ['power_source_code' => 'PNEUMATIC', 'power_source_name' => 'Khí nén', 'description' => 'Dụng cụ chạy bằng khí nén từ máy nén khí.'],
     ];
 
     /**

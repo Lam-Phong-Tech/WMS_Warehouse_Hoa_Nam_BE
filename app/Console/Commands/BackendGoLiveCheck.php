@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Database\Seeders\DongChengAnchorSkus;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Throwable;
@@ -349,7 +350,9 @@ class BackendGoLiveCheck extends Command
         $markers = [
             'admin_user' => User::query()->where('username', 'admin')->where('status', 'ACTIVE')->exists(),
             'baseline_warehouse' => Warehouse::query()->where('code', 'KHO-TONG-HN')->where('status', 'ACTIVE')->exists(),
-            'baseline_sku' => Sku::query()->where('sku_code', 'HN-PV-BASE-001')->where('status', 'ACTIVE')->exists(),
+            // Mã hàng nền = hàng THẬT DongCheng (xem DongChengAnchorSkus), không
+            // còn mã demo HN-PV-BASE-001 của bộ seeder đời trước.
+            'baseline_sku' => Sku::query()->where('sku_code', DongChengAnchorSkus::BASELINE_PRODUCT)->where('status', 'ACTIVE')->exists(),
             'permission_catalog' => DB::table('permissions')->count() > 0,
         ];
 

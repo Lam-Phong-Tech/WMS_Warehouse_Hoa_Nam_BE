@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Database\Seeders\DongChengAnchorSkus;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use OpenApi\Attributes as OA;
@@ -157,8 +158,11 @@ class HealthController extends Controller
                 ->where('code', 'KHO-TONG-HN')
                 ->where('status', 'ACTIVE')
                 ->exists()),
+            // Mã hàng nền của bộ seed. Từ 09/2026 là hàng THẬT DongCheng thay cho
+            // mã demo cũ — đọc từ DongChengAnchorSkus để health check không trôi
+            // khỏi seeder khi mã neo đổi.
             'baseline_product' => $this->safeExists(fn (): bool => Sku::query()
-                ->where('sku_code', 'HN-PV-BASE-001')
+                ->where('sku_code', DongChengAnchorSkus::BASELINE_PRODUCT)
                 ->where('status', 'ACTIVE')
                 ->exists()),
         ];

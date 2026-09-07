@@ -51,6 +51,41 @@ php artisan serve
 
 Yêu cầu sẵn có PostgreSQL và Valkey/Redis theo cấu hình `.env`, hoặc đổi `CACHE_STORE`/`SESSION_DRIVER`/`QUEUE_CONNECTION` sang `file`/`sync` khi chạy cục bộ.
 
+### 2.1 Dữ liệu hàng hoá là DANH MỤC THẬT (DongCheng 2026)
+
+`php artisan db:seed` nạp **992 mã hàng thật** của Hoa Nam — nhà phân phối
+DongCheng: 539 dụng cụ cầm tay + 433 máy lấy từ hai catalog 2026, cộng 20 mã
+linh kiện (pin 20V MAX, sạc, chổi than, mũi vít…) rút từ chính cột cấu hình của
+catalog. Mỗi sản phẩm có **ảnh thật** trên Cloudflare (`images.bigk.click`),
+thông số kỹ thuật, nhóm hàng, sê-ri máy, ngành nghề và nhãn lọc của App PV.
+
+Không cần file Excel gốc để seed: dữ liệu đã rút gọn nằm trong repo tại
+`Modules/Warehouse/database/data/dongcheng_catalog.json` (~1,4 MB). Clone về là
+`db:seed` chạy được ngay.
+
+Khi có catalog mới, sinh lại file đó rồi commit:
+
+```bash
+node scripts/build-dongcheng-catalog.mjs <Handtools.xlsx> <PowerTools.xlsx>
+```
+
+Thứ tự seeder: `DongChengCatalogSeeder` chạy ngay sau `WarehouseDatabaseSeeder`
+và TRƯỚC mọi seeder nghiệp vụ, nên chứng từ nhập/xuất/bảo hành/báo cáo đều gắn
+vào hàng thật. Các seeder nghiệp vụ neo vào bộ mã khai trong `DongChengAnchorSkus`.
+
+Biến môi trường điều chỉnh khối lượng:
+
+| Biến | Mặc định | Tác dụng |
+|---|---|---|
+| `HN_CATALOG_LIMIT` | đủ 992 trên pgsql, 120 trên sqlite | Số mã hàng nạp; `0` = nạp đủ trên mọi driver |
+| `HN_BULK_ITEMS` | 200 | Số hiện vật serial của bộ dữ liệu khối lượng lớn |
+| `HN_DAILY_COVERAGE_DAYS` | 14 (0 khi `CI=true`) | Số ngày phủ đều mọi SKU cho báo cáo XNT — phase lâu nhất |
+| `HN_DAILY_COVERAGE_PER_CATEGORY` | 4 | Số mã mỗi nhóm hàng đưa vào phase phủ đều — dây hãm chi phí của phase đó |
+
+Chạy đủ mất khoảng một giờ trên Docker Desktop; muốn nhanh cho môi trường dev
+thì `HN_DAILY_COVERAGE_DAYS=0 php artisan db:seed` (bỏ phase phủ đều theo ngày,
+các màn khác vẫn đủ dữ liệu).
+
 ## 3. Biến môi trường phải khai
 
 | Nhóm | Biến | Ghi chú |

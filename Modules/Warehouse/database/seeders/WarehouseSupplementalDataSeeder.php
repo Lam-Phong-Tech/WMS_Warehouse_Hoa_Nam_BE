@@ -139,7 +139,7 @@ class WarehouseSupplementalDataSeeder extends Seeder
 
     private function seedInventorySerials(): void
     {
-        $sku = Sku::query()->where('sku_code', 'HN-PRD-SEED-003')->first();
+        $sku = Sku::query()->where('sku_code', DongChengAnchorSkus::PRODUCT_3)->first();
         if ($sku === null) {
             return;
         }
@@ -347,7 +347,7 @@ class WarehouseSupplementalDataSeeder extends Seeder
     private function seedOutboundRequestImportRows(): void
     {
         $importId = DB::table('outbound_request_imports')->value('id');
-        $skuId = Sku::query()->where('sku_code', 'HN-PV-BASE-001')->value('sku_id');
+        $skuId = Sku::query()->where('sku_code', DongChengAnchorSkus::BASELINE_PRODUCT)->value('sku_id');
         if ($importId === null || $skuId === null) {
             return;
         }
@@ -362,11 +362,11 @@ class WarehouseSupplementalDataSeeder extends Seeder
                 'id' => (string) Str::uuid(),
                 'import_id' => $importId,
                 'row_no' => $i,
-                'raw_payload' => json_encode(['sku_code' => 'HN-PV-BASE-001', 'required_qty' => $i], JSON_UNESCAPED_UNICODE),
+                'raw_payload' => json_encode(['sku_code' => DongChengAnchorSkus::BASELINE_PRODUCT, 'required_qty' => $i], JSON_UNESCAPED_UNICODE),
                 'normalized_payload' => json_encode([
                     'request_no' => $requestNo,
                     'sku_id' => $skuId,
-                    'sku_code' => 'HN-PV-BASE-001',
+                    'sku_code' => DongChengAnchorSkus::BASELINE_PRODUCT,
                     'required_qty' => $i,
                     'recipient_name' => 'Khách hàng mẫu '.$i,
                     'recipient_address' => 'Địa chỉ mẫu '.$i,
@@ -512,6 +512,16 @@ class WarehouseSupplementalDataSeeder extends Seeder
      */
     private function seedPvProductImagesTagsIndustries(): void
     {
+        // Ảnh/nhãn/ngành nghề của App PV nay do DongChengCatalogSeeder nạp từ
+        // catalog thật (972 ảnh trên images.bigk.click). Bước bù "cho đủ 5 dòng"
+        // dưới đây chỉ còn ý nghĩa khi các bảng đó rỗng — ví dụ một CSDL dựng
+        // riêng cho test không chạy catalog seeder. Có dữ liệu thật rồi thì bỏ
+        // qua, nếu không mỗi lần seed lại chèn thêm 5 ảnh cdn.example.com giả
+        // vào giữa ảnh thật.
+        if (DB::table('pv_product_images')->exists()) {
+            return;
+        }
+
         $profileIds = DB::table('pv_product_profiles')->limit(5)->pluck('id');
         $industryIds = DB::table('pv_industry')->limit(5)->pluck('industry_id');
         $tagIds = DB::table('pv_filter_tag')->limit(5)->pluck('tag_id');

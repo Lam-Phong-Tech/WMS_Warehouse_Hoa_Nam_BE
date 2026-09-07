@@ -21,56 +21,15 @@ use Illuminate\Support\Str;
  *    chứng từ tham chiếu (sẽ làm hỏng luồng tạo phiếu và các bộ E2E đang chốt).
  *    Bản ghi INACTIVE ở đây là danh mục "đã ngừng kinh doanh" — đúng nghiệp vụ
  *    và không có SKU nào trỏ vào.
- *  - Mã/tên bám catalog thật của Hoa Nam (máy nông nghiệp + dụng cụ cầm tay).
+ *  - Mã/tên bám catalog thật của Hoa Nam (nhà phân phối DongCheng).
  *  - Idempotent theo mã tự nhiên (updateOrInsert), chạy lại không nhân bản.
  *
- * Chạy trước SkuCoverageSeeder (SKU tham chiếu hãng/nhóm/model mới ở đây).
+ * PHẠM VI (thu hẹp sau khi có danh mục thật): seeder này CHỈ còn lo từ vựng dùng
+ * chung của kho — nguồn năng lượng, quy cách đóng gói, danh mục bệnh/lỗi và nơi
+ * nhận. Hãng / nhóm hàng / dòng máy do DongChengCatalogSeeder nạp từ catalog thật.
  */
 class MasterCatalogCoverageSeeder extends Seeder
 {
-    /** @var list<array{0:string,1:string,2:string,3:string,4:int}> [code, name, description, status, sort_order] */
-    private const CATEGORIES = [
-        ['SPRAYER', 'Máy phun thuốc', 'Máy phun thuốc trừ sâu đeo vai, máy phun cao áp cho vườn và đồng ruộng.', 'ACTIVE', 40],
-        ['GENERATOR', 'Máy phát điện', 'Máy phát điện chạy xăng/dầu phục vụ trang trại và công trường.', 'ACTIVE', 41],
-        ['SOIL_TILLER', 'Máy xới đất', 'Máy xới, máy phay đất mini và phụ kiện lưỡi xới.', 'ACTIVE', 42],
-        ['GRASS_CUTTER', 'Máy cắt cỏ', 'Máy cắt cỏ cầm tay, đẩy tay và máy cắt cỏ dùng pin.', 'ACTIVE', 43],
-        ['WELDING_TOOLS', 'Dụng cụ hàn cắt', 'Máy hàn que, máy hàn TIG/MIG và phụ kiện hàn cắt kim loại.', 'ACTIVE', 44],
-        ['SAFETY_GEAR', 'Bảo hộ lao động', 'Găng tay, kính, mũ và trang bị bảo hộ đi kèm máy.', 'ACTIVE', 45],
-        ['MANUAL_SPRAYER', 'Bình xịt tay (ngừng KD)', 'Bình xịt cơ khí đời cũ — đã ngừng kinh doanh từ quý II/2026.', 'INACTIVE', 90],
-        ['CARBURETOR_ENGINE', 'Động cơ bộ chế hoà khí (ngừng KD)', 'Dòng động cơ chế hoà khí cũ, thay thế bằng dòng phun xăng điện tử.', 'INACTIVE', 91],
-        ['LEGACY_ACCESSORY', 'Phụ kiện đời cũ (ngừng KD)', 'Phụ kiện không còn tương thích với dòng máy đang bán.', 'INACTIVE', 92],
-    ];
-
-    /** @var list<array{0:string,1:string,2:string,3:string,4:int}> [code, name, description, status, sort_order] */
-    private const BRANDS = [
-        ['MAKITA', 'Makita', 'Dụng cụ điện cầm tay và máy làm vườn dùng pin.', 'ACTIVE', 20],
-        ['STIHL', 'Stihl', 'Máy cưa xích, máy cắt cỏ và máy thổi lá.', 'ACTIVE', 21],
-        ['MITSUBISHI', 'Mitsubishi', 'Động cơ nổ và máy nông nghiệp công suất trung bình.', 'ACTIVE', 22],
-        ['TOTAL', 'Total Tools', 'Dụng cụ cầm tay phổ thông, phụ kiện cơ khí.', 'ACTIVE', 23],
-        ['ROBIN', 'Robin (ngừng phân phối)', 'Hãng động cơ đã dừng hợp đồng phân phối từ 06/2026.', 'INACTIVE', 80],
-        ['SUMO', 'Sumo (ngừng phân phối)', 'Hãng máy bơm giá rẻ, đã dừng nhập từ quý II/2026.', 'INACTIVE', 81],
-    ];
-
-    /** @var list<array{0:string,1:string,2:string,3:string,4:string,5:int}> [code, name, brand_code, description, status, sort_order] */
-    private const MODELS = [
-        ['MDL-KB-DI', 'Kubota DI-1500 Series', 'KUBOTA', 'Dòng động cơ diesel 15HP làm mát bằng nước.', 'ACTIVE', 10],
-        ['MDL-KB-RT', 'Kubota RT-140 Series', 'KUBOTA', 'Dòng máy kéo mini 14HP cho ruộng bậc thang.', 'ACTIVE', 11],
-        ['MDL-YM-TF', 'Yanmar TF-120 Series', 'YANMAR', 'Động cơ diesel nằm ngang 12HP, khởi động tay quay.', 'ACTIVE', 12],
-        ['MDL-YM-AG', 'Yanmar AG-600 Series', 'YANMAR', 'Máy gặt đập liên hợp bản rộng 2.0m.', 'ACTIVE', 13],
-        ['MDL-HD-GX', 'Honda GX Series', 'HONDA', 'Động cơ xăng 4 thì trục ngang, phổ biến cho máy bơm.', 'ACTIVE', 14],
-        ['MDL-HD-WB', 'Honda WB Series', 'HONDA', 'Máy bơm nước tự mồi thân gang.', 'ACTIVE', 15],
-        ['MDL-HQ-XP', 'Husqvarna XP Series', 'HUSQVARNA', 'Máy cưa xích chuyên nghiệp cho lâm nghiệp.', 'ACTIVE', 16],
-        ['MDL-MK-LXT', 'Makita LXT 18V', 'MAKITA', 'Nền tảng pin 18V dùng chung cho dụng cụ cầm tay.', 'ACTIVE', 17],
-        ['MDL-ST-MS', 'Stihl MS Series', 'STIHL', 'Máy cưa xích xăng cho vườn và trang trại.', 'ACTIVE', 18],
-        ['MDL-MB-GM', 'Mitsubishi GM Series', 'MITSUBISHI', 'Động cơ xăng đa dụng cho máy phun và máy xới.', 'ACTIVE', 19],
-        ['MDL-TT-HD', 'Total Heavy Duty', 'TOTAL', 'Dòng dụng cụ cầm tay chịu tải nặng.', 'ACTIVE', 20],
-        ['MDL-DC-PRO', 'DongCheng Pro', 'DONGCHENG', 'Dòng máy khoan/mài chuyên dụng cho cơ khí.', 'ACTIVE', 21],
-        ['MDL-HN-PRO', 'Hoa Nam Pro Series', 'HOANAM', 'Dòng máy lắp ráp trong nước theo tiêu chuẩn Hoa Nam.', 'ACTIVE', 22],
-        ['MDL-RB-EY', 'Robin EY Series (ngừng KD)', 'ROBIN', 'Động cơ Robin đời cũ — không còn linh kiện thay thế chính hãng.', 'INACTIVE', 85],
-        ['MDL-SM-QB', 'Sumo QB Series (ngừng KD)', 'SUMO', 'Máy bơm dân dụng đời cũ, đã dừng bảo hành hãng.', 'INACTIVE', 86],
-        ['MDL-HN-V1', 'Hoa Nam V1 (ngừng KD)', 'HOANAM', 'Thế hệ đầu, thay thế bằng Hoa Nam Pro Series.', 'INACTIVE', 87],
-    ];
-
     /** @var list<array{0:string,1:string,2:string,3:string,4:int}> [code, name, description, status, sort_order] */
     private const POWER_SOURCES = [
         ['HYBRID', 'Hybrid xăng - điện', 'Máy chạy song song động cơ xăng và mô-tơ điện.', 'ACTIVE', 10],
@@ -150,9 +109,12 @@ class MasterCatalogCoverageSeeder extends Seeder
     {
         $this->actorId = DB::table('app_user')->where('username', 'admin')->value('user_id');
 
-        $this->seedRefTable('product_categories', 'category_code', 'category_name', self::CATEGORIES);
-        $this->seedRefTable('brands', 'brand_code', 'brand_name', self::BRANDS);
-        $this->seedModels();
+        // Hãng / dòng máy / nhóm hàng nay đến TỪ CATALOG THẬT (DongChengCatalogSeeder):
+        // Hoa Nam là nhà phân phối DongCheng, chưa bao giờ bán Kubota/Yanmar/Honda/
+        // Husqvarna/Makita/Stihl/Mitsubishi/Total/Robin/Sumo hay máy gặt/máy kéo. Ba
+        // hằng số CATEGORIES/BRANDS/MODELS cũ đã bị gỡ khỏi seeder này; phần còn lại
+        // (nguồn năng lượng, quy cách, bệnh-lỗi, nơi nhận) là từ vựng dùng chung của
+        // kho nên vẫn giữ nguyên.
         $this->seedRefTable('power_sources', 'power_source_code', 'power_source_name', self::POWER_SOURCES);
         $this->seedRefTable('package_variants', 'variant_code', 'variant_name', self::PACKAGE_VARIANTS, [
             'package_code' => 0, 'package_name' => 1,
@@ -188,27 +150,6 @@ class MasterCatalogCoverageSeeder extends Seeder
         }
     }
 
-    private function seedModels(): void
-    {
-        $brandIds = DB::table('brands')->pluck('id', 'brand_code');
-
-        foreach (self::MODELS as [$code, $name, $brandCode, $description, $status, $sortOrder]) {
-            $brandId = $brandIds[$brandCode] ?? null;
-            if ($brandId === null) {
-                continue;
-            }
-
-            $this->upsert('product_models', ['model_code' => $code], [
-                'model_name' => $name,
-                'brand_id' => $brandId,
-                'description' => $description,
-                'status' => $status,
-                'sort_order' => $sortOrder,
-                'updated_at' => now(),
-                'updated_by' => $this->actorId,
-            ]);
-        }
-    }
 
     private function seedDefects(): void
     {

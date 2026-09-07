@@ -42,9 +42,9 @@ class WarehouseBusinessDataSeeder extends Seeder
 {
     private const WAREHOUSE_CODE = 'KHO-TONG-HN';
 
-    private const PRODUCT_SKU = 'HN-PRD-SEED-001';
+    private const PRODUCT_SKU = DongChengAnchorSkus::PRODUCT_1;
 
-    private const COMPONENT_SKU = 'HN-COMP-SEED-001';
+    private const COMPONENT_SKU = DongChengAnchorSkus::COMPONENT_1;
 
     /** Doc no cố định để seeder nhận biết dữ liệu đã tồn tại (idempotency guard). */
     private const RECEIPT_COMPONENT_NO = 'PN-SEED-0001';
@@ -64,13 +64,13 @@ class WarehouseBusinessDataSeeder extends Seeder
      * phú). Doc no cố định riêng, độc lập với khối gốc phía trên để guard
      * idempotency không giẫm lên nhau.
      */
-    private const PRODUCT_SKU_2 = 'HN-PRD-SEED-002';
+    private const PRODUCT_SKU_2 = DongChengAnchorSkus::PRODUCT_2;
 
-    private const PRODUCT_SKU_3 = 'HN-PRD-SEED-003';
+    private const PRODUCT_SKU_3 = DongChengAnchorSkus::PRODUCT_3;
 
-    private const PRODUCT_SKU_4 = 'HN-PRD-SEED-004';
+    private const PRODUCT_SKU_4 = DongChengAnchorSkus::PRODUCT_4;
 
-    private const COMPONENT_SKU_2 = 'HN-COMP-SEED-002';
+    private const COMPONENT_SKU_2 = DongChengAnchorSkus::COMPONENT_2;
 
     private const RECEIPT_PRODUCT_NO_2 = 'PN-SEED-0004';
 
@@ -138,8 +138,8 @@ class WarehouseBusinessDataSeeder extends Seeder
         $this->actorId = (string) $actorId;
         $this->warehouseId = (string) $warehouse->id;
 
-        $productSku = $this->ensureSku(self::PRODUCT_SKU, 'Máy bơm PV mẫu Hoa Nam', 'PRODUCT', true, 'HOANAM', 'PUMP', 'MDL-HN-01', 'SOLAR', 'KIT');
-        $componentSku = $this->ensureSku(self::COMPONENT_SKU, 'Bo mạch điều khiển mẫu', 'COMPONENT', false, 'HOANAM', 'SPARE_PART', 'MDL-HN-01', 'BATTERY', 'BARE');
+        $productSku = $this->ensureSku(self::PRODUCT_SKU, 'Máy vặn vít dùng pin không chổi than - DCPL2045 (ADM/AM/Z)', 'PRODUCT', true, 'DONGCHENG', 'PT_DRILL_DRIVER', 'DC-DCPL', 'BATTERY', 'DUAL_BATTERY');
+        $componentSku = $this->ensureSku(self::COMPONENT_SKU, 'Bộ mũi vít thay thế DongCheng', 'COMPONENT', false, 'DONGCHENG', 'SPARE_PART', 'DC-DCA', 'MANUAL', 'BARE');
 
         $this->seedComponentReceipt($componentSku);
         $issuableItems = $this->seedProductReceipt($productSku);
@@ -496,10 +496,10 @@ class WarehouseBusinessDataSeeder extends Seeder
      */
     private function seedExtraBusinessData(): void
     {
-        $productSku2 = $this->ensureSku(self::PRODUCT_SKU_2, 'Máy phát điện PV mẫu Hoa Nam 002', 'PRODUCT', true, 'KUBOTA', 'ENGINE', 'MDL-KB-01', 'DIESEL', 'SET');
-        $productSku3 = $this->ensureSku(self::PRODUCT_SKU_3, 'Máy cắt cỏ PV mẫu Hoa Nam 003', 'PRODUCT', true, 'HUSQVARNA', 'ENGINE', 'MDL-HQ-01', 'GASOLINE', 'BARE');
-        $productSku4 = $this->ensureSku(self::PRODUCT_SKU_4, 'Máy xới đất PV mẫu Hoa Nam 004', 'PRODUCT', true, 'YANMAR', 'TRACTOR', 'MDL-YM-01', 'DIESEL', 'SET');
-        $componentSku2 = $this->ensureSku(self::COMPONENT_SKU_2, 'Dây curoa mẫu Hoa Nam 002', 'COMPONENT', false, 'HOANAM', 'SPARE_PART', 'MDL-HN-01', null, 'BARE');
+        $productSku2 = $this->ensureSku(self::PRODUCT_SKU_2, 'Khoan búa dùng pin không chổi than - DCZC02-26 (EM/FK/H2K/Z)', 'PRODUCT', true, 'DONGCHENG', 'PT_DRILL_DRIVER', 'DC-DCZC', 'BATTERY', 'DUAL_BATTERY');
+        $productSku3 = $this->ensureSku(self::PRODUCT_SKU_3, 'Máy mài góc dùng pin không chổi than – DCSM03-100 (EM/FK/Z)', 'PRODUCT', true, 'DONGCHENG', 'PT_GRINDING', 'DC-DCSM', 'BATTERY', 'DUAL_BATTERY');
+        $productSku4 = $this->ensureSku(self::PRODUCT_SKU_4, 'Máy siết bu lông tác động dùng pin không chổi than - DCPB358 (EM/FK/Z)', 'PRODUCT', true, 'DONGCHENG', 'PT_IMPACT', 'DC-DCPB', 'BATTERY', 'DUAL_BATTERY');
+        $componentSku2 = $this->ensureSku(self::COMPONENT_SKU_2, 'Sạc nhanh DongCheng 20V MAX 2A', 'COMPONENT', false, 'DONGCHENG', 'SPARE_PART', 'DC-DCC', 'MAINS_DIRECT', 'BARE');
 
         // Mỗi bước dưới đây tự guard theo doc_no/code riêng (idempotent độc lập) —
         // không có transaction bọc toàn seedExtraBusinessData, nên nếu 1 bước lỗi

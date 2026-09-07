@@ -9,12 +9,13 @@ use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Notification\Database\Seeders\NotificationDatabaseSeeder;
 use Modules\Warehouse\Database\Seeders\DailySkuCoverageSeeder;
 use Modules\Warehouse\Database\Seeders\DisplayFieldCoverageSeeder;
+use Modules\Warehouse\Database\Seeders\DongChengCatalogSeeder;
 use Modules\Warehouse\Database\Seeders\HoaNamBulkDemoSeeder;
 use Modules\Warehouse\Database\Seeders\InventoryStockStatusMixSeeder;
 use Modules\Warehouse\Database\Seeders\MasterCatalogCoverageSeeder;
 use Modules\Warehouse\Database\Seeders\OperationalReportRangeSeeder;
+use Modules\Warehouse\Database\Seeders\RetireDemoCatalogSeeder;
 use Modules\Warehouse\Database\Seeders\SkuAttributeBackfillSeeder;
-use Modules\Warehouse\Database\Seeders\SkuCoverageSeeder;
 use Modules\Warehouse\Database\Seeders\SkuStockThresholdSeeder;
 use Modules\Warehouse\Database\Seeders\WarehouseBusinessDataSeeder;
 use Modules\Warehouse\Database\Seeders\WarehouseDatabaseSeeder;
@@ -53,8 +54,13 @@ class DatabaseSeeder extends Seeder
      * 06→09/2026 và MỌI giá trị của MỌI bộ lọc đều phải ra dữ liệu):
      *  - MasterCatalogCoverageSeeder — 5 tab danh mục sản phẩm + bệnh/lỗi + nơi
      *    nhận đủ ACTIVE/INACTIVE và đủ 4 loại đơn nhận.
-     *  - SkuCoverageSeeder — lưới SKU nhóm hàng × hãng × PRODUCT/COMPONENT ×
-     *    SERIAL/QUANTITY × ACTIVE/INACTIVE.
+     *  - DongChengCatalogSeeder (bước 2b, chạy trên MỌI driver) — 992 mã hàng
+     *    THẬT lấy từ hai catalog DongCheng 2026 (539 dụng cụ cầm tay + 433 máy
+     *    + 20 linh kiện), kèm ẢNH SẢN PHẨM thật, thông số kỹ thuật, ngành nghề
+     *    & nhãn lọc của App PV. Thay hoàn toàn bộ SKU demo bịa tên đời trước;
+     *    mọi seeder nghiệp vụ phía sau neo vào đây qua DongChengAnchorSkus.
+     *  - RetireDemoCatalogSeeder (bước cuối) — dọn mã/hãng/dòng máy demo còn sót
+     *    trên CSDL đã seed từ trước.
      *  - WarehouseOperationsCoverageSeeder — chứng từ nhập/xuất/xuất linh kiện/
      *    điều chỉnh trải đều 4 tháng và đủ mọi trạng thái; kèm yêu cầu xuất,
      *    container, sự cố đối soát, batch import, nhật ký in nhãn, cất hàng,
@@ -70,6 +76,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AuthDatabaseSeeder::class,
             WarehouseDatabaseSeeder::class,
+            DongChengCatalogSeeder::class,
             WarehouseBusinessDataSeeder::class,
             WarehouseSupplementalDataSeeder::class,
             AuditLogDatabaseSeeder::class,
@@ -86,11 +93,8 @@ class DatabaseSeeder extends Seeder
             $this->call([
                 // 8a. Danh mục gốc phủ đủ trạng thái/loại (hãng, nhóm hàng, model,
                 //     nguồn năng lượng, quy cách, bệnh/lỗi, nơi nhận) — phải chạy
-                //     TRƯỚC SkuCoverageSeeder vì SKU tham chiếu các mã mới này.
+                //     TRƯỚC các seeder chứng từ vì chúng tham chiếu các mã mới này.
                 MasterCatalogCoverageSeeder::class,
-                // 8b. Lưới SKU phủ nhóm hàng × hãng × loại × cách theo dõi × trạng
-                //     thái; đồng thời điền các thuộc tính còn trống của SKU cũ.
-                SkuCoverageSeeder::class,
                 HoaNamBulkDemoSeeder::class,
                 // 8c. Chứng từ vận hành trải ĐỀU 06→09/2026 và phủ đủ trạng thái
                 //     phiếu nhập/xuất/xuất linh kiện/điều chỉnh, yêu cầu xuất,
@@ -107,8 +111,7 @@ class DatabaseSeeder extends Seeder
                 InventoryStockStatusMixSeeder::class,
                 WarrantyCheckResultBackfillSeeder::class,
                 // Điền nốt thuộc tính SKU còn trống (nguồn năng lượng / quy cách /
-                // dòng máy). PHẢI đứng sau HoaNamBulkDemoSeeder vì seeder đó còn
-                // sinh thêm ~500 SKU sau SkuCoverageSeeder.
+                // dòng máy) cho những mã lọt lưới danh mục thật.
                 SkuAttributeBackfillSeeder::class,
                 // 8c-bis. Phủ ĐỀU mọi SKU đang có trong sổ cái, mỗi ngày trong
                 //     cửa sổ gần nhất, đủ 4 cột của phương trình XNT (nhập /
@@ -126,6 +129,12 @@ class DatabaseSeeder extends Seeder
                 //     của lô import, sku/item của nhãn in, lý do huỷ chứng từ, ghi
                 //     chú dòng. PHẢI chạy CUỐI vì nó rà theo tồn/chứng từ đã có.
                 DisplayFieldCoverageSeeder::class,
+                // 8e. Dọn danh mục DEMO đời trước trên CSDL đã seed từ lâu (mã
+                //     không có trong dongcheng_catalog.json + hãng/dòng máy/nhóm
+                //     hàng không còn SKU nào). Trên CSDL mới `migrate:fresh --seed`
+                //     đây là no-op. PHẢI chạy SAU cùng: các bước trên còn tạo
+                //     chứng từ tham chiếu SKU, dọn sớm sẽ xoá nhầm.
+                RetireDemoCatalogSeeder::class,
             ]);
         }
     }

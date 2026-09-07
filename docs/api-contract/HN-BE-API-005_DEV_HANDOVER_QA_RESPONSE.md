@@ -281,7 +281,7 @@ Thứ tự chuẩn (theo đúng code seeder — coi đây là "reference impleme
 - Business data (idempotent, doc_no cố định `PN-SEED-0001..3`, `PX-SEED-0001/2`, `WC-SEED-0001`): 1 receipt COMPONENT đã post, 1 receipt PRODUCT đã post (3 serial + RFID), 1 receipt draft, 1 issue PRODUCT đã post (có label PRINTED), 1 issue draft, 1 warranty case + 2 event.
 - AuditLog: 5 dòng log gắn với data trên.
 
-**Không chạy mặc định, phải chạy tay riêng** (`Modules/Warehouse/database/seeders/`): `LabelSnapshotSeeder`, `UatScenarioSeeder`, `WarrantyDemoSeeder`, `Wwhn172ContainerItemInvariantSeeder`. Riêng `DemoDataSeeder` đã bị **superseded, không dùng nữa** (không còn khớp FK/contract hiện tại).
+**Không chạy mặc định, phải chạy tay riêng** (`Modules/Warehouse/database/seeders/`): `LabelSnapshotSeeder`, `UatScenarioSeeder`, `Wwhn172ContainerItemInvariantSeeder`. `DemoDataSeeder` và `WarrantyDemoSeeder` đã bị **xoá** cùng đợt thay danh mục demo bằng danh mục thật DongCheng (chúng chỉ sinh mã hàng bịa tên và không còn khớp FK/contract hiện tại).
 
 **Không có Eloquent factory nào trong repo** — `database/factories/` rỗng ở cả root lẫn trong từng Module.
 

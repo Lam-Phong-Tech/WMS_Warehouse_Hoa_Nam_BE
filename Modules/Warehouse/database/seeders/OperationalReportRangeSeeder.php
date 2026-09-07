@@ -50,9 +50,9 @@ class OperationalReportRangeSeeder extends Seeder
 {
     private const WAREHOUSE_CODE = 'KHO-TONG-HN';
 
-    private const PRODUCT_SKU = 'HN-PRD-SEED-RPT-001';
+    private const PRODUCT_SKU = DongChengAnchorSkus::PRODUCT_REPORT;
 
-    private const COMPONENT_SKU = 'HN-COMP-SEED-RPT-001';
+    private const COMPONENT_SKU = DongChengAnchorSkus::COMPONENT_REPORT;
 
     private const START_DATE = '2026-08-16';
 
@@ -110,8 +110,8 @@ class OperationalReportRangeSeeder extends Seeder
         $this->actorId = (string) $actorId;
         $this->warehouseId = (string) $warehouse->id;
 
-        $productSku = $this->ensureSku(self::PRODUCT_SKU, 'Máy bơm PV mẫu báo cáo vận hành', 'PRODUCT', true, 'HOANAM', 'PUMP', 'MDL-HN-01', 'SOLAR', 'KIT');
-        $componentSku = $this->ensureSku(self::COMPONENT_SKU, 'Bo mạch điều khiển mẫu báo cáo vận hành', 'COMPONENT', false, 'HOANAM', 'SPARE_PART', 'MDL-HN-01', null, 'BARE');
+        $productSku = $this->ensureSku(self::PRODUCT_SKU, 'Khoan búa dùng pin – DCZC13 (BK/Z)', 'PRODUCT', true, 'DONGCHENG', 'PT_CONCRETE', 'DC-DCZC', 'BATTERY', 'DUAL_BATTERY');
+        $componentSku = $this->ensureSku(self::COMPONENT_SKU, 'Chổi than thay thế DongCheng', 'COMPONENT', false, 'DONGCHENG', 'SPARE_PART', 'DC-DCA', 'MANUAL', 'BARE');
 
         $this->backfillAgencyMarketRegion();
 

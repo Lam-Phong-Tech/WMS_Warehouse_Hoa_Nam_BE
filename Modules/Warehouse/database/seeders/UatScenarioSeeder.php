@@ -79,7 +79,7 @@ class UatScenarioSeeder extends Seeder
     private function seedImportScenario(): void
     {
         $warehouse = Warehouse::query()->where('code', 'KHO-TONG-HN')->firstOrFail();
-        $sku = Sku::query()->where('sku_code', 'HN-PV-BASE-001')->firstOrFail();
+        $sku = Sku::query()->where('sku_code', DongChengAnchorSkus::BASELINE_PRODUCT)->firstOrFail();
 
         $batch = ImportBatch::updateOrCreate(
             ['import_batch_code' => 'UAT-IMP-2026-001'],

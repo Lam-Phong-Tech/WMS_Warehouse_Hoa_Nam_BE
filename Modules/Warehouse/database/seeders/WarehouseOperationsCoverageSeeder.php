@@ -105,7 +105,14 @@ class WarehouseOperationsCoverageSeeder extends Seeder
             .count($componentSerialSkus).' linh kiện serial, '.count($componentQtySkus).' linh kiện theo số lượng.'
         );
 
-        $productItems = $this->seedSerialReceipts($productSkus, 'PN-COV-P', 480, 8);
+        // MỖI PHIẾU chỉ dùng MỘT mã hàng (seedSerialReceipts), nên số phiếu phải
+        // ≥ số mã trong pool thì mọi nhóm hàng mới có tồn. Bản cũ cố định 480
+        // hiện vật / 8 mỗi phiếu = 60 phiếu, trong khi pool có tới ~140 mã → 11/28
+        // nhóm hàng không nhận được một phiếu nhập nào và trống ở mọi báo cáo.
+        // Hạ còn 4 hiện vật/phiếu để tăng số phiếu mà không thổi tổng khối lượng.
+        $productItems = $this->seedSerialReceipts(
+            $productSkus, 'PN-COV-P', max(480, count($productSkus) * 4), 4
+        );
         $componentItems = $this->seedSerialReceipts($componentSerialSkus, 'PN-COV-C', 240, 8);
         $this->seedQuantityReceipts($componentQtySkus, 'PN-COV-Q', 40);
         $this->command?->info(
@@ -236,9 +243,22 @@ class WarehouseOperationsCoverageSeeder extends Seeder
     private function buildSkuPools(): array
     {
         return [
-            $this->skusPerCategory('PRODUCT', true, self::PRODUCT_SKUS_PER_CATEGORY),
+            // Lấy CẢ hai cách theo dõi cho hàng bán: danh mục thật DongCheng có
+            // 539 dụng cụ cầm tay theo SỐ LƯỢNG và 463 máy theo SERIAL. Chỉ lấy
+            // nhánh SERIAL như trước thì 12 nhóm hàng cầm tay không có một phiếu
+            // nhập nào → tồn kho, sổ cái và mọi báo cáo lọc theo nhóm hàng đều
+            // trống đúng ở nửa danh mục. Nhập được vì SKU loại PRODUCT luôn phải
+            // quét hiện vật bất kể tracking_mode (CurrentBaselineStockService:
+            // $requiresItem = sku_type === 'PRODUCT' || is_serial_tracked).
+            array_merge(
+                $this->skusPerCategory('PRODUCT', true, self::PRODUCT_SKUS_PER_CATEGORY),
+                $this->skusPerCategory('PRODUCT', false, self::PRODUCT_SKUS_PER_CATEGORY),
+            ),
             $this->skusPerCategory('COMPONENT', true, self::COMPONENT_SKUS_PER_CATEGORY),
-            $this->skusPerCategory('COMPONENT', false, 2),
+            // Linh kiện theo số lượng chỉ nằm trong một nhóm hàng (Phụ tùng), nên
+            // "2 mã mỗi nhóm" của bản cũ = đúng 2 mã có tồn trên tổng 15 phụ kiện
+            // thật. Lấy hết để màn tồn kho/xuất linh kiện không rỗng ở 13 mã kia.
+            $this->skusPerCategory('COMPONENT', false, 15),
         ];
     }
 
@@ -3330,24 +3350,38 @@ class WarehouseOperationsCoverageSeeder extends Seeder
     }
 
     /**
-     * Mọi SKU ACTIVE đã có dòng sổ cái ở kho — đúng tập SKU mà RPT-XNT-01 liệt kê.
+     * SKU ACTIVE đã có dòng sổ cái ở kho — đúng tập SKU mà RPT-XNT-01 liệt kê.
      *
-     * Không lấy toàn bộ SKU ACTIVE: HoaNamBulkDemoSeeder sinh thêm ~500 SKU chưa
-     * bao giờ có tồn (đúng nghiệp vụ: danh mục có trước, hàng về sau). Chúng không
-     * hiện trên báo cáo nên không phải "dòng 0", và ép mỗi SKU ấy nhập/xuất hằng
-     * ngày sẽ nhân chi phí seed lên ~6 lần.
+     * Không lấy toàn bộ 992 mã của danh mục: phần lớn mã chưa bao giờ có tồn
+     * (đúng nghiệp vụ — danh mục có trước, hàng về sau). Chúng không hiện trên
+     * báo cáo nên không phải "dòng 0", và ép mỗi mã ấy nhập/xuất hằng ngày sẽ
+     * nhân chi phí seed lên nhiều lần.
      *
      * @return array{product:list<string>,component_serial:list<string>,component_qty:list<string>}
      */
     private function ledgerSkuPool(): array
     {
-        $rows = DB::table('skus as s')
-            ->join('stock_movements as m', 'm.product_id', '=', 's.id')
-            ->where('m.warehouse_id', $this->warehouseId)
-            ->where('s.status', 'ACTIVE')
-            ->groupBy('s.id', 's.sku_code', 's.sku_type', 's.tracking_mode')
-            ->orderBy('s.sku_code')
-            ->get(['s.id', 's.sku_type', 's.tracking_mode']);
+        // Chặn trần theo NHÓM HÀNG, không phải trần toàn cục: mã hàng DongCheng
+        // xếp theo bảng chữ cái là D0* (dụng cụ cầm tay) trước DC*/DF*/DQ* (máy),
+        // nên một trần toàn cục sẽ cắt cụt đúng nửa danh mục máy. Đây cũng là dây
+        // hãm chi phí: phase này quét qua service nghiệp vụ thật, mỗi SKU thêm vào
+        // là +14 ngày × ~3 lượt quét. Chỉnh bằng HN_DAILY_COVERAGE_PER_CATEGORY.
+        $perCategory = (int) (getenv('HN_DAILY_COVERAGE_PER_CATEGORY') ?: 4);
+        $perCategory = max(1, $perCategory);
+
+        $rows = DB::table(DB::raw('(
+            SELECT s.id, s.sku_type, s.tracking_mode,
+                   ROW_NUMBER() OVER (PARTITION BY s.category_id, s.sku_type, s.tracking_mode ORDER BY s.sku_code) AS rn
+            FROM skus s
+            WHERE s.status = \'ACTIVE\'
+              AND EXISTS (
+                    SELECT 1 FROM stock_movements m
+                    WHERE m.product_id = s.id AND m.warehouse_id = ?
+              )
+        ) ranked'))
+            ->setBindings([$this->warehouseId])
+            ->where('rn', '<=', $perCategory)
+            ->get(['id', 'sku_type', 'tracking_mode']);
 
         $pool = ['product' => [], 'component_serial' => [], 'component_qty' => []];
         foreach ($rows as $row) {

@@ -50,20 +50,6 @@ class HoaNamBulkDemoSeeder extends Seeder
 
     private const END = '2026-08-31';
 
-    /** Category machinery (PRODUCT) + phụ tùng (COMPONENT). */
-    private const PRODUCT_CATEGORIES = ['PUMP', 'ENGINE', 'HARVESTER', 'TRACTOR'];
-
-    private const COMPONENT_CATEGORY = 'SPARE_PART';
-
-    private const BRANDS = ['KUBOTA', 'YANMAR', 'HONDA', 'HUSQVARNA', 'HOANAM'];
-
-    private const POWER_BY_CATEGORY = [
-        'PUMP' => ['GASOLINE', 'DIESEL', 'SOLAR', 'MAINS_DIRECT'],
-        'ENGINE' => ['DIESEL', 'GASOLINE'],
-        'HARVESTER' => ['DIESEL'],
-        'TRACTOR' => ['DIESEL'],
-    ];
-
     private const AGENCIES = [
         'AG-001' => ['Đại lý Hoa Nam Hà Nội', 'Số 10, Cầu Giấy, Hà Nội', 'MIEN_BAC', 'HA_NOI'],
         'AG-002' => ['Đại lý Hoa Nam Đà Nẵng', 'Số 5, Hải Châu, Đà Nẵng', 'MIEN_TRUNG', 'DA_NANG'],
@@ -73,11 +59,6 @@ class HoaNamBulkDemoSeeder extends Seeder
     ];
 
     private const WARRANTY_STATUSES = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'];
-
-    private const PART_TYPES = [
-        'Bộ lọc dầu', 'Bộ lọc nhiên liệu', 'Dây curoa', 'Bơm nhiên liệu', 'Gioăng nắp máy',
-        'Bạc đạn trục cơ', 'Piston + xéc-măng', 'Bugi sấy', 'Kim phun', 'Van hằng nhiệt',
-    ];
 
     private const CONDITION_CYCLE = ['DEFECTIVE', 'NON_SELLABLE', 'UNKNOWN'];
 
@@ -178,113 +159,52 @@ class HoaNamBulkDemoSeeder extends Seeder
     //  CATALOG
     // ==================================================================
 
-    /** @return array{0:list<string>,1:list<string>} [productSkuIds, componentSkuIds] */
+    /**
+     * Lấy mã hàng THẬT từ danh mục DongCheng đã nạp (DongChengCatalogSeeder), thay
+     * cho việc tự bịa ~500 SKU như bản cũ ("Máy bơm nước Kubota B23 10HP" —
+     * không tồn tại ngoài đời). Seeder này chỉ dựng CHỨNG TỪ khối lượng lớn;
+     * danh mục là việc của catalog seeder.
+     *
+     * Mọi phiếu nhập ở đây quét theo từng hiện vật (`HN1|SKU=..|ITEM=..`) nên chỉ
+     * lấy được mã BUỘC phải quét hiện vật:
+     *  - loại PRODUCT: lấy hết, kể cả mã theo SỐ LƯỢNG — CurrentBaselineStockService
+     *    đặt `$requiresItem = sku_type === 'PRODUCT' || is_serial_tracked`, nên
+     *    dụng cụ cầm tay (theo số lượng) vẫn sinh được hiện vật khi nhập.
+     *  - loại COMPONENT: chỉ mã theo SERIAL (pin), vì linh kiện theo số lượng
+     *    nhập bằng luồng hộp/số lượng chứ không quét từng cái.
+     *
+     * @return array{0:list<string>,1:list<string>} [productSkuIds, componentSkuIds]
+     */
     private function ensureCatalog(int $perCategory): array
     {
-        $productSkus = [];
-        $componentSkus = [];
-
-        foreach (self::PRODUCT_CATEGORIES as $categoryCode) {
-            for ($i = 1; $i <= $perCategory; $i++) {
-                $brand = self::BRANDS[$i % count(self::BRANDS)];
-                $powers = self::POWER_BY_CATEGORY[$categoryCode];
-                $power = $powers[$i % count($powers)];
-                [$code, $name] = $this->productNaming($categoryCode, $brand, $i);
-                $productSkus[] = $this->ensureSku($code, $name, 'PRODUCT', true, $brand, $categoryCode, $this->modelForBrand($brand), $power, $i % 2 === 0 ? 'KIT' : 'BARE');
+        $pick = function (string $type, int $limit, ?bool $serialTracked = null): array {
+            $query = DB::table('sku')
+                ->where('sku_type', $type)
+                ->where('status', 'ACTIVE');
+            if ($serialTracked !== null) {
+                $query->where('is_serial_tracked', $serialTracked);
             }
-        }
 
-        for ($i = 1; $i <= $perCategory; $i++) {
-            $brand = self::BRANDS[$i % count(self::BRANDS)];
-            $part = self::PART_TYPES[$i % count(self::PART_TYPES)];
-            $code = 'SPR-'.substr($brand, 0, 3).'-'.sprintf('%04d', $i);
-            $name = $part.' '.self::brandName($brand).' — mã '.sprintf('%04d', $i);
-            $componentSkus[] = $this->ensureSku($code, $name, 'COMPONENT', true, $brand, self::COMPONENT_CATEGORY, $this->modelForBrand($brand), null, 'BARE');
+            return $query->orderBy('sku_code')->limit($limit)->pluck('sku_id')
+                ->map(fn ($id) => (string) $id)->all();
+        };
+
+        // Giữ nguyên bậc độ lớn của bản cũ: 4 nhóm × perCategory sản phẩm.
+        $productSkus = $pick('PRODUCT', max(1, $perCategory * 4));
+        $componentSkus = $pick('COMPONENT', max(1, $perCategory), true);
+
+        if ($productSkus === [] || $componentSkus === []) {
+            $this->command?->warn('HoaNamBulkDemoSeeder: chưa có SKU phù hợp — chạy DongChengCatalogSeeder trước.');
         }
 
         return [$productSkus, $componentSkus];
     }
 
-    /** @return array{0:string,1:string} [code, name] */
-    private function productNaming(string $categoryCode, string $brand, int $i): array
-    {
-        $b3 = substr($brand, 0, 3);
-        $bn = self::brandName($brand);
-        $hp = [3, 5, 8, 10, 12, 15, 20, 24][$i % 8];
-        $series = strtoupper(Str::random(0)).chr(65 + ($i % 6)).sprintf('%02d', ($i % 90) + 10);
+    // Bản cũ có productNaming()/modelForBrand()/brandName()/ensureSku() để BỊA mã
+    // hàng ("Máy bơm nước Kubota B23 10HP"). Danh mục nay là hàng thật DongCheng
+    // do DongChengCatalogSeeder nạp, nên cả 4 hàm đó đã bị gỡ — seeder này chỉ
+    // còn nhiệm vụ dựng chứng từ trên danh mục có sẵn.
 
-        return match ($categoryCode) {
-            'PUMP' => ['PUMP-'.$b3.'-'.sprintf('%04d', $i), 'Máy bơm nước '.$bn.' '.$series.' '.$hp.'HP'],
-            'ENGINE' => ['ENG-'.$b3.'-'.sprintf('%04d', $i), 'Động cơ '.$bn.' '.$series.' '.$hp.'HP'],
-            'HARVESTER' => ['HARV-'.$b3.'-'.sprintf('%04d', $i), 'Máy gặt đập liên hợp '.$bn.' '.$series],
-            'TRACTOR' => ['TRAC-'.$b3.'-'.sprintf('%04d', $i), 'Máy kéo '.$bn.' '.$series.' '.$hp.'HP'],
-            default => ['SKU-'.$b3.'-'.sprintf('%04d', $i), 'Sản phẩm '.$bn.' '.$series],
-        };
-    }
-
-    private function modelForBrand(string $brand): string
-    {
-        return [
-            'KUBOTA' => 'MDL-KB-01', 'YANMAR' => 'MDL-YM-01', 'HONDA' => 'MDL-HD-01',
-            'HUSQVARNA' => 'MDL-HQ-01', 'HOANAM' => 'MDL-HN-01',
-        ][$brand] ?? 'MDL-HN-01';
-    }
-
-    private static function brandName(string $brand): string
-    {
-        return ['HOANAM' => 'Hoa Nam'][$brand] ?? ucfirst(strtolower($brand));
-    }
-
-    private function ensureSku(
-        string $code,
-        string $name,
-        string $type,
-        bool $serialTracked,
-        ?string $brandCode,
-        ?string $categoryCode,
-        ?string $modelCode,
-        ?string $powerCode,
-        ?string $packageCode,
-    ): string {
-        $existing = Sku::query()->where('sku_code', $code)->value('sku_id');
-        if ($existing !== null) {
-            return (string) $existing;
-        }
-
-        $sku = Sku::query()->create([
-            'sku_code' => $code,
-            'sku_name' => mb_substr($name, 0, 200),
-            'sku_type' => $type,
-            'unit' => 'cái',
-            'is_serial_tracked' => $serialTracked,
-            'brand_id' => $this->refId('brands', 'brand_code', $brandCode),
-            'category_id' => $this->refId('product_categories', 'category_code', $categoryCode),
-            'model_id' => $this->refId('product_models', 'model_code', $modelCode),
-            'power_source_id' => $this->refId('power_sources', 'power_source_code', $powerCode),
-            'package_variant_id' => $this->refId('package_variants', 'package_code', $packageCode),
-            'version_code' => 'V1',
-            'warranty_applicable' => $type === 'PRODUCT',
-            'published_to_app' => true,
-            'status' => 'ACTIVE',
-        ]);
-
-        return (string) $sku->sku_id;
-    }
-
-    private function refId(string $table, string $col, ?string $code): ?string
-    {
-        if ($code === null) {
-            return null;
-        }
-        $k = $table.':'.$code;
-        if (! array_key_exists($k, $this->ref)) {
-            $idCol = $table === 'brands' || $table === 'product_categories' || $table === 'product_models'
-                || $table === 'power_sources' || $table === 'package_variants' ? 'id' : 'id';
-            $this->ref[$k] = DB::table($table)->where($col, $code)->value($idCol);
-        }
-
-        return $this->ref[$k] !== null ? (string) $this->ref[$k] : null;
-    }
 
     // ==================================================================
     //  OPENING BALANCE (tồn đầu kỳ)

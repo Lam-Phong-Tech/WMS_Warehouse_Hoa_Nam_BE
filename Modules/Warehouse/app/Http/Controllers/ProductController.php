@@ -14,6 +14,7 @@ use Modules\Warehouse\Http\Requests\StoreProductRequest;
 use Modules\Warehouse\Http\Requests\UpdateProductRequest;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
 use Modules\Warehouse\Support\PvRelations;
+use Modules\Warehouse\Support\SkuImageLookup;
 use Modules\Warehouse\Support\SkuMasterLinkResolver;
 use OpenApi\Attributes as OA;
 
@@ -126,9 +127,16 @@ class ProductController extends Controller
     )]
     public function index(Request $request)
     {
-        return $this->respondPaginated(
-            $this->products->paginate($request->all(), (int) $request->input('per_page', 10))
+        $paginator = $this->products->paginate($request->all(), (int) $request->input('per_page', 10));
+
+        // Ảnh sản phẩm cho cột hình ở màn "Danh sách SKU" — MỘT truy vấn cho cả
+        // trang, không N+1 (xem SkuImageLookup). Gắn SAU khi lấy trang nên không
+        // chạm vào payload đã cache của repository.
+        $paginator->setCollection(
+            collect(SkuImageLookup::attach($paginator->getCollection()))
         );
+
+        return $this->respondPaginated($paginator);
     }
 
     #[OA\Post(
@@ -212,7 +220,7 @@ class ProductController extends Controller
             return $this->respondNotFound('Không tìm thấy SKU.');
         }
 
-        return $this->respondSuccess($product);
+        return $this->respondSuccess(SkuImageLookup::attach([$product])[0]);
     }
 
     #[OA\Patch(

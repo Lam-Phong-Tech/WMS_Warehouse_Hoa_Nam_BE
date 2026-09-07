@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Database\Seeders\DongChengAnchorSkus;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -47,11 +48,11 @@ class FoundationMasterDataEpicTest extends TestCase
             ->assertJsonPath('data.0.status', 'ACTIVE')
             ->assertJsonStructure(['data', 'meta' => ['request_id', 'timestamp']]);
 
-        $this->getJson('/api/v1/products?keyword=HN-PV-BASE-001', $headers)
+        $this->getJson('/api/v1/products?keyword='.DongChengAnchorSkus::BASELINE_PRODUCT, $headers)
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.0.code', 'HN-PV-BASE-001')
-            ->assertJsonPath('data.0.sku_code', 'HN-PV-BASE-001')
+            ->assertJsonPath('data.0.code', DongChengAnchorSkus::BASELINE_PRODUCT)
+            ->assertJsonPath('data.0.sku_code', DongChengAnchorSkus::BASELINE_PRODUCT)
             ->assertJsonPath('data.0.published_to_app', true);
     }
 

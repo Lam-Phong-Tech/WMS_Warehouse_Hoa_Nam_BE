@@ -46,10 +46,10 @@ Migration thêm trong WWHN-310:
 | `Modules\Auth\...\WmsPermissionCompatibilitySeeder` | Bổ sung key tương thích (`scan.execute`, `putaway.*`, `packing_label.*`, `outbound.request.*`…) | Không thu hồi quyền legacy đang cấp |
 | `Modules\AuditLog\...\AuditLogDatabaseSeeder` | Khởi tạo audit | |
 | `Modules\Warehouse\...\WarehouseDatabaseSeeder` | Kho, master catalog nền | |
-| `Modules\Warehouse\...\WarehouseBusinessDataSeeder` | Dữ liệu nghiệp vụ mẫu | |
-| `Modules\Warehouse\...\DemoDataSeeder` | Demo | Không dùng cho môi trường thật |
+| `Modules\Warehouse\...\DongChengCatalogSeeder` | 992 mã hàng THẬT (catalog DongCheng 2026) + ảnh sản phẩm + hồ sơ App PV | Nguồn: `Modules/Warehouse/database/data/dongcheng_catalog.json` |
+| `Modules\Warehouse\...\WarehouseBusinessDataSeeder` | Dữ liệu nghiệp vụ mẫu trên danh mục thật | |
 | `Modules\Warehouse\...\UatScenarioSeeder` | Kịch bản UAT | Dùng cho QA/UAT |
-| `Modules\Warehouse\...\WarrantyDemoSeeder` | Ca bảo hành mẫu | PII là dữ liệu giả |
+| `Modules\Warehouse\...\RetireDemoCatalogSeeder` | Dọn mã/hãng/dòng máy demo đời trước | No-op trên CSDL dựng mới |
 | `Modules\Warehouse\...\LabelSnapshotSeeder` | Snapshot nhãn mẫu | |
 | `Modules\Warehouse\...\Wwhn172ContainerItemInvariantSeeder` | Bất biến container/item | |
 

@@ -7,6 +7,7 @@ use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Database\Seeders\DongChengAnchorSkus;
 use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
@@ -22,10 +23,10 @@ class BackendMigrationSeedHealthTest extends TestCase
 
         $this->assertSame(1, User::where('username', 'admin')->count());
         $this->assertSame(1, Warehouse::where('code', 'KHO-TONG-HN')->count());
-        $this->assertSame(1, Product::where('code', 'HN-PV-BASE-001')->count());
+        $this->assertSame(1, Product::where('code', DongChengAnchorSkus::BASELINE_PRODUCT)->count());
         $this->assertDatabaseHas('app_user', ['username' => 'admin', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('warehouses', ['code' => 'KHO-TONG-HN', 'status' => 'ACTIVE']);
-        $this->assertDatabaseHas('products', ['code' => 'HN-PV-BASE-001', 'published_to_app' => true]);
+        $this->assertDatabaseHas('products', ['code' => DongChengAnchorSkus::BASELINE_PRODUCT, 'published_to_app' => true]);
         $this->assertDatabaseHas('role', ['role_code' => 'SUPER_ADMIN', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('permission', ['permission_key' => 'stock_document.post', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('permission', ['permission_key' => 'audit_log.view', 'status' => 'ACTIVE']);
@@ -132,7 +133,7 @@ class BackendMigrationSeedHealthTest extends TestCase
 
         $this->assertTrue(DB::table('app_user')->where('username', 'admin')->exists());
         $this->assertTrue(DB::table('warehouses')->where('code', 'KHO-TONG-HN')->exists());
-        $this->assertTrue(DB::table('products')->where('code', 'HN-PV-BASE-001')->exists());
+        $this->assertTrue(DB::table('products')->where('code', DongChengAnchorSkus::BASELINE_PRODUCT)->exists());
     }
 
     public function test_postgres_packing_label_contract_accepts_final_scan_lifecycle(): void

@@ -23,7 +23,7 @@ use Throwable;
  * đặt received_at rải đều 01/06..31/08; các mốc chuyển trạng thái (completed_at/
  * returned_at) nằm sau received_at vài ngày nhưng luôn ≤ hôm nay.
  *
- * Bám nghiệp vụ (giống WarrantyDemoSeeder / OperationalReportRangeSeeder):
+ * Bám nghiệp vụ (giống OperationalReportRangeSeeder):
  *  - Warranty case stock-neutral: item ISSUED -> IN_WARRANTY (đang xử lý) hoặc
  *    RETURNED_TO_CUSTOMER (đã trả); CANCELLED để nguyên ISSUED; không sinh movement.
  *  - Chỉ mượn item đang ISSUED và CHƯA gắn case active (tránh vỡ unique
@@ -49,7 +49,7 @@ class WarrantyReportRangeSeeder extends Seeder
     /** Mã case cuối cùng — dùng làm guard "đã seed đủ". */
     private const GUARD_LAST_CASE = 'WC-RPTW-0160';
 
-    private const COMPONENT_SKU = 'HN-COMP-RPTW-001';
+    private const COMPONENT_SKU = DongChengAnchorSkus::COMPONENT_WARRANTY;
 
     private const BOX_CODE = 'BOX-RPTW-001';
 
@@ -452,9 +452,9 @@ class WarrantyReportRangeSeeder extends Seeder
             'sku_type' => 'COMPONENT',
             'unit' => 'cái',
             'is_serial_tracked' => false,
-            'brand_id' => DB::table('brands')->where('brand_code', 'HOANAM')->value('id'),
+            'brand_id' => DB::table('brands')->where('brand_code', 'DONGCHENG')->value('id'),
             'category_id' => DB::table('product_categories')->where('category_code', 'SPARE_PART')->value('id'),
-            'model_id' => DB::table('product_models')->where('model_code', 'MDL-HN-01')->value('id'),
+            'model_id' => DB::table('product_models')->where('model_code', 'DC-DCA')->value('id'),
             'version_code' => 'V1',
             'warranty_applicable' => false,
             'published_to_app' => true,

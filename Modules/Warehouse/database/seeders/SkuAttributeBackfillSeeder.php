@@ -20,49 +20,10 @@ use Illuminate\Support\Facades\DB;
  */
 class SkuAttributeBackfillSeeder extends Seeder
 {
-    /** @var array<string,array{0:string,1:string}> category_code => [nguồn năng lượng, tên dòng máy] */
-    private const CATEGORY_DEFAULTS = [
-        'PUMP' => ['GASOLINE', 'Máy bơm nước'],
-        'ENGINE' => ['DIESEL', 'Động cơ nổ'],
-        'HARVESTER' => ['DIESEL', 'Máy gặt đập liên hợp'],
-        'TRACTOR' => ['DIESEL', 'Máy kéo'],
-        'SPRAYER' => ['BATTERY', 'Máy phun thuốc'],
-        'GENERATOR' => ['GASOLINE', 'Máy phát điện'],
-        'SOIL_TILLER' => ['DIESEL', 'Máy xới đất'],
-        'GRASS_CUTTER' => ['GASOLINE', 'Máy cắt cỏ'],
-        'ELECTRICAL_TOOLS' => ['BATTERY', 'Máy khoan/bắt vít'],
-        'CUTTING_TOOLS' => ['MAINS_DIRECT', 'Máy cắt cầm tay'],
-        'HYDRAULIC_TOOLS' => ['MANUAL', 'Kích thuỷ lực'],
-        'WELDING_TOOLS' => ['MAINS_DIRECT', 'Máy hàn'],
-        'MEASURING_TOOLS' => ['BATTERY', 'Thước/máy đo'],
-        'MECHANICAL_TOOLS' => ['MANUAL', 'Bộ dụng cụ cơ khí'],
-        'FASTENING_TOOLS' => ['PNEUMATIC', 'Dụng cụ siết bulông'],
-        'CLAMPING_TOOLS' => ['MANUAL', 'Kìm/ê-tô kẹp'],
-        'WRENCHES' => ['MANUAL', 'Cờ lê'],
-        'SOCKETS' => ['MANUAL', 'Đầu tuýp'],
-        'GARDEN_HAND_TOOLS' => ['MANUAL', 'Dụng cụ làm vườn'],
-        'PAINTING_WALL_TOOLS' => ['MANUAL', 'Dụng cụ sơn tường'],
-        'STORAGE_TOOLS' => ['MANUAL', 'Tủ/hộp đựng dụng cụ'],
-        'SAFETY_GEAR' => ['MANUAL', 'Trang bị bảo hộ'],
-        'SPARE_PART' => ['MANUAL', 'Phụ tùng thay thế'],
-        'MANUAL_SPRAYER' => ['MANUAL', 'Bình xịt tay'],
-        'CARBURETOR_ENGINE' => ['GASOLINE', 'Động cơ chế hoà khí'],
-        'LEGACY_ACCESSORY' => ['MANUAL', 'Phụ kiện đời cũ'],
-    ];
-
-    /** @var list<array{0:string,1:string}> [mã biến thể, nhãn biến thể] */
-    private const VARIANTS = [
-        ['STANDARD', 'Bản tiêu chuẩn'],
-        ['PRO', 'Bản chuyên nghiệp'],
-        ['COMBO', 'Bản combo phụ kiện'],
-        ['BATTERY_KIT', 'Bản kèm 2 pin'],
-        ['CASE', 'Bản vali nhựa'],
-    ];
-
     public function run(): void
     {
         $powerIds = DB::table('power_sources')->pluck('id', 'power_source_code');
-        $packageIds = DB::table('package_variants')->pluck('id', 'variant_code');
+        $packageIds = DB::table('package_variants')->pluck('id', 'package_code');
         $fallbackPower = $powerIds['MANUAL'] ?? $powerIds->first();
         $fallbackPackage = $packageIds['BARE'] ?? $packageIds->first();
         if ($fallbackPower === null || $fallbackPackage === null) {
@@ -71,7 +32,6 @@ class SkuAttributeBackfillSeeder extends Seeder
 
         $rows = DB::table('skus as s')
             ->leftJoin('product_categories as c', 'c.id', '=', 's.category_id')
-            ->leftJoin('brands as b', 'b.id', '=', 's.brand_id')
             ->where(function ($query): void {
                 $query->whereNull('s.power_source_id')
                     ->orWhereNull('s.package_variant_id')
@@ -80,22 +40,21 @@ class SkuAttributeBackfillSeeder extends Seeder
             })
             ->orderBy('s.sku_code')
             ->get([
-                's.id', 's.sku_type', 's.power_source_id', 's.package_variant_id',
-                's.family_name', 's.variant_label', 'c.category_code', 'b.brand_name',
+                's.id', 's.sku_code', 's.sku_name', 's.sku_type', 's.power_source_id',
+                's.package_variant_id', 's.family_name', 's.variant_label', 'c.category_name',
             ]);
 
         $touched = 0;
-        foreach ($rows as $i => $row) {
-            $defaults = self::CATEGORY_DEFAULTS[(string) $row->category_code] ?? ['MANUAL', 'Hàng hoá Hoa Nam'];
-            // Linh kiện không gắn nguồn năng lượng của máy mẹ — dùng "Cơ tay".
-            $powerCode = $row->sku_type === 'COMPONENT' ? 'MANUAL' : $defaults[0];
-            [$variantCode, $variantLabel] = self::VARIANTS[$i % count(self::VARIANTS)];
-
+        foreach ($rows as $row) {
             DB::table('skus')->where('id', $row->id)->update([
-                'power_source_id' => $row->power_source_id ?? ($powerIds[$powerCode] ?? $fallbackPower),
+                // Không suy diễn nguồn năng lượng theo nhóm hàng nữa: catalog thật đã
+                // ghi rõ từng mã, dòng nào còn trống là hàng cơ khí thuần → "Cơ tay".
+                'power_source_id' => $row->power_source_id ?? $fallbackPower,
                 'package_variant_id' => $row->package_variant_id ?? $fallbackPackage,
-                'family_name' => $row->family_name ?? ($defaults[1].' '.($row->brand_name ?? 'Hoa Nam')),
-                'variant_label' => $row->variant_label ?? ($variantLabel.' ('.$variantCode.')'),
+                // Dòng máy/biến thể lấy từ dữ liệu THẬT của chính mã hàng (tên nhóm
+                // hàng, mã hàng), không gắn nhãn bịa kiểu "Bản tiêu chuẩn (STANDARD)".
+                'family_name' => $row->family_name ?? ($row->category_name ?? $row->sku_name),
+                'variant_label' => $row->variant_label ?? $row->sku_code,
                 'updated_at' => now(),
             ]);
             $touched++;

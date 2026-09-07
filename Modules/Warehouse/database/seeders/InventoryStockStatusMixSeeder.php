@@ -37,46 +37,8 @@ class InventoryStockStatusMixSeeder extends Seeder
 
     private const BK_PREFIX = 'SEED-STKMIX';
 
-    /**
-     * Nhóm A — SKU đang có tồn AVAILABLE, thêm lát cắt phi-AVAILABLE cho donut.
-     *
-     * @var list<array{0:string,1:string,2:int}> [sku_code, stock_status, qty]
-     */
-    private const EXISTING_SKU_BUCKETS = [
-        ['PUMP-HUS-0003', 'DEFECTIVE', 4],
-        ['PUMP-HUS-0003', 'QUARANTINE', 2],
-        ['PUMP-HON-0002', 'NON_SELLABLE', 5],
-        ['PUMP-KUB-0005', 'DEFECTIVE', 3],
-        ['PUMP-HOA-0004', 'QUARANTINE', 3],
-        ['PUMP-HOA-0004', 'NON_SELLABLE', 2],
-        ['PUMP-YAN-0001', 'DEFECTIVE', 2],
-        ['PUMP-YAN-0006', 'QUARANTINE', 4],
-        ['SPR-HON-0002', 'NON_SELLABLE', 8],
-        ['SPR-YAN-0001', 'DEFECTIVE', 5],
-        ['SPR-HUS-0003', 'QUARANTINE', 3],
-        ['HN-COMP-SEED-002', 'NON_SELLABLE', 6],
-        ['HN-COMP-SEED-002', 'DEFECTIVE', 4],
-    ];
-
-    /**
-     * Nhóm B — SKU chưa có tồn: cấp tồn matched đủ 2 trạng thái => SKU "khớp" mới.
-     *
-     * @var list<array{0:string,1:string,2:int}> [sku_code, stock_status, qty]
-     */
-    private const FRESH_SKU_BUCKETS = [
-        ['ENG-HOA-0004', 'AVAILABLE', 18],
-        ['ENG-HOA-0004', 'DEFECTIVE', 3],
-        ['ENG-HOA-0009', 'AVAILABLE', 14],
-        ['ENG-HOA-0009', 'QUARANTINE', 2],
-        ['ENG-HOA-0014', 'AVAILABLE', 22],
-        ['ENG-HOA-0014', 'NON_SELLABLE', 4],
-        ['ENG-HOA-0019', 'AVAILABLE', 9],
-        ['ENG-HOA-0019', 'DEFECTIVE', 2],
-        ['ENG-HOA-0024', 'AVAILABLE', 16],
-        ['ENG-HOA-0024', 'QUARANTINE', 3],
-        ['ENG-HOA-0029', 'AVAILABLE', 12],
-        ['ENG-HOA-0029', 'NON_SELLABLE', 3],
-    ];
+    /** Trạng thái tồn phi-AVAILABLE cần phủ để donut đủ 4 lát cắt. */
+    private const NON_AVAILABLE_STATUSES = ['DEFECTIVE', 'QUARANTINE', 'NON_SELLABLE'];
 
     private string $actorId;
 
@@ -102,11 +64,62 @@ class InventoryStockStatusMixSeeder extends Seeder
         $this->warehouseId = (string) $warehouse->id;
 
         $added = 0;
-        foreach ([...self::EXISTING_SKU_BUCKETS, ...self::FRESH_SKU_BUCKETS] as [$skuCode, $status, $qty]) {
+        foreach ($this->buckets() as [$skuCode, $status, $qty]) {
             $added += $this->addMatchedBucket($skuCode, $status, (int) $qty) ? 1 : 0;
         }
 
         $this->command?->info("InventoryStockStatusMixSeeder: đã thêm {$added} lát cắt tồn (matched) qua 4 trạng thái cho báo cáo tồn kho & đối soát.");
+    }
+
+    /**
+     * Danh sách lát cắt cần thêm, CHỌN ĐỘNG từ danh mục thật đang có trong CSDL.
+     *
+     * Bản cũ ghi cứng 25 mã do seeder demo bịa ra (`PUMP-HUS-0003`,
+     * `ENG-HOA-0004`...). Sau khi chuyển sang danh mục DongCheng thật, những mã đó
+     * không còn tồn tại và seeder sẽ lặng lẽ không thêm gì — donut tồn kho lại
+     * gần 100% AVAILABLE. Nay:
+     *  - Nhóm A: 12 SKU ĐANG có tồn AVAILABLE nhiều nhất, mỗi SKU 1-2 lát cắt
+     *    phi-AVAILABLE (không sửa dòng AVAILABLE nên không đẻ lệch đối soát).
+     *  - Nhóm B: 6 SKU ACTIVE CHƯA có tồn, cấp cặp AVAILABLE + 1 trạng thái phụ
+     *    → thành SKU "khớp" mới của bảng đối soát.
+     * Số lượng suy từ vị trí trong danh sách nên chạy lại vẫn ra đúng bộ dữ liệu.
+     *
+     * @return list<array{0:string,1:string,2:int}> [sku_code, stock_status, qty]
+     */
+    private function buckets(): array
+    {
+        $withStock = DB::table('inventory_balances as ib')
+            ->join('skus as s', 's.id', '=', 'ib.sku_id')
+            ->where('ib.warehouse_id', $this->warehouseId)
+            ->where('ib.on_hand_qty', '>', 0)
+            ->groupBy('s.sku_code')
+            ->orderByRaw('SUM(ib.on_hand_qty) DESC')
+            ->limit(12)
+            ->pluck('s.sku_code')
+            ->all();
+
+        $withoutStock = DB::table('skus as s')
+            ->where('s.status', 'ACTIVE')
+            ->whereNotExists(fn ($q) => $q->select(DB::raw(1))->from('inventory_balances as ib')
+                ->whereColumn('ib.sku_id', 's.id'))
+            ->orderBy('s.sku_code')
+            ->limit(6)
+            ->pluck('s.sku_code')
+            ->all();
+
+        $buckets = [];
+        foreach (array_values($withStock) as $i => $code) {
+            $buckets[] = [(string) $code, self::NON_AVAILABLE_STATUSES[$i % 3], 2 + ($i % 7)];
+            if ($i % 3 === 0) {
+                $buckets[] = [(string) $code, self::NON_AVAILABLE_STATUSES[($i + 1) % 3], 2 + ($i % 4)];
+            }
+        }
+        foreach (array_values($withoutStock) as $i => $code) {
+            $buckets[] = [(string) $code, 'AVAILABLE', 9 + ($i * 3)];
+            $buckets[] = [(string) $code, self::NON_AVAILABLE_STATUSES[$i % 3], 2 + ($i % 4)];
+        }
+
+        return $buckets;
     }
 
     /**
