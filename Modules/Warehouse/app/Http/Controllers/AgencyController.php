@@ -2,13 +2,13 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreAgencyRequest;
 use Modules\Warehouse\Http\Requests\UpdateAgencyRequest;
@@ -205,7 +205,7 @@ class AgencyController extends Controller
         }
 
         $referenced = DB::table('stock_documents')->where('agency_id', $id)->exists()
-            || (Schema::hasTable('outbound_requests') && DB::table('outbound_requests')->where('agency_id', $id)->exists());
+            || (SchemaCache::hasTable('outbound_requests') && DB::table('outbound_requests')->where('agency_id', $id)->exists());
 
         if ($referenced) {
             ApiError::abort(409, 'AGENCY_CODE_IMMUTABLE_AFTER_USE', 'Đại lý đã được dùng trên chứng từ nên không đổi được agency_code.');

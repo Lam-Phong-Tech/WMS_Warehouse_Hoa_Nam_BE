@@ -2,6 +2,8 @@
 
 namespace Modules\Warehouse\Providers;
 
+use App\Support\Database\SchemaCache;
+use App\Support\Modules\HttpLeanModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Warehouse\Console\Commands\ImportHandToolsDongChengCommand;
 use Modules\Warehouse\Console\SeedUatData;
@@ -29,9 +31,8 @@ use Modules\Warehouse\Services\CanonicalScanClassificationService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Services\DiagnosticCurrentBaselineStockService;
 use Modules\Warehouse\Services\ScanClassificationService;
-use Nwidart\Modules\Support\ModuleServiceProvider;
 
-class WarehouseServiceProvider extends ModuleServiceProvider
+class WarehouseServiceProvider extends HttpLeanModuleServiceProvider
 {
     protected string $name = 'Warehouse';
 
@@ -80,7 +81,7 @@ class WarehouseServiceProvider extends ModuleServiceProvider
         // document holding the item so FE/QA can resolve the reservation directly.
         $this->app->bind(CurrentBaselineStockService::class, DiagnosticCurrentBaselineStockService::class);
 
-        // SQLite does not expose compatibility VIEWs through Schema::hasTable()
+        // SQLite does not expose compatibility VIEWs through SchemaCache::hasTable()
         // consistently. Bind the canonical fallback globally so scan/classify always
         // resolves SKU identity from the single source of truth (`sku`).
         $this->app->bind(ScanClassificationService::class, CanonicalScanClassificationService::class);

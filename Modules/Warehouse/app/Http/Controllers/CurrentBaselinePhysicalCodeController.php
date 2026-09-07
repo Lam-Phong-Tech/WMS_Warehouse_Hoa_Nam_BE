@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -127,7 +128,7 @@ class CurrentBaselinePhysicalCodeController extends Controller
                 'updated_at' => now(),
             ]);
 
-            if ($hasContainer && DB::getSchemaBuilder()->hasColumn('containers', 'physical_code_id')) {
+            if ($hasContainer && SchemaCache::hasColumn('containers', 'physical_code_id')) {
                 $container = DB::table('containers')->where('container_id', $targetId)->first();
                 if ($container !== null && empty($container->physical_code_id)) {
                     DB::table('containers')->where('container_id', $targetId)->update(['physical_code_id' => $physicalCodeId, 'updated_at' => now()]);

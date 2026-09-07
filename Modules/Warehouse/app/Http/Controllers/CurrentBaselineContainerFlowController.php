@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\CacheService;
@@ -9,7 +10,6 @@ use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
@@ -131,7 +131,7 @@ class CurrentBaselineContainerFlowController extends Controller
             DB::table('containers')->insert([
                 // Trên Postgres, containers có cột id mirror (không tự set
                 // như các bảng khác); trên SQLite bảng này không có cột id.
-                ...(Schema::hasColumn('containers', 'id') ? ['id' => $id] : []),
+                ...(SchemaCache::hasColumn('containers', 'id') ? ['id' => $id] : []),
                 'container_id' => $id,
                 'container_code' => $validated['container_code'],
                 'container_type' => $type,

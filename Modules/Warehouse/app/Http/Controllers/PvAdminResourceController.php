@@ -52,6 +52,9 @@ class PvAdminResourceController extends Controller
 
     private const RESOURCE_PROFILES = 'product-profiles';
 
+    /** Trần số ảnh mỗi hồ sơ sản phẩm — FE (PvProductImageField) khoá cùng số này. */
+    private const PROFILE_IMAGE_MAX = 8;
+
     private const RESOURCE_TYPES = [
         self::RESOURCE_INDUSTRIES,
         self::RESOURCE_TAGS,
@@ -648,6 +651,7 @@ class PvAdminResourceController extends Controller
         $profileIds = collect($page->items())->pluck('profile_key')->map(fn ($id): string => (string) $id)->all();
         $industryIds = $this->mappedIds(PvRelations::productIndustryTable(), 'industry_id', $profileIds);
         $tagIds = $this->mappedIds(PvRelations::productTagTable(), 'tag_id', $profileIds);
+        $images = $this->imagesByProfile($profileIds);
 
         return $page->through(fn ($row): array => [
             'id' => (string) $row->profile_key,
@@ -662,6 +666,7 @@ class PvAdminResourceController extends Controller
             'published' => (bool) $row->published_to_app,
             'industry_ids' => $industryIds[(string) $row->profile_key] ?? [],
             'tag_ids' => $tagIds[(string) $row->profile_key] ?? [],
+            'images' => $images[(string) $row->profile_key] ?? [],
             'version' => (int) ($row->version ?? 1),
         ]);
     }
@@ -692,6 +697,7 @@ class PvAdminResourceController extends Controller
         ]);
 
         $this->syncProfileMappings($id, $payload['industry_ids'], $payload['tag_ids']);
+        $this->syncProfileImages($request, $id, $payload['images']);
 
         return $this->findProfile($id);
     }
@@ -720,12 +726,13 @@ class PvAdminResourceController extends Controller
         ]);
 
         $this->syncProfileMappings($id, $payload['industry_ids'], $payload['tag_ids']);
+        $this->syncProfileImages($request, $id, $payload['images']);
 
         return [$before, $this->findProfile($id)];
     }
 
     /**
-     * @return array{sku_id: string, display_name: string, description: ?string, sort_order: int, industry_ids: array<int, string>, tag_ids: array<int, string>}
+     * @return array{sku_id: string, display_name: string, description: ?string, sort_order: int, industry_ids: array<int, string>, tag_ids: array<int, string>, images: ?array<int, array{url: string, alt_text: ?string, is_primary: bool}>}
      */
     private function validateProfile(Request $request, ?string $lockedSkuId): array
     {
@@ -757,6 +764,7 @@ class PvAdminResourceController extends Controller
 
         $industryIds = $this->uuidListInput($request, 'industry_ids', $errors);
         $tagIds = $this->uuidListInput($request, 'tag_ids', $errors);
+        $images = $this->imageListInput($request, $errors);
 
         if ($errors !== []) {
             ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu hồ sơ App PV không hợp lệ.', $errors);
@@ -780,7 +788,179 @@ class PvAdminResourceController extends Controller
             'sort_order' => (int) $sortOrderRaw,
             'industry_ids' => $industryIds,
             'tag_ids' => $tagIds,
+            'images' => $images,
         ];
+    }
+
+    /**
+     * Ảnh sản phẩm App PV do client gửi lên dưới dạng URL ĐÃ upload sẵn (Cloudinary
+     * hoặc CDN khác) — BE KHÔNG nhận binary ở endpoint này.
+     *
+     * Khoá `images` VẮNG MẶT nghĩa là "không đụng tới ảnh" (trả `null`), khác hẳn
+     * `images: []` nghĩa là "xoá hết ảnh". Phân biệt này là bắt buộc: nếu coi cả
+     * hai như nhau thì mọi PATCH cũ (SCR-PV-ADM-01 chỉ sửa tên/mô tả, không gửi
+     * `images`) sẽ âm thầm xoá sạch ảnh của hồ sơ.
+     *
+     * @param  array<string, array<int, string>>  $errors
+     * @return array<int, array{url: string, alt_text: ?string, is_primary: bool}>|null
+     */
+    private function imageListInput(Request $request, array &$errors): ?array
+    {
+        if (! $request->exists('images')) {
+            return null;
+        }
+
+        $raw = $request->input('images');
+        if ($raw === null || $raw === '') {
+            return [];
+        }
+        if (! is_array($raw)) {
+            $errors['images'] = ['images phải là mảng.'];
+
+            return null;
+        }
+        if (count($raw) > self::PROFILE_IMAGE_MAX) {
+            $errors['images'] = ['Tối đa '.self::PROFILE_IMAGE_MAX.' ảnh cho mỗi sản phẩm.'];
+
+            return null;
+        }
+
+        $images = [];
+        $seen = [];
+        $primaryCount = 0;
+        foreach (array_values($raw) as $index => $entry) {
+            if (! is_array($entry)) {
+                $errors["images.{$index}"] = ['Mỗi phần tử images phải là object {url, alt_text, is_primary}.'];
+
+                continue;
+            }
+
+            $url = is_string($entry['url'] ?? null) ? trim($entry['url']) : '';
+            if ($url === '' || mb_strlen($url) > 500) {
+                $errors["images.{$index}.url"] = ['url ảnh bắt buộc và tối đa 500 ký tự.'];
+
+                continue;
+            }
+            // Chỉ nhận http(s) tuyệt đối: `javascript:` / `data:` lọt xuống DB là
+            // lỗ XSS ở CHÍNH mặt công khai (App PV render thẳng vào <img src>).
+            $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+            if (! in_array($scheme, ['http', 'https'], true) || parse_url($url, PHP_URL_HOST) === null) {
+                $errors["images.{$index}.url"] = ['url ảnh phải là địa chỉ http(s) đầy đủ.'];
+
+                continue;
+            }
+            if (isset($seen[$url])) {
+                $errors["images.{$index}.url"] = ['Ảnh bị trùng trong danh sách.'];
+
+                continue;
+            }
+            $seen[$url] = true;
+
+            $altRaw = $entry['alt_text'] ?? null;
+            $alt = is_string($altRaw) && trim($altRaw) !== '' ? trim($altRaw) : null;
+            if ($alt !== null && mb_strlen($alt) > 255) {
+                $errors["images.{$index}.alt_text"] = ['alt_text tối đa 255 ký tự.'];
+
+                continue;
+            }
+
+            $isPrimary = filter_var($entry['is_primary'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if ($isPrimary) {
+                $primaryCount++;
+            }
+
+            $images[] = ['url' => $url, 'alt_text' => $alt, 'is_primary' => $isPrimary];
+        }
+
+        if ($errors !== []) {
+            return null;
+        }
+
+        // ux_erd_pv_primary_image là UNIQUE partial index trên (profile_id) WHERE
+        // is_primary — hai ảnh chính cùng hồ sơ sẽ nổ 23505 ở tầng DB. Chặn ở đây
+        // để client nhận 422 có field thay vì 500.
+        if ($primaryCount > 1) {
+            $errors['images'] = ['Chỉ được chọn một ảnh đại diện.'];
+
+            return null;
+        }
+        // Không chọn ảnh nào làm đại diện thì lấy ảnh đầu: mặt công khai luôn cần
+        // đúng một ảnh để hiển thị trên thẻ sản phẩm.
+        if ($primaryCount === 0 && $images !== []) {
+            $images[0]['is_primary'] = true;
+        }
+
+        return $images;
+    }
+
+    /**
+     * Ghi lại toàn bộ ảnh của hồ sơ theo đúng thứ tự client gửi (index = sort_order).
+     *
+     * Xoá-rồi-chèn thay vì upsert từng dòng: thứ tự và cờ `is_primary` là thuộc
+     * tính của CẢ danh sách, và index UNIQUE `ux_erd_pv_primary_image` sẽ chặn
+     * bước trung gian nếu ảnh chính mới được chèn trước khi ảnh chính cũ bị hạ cờ.
+     *
+     * @param  array<int, array{url: string, alt_text: ?string, is_primary: bool}>|null  $images
+     */
+    private function syncProfileImages(Request $request, string $profileId, ?array $images): void
+    {
+        if ($images === null) {
+            return;
+        }
+
+        $actorId = $request->user()?->user_id;
+        DB::table('pv_product_images')->where('profile_id', $profileId)->delete();
+        foreach ($images as $index => $image) {
+            DB::table('pv_product_images')->insert([
+                'id' => (string) Str::uuid(),
+                'profile_id' => $profileId,
+                'image_url' => $image['url'],
+                'storage_url' => $image['url'],
+                'alt_text' => $image['alt_text'],
+                'is_primary' => $image['is_primary'],
+                'sort_order' => $index,
+                'status' => 'ACTIVE',
+                'version' => 1,
+                'created_at' => now(),
+                'created_by' => $actorId,
+                'updated_at' => now(),
+                'updated_by' => $actorId,
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $profileIds
+     * @return array<string, array<int, array{url: string, alt_text: ?string, is_primary: bool}>>
+     */
+    private function imagesByProfile(array $profileIds): array
+    {
+        if ($profileIds === []) {
+            return [];
+        }
+
+        $rows = DB::table('pv_product_images')
+            ->whereIn('profile_id', $profileIds)
+            ->where(function ($nested): void {
+                $nested->whereNull('status')->orWhere('status', 'ACTIVE');
+            })
+            ->orderBy('sort_order')
+            ->get(['profile_id', 'image_url', 'storage_url', 'alt_text', 'is_primary']);
+
+        $grouped = [];
+        foreach ($rows as $row) {
+            $url = $row->image_url ?: $row->storage_url;
+            if (! $url) {
+                continue;
+            }
+            $grouped[(string) $row->profile_id][] = [
+                'url' => (string) $url,
+                'alt_text' => $row->alt_text !== null ? (string) $row->alt_text : null,
+                'is_primary' => (bool) $row->is_primary,
+            ];
+        }
+
+        return $grouped;
     }
 
     /**
@@ -844,6 +1024,7 @@ class PvAdminResourceController extends Controller
             'published' => (bool) $row->published_to_app,
             'industry_ids' => $this->mappedIds(PvRelations::productIndustryTable(), 'industry_id', [$id])[$id] ?? [],
             'tag_ids' => $this->mappedIds(PvRelations::productTagTable(), 'tag_id', [$id])[$id] ?? [],
+            'images' => $this->imagesByProfile([$id])[$id] ?? [],
             'version' => (int) ($row->version ?? 1),
         ];
     }
@@ -882,6 +1063,18 @@ class PvAdminResourceController extends Controller
     /**
      * §8.2: 428 khi thiếu precondition bắt buộc, 412 khi version lệch. Endpoint
      * này mới nên KHÔNG có client cũ để nới lỏng — If-Match là bắt buộc.
+     *
+     * VERSION 0 LÀ HỢP LỆ. Trước đây chỗ này đòi `>= 1` và điều đó khoá cứng
+     * PATCH product-profiles trên gần như toàn bộ dữ liệu thật: hồ sơ App PV
+     * KHÔNG chỉ sinh ra từ `createProfile` (đặt version = 1) mà chủ yếu do
+     * trigger `hn_legacy_sku_write` tạo lúc publish SKU, và trigger dùng default
+     * của cột — `version = 0`. Client đọc đúng 0 từ GET, gửi lại đúng 0, rồi
+     * nhận 422 INVALID_VERSION: không có số nào gửi được. `ProductController::
+     * assertPvProfileVersionMatches` (cùng cụm App PV) vốn đã nhận "số nguyên
+     * KHÔNG ÂM" — hai guard cùng một tính năng nay nói cùng một luật.
+     *
+     * Khoá lạc quan không bị nới: header vẫn bắt buộc và vẫn phải TRÙNG version
+     * hiện tại, chỉ bỏ đúng chặn "0 không phải số hợp lệ".
      */
     private function assertIfMatch(Request $request, int $currentVersion): int
     {
@@ -891,8 +1084,8 @@ class PvAdminResourceController extends Controller
         }
 
         $header = trim(preg_replace('/^W\//', '', $header) ?? $header, '" ');
-        if (! ctype_digit($header) || (int) $header < 1) {
-            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên dương.');
+        if (! ctype_digit($header)) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là version số nguyên không âm.');
         }
         if ((int) $header !== $currentVersion) {
             ApiError::abort(412, 'STALE_VERSION', 'Dữ liệu đã được cập nhật bởi phiên khác; tải lại trước khi lưu.', [

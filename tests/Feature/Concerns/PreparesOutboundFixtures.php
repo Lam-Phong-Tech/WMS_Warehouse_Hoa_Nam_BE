@@ -159,6 +159,35 @@ trait PreparesOutboundFixtures
         $this->mirrorLegacyPhysicalCode($physicalCodeId, $codeValue, 'QR', $itemId);
     }
 
+    /**
+     * Chip NFC dán lên hiện vật lúc xuất kho — cùng hình dạng mà
+     * MiniAppNfcController::confirm ghi ra: `code_value` là alias
+     * `NFC-<hardware_uid>`, `carrier_type=NFC`. Gắn item bằng cặp
+     * `assigned_object_*` như hai fixture mã vật lý còn lại của trait này.
+     */
+    private function seedNfcTag(string $itemId, string $status = 'ACTIVE'): string
+    {
+        $physicalCodeId = (string) Str::uuid();
+        $hardwareUid = 'NFCUID'.Str::upper(Str::random(8));
+        $codeValue = 'NFC-'.$hardwareUid;
+        DB::table('physical_codes')->insert([
+            'physical_code_id' => $physicalCodeId,
+            'code_value' => $codeValue,
+            'code_type' => 'ITEM',
+            'carrier_type' => 'NFC',
+            'hardware_uid' => $hardwareUid,
+            'status' => $status,
+            'assigned_object_type' => 'ITEM',
+            'assigned_object_id' => $itemId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->mirrorLegacyPhysicalCode($physicalCodeId, $codeValue, 'NFC', $itemId);
+
+        return $codeValue;
+    }
+
     private function mirrorLegacyPhysicalCode(string $physicalCodeId, string $codeValue, string $carrierType, string $itemId): void
     {
         if (DB::getDriverName() !== 'sqlite' || ! Schema::hasTable('physical_code')) {

@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -13,7 +14,6 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
@@ -402,7 +402,7 @@ class AlignedOutboundFlowController extends Controller
             'template_version' => 'v1',
             'payload' => $labelPayload,
         ] as $column => $value) {
-            if (Schema::hasColumn('label_snapshots', $column)) {
+            if (SchemaCache::hasColumn('label_snapshots', $column)) {
                 $insert[$column] = $value;
             }
         }
@@ -878,7 +878,7 @@ class AlignedOutboundFlowController extends Controller
 
     private function attachScanEventToEvidence(string $documentId, string $lineId, mixed $itemId): void
     {
-        if (! DB::getSchemaBuilder()->hasColumn('outbound_item_matches', 'scan_event_id')) {
+        if (! SchemaCache::hasColumn('outbound_item_matches', 'scan_event_id')) {
             return;
         }
         $scanEventId = DB::table('scan_event as se')

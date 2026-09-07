@@ -2,12 +2,12 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Support\ApiError;
 use App\Support\Validation\InputLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use OpenApi\Attributes as OA;
 
 /**
@@ -116,8 +116,8 @@ class BaM1WarrantyController extends CurrentBaselineWarrantyController
         }
 
         $defects = [];
-        if (Schema::hasTable('warranty_case_defects')) {
-            $hasPrimaryColumn = Schema::hasColumn('warranty_case_defects', 'is_primary');
+        if (SchemaCache::hasTable('warranty_case_defects')) {
+            $hasPrimaryColumn = SchemaCache::hasColumn('warranty_case_defects', 'is_primary');
             $defects = DB::table('warranty_case_defects as wcd')
                 ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
                 ->where('wcd.warranty_case_id', $caseId)

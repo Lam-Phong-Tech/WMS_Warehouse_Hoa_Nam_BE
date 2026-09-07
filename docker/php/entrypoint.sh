@@ -57,6 +57,39 @@ if [ ! -e public/storage ] && [ ! -L public/storage ]; then
     php artisan storage:link
 fi
 
+# ---------------------------------------------------------------------------
+# CACHE CONFIG RIÊNG CHO CONTAINER NÀY (service `backend` bật, xem docker-compose).
+#
+# ĐO ĐƯỢC 07/09/2026 trên stack dev: không có cache config, Laravel nạp ~45 file
+# `config/*.php` qua bind mount gRPC-FUSE ở MỖI request —
+#     GET  /api/v1/health          p50 287 ms → 143 ms
+#     POST /api/v1/auth/refresh    p50 ~300 ms → 139 ms
+# tức bớt khoảng 140 ms MỖI request, mà một lần F5 của giao diện có 2–9 request.
+#
+# Vì sao trước đây "lúc có lúc không": `bootstrap/cache/` nằm trên bind mount DÙNG
+# CHUNG với mọi container. Một `php artisan config:clear` từ container chạy test
+# (docker compose run) xoá luôn file của container đang phục vụ, và không có gì
+# dựng lại cho tới lần khởi động sau.
+#
+# Cách chốt: ghi cache vào ĐƯỜNG DẪN RIÊNG TRONG CONTAINER qua biến
+# `APP_CONFIG_CACHE` (Laravel đọc nó ở Application::getCachedConfigPath).
+# Container test là container KHÁC nên không thể chạm tới file này nữa.
+#
+# ĐÁNH ĐỔI (cố ý, có đường lùi rõ): khi config đã cache, sửa `.env` KHÔNG còn
+# hiệu lực ngay — phải `docker compose restart backend` (entrypoint dựng lại cache
+# mỗi lần khởi động). Đặt `WMS_CACHE_CONFIG=false` để tắt khi cần sửa .env liên tục.
+#
+# KHÔNG bật cho queue/scheduler/reverb: chúng không nằm trên đường tới hạn của
+# giao diện, giữ nguyên hành vi cũ thì ít rủi ro hơn.
+# ---------------------------------------------------------------------------
+if [ "${WMS_CACHE_CONFIG:-false}" = "true" ] && [ -n "${APP_CONFIG_CACHE:-}" ]; then
+    mkdir -p "$(dirname "$APP_CONFIG_CACHE")"
+    chown -R "$RUNTIME_USER" "$(dirname "$APP_CONFIG_CACHE")" 2>/dev/null || true
+    # `config:cache` tự chạy `config:clear` trước, nên gọi thẳng là đủ.
+    php artisan config:cache \
+        || echo "[entrypoint] config:cache thất bại — chạy tiếp KHÔNG cache."
+fi
+
 # Gọi lại LẦN CUỐI: mọi lệnh ở trên chạy bằng root nên vừa sinh ra file mới
 # (vendor stamp, bootstrap/cache/*.php, storage/logs/laravel.log, session/view
 # cache). Không nhận lại ownership ở đây thì tiến trình chính chạy bằng

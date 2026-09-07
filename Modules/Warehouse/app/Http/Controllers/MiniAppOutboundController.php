@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -429,16 +430,16 @@ class MiniAppOutboundController extends Controller
             ->leftJoin('item_instances as i', 'i.item_id', '=', 'm.item_id')
             ->where('l.stock_document_id', $documentId);
 
-        $hasScanEvent = Schema::hasColumn('outbound_item_matches', 'scan_event_id')
-            && (Schema::hasTable('scan_event') || Schema::hasView('scan_event'));
+        $hasScanEvent = SchemaCache::hasColumn('outbound_item_matches', 'scan_event_id')
+            && (SchemaCache::hasTable('scan_event') || SchemaCache::hasView('scan_event'));
         if ($hasScanEvent) {
             $query->leftJoin('scan_event as se', 'se.scan_event_id', '=', 'm.scan_event_id');
-            if (Schema::hasColumn('scan_event', 'raw_code')) {
+            if (SchemaCache::hasColumn('scan_event', 'raw_code')) {
                 $columns[] = 'se.raw_code';
             } else {
                 $columns[] = DB::raw('NULL as raw_code');
             }
-            if (Schema::hasColumn('scan_event', 'scan_source')) {
+            if (SchemaCache::hasColumn('scan_event', 'scan_source')) {
                 $columns[] = 'se.scan_source';
             } else {
                 $columns[] = DB::raw('NULL as scan_source');

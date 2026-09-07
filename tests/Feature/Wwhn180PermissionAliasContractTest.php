@@ -56,12 +56,29 @@ class Wwhn180PermissionAliasContractTest extends TestCase
 
         foreach (['inbound.post', 'outbound.post', 'scan.inbound', 'scan.outbound', 'inventory.trace', 'warranty.manage'] as $key) {
             $this->assertContains($key, $keeperKeys);
-            $this->assertContains($key, $managerKeys);
         }
 
-        foreach (['scan.warranty', 'report.export'] as $key) {
+        $this->assertNotContains('scan.warranty', $keeperKeys);
+
+        // WAREHOUSE_MANAGER đổi hạng theo tài liệu BA taikhoantheorole v2 (nguyên tắc
+        // 3): vai GIÁM SÁT, "không trực tiếp thực hiện nghiệp vụ kho như nhập, xuất,
+        // Post, bảo hành...". Năm mã dưới đây từng được WmsPermissionCompatibilitySeeder
+        // gắn thêm cho vai này dưới danh nghĩa "alias FE" — nhưng inbound.post,
+        // outbound.post và warranty.manage là mã CANONICAL mà route thật đang gác, nên
+        // để lại thì việc thu hồi quyền ở AuthDatabaseSeeder chỉ có trên giấy.
+        foreach (['inbound.post', 'outbound.post', 'warranty.manage', 'scan.inbound', 'scan.outbound', 'scan.warranty'] as $key) {
+            $this->assertNotContains(
+                $key,
+                $managerKeys,
+                "WAREHOUSE_MANAGER vẫn giữ {$key}. Vai giám sát không được Post/scan/xử lý bảo hành — "
+                .'kiểm tra WmsPermissionCompatibilitySeeder::ROLE_ASSIGNMENTS, nơi quyền hay quay lại qua cửa sau.'
+            );
+        }
+
+        // Hai mã đọc thì GIỮ: ma trận BA đánh ✅ cho ô (QL kho × Report export) và vai
+        // này vẫn phải truy vết được mặt hàng để đối soát.
+        foreach (['inventory.trace', 'report.export'] as $key) {
             $this->assertContains($key, $managerKeys);
-            $this->assertNotContains($key, $keeperKeys);
         }
 
         $this->assertFalse(Permission::query()->where('permission_key', 'stocktake.count')->exists());

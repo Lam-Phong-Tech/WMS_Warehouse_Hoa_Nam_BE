@@ -19,7 +19,7 @@ class Wwhn330ImportErrorFilePurgeTest extends TestCase
 
     public function test_purge_deletes_expired_error_file_and_clears_report_path(): void
     {
-        $disk = Storage::disk(ImportErrorFileService::DISK);
+        $disk = Storage::disk(ImportErrorFileService::diskName());
         $relativePath = ImportErrorFileService::STORAGE_SUBDIR.'/expired-report.csv';
         $disk->put($relativePath, "row,field,error_code,message,value\n2,sku_code,X,Y,Z\n");
 
@@ -51,7 +51,7 @@ class Wwhn330ImportErrorFilePurgeTest extends TestCase
 
     public function test_purge_leaves_non_expired_error_file_untouched(): void
     {
-        $disk = Storage::disk(ImportErrorFileService::DISK);
+        $disk = Storage::disk(ImportErrorFileService::diskName());
         $relativePath = ImportErrorFileService::STORAGE_SUBDIR.'/fresh-report.csv';
         $disk->put($relativePath, "row,field,error_code,message,value\n2,sku_code,X,Y,Z\n");
 
@@ -81,7 +81,7 @@ class Wwhn330ImportErrorFilePurgeTest extends TestCase
 
     public function test_dry_run_reports_without_deleting(): void
     {
-        $disk = Storage::disk(ImportErrorFileService::DISK);
+        $disk = Storage::disk(ImportErrorFileService::diskName());
         $relativePath = ImportErrorFileService::STORAGE_SUBDIR.'/dry-run-report.csv';
         $disk->put($relativePath, "row,field,error_code,message,value\n2,sku_code,X,Y,Z\n");
 

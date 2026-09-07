@@ -27,6 +27,17 @@ use Modules\Warehouse\Support\SkuImportContract;
  */
 class ImportErrorFileService
 {
+    /**
+     * Tên đĩa lưu file lỗi — đọc từ config để nhiều instance sau load balancer
+     * dùng chung một đĩa (xem config/wms_import.php). Ghi, tải về và dọn dẹp
+     * PHẢI cùng đi qua đây.
+     */
+    public static function diskName(): string
+    {
+        return (string) config('wms_import.error_disk', self::DISK);
+    }
+
+    /** Mặc định khi chưa cấu hình; nơi ghi/đọc/dọn phải gọi diskName(). */
     public const DISK = 'local';
 
     public const STORAGE_SUBDIR = 'import-error-files';
@@ -100,7 +111,7 @@ class ImportErrorFileService
             return null;
         }
 
-        $disk = Storage::disk(self::DISK);
+        $disk = Storage::disk(self::diskName());
         $relativePath = self::STORAGE_SUBDIR.'/'.$reportId.'.csv';
 
         $handle = fopen('php://temp', 'w+');

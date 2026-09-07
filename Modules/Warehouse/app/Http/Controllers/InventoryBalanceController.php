@@ -11,6 +11,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\InventoryBalance;
 use OpenApi\Attributes as OA;
 
@@ -76,8 +77,15 @@ class InventoryBalanceController extends Controller
             'keyword' => $keyword,
         ];
 
+        // 'scope' LÀ BẮT BUỘC: model InventoryBalance dùng ScopesWarehouseData, nên
+        // CÙNG một bộ lọc trả KHÁC dữ liệu cho người có phạm vi kho khác nhau. Thiếu
+        // đoạn này thì người mở màn trước "mồi" cache và người có phạm vi khác đọc
+        // trúng dữ liệu kho không thuộc quyền của họ (rò dữ liệu, không chỉ là sai số).
+        // Cùng quy ước với CachesReadPayload::readCacheKey (khoá của
+        // /stock-movements đã có 'scope-global').
         $key = CacheKey::of('warehouse:inventory-balance:list', [
             'f' => CacheKey::hashFilters($filters),
+            'scope' => CacheKey::scopeSignature($this->warehouseScopeIds()),
             'per_page' => $perPage,
             'page' => $currentPage,
         ], $this->cacheService()->currentVersion('stock:version'));
@@ -103,6 +111,28 @@ class InventoryBalanceController extends Controller
         );
 
         return $this->respondPaginated($balances);
+    }
+
+    /**
+     * Phạm vi kho của người gọi, chuẩn hoá để hai người cùng phạm vi dùng chung
+     * một khoá cache (sort + unique). `null` = không giới hạn (toàn hệ thống).
+     *
+     * @return array<int, string>|null
+     */
+    private function warehouseScopeIds(): ?array
+    {
+        $user = auth('api')->user();
+        $scope = $user instanceof User ? $user->warehouseScopeIds() : null;
+        if ($scope === null) {
+            return null;
+        }
+
+        return collect($scope)
+            ->map(fn ($id): string => (string) $id)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     /** @return array{items: array<int, array<string, mixed>>, total: int} */
@@ -271,8 +301,8 @@ class InventoryBalanceController extends Controller
             ])
             ->get();
 
-        // Gắn mã vật lý cho từng item: tách mã in (barcode/QR) với thẻ RFID để
-        // UI phân biệt được, nhưng vẫn giữ MỖI ITEM = MỘT DÒNG.
+        // Gắn mã vật lý cho từng item: tách mã in (barcode/QR), thẻ RFID và chip
+        // NFC để UI phân biệt được, nhưng vẫn giữ MỖI ITEM = MỘT DÒNG.
         $itemIds = $items->pluck('id')->filter()->values();
         $codesByItem = $itemIds->isEmpty()
             ? collect()
@@ -280,17 +310,36 @@ class InventoryBalanceController extends Controller
                 ->where('assigned_object_type', 'ITEM')
                 ->whereIn('assigned_object_id', $itemIds->all())
                 ->orderBy('created_at')
-                ->get(['assigned_object_id', 'code_value', 'carrier_type'])
+                ->get(['assigned_object_id', 'code_value', 'carrier_type', 'hardware_uid', 'status'])
                 ->groupBy('assigned_object_id');
 
         $items = $items->map(function (object $item) use ($codesByItem): object {
             $codes = $codesByItem->get($item->id, collect());
-            $rfid = $codes->first(fn ($code): bool => strtoupper((string) $code->carrier_type) === 'RFID');
-            $printed = $codes->first(fn ($code): bool => strtoupper((string) $code->carrier_type) !== 'RFID')
-                ?? $codes->first();
+            $carrier = fn ($code): string => strtoupper((string) $code->carrier_type);
+
+            $rfid = $codes->first(fn ($code): bool => $carrier($code) === 'RFID');
+
+            // Chip NFC chỉ tính khi còn ACTIVE — chip LOST/REPLACED/INACTIVE nghĩa
+            // là hiện vật đang trần và phải quay lại worklist dán chip. Dùng đúng
+            // predicate của MiniAppNfcController::listItems để hai màn không trả
+            // lời khác nhau cho cùng câu hỏi "máy này đã dán chip chưa".
+            $nfc = $codes->first(fn ($code): bool => $carrier($code) === 'NFC'
+                && strtoupper((string) $code->status) === 'ACTIVE');
+
+            // NFC bị loại khỏi ô "Mã vật lý": `code_value` của chip là alias
+            // `NFC-<hardware_uid>` chứ không phải mã in trên nhãn, để lọt vào đây
+            // thì hiện vật chỉ có chip sẽ hiện alias và người dùng đọc nhầm thành
+            // mã dán trên máy. Chuỗi fallback giữ nguyên hành vi cũ với item
+            // không mang chip nào.
+            $printed = $codes->first(fn ($code): bool => ! in_array($carrier($code), ['RFID', 'NFC'], true))
+                ?? $codes->first(fn ($code): bool => $carrier($code) !== 'NFC');
+
             $item->physical_code = $printed->code_value ?? null;
             $item->code_carrier_type = $printed->carrier_type ?? null;
             $item->rfid_code = $rfid->code_value ?? null;
+            $item->nfc_code = $nfc->code_value ?? null;
+            $item->nfc_hardware_uid = $nfc->hardware_uid ?? null;
+            $item->nfc_status = $nfc === null ? 'UNASSIGNED' : 'ASSIGNED';
 
             return $item;
         });

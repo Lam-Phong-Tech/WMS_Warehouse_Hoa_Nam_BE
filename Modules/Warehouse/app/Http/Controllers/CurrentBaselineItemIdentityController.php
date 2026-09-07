@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -259,7 +260,7 @@ class CurrentBaselineItemIdentityController extends Controller
                         'created_by' => $this->actorId(),
                         'updated_by' => $this->actorId(),
                     ] as $column => $value) {
-                        if (Schema::hasColumn('item_instances', $column)) {
+                        if (SchemaCache::hasColumn('item_instances', $column)) {
                             $itemRow[$column] = $value;
                         }
                     }

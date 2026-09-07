@@ -1,0 +1,625 @@
+[
+ {
+  "path": "/api/v1/permissions",
+  "status": 200,
+  "bytes": 3730,
+  "cold": 601.3,
+  "warm": 124.6
+ },
+ {
+  "path": "/api/v1/inbound-documents",
+  "status": 200,
+  "bytes": 40110,
+  "cold": 384.4,
+  "warm": 138.8
+ },
+ {
+  "path": "/api/v1/defects",
+  "status": 200,
+  "bytes": 5767,
+  "cold": 308.3,
+  "warm": 97.7
+ },
+ {
+  "path": "/api/v1/reports/inventory-ledger",
+  "status": 200,
+  "bytes": 4511814,
+  "cold": 302.5,
+  "warm": 188.2
+ },
+ {
+  "path": "/api/v1/reports/label-log",
+  "status": 200,
+  "bytes": 46295,
+  "cold": 262.8,
+  "warm": 132.8
+ },
+ {
+  "path": "/api/v1/reports/dashboard-quick",
+  "status": 200,
+  "bytes": 22906,
+  "cold": 236.1,
+  "warm": 121.5
+ },
+ {
+  "path": "/api/v1/users",
+  "status": 200,
+  "bytes": 13971,
+  "cold": 236.1,
+  "warm": 107.7
+ },
+ {
+  "path": "/api/v1/scan/events",
+  "status": 200,
+  "bytes": 4157,
+  "cold": 230.8,
+  "warm": 105.8
+ },
+ {
+  "path": "/api/v1/mini-app/inbound-documents",
+  "status": 200,
+  "bytes": 41506,
+  "cold": 220.1,
+  "warm": 115.1
+ },
+ {
+  "path": "/api/v1/reports/import-match",
+  "status": 200,
+  "bytes": 209001,
+  "cold": 219.4,
+  "warm": 126.9
+ },
+ {
+  "path": "/api/v1/reports/movement-trace",
+  "status": 200,
+  "bytes": 4511814,
+  "cold": 213.4,
+  "warm": 208.7
+ },
+ {
+  "path": "/api/v1/reports/warranty-component-usage",
+  "status": 200,
+  "bytes": 12191,
+  "cold": 207.2,
+  "warm": 127
+ },
+ {
+  "path": "/api/v1/agencies",
+  "status": 200,
+  "bytes": 6612,
+  "cold": 205.8,
+  "warm": 148.3
+ },
+ {
+  "path": "/api/v1/roles",
+  "status": 200,
+  "bytes": 74436,
+  "cold": 205.6,
+  "warm": 120.8
+ },
+ {
+  "path": "/api/v1/reports/dashboard-overview",
+  "status": 200,
+  "bytes": 8275,
+  "cold": 199.7,
+  "warm": 170
+ },
+ {
+  "path": "/api/v1/reports/outbound-by-recipient",
+  "status": 200,
+  "bytes": 25060,
+  "cold": 199.5,
+  "warm": 129.8
+ },
+ {
+  "path": "/api/v1/outbound-documents",
+  "status": 200,
+  "bytes": 38131,
+  "cold": 199.1,
+  "warm": 106.1
+ },
+ {
+  "path": "/api/v1/mini-app/outbound-documents",
+  "status": 200,
+  "bytes": 41664,
+  "cold": 198.9,
+  "warm": 146.1
+ },
+ {
+  "path": "/api/v1/public/home",
+  "status": 200,
+  "bytes": 27155,
+  "cold": 185.9,
+  "warm": 211.1
+ },
+ {
+  "path": "/api/v1/inventory",
+  "status": 200,
+  "bytes": 9176,
+  "cold": 182.4,
+  "warm": 121.4
+ },
+ {
+  "path": "/api/v1/auth/me",
+  "status": 200,
+  "bytes": 1705,
+  "cold": 181.4,
+  "warm": 138.2
+ },
+ {
+  "path": "/api/v1/departments",
+  "status": 200,
+  "bytes": 2236,
+  "cold": 181.2,
+  "warm": 120.2
+ },
+ {
+  "path": "/api/v1/reports/document-history",
+  "status": 200,
+  "bytes": 1022303,
+  "cold": 178.1,
+  "warm": 163.4
+ },
+ {
+  "path": "/api/v1/printer-configs",
+  "status": 200,
+  "bytes": 4869,
+  "cold": 177.8,
+  "warm": 101.3
+ },
+ {
+  "path": "/api/v1/skus/import-reports",
+  "status": 200,
+  "bytes": 14637,
+  "cold": 176,
+  "warm": 106
+ },
+ {
+  "path": "/api/v1/containers",
+  "status": 200,
+  "bytes": 5902,
+  "cold": 175.8,
+  "warm": 140
+ },
+ {
+  "path": "/api/v1/product-masters",
+  "status": 200,
+  "bytes": 3275,
+  "cold": 174.5,
+  "warm": 107
+ },
+ {
+  "path": "/api/v1/reversal-documents",
+  "status": 200,
+  "bytes": 10145,
+  "cold": 173.3,
+  "warm": 115
+ },
+ {
+  "path": "/api/v1/reports/warranty-defects",
+  "status": 200,
+  "bytes": 14616,
+  "cold": 170,
+  "warm": 141.6
+ },
+ {
+  "path": "/api/v1/public/categories",
+  "status": 200,
+  "bytes": 1961,
+  "cold": 169.4,
+  "warm": 121.7
+ },
+ {
+  "path": "/api/v1/recipients",
+  "status": 200,
+  "bytes": 6612,
+  "cold": 166,
+  "warm": 117.8
+ },
+ {
+  "path": "/api/v1/mini-app/items",
+  "status": 200,
+  "bytes": 9596,
+  "cold": 164.6,
+  "warm": 120.1
+ },
+ {
+  "path": "/api/v1/item-instances",
+  "status": 200,
+  "bytes": 7987,
+  "cold": 164.4,
+  "warm": 126.4
+ },
+ {
+  "path": "/api/v1/audit-logs",
+  "status": 200,
+  "bytes": 11755,
+  "cold": 161.3,
+  "warm": 130.7
+ },
+ {
+  "path": "/api/v1/public/facets",
+  "status": 200,
+  "bytes": 2262,
+  "cold": 160.5,
+  "warm": 161.8
+ },
+ {
+  "path": "/api/v1/reports/inventory-xnt",
+  "status": 422,
+  "bytes": 536,
+  "cold": 158.9,
+  "warm": 135.8
+ },
+ {
+  "path": "/api/v1/pv/tags",
+  "status": 200,
+  "bytes": 1598,
+  "cold": 156.9,
+  "warm": 97.8
+ },
+ {
+  "path": "/api/v1/health",
+  "status": 200,
+  "bytes": 639,
+  "cold": 156.6,
+  "warm": 86.4
+ },
+ {
+  "path": "/api/v1/document-status-history",
+  "status": 200,
+  "bytes": 3241,
+  "cold": 156.5,
+  "warm": 119.1
+ },
+ {
+  "path": "/api/v1/stock-movements",
+  "status": 200,
+  "bytes": 28886,
+  "cold": 155.3,
+  "warm": 110.6
+ },
+ {
+  "path": "/api/v1/mini-app/products",
+  "status": 200,
+  "bytes": 7727,
+  "cold": 153.8,
+  "warm": 107.2
+ },
+ {
+  "path": "/api/v1/reports/inventory-xnt-enhanced",
+  "status": 422,
+  "bytes": 536,
+  "cold": 152.9,
+  "warm": 134
+ },
+ {
+  "path": "/api/v1/defect-catalogs",
+  "status": 200,
+  "bytes": 5791,
+  "cold": 152.4,
+  "warm": 96.3
+ },
+ {
+  "path": "/api/v1/mini-app/warranty-cases",
+  "status": 200,
+  "bytes": 20355,
+  "cold": 151.6,
+  "warm": 171.1
+ },
+ {
+  "path": "/api/v1/inventory/balances",
+  "status": 200,
+  "bytes": 9206,
+  "cold": 150.8,
+  "warm": 104.3
+ },
+ {
+  "path": "/api/v1/products",
+  "status": 200,
+  "bytes": 10243,
+  "cold": 150.7,
+  "warm": 122.9
+ },
+ {
+  "path": "/api/v1/label-print-events",
+  "status": 200,
+  "bytes": 8414,
+  "cold": 148,
+  "warm": 117.5
+ },
+ {
+  "path": "/api/v1/notifications",
+  "status": 200,
+  "bytes": 11885,
+  "cold": 147.5,
+  "warm": 112
+ },
+ {
+  "path": "/api/v1/brands",
+  "status": 200,
+  "bytes": 5306,
+  "cold": 147.2,
+  "warm": 128.3
+ },
+ {
+  "path": "/api/v1/stock-movements/reversible",
+  "status": 200,
+  "bytes": 17191,
+  "cold": 145.8,
+  "warm": 105.4
+ },
+ {
+  "path": "/api/v1/document-attachments/pending-evidence",
+  "status": 200,
+  "bytes": 4938,
+  "cold": 145,
+  "warm": 101.5
+ },
+ {
+  "path": "/api/v1/reports/outbound-by-agency",
+  "status": 200,
+  "bytes": 543706,
+  "cold": 143.8,
+  "warm": 118.7
+ },
+ {
+  "path": "/api/v1/reports/inventory-reconciliation",
+  "status": 200,
+  "bytes": 365771,
+  "cold": 142.5,
+  "warm": 129.1
+ },
+ {
+  "path": "/api/v1/public/products",
+  "status": 200,
+  "bytes": 11675,
+  "cold": 141.9,
+  "warm": 105
+ },
+ {
+  "path": "/api/v1/skus",
+  "status": 200,
+  "bytes": 10231,
+  "cold": 141.9,
+  "warm": 108.8
+ },
+ {
+  "path": "/api/v1/stock-movements/trace-by-code",
+  "status": 422,
+  "bytes": 380,
+  "cold": 140.9,
+  "warm": 116.7
+ },
+ {
+  "path": "/api/v1/pv/catalog",
+  "status": 200,
+  "bytes": 16010,
+  "cold": 136.1,
+  "warm": 111.2
+ },
+ {
+  "path": "/api/v1/physical-codes",
+  "status": 200,
+  "bytes": 8384,
+  "cold": 135.2,
+  "warm": 108.8
+ },
+ {
+  "path": "/api/v1/putaway-tasks",
+  "status": 200,
+  "bytes": 3463,
+  "cold": 133,
+  "warm": 116.9
+ },
+ {
+  "path": "/api/v1/label-snapshots",
+  "status": 200,
+  "bytes": 10406,
+  "cold": 132.7,
+  "warm": 122.5
+ },
+ {
+  "path": "/api/v1/product-models",
+  "status": 200,
+  "bytes": 10398,
+  "cold": 131.7,
+  "warm": 115.7
+ },
+ {
+  "path": "/api/v1/reports/inventory-balance",
+  "status": 200,
+  "bytes": 244489,
+  "cold": 131.7,
+  "warm": 130.5
+ },
+ {
+  "path": "/api/v1/mini-app/warranty-component-issues",
+  "status": 200,
+  "bytes": 7739,
+  "cold": 130.6,
+  "warm": 103.7
+ },
+ {
+  "path": "/api/v1/mini-app/document-attachments/pending-evidence",
+  "status": 200,
+  "bytes": 4938,
+  "cold": 130.5,
+  "warm": 138.3
+ },
+ {
+  "path": "/api/v1/import-batches",
+  "status": 200,
+  "bytes": 3436,
+  "cold": 129.4,
+  "warm": 140.9
+ },
+ {
+  "path": "/api/v1/warranty-cases",
+  "status": 200,
+  "bytes": 20325,
+  "cold": 128.9,
+  "warm": 117.1
+ },
+ {
+  "path": "/api/v1/audit-logs/me",
+  "status": 200,
+  "bytes": 369,
+  "cold": 128.1,
+  "warm": 130.2
+ },
+ {
+  "path": "/api/v1/mini-app/printer-configs",
+  "status": 200,
+  "bytes": 4889,
+  "cold": 128.1,
+  "warm": 122.8
+ },
+ {
+  "path": "/api/v1/reports/warranty-defect-sku-breakdown",
+  "status": 200,
+  "bytes": 15059,
+  "cold": 128,
+  "warm": 129.7
+ },
+ {
+  "path": "/api/v1/pv/industries",
+  "status": 200,
+  "bytes": 1143,
+  "cold": 127.6,
+  "warm": 81.4
+ },
+ {
+  "path": "/api/v1/putaway/tasks",
+  "status": 200,
+  "bytes": 3463,
+  "cold": 124,
+  "warm": 124.2
+ },
+ {
+  "path": "/api/v1/outbound-request-imports",
+  "status": 200,
+  "bytes": 7923,
+  "cold": 120.6,
+  "warm": 101.8
+ },
+ {
+  "path": "/api/v1/product-categories",
+  "status": 200,
+  "bytes": 11803,
+  "cold": 120.2,
+  "warm": 106.3
+ },
+ {
+  "path": "/api/v1/mini-app/nfc-tags",
+  "status": 200,
+  "bytes": 182,
+  "cold": 118.2,
+  "warm": 129.6
+ },
+ {
+  "path": "/api/v1/warranty-component-issues",
+  "status": 200,
+  "bytes": 7709,
+  "cold": 117.8,
+  "warm": 113.3
+ },
+ {
+  "path": "/api/v1/outbound-requests",
+  "status": 200,
+  "bytes": 10699,
+  "cold": 117.6,
+  "warm": 121.5
+ },
+ {
+  "path": "/api/v1/scan/batches",
+  "status": 200,
+  "bytes": 1557,
+  "cold": 116,
+  "warm": 110
+ },
+ {
+  "path": "/api/v1/package-variants",
+  "status": 200,
+  "bytes": 4407,
+  "cold": 114.1,
+  "warm": 96.4
+ },
+ {
+  "path": "/api/v1/warehouses",
+  "status": 200,
+  "bytes": 972,
+  "cold": 113,
+  "warm": 105.6
+ },
+ {
+  "path": "/api/v1/reports/hub",
+  "status": 200,
+  "bytes": 616,
+  "cold": 110.2,
+  "warm": 108.2
+ },
+ {
+  "path": "/api/v1/reports/inventory-xnt-daily",
+  "status": 422,
+  "bytes": 536,
+  "cold": 110,
+  "warm": 135
+ },
+ {
+  "path": "/api/v1/pv/products",
+  "status": 200,
+  "bytes": 16013,
+  "cold": 108.9,
+  "warm": 110.2
+ },
+ {
+  "path": "/api/v1/component-issue-documents",
+  "status": 200,
+  "bytes": 7709,
+  "cold": 105.5,
+  "warm": 122.4
+ },
+ {
+  "path": "/api/v1/putaway/history",
+  "status": 200,
+  "bytes": 2325,
+  "cold": 104.5,
+  "warm": 109.6
+ },
+ {
+  "path": "/api/v1/notifications/unread-count",
+  "status": 200,
+  "bytes": 145,
+  "cold": 97.1,
+  "warm": 118
+ },
+ {
+  "path": "/api/v1/power-sources",
+  "status": 200,
+  "bytes": 4233,
+  "cold": 94.1,
+  "warm": 108.8
+ },
+ {
+  "path": "/api/v1/public/config",
+  "status": 200,
+  "bytes": 947,
+  "cold": 93,
+  "warm": 81.6
+ },
+ {
+  "path": "/api/v1/public/health/version",
+  "status": 200,
+  "bytes": 294,
+  "cold": 79.5,
+  "warm": 55.4
+ },
+ {
+  "path": "/api/v1/pv/recommendations",
+  "status": 400,
+  "bytes": 301,
+  "cold": 76.5,
+  "warm": 83.6
+ }
+]

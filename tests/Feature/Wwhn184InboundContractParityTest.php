@@ -6,6 +6,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Modules\Auth\Models\Permission;
+use Modules\Auth\Models\Role;
 use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -62,6 +64,42 @@ class Wwhn184InboundContractParityTest extends TestCase
         'POST api/v1/inbound-documents/{id}/reverse' => 'inventory.reversal.post',
         'GET api/v1/inbound-documents/{id}/scan-entries' => 'inbound.view',
     ];
+
+    /**
+     * Tài khoản mang một vai fixture có ĐÚNG tập quyền được liệt kê — dùng khi mệnh
+     * đề cần đo là hành vi của cổng route chứ không phải ma trận quyền của một vai
+     * nghiệp vụ. Vai nghiệp vụ đổi theo quyết định của BA; cổng route thì không.
+     *
+     * @param  array<int, string>  $permissionKeys
+     * @return array<string, string>
+     */
+    private function headersForRoleWithExactPermissions(string $roleCode, array $permissionKeys): array
+    {
+        $role = Role::firstOrCreate(
+            ['role_code' => $roleCode],
+            ['role_name' => $roleCode, 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']
+        );
+
+        $permissionIds = Permission::query()
+            ->whereIn('permission_key', $permissionKeys)
+            ->pluck('permission_id')
+            ->all();
+
+        $this->assertCount(
+            count($permissionKeys),
+            $permissionIds,
+            'Fixture đòi quyền chưa có trong danh mục — seed AuthDatabaseSeeder trước khi gọi.'
+        );
+
+        foreach ($permissionIds as $permissionId) {
+            DB::table('role_permission')->updateOrInsert(
+                ['role_id' => $role->role_id, 'permission_id' => $permissionId],
+                ['role_permission_id' => (string) Str::uuid()]
+            );
+        }
+
+        return $this->authHeadersWithRole($roleCode);
+    }
 
     private function componentSku(string $code): Sku
     {
@@ -120,27 +158,37 @@ class Wwhn184InboundContractParityTest extends TestCase
 
     public function test_runtime_matches_postman_expectations(): void
     {
-        $manager = $this->authHeadersWithRole('WAREHOUSE_MANAGER');
+        // Vai đứng vận hành đổi WAREHOUSE_MANAGER -> WAREHOUSE_STAFF ngày 06/09/2026:
+        // tài liệu BA taikhoantheorole v2 chuyển Quản lý kho thành vai GIÁM SÁT (không
+        // tạo/scan/Post/huỷ phiếu) và chuyển đúng bộ quyền đó sang Nhân viên kho — vai
+        // "trực tiếp vận hành kho từ đầu đến cuối". Giữ WAREHOUSE_MANAGER ở đây thì cả
+        // kịch bản parity chỉ còn đo được 403.
+        //
+        // $operator và $staff cùng role nhưng là HAI tài khoản khác nhau
+        // (authHeadersWithRole tạo user mới mỗi lần gọi) — đúng thứ mục retest §12 của
+        // BA đòi: hai nhân viên kho thao tác độc lập trên cùng một chứng từ, không cần
+        // role trung gian nào đứng giữa.
+        $operator = $this->authHeadersWithRole('WAREHOUSE_STAFF');
         $staff = $this->authHeadersWithRole('WAREHOUSE_STAFF');
         $viewer = $this->authHeadersWithRole('VIEWER');
         $warehouse = $this->warehouseFixture();
         $sku = $this->componentSku('COMP-W184-'.Str::upper(Str::random(6)));
 
         /* ---------- Nhánh A/B/C/D: Cancel ---------- */
-        $docA = $this->draftWithBox($manager, $warehouse->id, $sku->sku_id, 'A');
+        $docA = $this->draftWithBox($operator, $warehouse->id, $sku->sku_id, 'A');
 
         // A02 — thiếu If-Match.
-        $this->patchJson("/api/v1/inbound-documents/{$docA['id']}", ['note' => 'missing if-match'], $manager)
+        $this->patchJson("/api/v1/inbound-documents/{$docA['id']}", ['note' => 'missing if-match'], $operator)
             ->assertStatus(428)
             ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
 
         // A03 — If-Match cũ.
-        $this->patchJson("/api/v1/inbound-documents/{$docA['id']}", ['note' => 'stale'], $manager + ['If-Match' => '9999'])
+        $this->patchJson("/api/v1/inbound-documents/{$docA['id']}", ['note' => 'stale'], $operator + ['If-Match' => '9999'])
             ->assertStatus(412)
             ->assertJsonPath('error.code', 'STALE_VERSION');
 
         // A04 — hai request lỗi ở trên là fail-closed.
-        $this->getJson("/api/v1/inbound-documents/{$docA['id']}", $manager)
+        $this->getJson("/api/v1/inbound-documents/{$docA['id']}", $operator)
             ->assertJsonPath('data.status', 'DRAFT')
             ->assertJsonPath('data.version', 1);
 
@@ -150,7 +198,7 @@ class Wwhn184InboundContractParityTest extends TestCase
             'line_id' => $docA['line_id'],
             'qty' => 5,
             'container_id' => $docA['box_id'],
-        ], $manager + ['If-Match' => '1']);
+        ], $operator + ['If-Match' => '1']);
         $scan->assertOk()->assertJsonPath('data.version', 2);
         $this->assertSame('"2"', $scan->headers->get('ETag'));
         $this->assertSame(
@@ -160,66 +208,73 @@ class Wwhn184InboundContractParityTest extends TestCase
         );
 
         // B02/B03.
-        $this->getJson("/api/v1/inbound-documents/{$docA['id']}", $manager)
+        $this->getJson("/api/v1/inbound-documents/{$docA['id']}", $operator)
             ->assertJsonPath('data.status', 'SCANNING')
             ->assertJsonPath('data.version', 2);
-        $this->getJson("/api/v1/inbound-documents/{$docA['id']}/scan-entries?status=ACTIVE", $manager)
+        $this->getJson("/api/v1/inbound-documents/{$docA['id']}/scan-entries?status=ACTIVE", $operator)
             ->assertOk();
         $this->assertGreaterThan(
             0,
-            count($this->getJson("/api/v1/inbound-documents/{$docA['id']}/scan-entries?status=ACTIVE", $manager)->json('data')),
+            count($this->getJson("/api/v1/inbound-documents/{$docA['id']}/scan-entries?status=ACTIVE", $operator)->json('data')),
             'Annex D SCR-IN-01: phải đọc lại được bằng chứng quét ACTIVE.',
         );
 
         // C01 — post-receipt thiếu Idempotency-Key.
-        $this->postJson("/api/v1/inbound-documents/{$docA['id']}/post-receipt", [], $manager + ['If-Match' => '2'])
+        $this->postJson("/api/v1/inbound-documents/{$docA['id']}/post-receipt", [], $operator + ['If-Match' => '2'])
             ->assertStatus(428)
             ->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
-        $this->getJson("/api/v1/inbound-documents/{$docA['id']}", $manager)
+        $this->getJson("/api/v1/inbound-documents/{$docA['id']}", $operator)
             ->assertJsonPath('data.status', 'SCANNING')
             ->assertJsonPath('data.version', 2);
 
-        // D01 — WAREHOUSE_STAFF chỉ có inbound.create vẫn phải Cancel được
-        // (route khai inbound.cancel|inbound.create — Annex C dòng 1443).
-        $this->assertFalse(
-            DB::table('role_permission')
-                ->join('permission', 'permission.permission_id', '=', 'role_permission.permission_id')
-                ->join('role', 'role.role_id', '=', 'role_permission.role_id')
-                ->where('role.role_code', 'WAREHOUSE_STAFF')
-                ->where('permission.permission_key', 'inbound.cancel')
-                ->exists(),
-            'Fixture phải giữ đúng giả định: WAREHOUSE_STAFF KHÔNG được seed inbound.cancel.',
+        // D01 — vai chỉ có inbound.create vẫn phải Cancel được (route khai
+        // `inbound.cancel|inbound.create` — Annex C dòng 1443).
+        //
+        // Trước 06/09/2026 mệnh đề này mượn WAREHOUSE_STAFF làm ví dụ, kèm một
+        // assertion khoá giả định "WAREHOUSE_STAFF KHÔNG được seed inbound.cancel".
+        // Tài liệu BA taikhoantheorole v2 vừa cấp inbound.cancel cho chính vai đó
+        // ("Huỷ phiếu: huỷ chứng từ khi trạng thái và rule nghiệp vụ cho phép"), nên
+        // giả định cũ không còn đúng — và sau đợt sửa KHÔNG còn vai seed nào có
+        // inbound.create mà thiếu inbound.cancel để mượn.
+        //
+        // Dựng vai fixture riêng thay vì đổi sang một vai seed khác: mệnh đề cần đo là
+        // hành vi của CỔNG route (chấp nhận một trong hai key), không phải ma trận
+        // quyền của một vai nghiệp vụ cụ thể. Buộc nó vào ma trận là lý do nó vỡ lần
+        // này; tách ra thì nó độc lập với mọi lần BA đổi ma trận về sau.
+        $createOnly = $this->headersForRoleWithExactPermissions(
+            'W184_INBOUND_CREATE_ONLY',
+            ['warehouse.view', 'inbound.view', 'inbound.create']
         );
         $cancel = $this->postJson("/api/v1/inbound-documents/{$docA['id']}/cancel", [
             'reason' => 'DEV184-P1-01R parity: inbound.create phải đủ để Cancel',
-        ], $staff + ['If-Match' => '2']);
+        ], $createOnly + ['If-Match' => '2']);
         $cancel->assertOk()
             ->assertJsonPath('data.status', 'CANCELLED')
             ->assertJsonPath('data.version', 3);
         $this->assertSame('"3"', $cancel->headers->get('ETag'));
 
         // D02 — refetch xác nhận version đã dịch chuyển.
-        $this->getJson("/api/v1/inbound-documents/{$docA['id']}", $manager)
+        $this->getJson("/api/v1/inbound-documents/{$docA['id']}", $operator)
             ->assertJsonPath('data.status', 'CANCELLED')
             ->assertJsonPath('data.version', 3);
 
         // D03 vs D04 — CÙNG request, khác đúng một thứ: version trong If-Match.
         // Đây là bằng chứng trực tiếp cho defect mà reviewer nêu.
-        $this->postJson("/api/v1/inbound-documents/{$docA['id']}/cancel", ['reason' => 'double cancel, version mới'], $manager + ['If-Match' => '3'])
+        $this->postJson("/api/v1/inbound-documents/{$docA['id']}/cancel", ['reason' => 'double cancel, version mới'], $operator + ['If-Match' => '3'])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'STATE_CONFLICT');
-        $this->postJson("/api/v1/inbound-documents/{$docA['id']}/cancel", ['reason' => 'double cancel, version cũ'], $manager + ['If-Match' => '2'])
+        $this->postJson("/api/v1/inbound-documents/{$docA['id']}/cancel", ['reason' => 'double cancel, version cũ'], $operator + ['If-Match' => '2'])
             ->assertStatus(412)
             ->assertJsonPath('error.code', 'STALE_VERSION');
 
         /* ---------- Nhánh E: Post Receipt ---------- */
-        $docB = $this->draftWithBox($manager, $warehouse->id, $sku->sku_id, 'B');
+        $docB = $this->draftWithBox($operator, $warehouse->id, $sku->sku_id, 'B');
         $this->postJson("/api/v1/inbound-documents/{$docB['id']}/scan", [
             'line_id' => $docB['line_id'],
             'qty' => 3,
             'container_id' => $docB['box_id'],
-        ], $manager + ['If-Match' => '1'])->assertOk()->assertJsonPath('data.version', 2);
-        $this->getJson("/api/v1/inbound-documents/{$docB['id']}", $manager)
+        ], $operator + ['If-Match' => '1'])->assertOk()->assertJsonPath('data.version', 2);
+        $this->getJson("/api/v1/inbound-documents/{$docB['id']}", $operator)
             ->assertJsonPath('data.status', 'SCANNING')
             ->assertJsonPath('data.version', 2);
 
@@ -228,7 +283,7 @@ class Wwhn184InboundContractParityTest extends TestCase
         $key = 'w184-post-'.Str::lower(Str::random(12));
 
         // E03.
-        $post = $this->postJson("/api/v1/inbound-documents/{$docB['id']}/post-receipt", [], $manager + [
+        $post = $this->postJson("/api/v1/inbound-documents/{$docB['id']}/post-receipt", [], $operator + [
             'If-Match' => '2',
             'Idempotency-Key' => $key,
         ]);
@@ -243,12 +298,12 @@ class Wwhn184InboundContractParityTest extends TestCase
         $this->assertSame($balanceBefore + 3, $balanceAfter, 'Post Receipt phải tăng tồn đúng số đã quét.');
 
         // E04.
-        $this->getJson("/api/v1/inbound-documents/{$docB['id']}", $manager)
+        $this->getJson("/api/v1/inbound-documents/{$docB['id']}", $operator)
             ->assertJsonPath('data.status', 'POSTED')
             ->assertJsonPath('data.version', 3);
 
         // E05 — replay cùng key.
-        $replay = $this->postJson("/api/v1/inbound-documents/{$docB['id']}/post-receipt", [], $manager + [
+        $replay = $this->postJson("/api/v1/inbound-documents/{$docB['id']}/post-receipt", [], $operator + [
             'If-Match' => '3',
             'Idempotency-Key' => $key,
         ]);
@@ -266,24 +321,24 @@ class Wwhn184InboundContractParityTest extends TestCase
 
         // E06 — cùng key, khác payload. Mã đúng là IDEMPOTENCY_CONFLICT (SRS §8.2),
         // KHÔNG phải IDEMPOTENCY_ERROR như bản collection cũ khai.
-        $this->postJson("/api/v1/inbound-documents/{$docB['id']}/post-receipt", ['probe' => 'different-payload'], $manager + [
+        $this->postJson("/api/v1/inbound-documents/{$docB['id']}/post-receipt", ['probe' => 'different-payload'], $operator + [
             'If-Match' => '3',
             'Idempotency-Key' => $key,
         ])->assertStatus(409)->assertJsonPath('error.code', 'IDEMPOTENCY_CONFLICT');
 
         // E07 — key khác trên chứng từ đã POSTED, version hiện hành.
-        $this->postJson("/api/v1/inbound-documents/{$docB['id']}/post-receipt", [], $manager + [
+        $this->postJson("/api/v1/inbound-documents/{$docB['id']}/post-receipt", [], $operator + [
             'If-Match' => '3',
             'Idempotency-Key' => 'w184-second-'.Str::lower(Str::random(10)),
         ])->assertStatus(409)->assertJsonPath('error.code', 'STATE_CONFLICT');
 
         // E08 — Cancel chứng từ đã POSTED (POSTED là terminal).
-        $this->postJson("/api/v1/inbound-documents/{$docB['id']}/cancel", ['reason' => 'cancel sau khi POSTED'], $manager + ['If-Match' => '3'])
+        $this->postJson("/api/v1/inbound-documents/{$docB['id']}/cancel", ['reason' => 'cancel sau khi POSTED'], $operator + ['If-Match' => '3'])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'STATE_CONFLICT');
 
         // E09 — ba probe lỗi ở trên không đổi state/version/tồn.
-        $this->getJson("/api/v1/inbound-documents/{$docB['id']}", $manager)
+        $this->getJson("/api/v1/inbound-documents/{$docB['id']}", $operator)
             ->assertJsonPath('data.status', 'POSTED')
             ->assertJsonPath('data.version', 3);
         $this->assertSame(

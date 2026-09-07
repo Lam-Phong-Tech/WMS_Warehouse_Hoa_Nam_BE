@@ -56,6 +56,10 @@ const PUBLIC_ALLOWLIST = new Set([
   // BA — danh sách này chính là hợp đồng "mặt công khai" của hệ thống.
   "GET /api/v1/pv/catalog",
   "GET /api/v1/pv/tags",
+  // Ảnh sản phẩm App PV (MST-PV-01). Ẩn danh vì listPvProducts trả `images[].url`
+  // trên chính mặt ẩn danh này — ảnh mà đòi token thì thẻ sản phẩm vẽ ra ô trống.
+  // Chỉ trả BYTES ẢNH trong đúng prefix ảnh PV, key khớp `<uuid>.<ext>`.
+  "GET /api/v1/pv/product-images/{key}",
   // Storefront công khai của App PV (`/api/v1/public/*`). Đây là mặt API RIÊNG,
   // không phải alias của nhóm `pv/*`: envelope khác (đủ 6 khoá, luôn có
   // error_code/errors), và chỉ trả sản phẩm PUBLISHED + còn hàng, tuyệt đối

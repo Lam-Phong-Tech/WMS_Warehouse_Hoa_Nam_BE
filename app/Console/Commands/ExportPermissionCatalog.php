@@ -142,11 +142,16 @@ class ExportPermissionCatalog extends Command
         //   `scan.execute` mở thêm WAREHOUSE_KEEPER/WAREHOUSE_STAFF; alias được seed trong
         //   AuthDatabaseSeeder và được CheckPermission chấp nhận theo OR.
         // Danh sách dưới đây là baseline hợp nhất; lệch theo cả hai chiều đều FAIL để phát hiện drift.
+        //
+        // WAREHOUSE_MANAGER gỡ khỏi baseline 06/09/2026: tài liệu BA taikhoantheorole v2
+        // đưa vai này về giám sát và chỉ cho "xem kết quả scan/import", không cho thao
+        // tác quét — nên seeder không còn cấp scan.classify/scan.execute cho nó. Không
+        // sửa dòng này thì lần khôi phục cổng WWHN-309 sau sẽ ghim lại đúng cái baseline
+        // đã sai.
         $expectedScanRoles = [
             'ADMIN',
             'SUPER_ADMIN',
             'WAREHOUSE_KEEPER',
-            'WAREHOUSE_MANAGER',
             'WAREHOUSE_STAFF',
             'WARRANTY_STAFF',
         ];

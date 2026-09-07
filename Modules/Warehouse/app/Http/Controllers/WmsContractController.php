@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -146,7 +147,7 @@ class WmsContractController extends Controller
             ->select('t.*', 'w.code as warehouse_code', 'w.name as warehouse_name')
             ->orderByDesc('t.created_at');
 
-        if (Schema::hasColumn('putaway_tasks', 'stock_document_id')) {
+        if (SchemaCache::hasColumn('putaway_tasks', 'stock_document_id')) {
             $query->leftJoin('stock_documents as d', 'd.id', '=', 't.stock_document_id')
                 ->addSelect('d.doc_no as document_no');
             $keywordColumns = ['t.task_no', 't.status', 'w.code', 'w.name', 'd.doc_no'];
@@ -355,7 +356,7 @@ class WmsContractController extends Controller
             $recordEvents->where('result_status', $resultStatus);
         }
 
-        if (Schema::hasTable('scan_events') || Schema::hasView('scan_events')) {
+        if (SchemaCache::hasTable('scan_events') || SchemaCache::hasView('scan_events')) {
             $canonical = DB::table('scan_events')
                 ->select([
                     'id',

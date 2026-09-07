@@ -161,6 +161,15 @@ return [
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
             'max_retries' => env('REDIS_MAX_RETRIES', 3),
+            // Chặn trên cho việc nối và đọc Valkey. Mặc định 0 = vô hạn (đúng như
+            // trước), nên stack dev không đổi hành vi; hồ sơ chịu tải đặt giá trị
+            // thật. VÌ SAO CẦN: khi Valkey treo (không phải chết), phpredis chờ vô
+            // hạn — worker php-fpm bị ghim, lớp fail-open xuống database KHÔNG BAO
+            // GIỜ chạy, và trần 48 worker/replica cạn trong vài giây. Hàng đợi dùng
+            // 'block_for' => null (config/queue.php:92) nên read_timeout không cắt
+            // nhầm BLPOP.
+            'timeout' => (float) env('REDIS_TIMEOUT', 0),
+            'read_timeout' => (float) env('REDIS_READ_TIMEOUT', 0),
             'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
             'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
@@ -174,6 +183,15 @@ return [
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_CACHE_DB', '1'),
             'max_retries' => env('REDIS_MAX_RETRIES', 3),
+            // Chặn trên cho việc nối và đọc Valkey. Mặc định 0 = vô hạn (đúng như
+            // trước), nên stack dev không đổi hành vi; hồ sơ chịu tải đặt giá trị
+            // thật. VÌ SAO CẦN: khi Valkey treo (không phải chết), phpredis chờ vô
+            // hạn — worker php-fpm bị ghim, lớp fail-open xuống database KHÔNG BAO
+            // GIỜ chạy, và trần 48 worker/replica cạn trong vài giây. Hàng đợi dùng
+            // 'block_for' => null (config/queue.php:92) nên read_timeout không cắt
+            // nhầm BLPOP.
+            'timeout' => (float) env('REDIS_TIMEOUT', 0),
+            'read_timeout' => (float) env('REDIS_READ_TIMEOUT', 0),
             'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
             'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),

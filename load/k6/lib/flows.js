@@ -63,16 +63,22 @@ export const READ_FLOWS = [
   { group: 'public', weight: 1, path: '/api/v1/pv/products', roles: 'public' },
 ];
 
-const TOTAL_WEIGHT = READ_FLOWS.reduce((sum, f) => sum + f.weight, 0);
+// INCLUDE_PUBLIC=0: bỏ luồng công khai (PV/catalog) khỏi mix. Chúng đi qua
+// throttle:pv-public 120 req/phút THEO IP, mà k6 phát mọi request từ MỘT IP nên
+// 429 ở đó là giả tạo của bộ đo chứ không phải năng lực hệ thống. Mặc định vẫn có
+// để giữ mix cũ so sánh được với các lượt trước.
+const INCLUDE_PUBLIC = !['0', 'false', 'no', 'off'].includes(String(__ENV.INCLUDE_PUBLIC ?? '1').toLowerCase());
+const ACTIVE_FLOWS = INCLUDE_PUBLIC ? READ_FLOWS : READ_FLOWS.filter((f) => f.roles !== 'public');
+const TOTAL_WEIGHT = ACTIVE_FLOWS.reduce((sum, f) => sum + f.weight, 0);
 
 /** Chọn một luồng theo trọng số. */
 export function pickFlow(rand) {
   let cursor = rand * TOTAL_WEIGHT;
-  for (const flow of READ_FLOWS) {
+  for (const flow of ACTIVE_FLOWS) {
     cursor -= flow.weight;
     if (cursor <= 0) return flow;
   }
-  return READ_FLOWS[READ_FLOWS.length - 1];
+  return ACTIVE_FLOWS[ACTIVE_FLOWS.length - 1];
 }
 
 export { TOTAL_WEIGHT };

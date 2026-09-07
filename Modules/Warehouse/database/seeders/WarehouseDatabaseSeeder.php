@@ -97,20 +97,31 @@ class WarehouseDatabaseSeeder extends Seeder
         ['model_code' => 'MDL-HN-01', 'model_name' => 'Hoa Nam Model 01', 'brand_code' => 'HOANAM', 'description' => 'Dòng model nội bộ Hoa Nam cho máy bơm/bo mạch/dây curoa.'],
     ];
 
+    /**
+     * Ngành nghề App PV — người dùng chốt 06/09/2026: ĐÚNG 5 mục này, đúng thứ tự
+     * này. Đây là bộ lọc khách bấm trên App PV nên nó bám theo NGHỀ của khách, chứ
+     * không theo ngành kinh tế chung như bộ cũ (Nông nghiệp / Lâm nghiệp / Thủy
+     * sản / Cảnh quan).
+     */
     private const PV_INDUSTRIES = [
-        ['industry_code' => 'AGRICULTURE', 'industry_name' => 'Nông nghiệp'],
-        ['industry_code' => 'FORESTRY', 'industry_name' => 'Lâm nghiệp'],
-        ['industry_code' => 'CONSTRUCTION', 'industry_name' => 'Xây dựng'],
-        ['industry_code' => 'AQUACULTURE', 'industry_name' => 'Thủy sản'],
-        ['industry_code' => 'LANDSCAPING', 'industry_name' => 'Cảnh quan'],
+        ['industry_code' => 'WOOD', 'industry_name' => 'Ngành gỗ'],
+        ['industry_code' => 'METAL', 'industry_name' => 'Ngành kim loại'],
+        ['industry_code' => 'CONSTRUCTION', 'industry_name' => 'Công trường xây dựng'],
+        ['industry_code' => 'AUTO_REPAIR', 'industry_name' => 'Sửa chữa ô tô'],
+        ['industry_code' => 'GARDEN', 'industry_name' => 'Dụng cụ vườn'],
     ];
 
+    /**
+     * Thẻ phân loại App PV — người dùng chốt 06/09/2026 CHỈ hai thẻ này. Bộ cũ
+     * (Bán chạy / Hàng mới / Khuyến mãi / Công suất lớn / Tiết kiệm nhiên liệu) là
+     * nhãn marketing, không phải cách khách phân loại dụng cụ.
+     *
+     * Cần thêm thẻ thì thêm ở màn PV Admin (SCR-PV-ADM-01); seeder chỉ dựng bộ
+     * khởi tạo, không phải nơi giữ danh sách đang chạy.
+     */
     private const PV_FILTER_TAGS = [
-        ['tag_code' => 'BEST_SELLER', 'tag_name' => 'Bán chạy', 'tag_type' => 'MARKETING'],
-        ['tag_code' => 'NEW_ARRIVAL', 'tag_name' => 'Hàng mới', 'tag_type' => 'MARKETING'],
-        ['tag_code' => 'PROMOTION', 'tag_name' => 'Khuyến mãi', 'tag_type' => 'MARKETING'],
-        ['tag_code' => 'HEAVY_DUTY', 'tag_name' => 'Công suất lớn', 'tag_type' => 'SPEC'],
-        ['tag_code' => 'ENERGY_SAVING', 'tag_name' => 'Tiết kiệm nhiên liệu', 'tag_type' => 'SPEC'],
+        ['tag_code' => 'HAND_TOOL', 'tag_name' => 'Dụng cụ cầm tay', 'tag_type' => 'CATEGORY'],
+        ['tag_code' => 'POWER_TOOL', 'tag_name' => 'Dụng cụ điện', 'tag_type' => 'CATEGORY'],
     ];
 
     private const PRINTER_CONFIGS = [
@@ -421,7 +432,10 @@ class WarehouseDatabaseSeeder extends Seeder
      */
     private function seedPvMasters(): void
     {
-        foreach (self::PV_INDUSTRIES as $row) {
+        // sort_order lấy theo VỊ TRÍ trong hằng số: thứ tự hai danh sách là thứ tự
+        // người dùng chốt, và cả FE lẫn mặt công khai đều sắp theo cột này. Để
+        // toàn bộ về 0 như trước thì thứ tự dropdown rơi về "tuỳ DB trả".
+        foreach (array_values(self::PV_INDUSTRIES) as $index => $row) {
             $existing = DB::table('pv_industry')->where('industry_code', $row['industry_code'])->first();
             if ($existing !== null) {
                 continue;
@@ -432,14 +446,14 @@ class WarehouseDatabaseSeeder extends Seeder
                 'industry_code' => $row['industry_code'],
                 'industry_name' => $row['industry_name'],
                 'status' => 'ACTIVE',
-                'sort_order' => 0,
+                'sort_order' => $index + 1,
                 'created_at' => now(),
                 'updated_at' => now(),
                 'version' => 1,
             ]);
         }
 
-        foreach (self::PV_FILTER_TAGS as $row) {
+        foreach (array_values(self::PV_FILTER_TAGS) as $index => $row) {
             $existing = DB::table('pv_filter_tag')->where('tag_code', $row['tag_code'])->first();
             if ($existing !== null) {
                 continue;
@@ -451,7 +465,7 @@ class WarehouseDatabaseSeeder extends Seeder
                 'tag_name' => $row['tag_name'],
                 'tag_type' => $row['tag_type'],
                 'status' => 'ACTIVE',
-                'sort_order' => 0,
+                'sort_order' => $index + 1,
                 'created_at' => now(),
                 'updated_at' => now(),
                 'version' => 1,

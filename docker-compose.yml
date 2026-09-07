@@ -36,6 +36,15 @@ services:
       - SESSION_DRIVER=redis
       - REDIS_HOST=valkey
       - REDIS_PORT=6379
+      # Cache config nằm trong filesystem CỦA CONTAINER, không phải bind mount
+      # dùng chung: một `config:clear` từ container chạy test không xoá được cache
+      # của container đang phục vụ nữa. Entrypoint dựng lại ở mỗi lần khởi động.
+      # Đo được: bớt ~140 ms MỖI request trên stack dev (health p50 287 → 143 ms).
+      # Xem chú thích dài trong docker/php/entrypoint.sh.
+      # Sửa .env xong phải `docker compose restart backend`; đặt
+      # WMS_CACHE_CONFIG=false khi đang cần sửa .env liên tục.
+      - WMS_CACHE_CONFIG=${WMS_CACHE_CONFIG:-true}
+      - APP_CONFIG_CACHE=/var/cache/wms/config.php
       - MAIL_HOST=mailpit
       # Mặc định là MinIO của stack dev. KHÔNG hard-code: giá trị trong container
       # ghi đè .env mà Laravel đọc (Dotenv không overwrite biến môi trường thật),
@@ -201,6 +210,21 @@ services:
   valkey:
     image: valkey/valkey:8-alpine
     restart: unless-stopped
+    # Cùng chính sách bộ nhớ với docker-compose.perf.yml — CỐ Ý, để dev chạm đúng
+    # ngữ nghĩa mà production sẽ chạm. Mặc định của ảnh là maxmemory=0 +
+    # noeviction: Valkey lớn lên không giới hạn cho tới khi hết RAM máy, rồi MỌI
+    # lệnh ghi bắt đầu lỗi — session hỏng, đẩy job vào hàng đợi hỏng. Với payload
+    # báo cáo cỡ MB nhân số tổ hợp bộ lọc, đó không phải tình huống lý thuyết.
+    #
+    # volatile-lru: chạm trần thì CHỈ khoá có TTL (cache ứng dụng, session) bị
+    # dọn. Hàng đợi job không đặt TTL nên không bao giờ bị đuổi — allkeys-lru ở
+    # đây sẽ LÀM MẤT JOB.
+    command:
+      - valkey-server
+      - --maxmemory
+      - ${VALKEY_MAXMEMORY:-256mb}
+      - --maxmemory-policy
+      - volatile-lru
     ports:
       - "${REDIS_DOCKER_PORT:-6379}:6379"
     volumes:
@@ -229,6 +253,29 @@ services:
       - "${MINIO_CONSOLE_DOCKER_PORT:-9001}:9001" # Console
     volumes:
       - wms_minio_data:/data
+    networks:
+      - wms
+
+  # Tạo sẵn bucket media của stack dev.
+  #
+  # Trước khi có service này, MinIO khởi động với /data RỖNG và chưa ai tạo
+  # bucket, nên mọi lần ghi qua disk `s3` trả về false TRONG IM LẶNG (config
+  # filesystems đặt 'throw' => false). Không màn nào báo lỗi vì ảnh sản phẩm App
+  # PV là tính năng đầu tiên thực sự ghi lên disk này (phát hiện 06/09/2026).
+  #
+  # One-shot: chạy xong là thoát; `mb --ignore-existing` nên chạy lại vô hại.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      sh -lc "
+      until mc alias set local http://minio:9000 '${AWS_ACCESS_KEY_ID:-minioadmin}' '${AWS_SECRET_ACCESS_KEY:-minioadmin}' >/dev/null 2>&1; do sleep 1; done;
+      mc mb --ignore-existing local/${AWS_BUCKET:-wms-hoanam};
+      echo 'minio bucket ready: ${AWS_BUCKET:-wms-hoanam}';
+      "
+    restart: "no"
     networks:
       - wms
 

@@ -2,12 +2,12 @@
 
 namespace Modules\Auth\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Http\Requests\AssignUserRoleRequest;
@@ -282,7 +282,7 @@ class UserController extends Controller
             $roleId = (string) $assignment['role_id'];
             $pivot = ['user_role_id' => (string) Str::uuid()];
             foreach (['scope_ref', 'effective_from', 'effective_to'] as $column) {
-                if (array_key_exists($column, $assignment) && Schema::hasColumn('user_role', $column)) {
+                if (array_key_exists($column, $assignment) && SchemaCache::hasColumn('user_role', $column)) {
                     $pivot[$column] = $assignment[$column];
                 }
             }

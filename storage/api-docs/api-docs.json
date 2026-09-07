@@ -2437,6 +2437,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -2626,6 +2627,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -3073,6 +3075,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     },
                                     "brand_id": {
@@ -3285,6 +3288,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     },
                                     "brand_id": {
@@ -3645,6 +3649,7 @@
                                                 "required_qty": {
                                                     "type": "integer",
                                                     "example": 2,
+                                                    "maximum": 1000000,
                                                     "minimum": 1
                                                 },
                                                 "note": {
@@ -4279,6 +4284,7 @@
                                         "description": "Serial component bắt buộc quantity = 1.",
                                         "type": "integer",
                                         "example": 1,
+                                        "maximum": 1000000,
                                         "minimum": 1
                                     }
                                 },
@@ -5131,6 +5137,7 @@
                                         "type": "integer",
                                         "example": 10,
                                         "nullable": true,
+                                        "maximum": 1000000,
                                         "minimum": 1
                                     },
                                     "source_type": {
@@ -10053,6 +10060,7 @@
                                                 "quantity": {
                                                     "type": "integer",
                                                     "example": 5,
+                                                    "maximum": 1000000,
                                                     "minimum": 1
                                                 },
                                                 "item_id": {
@@ -10754,6 +10762,7 @@
                                         "description": "Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).",
                                         "type": "integer",
                                         "example": 1,
+                                        "maximum": 1000000,
                                         "minimum": 1
                                     },
                                     "qty": {
@@ -10761,6 +10770,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 1000000,
                                         "minimum": 1
                                     },
                                     "code_value": {
@@ -25272,6 +25282,7 @@
                                                 "quantity": {
                                                     "type": "integer",
                                                     "example": 5,
+                                                    "maximum": 1000000,
                                                     "minimum": 1
                                                 },
                                                 "item_id": {
@@ -25752,6 +25763,7 @@
                                         "description": "Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).",
                                         "type": "integer",
                                         "example": 1,
+                                        "maximum": 1000000,
                                         "minimum": 1
                                     },
                                     "qty": {
@@ -25759,6 +25771,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 1000000,
                                         "minimum": 1
                                     },
                                     "code_value": {
@@ -26322,6 +26335,7 @@
                                                 "required_qty": {
                                                     "type": "integer",
                                                     "example": 2,
+                                                    "maximum": 1000000,
                                                     "minimum": 1
                                                 },
                                                 "note": {
@@ -26550,6 +26564,7 @@
                                                 "required_qty": {
                                                     "type": "integer",
                                                     "example": 5,
+                                                    "maximum": 1000000,
                                                     "minimum": 1
                                                 },
                                                 "note": {
@@ -26990,6 +27005,7 @@
                                                 "row_no": {
                                                     "type": "integer",
                                                     "example": 1,
+                                                    "maximum": 2147483647,
                                                     "minimum": 1
                                                 },
                                                 "sku_id": {
@@ -27008,6 +27024,7 @@
                                                     "type": "integer",
                                                     "example": 2,
                                                     "nullable": true,
+                                                    "maximum": 1000000,
                                                     "minimum": 1
                                                 }
                                             },
@@ -28087,6 +28104,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -28276,6 +28294,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -29496,6 +29515,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -29685,6 +29705,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -30494,6 +30515,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -30683,6 +30705,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -31642,6 +31665,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -31837,6 +31861,7 @@
                                         "type": "integer",
                                         "example": 1,
                                         "nullable": true,
+                                        "maximum": 9999,
                                         "minimum": 0
                                     }
                                 },
@@ -39471,6 +39496,7 @@
                     "12. Dashboard / Report"
                 ],
                 "summary": "Danh mục báo cáo vận hành Flow 06",
+                "description": "KHONG cache — co chu dich, khong phai bo sot.\n\nDanh sach nay la hang so viet thang trong ma nguon, khong cham co so du lieu.\nDua no qua Valkey chi them mot vong di-ve mang de doi lay dung thu vua doc\nduoc tu bo nho. Cache chi dang gia khi no thay the duoc mot phan viec that.",
                 "operationId": "report_hub",
                 "parameters": [],
                 "responses": {
@@ -43939,6 +43965,7 @@
                                                 "reversal_qty": {
                                                     "type": "integer",
                                                     "example": 10,
+                                                    "maximum": 1000000,
                                                     "minimum": 1
                                                 },
                                                 "item_id": {
@@ -47191,6 +47218,7 @@
                                                 "quantity": {
                                                     "type": "number",
                                                     "example": 1,
+                                                    "maximum": 1000000,
                                                     "minimum": 0.001
                                                 }
                                             },
@@ -48432,6 +48460,7 @@
                                                 "quantity": {
                                                     "type": "number",
                                                     "example": 1,
+                                                    "maximum": 1000000,
                                                     "minimum": 0.001
                                                 }
                                             },

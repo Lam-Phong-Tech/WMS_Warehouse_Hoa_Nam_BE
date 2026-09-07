@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Services;
 
+use App\Support\Database\SchemaCache;
 use App\Support\ApiError;
 use App\Support\ConflictCode;
 use Illuminate\Support\Facades\DB;
@@ -251,7 +252,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
         $itemIds = $activeMatches->pluck('item_id')->filter();
         if ($itemIds->isNotEmpty()) {
             $update = ['item_status' => 'ISSUED', 'updated_at' => now()];
-            if (Schema::hasColumn('item_instances', 'issued_at')) {
+            if (SchemaCache::hasColumn('item_instances', 'issued_at')) {
                 $update['issued_at'] = now();
             }
             DB::table('item_instances')->whereIn('item_id', $itemIds)->update($update);
@@ -279,7 +280,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
 
     private function recordDocumentStatus(string $documentId, ?string $from, string $to, string $action, ?string $actorId): void
     {
-        if ($actorId === null || ! Schema::hasTable('document_status_history')) {
+        if ($actorId === null || ! SchemaCache::hasTable('document_status_history')) {
             return;
         }
         DB::table('document_status_history')->insert([
@@ -303,7 +304,7 @@ class AlignedOutboundStockService extends CurrentBaselineStockService
         ?string $actorId,
         array $snapshot
     ): void {
-        if (! Schema::hasTable('posting_event') && ! Schema::hasView('posting_event')) {
+        if (! SchemaCache::hasTable('posting_event') && ! SchemaCache::hasView('posting_event')) {
             return;
         }
         DB::table('posting_event')->insert([

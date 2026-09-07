@@ -2,13 +2,13 @@
 
 namespace Modules\AuditLog\Providers;
 
+use App\Support\Modules\HttpLeanModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\AuditLog\Repositories\AuditLogRepository;
 use Modules\AuditLog\Repositories\Contracts\AuditLogRepositoryInterface;
 use Modules\AuditLog\Services\AuditLogger;
-use Nwidart\Modules\Support\ModuleServiceProvider;
 
-class AuditLogServiceProvider extends ModuleServiceProvider
+class AuditLogServiceProvider extends HttpLeanModuleServiceProvider
 {
     /**
      * The name of the module.

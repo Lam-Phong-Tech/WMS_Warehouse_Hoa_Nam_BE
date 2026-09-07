@@ -1,0 +1,625 @@
+[
+ {
+  "path": "/api/v1/agencies",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:recipient:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/audit-logs",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/audit-logs/me",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/auth/me",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/brands",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:catalog-master:brands:list:f-4f53cda18c2baa0c0354:per_page-50:page-1:v1"
+ },
+ {
+  "path": "/api/v1/component-issue-documents",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/containers",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/defect-catalogs",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse.defect_catalog:list:f-4f53cda18c2baa0c0354:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/defects",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse.defect_catalog:list:f-4f53cda18c2baa0c0354:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/departments",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "auth:department:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/document-attachments/pending-evidence",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/document-status-history",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:document-status-history:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/health",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/import-batches",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/inbound-documents",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/inventory",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:inventory-balance:list:f-f5126e50094d8574a8e1:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/inventory/balances",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:inventory-balance:list:f-f5126e50094d8574a8e1:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/item-instances",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/label-print-events",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/label-snapshots",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 4,
+  "sample": "warehouse:report:movement-trace:f-2e46151f3ff430537a2f:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/mini-app/document-attachments/pending-evidence",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/mini-app/inbound-documents",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "miniapp:inbound:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/mini-app/items",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/mini-app/nfc-tags",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/mini-app/outbound-documents",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "miniapp:outbound:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/mini-app/printer-configs",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/mini-app/products",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "miniapp:product:list:f-32c5a79a86da20e260dc:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/mini-app/warranty-cases",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/mini-app/warranty-component-issues",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 5,
+  "sample": "warehouse:report:dashboard-quick:from-2026-08-31:to-2026-09-06:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/notifications",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "notification:list:f-4f53cda18c2baa0c0354:scope-global:actor-01a06dae-063f-7032-ade3-9043910ffc32:v1"
+ },
+ {
+  "path": "/api/v1/notifications/unread-count",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 3,
+  "sample": "notification:unread-count:f-4f53cda18c2baa0c0354:scope-global:actor-01a06dae-063f-7032-ade3-9043910ffc32:v1"
+ },
+ {
+  "path": "/api/v1/outbound-documents",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:outbound-document:aligned-list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/outbound-request-imports",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/outbound-requests",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:outbound-request:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/package-variants",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:catalog-master:package_variants:list:f-4f53cda18c2baa0c0354:per_page-50:page-1:v1"
+ },
+ {
+  "path": "/api/v1/permissions",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "auth.permission:list:f-4f53cda18c2baa0c0354:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/physical-codes",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/power-sources",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:catalog-master:power_sources:list:f-4f53cda18c2baa0c0354:per_page-50:page-1:v1"
+ },
+ {
+  "path": "/api/v1/printer-configs",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/product-categories",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:catalog-master:product_categories:list:f-4f53cda18c2baa0c0354:per_page-50:page-1:v1"
+ },
+ {
+  "path": "/api/v1/product-masters",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse.product_master:list:f-4f53cda18c2baa0c0354:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/product-models",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:catalog-master:product_models:list:f-4f53cda18c2baa0c0354:per_page-50:page-1:v1"
+ },
+ {
+  "path": "/api/v1/products",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse.sku:list:f-4f53cda18c2baa0c0354:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/public/categories",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms8b89a95442f7b5bf3949ec8a631400bf"
+ },
+ {
+  "path": "/api/v1/public/config",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms8b89a95442f7b5bf3949ec8a631400bf"
+ },
+ {
+  "path": "/api/v1/public/facets",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms8b89a95442f7b5bf3949ec8a631400bf"
+ },
+ {
+  "path": "/api/v1/public/health/version",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms8b89a95442f7b5bf3949ec8a631400bf"
+ },
+ {
+  "path": "/api/v1/public/home",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms8b89a95442f7b5bf3949ec8a631400bf"
+ },
+ {
+  "path": "/api/v1/public/products",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms8b89a95442f7b5bf3949ec8a631400bf"
+ },
+ {
+  "path": "/api/v1/putaway-tasks",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/putaway/history",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/putaway/tasks",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/pv/catalog",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms62d896aee3697c0289d2214eb361eb8c"
+ },
+ {
+  "path": "/api/v1/pv/industries",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms62d896aee3697c0289d2214eb361eb8c"
+ },
+ {
+  "path": "/api/v1/pv/products",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms62d896aee3697c0289d2214eb361eb8c"
+ },
+ {
+  "path": "/api/v1/pv/recommendations",
+  "status": 400,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms62d896aee3697c0289d2214eb361eb8c"
+ },
+ {
+  "path": "/api/v1/pv/tags",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "wms-hoanam-database-wms62d896aee3697c0289d2214eb361eb8c"
+ },
+ {
+  "path": "/api/v1/recipients",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:recipient:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/dashboard-overview",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "warehouse:report:inventory-balance:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/dashboard-quick",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "warehouse:report:inventory-balance:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/document-history",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:document-history:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/hub",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/reports/import-match",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:import-match:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/inventory-balance",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:inventory-balance:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/inventory-ledger",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:movement-trace:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/inventory-reconciliation",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 2,
+  "sample": "warehouse:report:inventory-balance:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/inventory-xnt",
+  "status": 422,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/reports/inventory-xnt-daily",
+  "status": 422,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/reports/inventory-xnt-enhanced",
+  "status": 422,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/reports/label-log",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:label-log:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/movement-trace",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:movement-trace:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/outbound-by-agency",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:outbound-by-agency:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/outbound-by-recipient",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:outbound-by-recipient:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/warranty-component-usage",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:warranty-component-usage:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/warranty-defect-sku-breakdown",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:warranty-defect-sku-breakdown:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reports/warranty-defects",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:report:warranty-defects:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/reversal-documents",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:reversal-document:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/roles",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "auth.role:list:f-4f53cda18c2baa0c0354:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/scan/batches",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/scan/events",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/skus",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse.sku:list:f-4f53cda18c2baa0c0354:per_page-10:page-1:v1"
+ },
+ {
+  "path": "/api/v1/skus/import-reports",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:sku-import-report:list:f-4f53cda18c2baa0c0354:scope-global:actor-01a06dae-063f-7032-ade3-9043910ffc32:v1"
+ },
+ {
+  "path": "/api/v1/stock-movements",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:stock-movement:list:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/stock-movements/reversible",
+  "status": 200,
+  "cached": true,
+  "keysAdded": 1,
+  "sample": "warehouse:stock-movement:reversible:f-4f53cda18c2baa0c0354:scope-global:v1"
+ },
+ {
+  "path": "/api/v1/stock-movements/trace-by-code",
+  "status": 422,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/users",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/warehouses",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/warranty-cases",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ },
+ {
+  "path": "/api/v1/warranty-component-issues",
+  "status": 200,
+  "cached": false,
+  "keysAdded": 0,
+  "sample": ""
+ }
+]

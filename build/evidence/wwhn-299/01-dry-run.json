@@ -1,5 +1,5 @@
 {
-    "migration_run_id": "796dc9be-d579-44a8-ac97-c18ba721bdb8",
+    "migration_run_id": "3add87bc-2453-49ab-b4ae-36b3b3efcee1",
     "migration_run_code": "REHEARSAL-WWHN-299#DRY_RUN",
     "mode": "DRY_RUN",
     "status": "PASSED",
@@ -52,9 +52,9 @@
         }
     },
     "timing": {
-        "started_at": "2026-08-27T19:24:24+07:00",
-        "finished_at": "2026-08-27T19:24:24+07:00",
-        "duration_ms": 1,
+        "started_at": "2026-09-06T21:32:10+07:00",
+        "finished_at": "2026-09-06T21:32:10+07:00",
+        "duration_ms": 2,
         "duration_source": "MONOTONIC_CLOCK"
     },
     "reconciliation": {

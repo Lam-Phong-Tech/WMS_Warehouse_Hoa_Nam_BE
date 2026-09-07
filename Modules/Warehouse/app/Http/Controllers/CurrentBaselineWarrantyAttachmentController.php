@@ -173,7 +173,9 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         $scan = WarrantyAttachmentScanner::scanForMalware($file);
 
         $attachmentId = (string) Str::uuid();
-        $storageDisk = $mediaKind === 'VIDEO' ? (string) config('warranty.video_disk', 'local') : self::DISK;
+        $storageDisk = $mediaKind === 'VIDEO'
+            ? (string) config('warranty.video_disk', 'local')
+            : (string) config('warranty.photo_disk', self::DISK);
         $storageKey = "warranty-attachments/{$id}/{$attachmentId}.{$extension}";
         $checksum = hash_file('sha256', $file->getRealPath()) ?: null;
 

@@ -86,9 +86,62 @@ class Wwhn300ProductionSafeSeedingTest extends TestCase
             $this->assertDatabaseMissing('role', ['role_code' => $roleCode]);
         }
 
+        // Hai vai của mô hình phân quyền CŨ. Tài liệu BA taikhoantheorole v2 (nguyên
+        // tắc 6 + retest §7): "WAREHOUSE_KEEPER và WAREHOUSE_APPROVER không còn sử
+        // dụng trong mô hình phân quyền production; DEV cần loại khỏi seed/tài khoản
+        // production". Chúng sinh ra để tách "người quét" khỏi "người Post" —
+        // separation-of-duties bằng role trung gian mà nguyên tắc 5 đã bãi bỏ, nên để
+        // lại ở production là mời người ta gán nhầm rồi đứt luồng nhập/xuất giữa chừng.
+        // Hai vai vẫn còn trong AuthDatabaseSeeder::ROLES cho local/testing.
+        foreach (['WAREHOUSE_KEEPER', 'WAREHOUSE_APPROVER'] as $roleCode) {
+            $this->assertDatabaseMissing('role', ['role_code' => $roleCode]);
+        }
+
         // Role nghiệp vụ thật vẫn phải có, nếu không production không vận hành được.
-        $this->assertDatabaseHas('role', ['role_code' => 'WAREHOUSE_KEEPER']);
-        $this->assertDatabaseHas('role', ['role_code' => 'SUPER_ADMIN']);
+        foreach (['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_STAFF', 'WARRANTY_STAFF', 'VIEWER', 'LEADERSHIP'] as $roleCode) {
+            $this->assertDatabaseHas('role', ['role_code' => $roleCode]);
+        }
+    }
+
+    /**
+     * Hai vai của mô hình phân quyền CŨ không được seed ở production.
+     *
+     * Tách khỏi test_production_seeding_creates_only_the_supplied_admin_and_no_fixtures
+     * có chủ ý: test đó khẳng định thêm mệnh đề "admin dùng đúng credential được cấp",
+     * và mệnh đề ấy hiện ĐỎ SẴN ở HEAD (AuthDatabaseSeeder::adminPassword() trả thẳng
+     * hằng DEFAULT_PASSWORD, không còn cổng chặn nào của WWHN-300). Một assertion đỏ
+     * nằm TRƯỚC sẽ ném ngoại lệ và phần kiểm role phía sau không bao giờ chạy — tức
+     * mệnh đề của BA (retest §7) sẽ không thực sự được canh. Test riêng này chỉ phụ
+     * thuộc vào nhánh môi trường nên xanh/đỏ độc lập với lỗ hổng password kia.
+     *
+     * Nguồn: tài liệu BA taikhoantheorole v2, nguyên tắc 6 + mục retest §7.
+     */
+    public function test_deprecated_warehouse_roles_are_not_seeded_on_production(): void
+    {
+        $this->clearFixtures();
+        $this->pretendProductionEnvironment();
+        config()->set('golive.seed.admin_password', self::STRONG_PASSWORD);
+
+        Role::query()->whereIn('role_code', ['WAREHOUSE_KEEPER', 'WAREHOUSE_APPROVER'])->delete();
+
+        $this->runAuthSeeder();
+
+        // Nếu đỏ: kiểm tra AuthDatabaseSeeder::DEPRECATED_ROLES và nhánh $fixtureOnly
+        // trong run(). Để hai vai này lại ở production là mời người ta gán nhầm rồi
+        // đứt luồng nhập-xuất giữa chừng.
+        $seeded = Role::query()->pluck('role_code')->all();
+
+        $this->assertEqualsCanonicalizing(
+            [],
+            array_values(array_intersect($seeded, ['WAREHOUSE_KEEPER', 'WAREHOUSE_APPROVER'])),
+            'Vai ngừng dùng vẫn được seed ở production.'
+        );
+
+        // Bảy vai của mô hình phân quyền mà BA nghiệm thu — thiếu vai nào thì
+        // production không vận hành được đúng nghiệp vụ đó.
+        foreach (['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_STAFF', 'WARRANTY_STAFF', 'VIEWER', 'LEADERSHIP'] as $roleCode) {
+            $this->assertContains($roleCode, $seeded, "Thiếu vai {$roleCode} ở production.");
+        }
     }
 
     /**

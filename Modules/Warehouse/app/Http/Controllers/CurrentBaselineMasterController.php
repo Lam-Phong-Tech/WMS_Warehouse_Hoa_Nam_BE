@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\CacheKey;
@@ -12,7 +13,6 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
@@ -235,10 +235,10 @@ class CurrentBaselineMasterController extends Controller
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ]);
 
-        if (Schema::hasColumn('package_variants', 'variant_code')) {
+        if (SchemaCache::hasColumn('package_variants', 'variant_code')) {
             $validated['variant_code'] = $validated['package_code'];
         }
-        if (Schema::hasColumn('package_variants', 'variant_name')) {
+        if (SchemaCache::hasColumn('package_variants', 'variant_name')) {
             $validated['variant_name'] = $validated['package_name'];
         }
 
@@ -585,15 +585,15 @@ class CurrentBaselineMasterController extends Controller
             $payload = $validated + ['updated_at' => now()];
             // package_variants giữ cả cặp cột legacy variant_* nên phải ghi đồng bộ.
             if ($table === 'package_variants') {
-                if (array_key_exists($codeColumn, $validated) && Schema::hasColumn($table, 'variant_code')) {
+                if (array_key_exists($codeColumn, $validated) && SchemaCache::hasColumn($table, 'variant_code')) {
                     $payload['variant_code'] = $validated[$codeColumn];
                 }
-                if (array_key_exists($nameColumn, $validated) && Schema::hasColumn($table, 'variant_name')) {
+                if (array_key_exists($nameColumn, $validated) && SchemaCache::hasColumn($table, 'variant_name')) {
                     $payload['variant_name'] = $validated[$nameColumn];
                 }
             }
             foreach (['updated_by' => $this->actorId(), 'version' => ((int) ($current->version ?? 0)) + 1] as $column => $value) {
-                if (Schema::hasColumn($table, $column)) {
+                if (SchemaCache::hasColumn($table, $column)) {
                     $payload[$column] = $value;
                 }
             }
@@ -633,7 +633,7 @@ class CurrentBaselineMasterController extends Controller
             'package_variants' => 'package_variant_id',
             default => null,
         };
-        if ($column === null || ! Schema::hasColumn('skus', $column)) {
+        if ($column === null || ! SchemaCache::hasColumn('skus', $column)) {
             return false;
         }
 
@@ -683,7 +683,7 @@ class CurrentBaselineMasterController extends Controller
             'updated_at' => now(),
         ];
         foreach (['created_by', 'updated_by', 'version'] as $column) {
-            if (Schema::hasColumn($table, $column)) {
+            if (SchemaCache::hasColumn($table, $column)) {
                 $row[$column] = $column === 'version' ? 0 : $this->actorId();
             }
         }
@@ -786,7 +786,7 @@ class CurrentBaselineMasterController extends Controller
             'package_variants' => ['package_code', 'package_name', 'variant_code', 'variant_name'],
         ][$table] ?? [];
 
-        return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn($table, $column)));
+        return array_values(array_filter($candidates, fn (string $column): bool => SchemaCache::hasColumn($table, $column)));
     }
 
 }

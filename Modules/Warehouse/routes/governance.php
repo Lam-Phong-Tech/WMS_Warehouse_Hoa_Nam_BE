@@ -15,6 +15,10 @@ Route::prefix('v1')->middleware('auth:api')->group(function (): void {
 
     Route::get('skus', [ProductController::class, 'index'])
         ->middleware('permission:sku.view');
+    // Bảng tra gọn cho báo cáo — đứng TRƯỚC skus/{id} dù {id} đã whereUuid, để
+    // thứ tự đọc route không phụ thuộc ràng buộc đó.
+    Route::get('skus/lookup', [ProductController::class, 'lookup'])
+        ->middleware('permission:sku.view');
     Route::get('skus/{id}', [ProductController::class, 'show'])
         ->whereUuid('id')
         ->middleware('permission:sku.view');

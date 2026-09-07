@@ -123,11 +123,17 @@ class AuthDatabaseSeeder extends Seeder
                 'outbound.view', 'outbound.import', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'inventory.trace', 'inventory.reversal.post',
                 'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint',
-                'warranty.manage', 'warranty.component_issue', 'warranty.pii.view', 'warranty.pii.export',
-                // Ghi chú kiểm tra 27/08: ADMIN KHÔNG có warranty.temp_only trong khi
-                // WAREHOUSE_MANAGER có — lệch giữa hai vai quản trị. Cố ý KHÔNG tự thêm
-                // ở đây: mở rộng quyền là quyết định nghiệp vụ, không phải việc của một
-                // đợt siết bảo mật. Chờ BA chốt rồi bổ sung.
+                'warranty.manage', 'warranty.component_issue', 'warranty.pii.view',
+                // BA chốt (taikhoantheorole v2 — mục ADMIN "tiếp nhận TEMP_ONLY"): đây
+                // là câu trả lời cho ghi chú kiểm tra 27/08 (ADMIN thiếu
+                // warranty.temp_only trong khi WAREHOUSE_MANAGER có). Nay ADMIN nhận,
+                // WAREHOUSE_MANAGER trả lại cùng toàn bộ quyền nghiệp vụ bảo hành.
+                'warranty.temp_only',
+                // warranty.pii.export ĐÃ GỠ khỏi seed: ma trận BA ghi "Warranty PII
+                // export | ADMIN: Permission riêng", và phần mô tả ADMIN nói rõ "quyền
+                // export PII là quyền riêng và chỉ cấp khi thực sự cần". Cấp cho từng
+                // tài khoản qua user_permission (POST /users/{id}/permissions) thay vì
+                // seed sẵn cho cả vai — xuất PII là hành vi để lại dấu vết pháp lý.
                 'scan.classify', 'pv.publish', 'report.view', 'report.export', 'audit_log.view', 'audit_log.view_all',
                 'import_batch.view', 'import_batch.manage',
                 'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
@@ -137,12 +143,30 @@ class AuthDatabaseSeeder extends Seeder
                 'pv.master.manage',
             ],
         ],
+        /*
+         * Nhân viên kho — vai TRỰC TIẾP vận hành, làm trọn một đầu việc.
+         *
+         * BA chốt (taikhoantheorole v2, nguyên tắc 4+5): "Nhân viên kho được phép
+         * tạo/chuẩn bị chứng từ, scan/match và Post Receipt / Post Issue ngay tại đầu
+         * nhập hoặc đầu xuất, không phải chờ một role khác ghi nhận" và "Không có role
+         * nghiệp vụ riêng cho bước phê duyệt hoặc hoàn tất chứng từ kho".
+         *
+         * Vì thế 5 quyền được BỔ SUNG so với seed cũ: inbound.post, inbound.cancel,
+         * outbound.post, outbound.cancel, packing_label.reprint. Trước đây bốn quyền
+         * post/cancel nằm ở WAREHOUSE_APPROVER/WAREHOUSE_KEEPER — hai vai nay đã ngừng
+         * dùng ở production (xem DEPRECATED_ROLES), nên nếu không chuyển sang đây thì
+         * luồng nhập/xuất đứt hẳn ở bước cuối.
+         *
+         * KHÔNG cấp mặc định (ma trận BA ghi "Permission riêng" / "❌ mặc định"):
+         * inventory.reversal.post, report.export, audit_log.view, warranty.*,
+         * physical_code.* — cấp lẻ qua user_permission khi có nhu cầu được duyệt.
+         */
         'WAREHOUSE_STAFF' => [
             'name' => 'Nhân viên kho',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
-                'inbound.view', 'inbound.create', 'inbound.scan',
-                'outbound.view', 'outbound.scan',
+                'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
+                'outbound.view', 'outbound.scan', 'outbound.post', 'outbound.cancel',
                 'inventory.view', 'report.view',
                 // inventory.trace thay cho physical_code.view đã thu hồi: màn SCAN/
                 // tra cứu mã vật lý (GET /physical-codes, /inventory/trace/{code})
@@ -153,12 +177,34 @@ class AuthDatabaseSeeder extends Seeder
                 'agency.view', 'defect.view',
                 'import_batch.view', 'container.view', 'item_instance.view',
                 'putaway.view', 'putaway.manage', 'scan.execute',
-                'packing_label.preview', 'packing_label.ready', 'packing_label.print',
+                // packing_label.reprint bổ sung: BA ghi "Nhãn: Preview/In/Reprint
+                // Packing Label theo luồng hiện hành" cho Nhân viên kho. In lại là
+                // stock-neutral sau Post Issue nên không nới rủi ro tồn kho.
+                'packing_label.preview', 'packing_label.ready', 'packing_label.print', 'packing_label.reprint',
                 'outbound.request.import', 'outbound.request.confirm', 'outbound.request.manual_create',
             ],
         ],
+        /*
+         * ───────────── HAI VAI NGỪNG DÙNG Ở PRODUCTION ─────────────
+         *
+         * BA chốt (taikhoantheorole v2, nguyên tắc 6): "Các role kỹ thuật cũ
+         * WAREHOUSE_KEEPER và WAREHOUSE_APPROVER không còn sử dụng trong mô hình phân
+         * quyền production; DEV cần loại khỏi seed/tài khoản production hoặc migrate
+         * dữ liệu cũ về role phù hợp." Chúng tồn tại vì mô hình cũ tách "người quét"
+         * và "người Post" thành hai vai — separation-of-duties bằng role trung gian mà
+         * nguyên tắc 5 vừa bãi bỏ.
+         *
+         * Cách xử lý: KHÔNG xoá khỏi hằng ROLES (dữ liệu lịch sử, tài liệu bàn giao và
+         * bộ E2E vẫn tham chiếu keeper01/approver01), mà đưa vào DEPRECATED_ROLES —
+         * cùng cổng môi trường với các role test, tức chỉ còn được seed ở local/testing.
+         * Tập quyền giữ NGUYÊN để lượt chạy E2E cũ không đổi hành vi giữa chừng.
+         *
+         * Migrate dữ liệu cũ: tài khoản production đang giữ hai vai này phải chuyển về
+         * WAREHOUSE_STAFF (đã nhận đủ post/cancel ở trên) hoặc WAREHOUSE_MANAGER nếu
+         * người đó thực chất chỉ giám sát. Việc migrate làm qua IAM, không seed.
+         */
         'WAREHOUSE_APPROVER' => [
-            'name' => 'Người duyệt kho',
+            'name' => 'Người duyệt kho (ngừng dùng)',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inbound.view', 'inbound.post', 'inbound.cancel',
@@ -170,7 +216,7 @@ class AuthDatabaseSeeder extends Seeder
             ],
         ],
         'WAREHOUSE_KEEPER' => [
-            'name' => 'Thủ kho',
+            'name' => 'Thủ kho (ngừng dùng)',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
                 // inbound.create bổ sung 05/09/2026: SRS v1.12 §3 hàng "Inbound
@@ -198,16 +244,47 @@ class AuthDatabaseSeeder extends Seeder
                 'warehouse.view', 'catalog.view', 'sku.view',
                 'inventory.view', 'inventory.trace',
                 'warranty.manage', 'warranty.component_issue',
+                // warranty.pii.view bổ sung: ma trận BA đánh ✅ cho ô (NV bảo hành ×
+                // Warranty PII view) và phần mô tả nói rõ "được XEM họ tên/SĐT/địa chỉ
+                // để phục vụ tiếp nhận và trả khách". Trước đây vai này có
+                // warranty.manage nhưng KHÔNG có pii.view, nên mở hồ sơ ra là thấy tên
+                // và số điện thoại khách bị che — không gọi lại khách được.
+                //
+                // warranty.pii.EXPORT vẫn KHÔNG cấp: BA ghi "không mặc định được phép;
+                // chỉ cấp warranty.pii.export khi có nhu cầu nghiệp vụ được phê duyệt".
+                // Đây đúng là ranh giới ở nguyên tắc 8 — xem ≠ xuất.
+                'warranty.pii.view',
+                // warranty.temp_only: "tiếp nhận trường hợp không định danh được item
+                // khi có nghiệp vụ tương ứng" (route POST warranty-cases/{id}/temp-only).
+                'warranty.temp_only',
                 'scan.classify', 'item_instance.view',
                 'warranty.view', 'scan.execute',
+                // KHÔNG cấp report.view — BA chốt 07/09/2026: "nhân viên bảo hành không
+                // được xem báo cáo". Tài liệu BA để ngỏ điểm này ("có thể xem ... NẾU
+                // ĐƯỢC CẤP report.view", ma trận ghi "Theo scope"), nên đã hỏi lại và
+                // đây là câu trả lời. Ghi ra thành lời vì thiếu-một-quyền trông y hệt
+                // sót seed: người sau rất dễ "sửa giúp".
+                //
+                // Cổng canh: Wwhn267ContractClosureTest::RBAC_MATRIX ghim ô
+                // (WARRANTY_STAFF × report) = 403, và pin băm quyền của role sẽ đỏ ngay
+                // nếu ai thêm mã này. Cần cho một người cụ thể thì cấp lẻ qua
+                // user_permission, đừng mở cho cả vai.
             ],
         ],
         'LEADERSHIP' => [
             'name' => 'Ban lãnh đạo',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
+                // inbound.view/outbound.view bổ sung: BA ghi "Phiếu nhập/xuất ở chế độ
+                // read-only khi cần drill-down". Trước đây lãnh đạo bấm từ báo cáo vào
+                // một phiếu là nhận 403 — báo cáo tổng hợp không tra ngược được.
+                'inbound.view', 'outbound.view',
                 'inventory.view', 'inventory.trace', 'report.view',
-                'agency.view', 'defect.view', 'audit_log.view', 'audit_log.view_all',
+                'agency.view', 'defect.view',
+                // audit_log.view + audit_log.view_all ĐÃ GỠ: BA ghi "Không xem Audit Log
+                // toàn hệ thống mặc định. Nếu lãnh đạo thực sự cần Audit, cấp audit.view
+                // bằng quyết định riêng" (nguyên tắc 9: quyền Audit Log là quyền nhạy
+                // cảm riêng, không tự cấp cho mọi vai chỉ đọc). Cấp lẻ qua user_permission.
                 'putaway.view', 'warranty.view',
             ],
         ],
@@ -215,35 +292,80 @@ class AuthDatabaseSeeder extends Seeder
             'name' => 'Người xem',
             'permissions' => [
                 'warehouse.view', 'catalog.view', 'sku.view',
-                'inbound.view', 'outbound.view', 'inventory.view', 'report.view', 'audit_log.view',
-                // audit_log.view_all ĐÃ GỠ khỏi VIEWER: cờ này bỏ qua toàn bộ giới hạn
-                // audit theo module của actor (AuditLogController::allowedModulesFor),
-                // tức một vai "chỉ xem" lại đọc được nhật ký thao tác của MỌI module và
-                // MỌI người dùng, kể cả IAM. Giữ lại cho LEADERSHIP/ADMIN/WAREHOUSE_MANAGER
-                // là các vai giám sát thật sự. VIEWER vẫn có audit_log.view (xem nhật ký
-                // trong phạm vi module mà chính họ có quyền nghiệp vụ).
+                'inbound.view', 'outbound.view', 'inventory.view', 'report.view',
+                // audit_log.view_all ĐÃ GỠ 27/08 (cờ bỏ qua giới hạn audit theo module
+                // của actor — một vai "chỉ xem" mà đọc được nhật ký của MỌI module, kể
+                // cả IAM). Nay audit_log.view CŨNG GỠ: ma trận BA đánh ❌ cho ô
+                // (Viewer × Audit Log) và phần "Không làm được" ghi rõ "Xem Audit Log hệ
+                // thống nếu không có permission audit.view riêng". VIEWER là vai chỉ đọc
+                // dữ liệu nghiệp vụ, không phải vai giám sát hành vi người dùng.
                 'agency.view', 'defect.view', 'import_batch.view',
                 'container.view', 'item_instance.view',
+                // putaway.view bổ sung: ma trận BA đánh ✅ cho ô (Viewer × Putaway/xếp
+                // khay xem). Danh sách "Xem được" có "Box/container" nhưng thiếu quyền
+                // này thì màn tổng quan khay vẫn đóng.
+                'putaway.view',
                 // inventory.trace: xem ghi chú ở WAREHOUSE_STAFF — thay physical_code.view.
                 'inventory.trace',
             ],
         ],
+        /*
+         * Quản lý kho — GIÁM SÁT, không thao tác.
+         *
+         * Đây là thay đổi lớn nhất của đợt này. Seed cũ cấp cho vai này 50 quyền, gần
+         * bằng ADMIN: cả IAM manage, cả master data manage, cả tạo/scan/Post/huỷ
+         * nhập-xuất, Reversal, cấp mã vật lý/RFID, xử lý bảo hành và xuất PII. Hệ quả:
+         * ROLE_BASELINE_PIN.json phải ánh xạ ADMIN và WAREHOUSE_MANAGER về CÙNG một
+         * actor SRS ("Admin hệ thống") và tự ghi nhận đó là bất thường (DELTA-01) —
+         * hai vai khác tên nhưng cùng quyền thì không nghiệm thu RBAC được.
+         *
+         * BA chốt (taikhoantheorole v2, nguyên tắc 3): "vai trò GIÁM SÁT VÀ QUẢN LÝ
+         * hoạt động kho, tập trung vào dashboard, báo cáo, tồn kho, chứng từ, truy vết
+         * và tình trạng vận hành; KHÔNG trực tiếp thực hiện nghiệp vụ kho như nhập,
+         * xuất, Post, bảo hành, Putaway/xếp khay, Reversal, cấp mã hoặc thao tác RFID."
+         *
+         * 33 quyền bị thu hồi, theo đúng danh sách "Không làm được" của BA:
+         *  - IAM (5): iam.user.view/manage, iam.role.view/manage, iam.permission.view
+         *    — "Tạo/sửa User, Role hoặc ma trận Permission" ❌. Bỏ luôn cả .view vì
+         *    phần "Làm được" của BA không có mục IAM nào; và giữ iam.user.manage ở đây
+         *    còn mở đường leo thang quyền (xem PermissionDelegation).
+         *  - Master manage (5): warehouse/catalog/sku/agency/defect .manage — "Danh
+         *    mục: ... KHÔNG SỬA".
+         *  - Nhập (4) + Xuất (5): create/scan/post/cancel/import — "Tạo, sửa nghiệp vụ,
+         *    scan/match, Post hoặc huỷ phiếu nhập/xuất" ❌.
+         *  - inventory.reversal.post — "Reversal" ❌.
+         *  - physical_code.create/assign_rfid — "Cấp mã QR/Barcode, gán/thu hồi RFID" ❌.
+         *  - label.print/reprint — "Preview/In/Reprint Packing Label như một thao tác
+         *    nghiệp vụ" ❌.
+         *  - Bảo hành (4): warranty.manage/component_issue/temp_only/pii.export —
+         *    "Xử lý nghiệp vụ bảo hành hoặc Component Issue Warranty" ❌.
+         *  - warranty.pii.view — ma trận ghi "Permission riêng", mô tả ghi "PII mặc
+         *    định bị che nếu không có permission PII riêng".
+         *  - pv.publish, pv.master.manage — hồ sơ App PV là master data, chỉ xem.
+         *  - import_batch.manage, container.manage, item_instance.manage — "chỉ giám
+         *    sát, không tạo hoặc xác nhận Putaway".
+         *  - scan.classify — thao tác ghi; BA chỉ cho "xem kết quả scan/import".
+         *  - audit_log.view_all — "xem log thuộc PHẠM VI nghiệp vụ kho ... không quản
+         *    trị log toàn hệ thống"; audit_log.view (đã giới hạn theo module của actor
+         *    trong AuditLogController::allowedModulesFor) là đúng mức.
+         *
+         * 2 quyền được BỔ SUNG vì ma trận đánh ✅ mà seed cũ thiếu:
+         *  - warranty.view (ô "Warranty view | QL kho ✅") — seed cũ chỉ có
+         *    warranty.manage, gỡ manage đi mà không thêm view thì mất luôn màn bảo hành.
+         *  - putaway.view (ô "Putaway/xếp khay xem | QL kho ✅").
+         *
+         * report.export GIỮ (ma trận đánh ✅ cho QL kho) — đây là điểm khác biệt thật
+         * so với VIEWER/LEADERSHIP, và là lý do vai này tồn tại.
+         */
         'WAREHOUSE_MANAGER' => [
             'name' => 'Quản lý kho',
             'permissions' => [
-                'iam.user.view', 'iam.user.manage', 'iam.role.view', 'iam.role.manage', 'iam.permission.view',
-                'warehouse.view', 'warehouse.manage', 'catalog.view', 'catalog.manage', 'sku.view', 'sku.manage',
-                'agency.view', 'agency.manage', 'defect.view', 'defect.manage',
-                'inbound.view', 'inbound.create', 'inbound.scan', 'inbound.post', 'inbound.cancel',
-                'outbound.view', 'outbound.import', 'outbound.scan', 'outbound.post', 'outbound.cancel',
-                'inventory.view', 'inventory.trace', 'inventory.reversal.post',
-                'physical_code.assign_rfid', 'physical_code.create', 'label.print', 'label.reprint', 'pv.publish',
-                'pv.master.manage',
-                'warranty.manage', 'warranty.component_issue', 'warranty.pii.view', 'warranty.pii.export',
-                'warranty.temp_only',
-                'scan.classify', 'report.view', 'report.export', 'audit_log.view', 'audit_log.view_all',
-                'import_batch.view', 'import_batch.manage',
-                'container.view', 'container.manage', 'item_instance.view', 'item_instance.manage',
+                'warehouse.view', 'catalog.view', 'sku.view', 'agency.view', 'defect.view',
+                'inbound.view', 'outbound.view',
+                'inventory.view', 'inventory.trace',
+                'putaway.view', 'warranty.view',
+                'import_batch.view', 'container.view', 'item_instance.view',
+                'report.view', 'report.export', 'audit_log.view',
             ],
         ],
         'SKU_MANAGER' => [
@@ -296,6 +418,18 @@ class AuthDatabaseSeeder extends Seeder
 
     private const NON_PRODUCTION_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION', 'INBOUND_ONLY_TEST'];
 
+    /**
+     * Vai trò của mô hình phân quyền CŨ, giữ lại cho dev/test và dữ liệu lịch sử
+     * nhưng không còn được seed ở production (BA taikhoantheorole v2, nguyên tắc 6).
+     *
+     * Khác NON_PRODUCTION_ROLES ở ý nghĩa, không ở hành vi: nhóm kia là role sinh ra
+     * để kiểm thử authorization và chưa bao giờ dành cho người thật; nhóm này từng là
+     * vai nghiệp vụ thật và có thể vẫn còn tài khoản đang gán ở các môi trường đã
+     * triển khai — nên cần được migrate về WAREHOUSE_STAFF/WAREHOUSE_MANAGER qua IAM
+     * trước khi seed production lần kế tiếp, chứ không tự biến mất.
+     */
+    private const DEPRECATED_ROLES = ['WAREHOUSE_APPROVER', 'WAREHOUSE_KEEPER'];
+
     private const DEFAULT_PASSWORD = 'Cntt@1234';
 
     public function run(): void
@@ -330,7 +464,8 @@ class AuthDatabaseSeeder extends Seeder
         $this->attachRole($adminUser, $superAdminRole);
 
         foreach (self::ROLES as $code => $def) {
-            if (! $withFixtures && in_array($code, self::NON_PRODUCTION_ROLES, true)) {
+            $fixtureOnly = array_merge(self::NON_PRODUCTION_ROLES, self::DEPRECATED_ROLES);
+            if (! $withFixtures && in_array($code, $fixtureOnly, true)) {
                 continue;
             }
 

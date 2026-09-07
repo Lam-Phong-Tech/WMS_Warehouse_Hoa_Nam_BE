@@ -47,6 +47,12 @@ slowlog = /proc/self/fd/2
 request_slowlog_timeout = ${PHP_FPM_SLOWLOG_TIMEOUT:-3s}
 catch_workers_output = yes
 decorate_workers_output = no
+; Trang trạng thái pool — nginx chỉ mở cho địa chỉ nội bộ (xem default.conf.template).
+; Đọc bằng: docker compose exec nginx wget -qO- http://127.0.0.1/fpm-status?full
+; Cột đáng xem khi đo tải: "listen queue" (request đang xếp hàng chờ worker),
+; "active processes", "max children reached", "slow requests".
+pm.status_path = /fpm-status
+ping.path = /fpm-ping
 CONF
 
 # --- opcache ----------------------------------------------------------------
@@ -90,13 +96,64 @@ CONF
 #
 # Mỗi lệnh đều best-effort: một hệ thống chạy mà thiếu cache vẫn tốt hơn một
 # container không khởi động được. Chỉ service `backend` nên đặt PERF_OPTIMIZE=true
-# — bootstrap/cache nằm trên bind mount dùng chung, để nhiều container cùng ghi
-# một lúc thì có thể đọc phải file đang viết dở.
+# — bootstrap/cache nằm trên bind mount dùng chung.
+#
+# NHIỀU REPLICA (`--scale backend=N`, hoặc nhiều máy mount cùng thư mục): chỉ MỘT
+# container được hâm nóng, các container khác chờ nó xong rồi đi tiếp — nhiều
+# container cùng ghi một lúc thì có thể đọc phải file đang viết dở. Khoá bằng
+# `mkdir`: thao tác nguyên tử trên cùng một filesystem nên dùng được xuyên qua bind
+# mount dùng chung (flock trên bind mount Docker Desktop/Windows không tin được).
+# Khoá bỏ hoang (container hâm nóng bị giết giữa chừng) thì sau 90 s container
+# đang chờ tự gỡ khoá và hâm nóng lấy, không kẹt vĩnh viễn.
+# --- Mã nguồn nằm trên filesystem CỦA CONTAINER (PERF_LOCAL_CODE) ------------
+# ĐO ĐƯỢC 07/09/2026 (docs/perf/LOAD_TEST_2026-09-07.md): cùng mã, cùng DB, cùng
+# nginx/php-fpm — phục vụ từ bind mount của Docker Desktop: /health 190–210 ms,
+# 65 req/s ở 40 người dùng đồng thời; phục vụ từ bản chép trong container:
+# 27–40 ms, 284 req/s. Nguyên nhân: mỗi request Laravel đọc ~10–60 file KHÔNG
+# phải PHP (module.json ×4, modules_statuses.json, thư mục config của module,
+# dò view namespace, kiểm tra maintenance…) — opcache không đỡ được, và bind
+# mount (gRPC-FUSE) vừa chậm vừa xếp hàng khi nhiều tiến trình cùng đọc. Thêm
+# nữa: bootstrap/cache trên bind mount DÙNG CHUNG với mọi container khác — một
+# lệnh `config:clear` của container chạy test đã xoá cache config của container
+# đang chịu tải và kéo baseline từ 78 xuống 45 req/s.
+#
+# Cách làm: chép nguyên cây (kể cả vendor — volume tên, nằm trong VM nên chép
+# nhanh) sang $PERF_APP_DIR lúc khởi động; hâm nóng cache Ở ĐÓ; nginx trỏ
+# SCRIPT_FILENAME sang đó (WMS_PHP_DOCROOT). Mỗi lần container khởi động là một
+# bản chép mới của mã hiện tại — không có chuyện volume giữ mã cũ. Stack dev
+# không đổi (không đặt PERF_LOCAL_CODE). storage/ của bản chép là riêng của
+# container: hồ sơ chịu tải đã đưa mọi file đọc-ghi-chéo-request lên S3/MinIO.
+PERF_APP_DIR="${PERF_APP_DIR:-/srv/app}"
+if [ "${PERF_LOCAL_CODE:-false}" = "true" ]; then
+    echo "[perf] chep ma nguon sang ${PERF_APP_DIR} (filesystem cua container)"
+    rm -rf "${PERF_APP_DIR}" && mkdir -p "${PERF_APP_DIR}"
+    # tar|tar giữ quyền/symlink; loại những thứ không cần cho runtime.
+    (cd /var/www/html && tar cf -         --exclude=./.git --exclude=./node_modules --exclude=./storage/logs         --exclude=./storage/framework/cache --exclude=./storage/framework/views         --exclude=./storage/framework/sessions --exclude=./storage/framework/testing         --exclude=./tests --exclude=./docs --exclude=./load --exclude=./build         --exclude=./bootstrap/cache/.perf-warm.lock         .) | (cd "${PERF_APP_DIR}" && tar xf -)
+    mkdir -p "${PERF_APP_DIR}/storage/logs" "${PERF_APP_DIR}/storage/framework/cache/data"              "${PERF_APP_DIR}/storage/framework/views" "${PERF_APP_DIR}/storage/framework/sessions"              "${PERF_APP_DIR}/bootstrap/cache"
+    # Cache của bind mount có thể chứa đường dẫn /var/www/html — xoá để hâm nóng lại.
+    rm -f "${PERF_APP_DIR}"/bootstrap/cache/config.php "${PERF_APP_DIR}"/bootstrap/cache/routes-v7.php           "${PERF_APP_DIR}"/bootstrap/cache/events.php
+    chown -R "${RUNTIME_USER:-www-data}:${RUNTIME_USER:-www-data}" "${PERF_APP_DIR}/storage" "${PERF_APP_DIR}/bootstrap/cache"
+    echo "[perf] da chep: $(du -sh "${PERF_APP_DIR}" | cut -f1)"
+    WARM_DIR="${PERF_APP_DIR}"
+else
+    WARM_DIR=/var/www/html
+fi
+
 if [ "${PERF_OPTIMIZE:-false}" = "true" ]; then
-    WARM='php artisan config:cache || echo "[perf] BO QUA config:cache";
-          php artisan route:cache  || echo "[perf] BO QUA route:cache (co route dung Closure?)";
-          php artisan event:cache  || echo "[perf] BO QUA event:cache";
-          /usr/local/bin/ensure-runtime-permissions.sh;'
+    WARM='cd '"${WARM_DIR}"'; LOCK=bootstrap/cache/.perf-warm.lock;
+          warm() {
+            php artisan config:cache || echo "[perf] BO QUA config:cache";
+            php artisan route:cache  || echo "[perf] BO QUA route:cache (co route dung Closure?)";
+            php artisan event:cache  || echo "[perf] BO QUA event:cache";
+            /usr/local/bin/ensure-runtime-permissions.sh;
+          };
+          if mkdir "$LOCK" 2>/dev/null; then
+            warm; rmdir "$LOCK";
+          else
+            echo "[perf] replica khac dang ham nong bootstrap/cache - cho toi da 90s";
+            i=0; while [ -d "$LOCK" ] && [ "$i" -lt 90 ]; do sleep 1; i=$((i+1)); done;
+            if [ -d "$LOCK" ]; then echo "[perf] khoa bo hoang - tu ham nong"; rmdir "$LOCK"; warm; fi;
+          fi; cd /var/www/html;'
 else
     WARM=''
 fi

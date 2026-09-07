@@ -43,6 +43,24 @@ class CacheService
      * Cache đơn giản, không lock — dùng cho key có mức truy cập đồng thời thấp
      * (vd: theo user/id riêng lẻ, RBAC).
      */
+    /**
+     * Tổng thời gian (ms) request hiện tại đã chờ lock stampede — SlowRequestLog
+     * reset ở đầu request và đọc ở cuối. Static là đủ với php-fpm (mỗi request
+     * một đời app); nếu chuyển sang Octane phải đưa vào container scoped theo
+     * request.
+     */
+    private static float $lockWaitMs = 0.0;
+
+    public static function resetLockWait(): void
+    {
+        self::$lockWaitMs = 0.0;
+    }
+
+    public static function lockWaitMs(): float
+    {
+        return self::$lockWaitMs;
+    }
+
     public function remember(string $key, int $ttlSeconds, \Closure $resolver): mixed
     {
         $cached = $this->safeGet($key, $resolver, $hadError);
@@ -55,7 +73,7 @@ class CacheService
             return $cached;
         }
 
-        Log::info('cache.miss', ['key' => $key]);
+        Log::debug('cache.miss', ['key' => $key]);
         $fresh = $resolver();
         $this->put($key, $fresh, $ttlSeconds);
 
@@ -84,15 +102,18 @@ class CacheService
             return $cached;
         }
 
-        Log::info('cache.miss', ['key' => $key]);
+        Log::debug('cache.miss', ['key' => $key]);
 
         $lockWaitSeconds ??= (int) config('wms_cache.lock.wait_seconds', 5);
         $lockTtlSeconds ??= (int) config('wms_cache.lock.ttl_seconds', 10);
 
         try {
             $lock = CacheFacade::lock('lock:'.$key, $lockTtlSeconds);
+            $waitStarted = hrtime(true);
 
-            return $lock->block($lockWaitSeconds, function () use ($key, $ttlSeconds, $resolver) {
+            return $lock->block($lockWaitSeconds, function () use ($key, $ttlSeconds, $resolver, $waitStarted) {
+                // Đã cầm được lock: phần chờ kết thúc ở đây (rebuild tính vào SQL).
+                self::$lockWaitMs += (hrtime(true) - $waitStarted) / 1e6;
                 // Request khác có thể đã build xong trong lúc mình chờ lock.
                 $reCheck = $this->safeGet($key, $resolver, $hadError);
                 if (! $hadError && $reCheck !== self::MISS) {
@@ -121,7 +142,7 @@ class CacheService
     {
         try {
             CacheFacade::forget($key);
-            Log::info('cache.invalidate', ['key' => $key]);
+            Log::debug('cache.invalidate', ['key' => $key]);
         } catch (\Throwable $e) {
             Log::warning('cache.invalidate_failed', ['key' => $key, 'error' => $e->getMessage()]);
         }

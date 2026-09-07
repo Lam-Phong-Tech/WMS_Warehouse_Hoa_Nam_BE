@@ -50,7 +50,10 @@ upstream wms_php {
 
     ${WMS_PHP_UPSTREAM_SERVERS}
 
-    keepalive 128;
+    # 128 → 8: xem ràng buộc worker_processes × keepalive ≤ tổng số child php-fpm
+    # ở đầu nginx.conf. Giữ keepalive_requests/timeout cao để kết nối đã mở được
+    # tái dùng lâu — cái cần chặn là SỐ LƯỢNG kết nối giữ, không phải tuổi thọ.
+    keepalive 8;
     keepalive_requests 10000;
     keepalive_timeout 60s;
 }
@@ -85,10 +88,26 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
+    # Trạng thái php-fpm — chỉ từ trong mạng docker / loopback (bằng chứng khi đo tải).
+    location ~ ^/(fpm-status|fpm-ping)$ {
+        allow 127.0.0.1;
+        allow 172.16.0.0/12;
+        allow 10.0.0.0/8;
+        deny all;
+        access_log off;
+        fastcgi_pass wms_php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_NAME $uri;
+        fastcgi_param SCRIPT_FILENAME $uri;
+    }
+
     location ~ \.php$ {
         fastcgi_pass wms_php;
         fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        # Không dùng $document_root: php-fpm phục vụ bản chép mã trong container
+        # (WMS_PHP_DOCROOT, xem docker-compose.perf.yml), còn root của nginx vẫn là
+        # bind mount public/ để trả file tĩnh.
+        fastcgi_param SCRIPT_FILENAME ${WMS_PHP_DOCROOT}$fastcgi_script_name;
         include fastcgi_params;
 
         # Bắt buộc để keepalive tới upstream có tác dụng.

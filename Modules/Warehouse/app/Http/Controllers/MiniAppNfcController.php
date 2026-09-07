@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -13,7 +14,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
@@ -1032,7 +1032,7 @@ class MiniAppNfcController extends Controller
     /** @return array<string, mixed>|null */
     private function activeWarrantyPayload(string $itemId): ?array
     {
-        if (! Schema::hasTable('warranty_case') || ! Schema::hasColumn('warranty_case', 'item_id')) {
+        if (! SchemaCache::hasTable('warranty_case') || ! SchemaCache::hasColumn('warranty_case', 'item_id')) {
             return null;
         }
 

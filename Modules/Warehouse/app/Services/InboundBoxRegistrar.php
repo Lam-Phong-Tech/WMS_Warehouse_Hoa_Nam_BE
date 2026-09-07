@@ -2,9 +2,9 @@
 
 namespace Modules\Warehouse\Services;
 
+use App\Support\Database\SchemaCache;
 use App\Support\ApiError;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 
@@ -45,7 +45,7 @@ class InboundBoxRegistrar
         DB::table('containers')->insert([
             // Trên Postgres, containers có cột id mirror (không tự set như các bảng
             // khác); trên SQLite bảng này không có cột id.
-            ...(Schema::hasColumn('containers', 'id') ? ['id' => $boxId] : []),
+            ...(SchemaCache::hasColumn('containers', 'id') ? ['id' => $boxId] : []),
             'container_id' => $boxId,
             'container_code' => $boxCode,
             'container_type' => 'BOX',

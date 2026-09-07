@@ -67,9 +67,29 @@ class Wwhn267ContractClosureTest extends TestCase
         // warranty-cases = 200 là DELTA-02: §3 đánh D cho row Warranty nhưng chỉ liệt
         // kê key mức manage, còn seed cấp warranty.view. PII vẫn mask vì thiếu
         // warranty.pii.view.
+        //
+        // stock.inbound/outbound đổi 403 -> 200 ngày 06/09/2026: tài liệu BA
+        // taikhoantheorole v2 cho Ban lãnh đạo "Phiếu nhập/xuất ở chế độ read-only khi
+        // cần drill-down", nên seed cấp thêm inbound.view/outbound.view. Nới quyền có
+        // chủ ý và CHỈ ở mức đọc — mọi hàng ghi của vai này trong ma trận BA vẫn ❌ và
+        // seed không cấp create/scan/post/cancel nào.
         'LEADERSHIP' => [
-            'stock.inbound' => 403,
-            'stock.outbound' => 403,
+            'stock.inbound' => 200,
+            'stock.outbound' => 200,
+            'stock.balance' => 200,
+            'reversal' => 200,
+            'warranty' => 200,
+            'report' => 200,
+        ],
+        // Quản lý kho — vai GIÁM SÁT sau đợt sửa theo BA (nguyên tắc 3: "không trực
+        // tiếp thực hiện nghiệp vụ kho"). Sáu ô 200 này khoá đúng mệnh đề khó nhất của
+        // tài liệu: vai này phải ĐỌC được mọi bề mặt nghiệp vụ kho để giám sát, trong
+        // khi không còn thao tác nào. Phần "không thao tác" không đo được ở đây vì
+        // SURFACES toàn là GET — nó được khoá ở Wwhn180PermissionAliasContractTest
+        // (chặn quyền quay lại qua WmsPermissionCompatibilitySeeder) và ở pin permission.
+        'WAREHOUSE_MANAGER' => [
+            'stock.inbound' => 200,
+            'stock.outbound' => 200,
             'stock.balance' => 200,
             'reversal' => 200,
             'warranty' => 200,
@@ -85,8 +105,13 @@ class Wwhn267ContractClosureTest extends TestCase
             'warranty' => 403,
             'report' => 200,
         ],
-        // Nhân viên bảo hành: §3 cho V* ở inventory, A ở warranty, D ở inbound/outbound;
-        // report không được cấp trong seed nên bị chặn.
+        // Nhân viên bảo hành: §3 cho V* ở inventory, A ở warranty, D ở inbound/outbound.
+        //
+        // 'report' => 403 là QUYẾT ĐỊNH, không phải quan sát. Tài liệu BA để ngỏ điểm
+        // này ("có thể xem báo cáo bảo hành NẾU ĐƯỢC CẤP report.view"; ma trận ghi "Theo
+        // scope"), nên đã hỏi lại — BA chốt 07/09/2026: nhân viên bảo hành KHÔNG được
+        // xem báo cáo. Ô này vì thế phải giữ 403; ai muốn đổi thì phải có quyết định mới
+        // của BA, không phải sửa cho khỏi đỏ.
         'WARRANTY_STAFF' => [
             'stock.inbound' => 403,
             'stock.outbound' => 403,
@@ -285,7 +310,14 @@ class Wwhn267ContractClosureTest extends TestCase
         );
 
         // DIV-403-01: có phiên nhưng thiếu quyền.
-        $headers = $this->authHeadersWithRole('LEADERSHIP');
+        //
+        // Đổi LEADERSHIP -> WARRANTY_STAFF ngày 06/09/2026: từ đợt áp ma trận BA
+        // (taikhoantheorole v2), Ban lãnh đạo được cấp inbound.view để drill-down
+        // read-only từ báo cáo, nên bề mặt này trả 200 và không còn là ví dụ "thiếu
+        // quyền" nữa. WARRANTY_STAFF là vai KHÔNG có inbound.view theo đúng ma trận
+        // BA (ô 'Tạo/Scan/Post Inbound | NV bảo hành ❌' và không có hàng view nào cấp
+        // chứng từ nhập cho vai này) — xem RBAC_MATRIX ở đầu lớp, ô đó pin 403.
+        $headers = $this->authHeadersWithRole('WARRANTY_STAFF');
         unset($headers['__user_id']);
         $denied = $this->getJson(self::SURFACES['stock.inbound'], $headers);
         $this->assertSame(403, $denied->getStatusCode());

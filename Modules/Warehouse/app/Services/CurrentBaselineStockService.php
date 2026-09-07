@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Services;
 
+use App\Support\Database\SchemaCache;
 use App\Support\ApiError;
 use App\Support\Cache\CacheService;
 use App\Support\ConflictCode;
@@ -348,7 +349,7 @@ class CurrentBaselineStockService
      */
     private function assertCandidateAvailable(string $documentId, string $itemUnique): void
     {
-        if (! Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+        if (! SchemaCache::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
             ApiError::abort(422, 'INVALID_PAYLOAD', 'Schema chưa hỗ trợ new item candidate; hãy chạy migration mới nhất.');
         }
 
@@ -982,7 +983,7 @@ class CurrentBaselineStockService
             'version' => 0,
         ];
         foreach (['status' => 'ACTIVE', 'captured_at' => now(), 'captured_by' => $actorId] as $column => $value) {
-            if (Schema::hasColumn('inbound_scan_entries', $column)) {
+            if (SchemaCache::hasColumn('inbound_scan_entries', $column)) {
                 $row[$column] = $value;
             }
         }
@@ -1029,8 +1030,8 @@ class CurrentBaselineStockService
         // scan_event là compatibility VIEW từ 000791 — hasTable() trả false cho
         // view trên PostgreSQL nên phải kiểm tra thêm hasView, nếu không evidence
         // NFR-SRS-004 bị bỏ qua trong im lặng.
-        $hasScanEvent = Schema::hasTable('scan_event') || Schema::hasView('scan_event');
-        if (! Schema::hasTable('scan_batch') || ! $hasScanEvent) {
+        $hasScanEvent = SchemaCache::hasTable('scan_event') || SchemaCache::hasView('scan_event');
+        if (! SchemaCache::hasTable('scan_batch') || ! $hasScanEvent) {
             return;
         }
 
@@ -1113,7 +1114,7 @@ class CurrentBaselineStockService
         ], JSON_UNESCAPED_UNICODE);
 
         foreach (['scan_events' => 'id', 'scan_event' => 'scan_event_id'] as $table => $key) {
-            if ((! Schema::hasTable($table) && ! Schema::hasView($table)) || ! Schema::hasColumn($table, 'metadata')) {
+            if ((! SchemaCache::hasTable($table) && ! SchemaCache::hasView($table)) || ! SchemaCache::hasColumn($table, 'metadata')) {
                 continue;
             }
 
@@ -1151,18 +1152,18 @@ class CurrentBaselineStockService
         }
 
         foreach (['scan_events' => 'id', 'scan_event' => 'scan_event_id'] as $table => $key) {
-            if (! Schema::hasTable($table) && ! Schema::hasView($table)) {
+            if (! SchemaCache::hasTable($table) && ! SchemaCache::hasView($table)) {
                 continue;
             }
-            if (! Schema::hasColumn($table, 'scan_source')) {
+            if (! SchemaCache::hasColumn($table, 'scan_source')) {
                 continue;
             }
 
             $values = ['scan_source' => $scanSource];
-            if (Schema::hasColumn($table, 'context_type')) {
+            if (SchemaCache::hasColumn($table, 'context_type')) {
                 $values['context_type'] = $contextType;
             }
-            if (Schema::hasColumn($table, 'context_id')) {
+            if (SchemaCache::hasColumn($table, 'context_id')) {
                 $values['context_id'] = $contextId;
             }
 
@@ -1238,7 +1239,7 @@ class CurrentBaselineStockService
      */
     private function registerCandidateItems(string $documentId, ?string $actorId): void
     {
-        if (! Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+        if (! SchemaCache::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
             return;
         }
 
@@ -1285,7 +1286,7 @@ class CurrentBaselineStockService
                 'created_by' => $actorId,
                 'updated_by' => $actorId,
             ] as $column => $value) {
-                if (Schema::hasColumn('item_instances', $column)) {
+                if (SchemaCache::hasColumn('item_instances', $column)) {
                     $itemRow[$column] = $value;
                 }
             }
@@ -1424,7 +1425,7 @@ class CurrentBaselineStockService
         $itemIds = $activeMatches->pluck('item_id')->filter();
         if ($itemIds->isNotEmpty()) {
             $update = ['item_status' => 'ISSUED', 'updated_at' => now()];
-            if (Schema::hasColumn('item_instances', 'issued_at')) {
+            if (SchemaCache::hasColumn('item_instances', 'issued_at')) {
                 $update['issued_at'] = now();
             }
             DB::table('item_instances')->whereIn('item_id', $itemIds)->update($update);
@@ -1457,7 +1458,7 @@ class CurrentBaselineStockService
             'item_condition' => $condition === 'SELLABLE' ? 'NORMAL' : $condition,
             'updated_at' => now(),
         ];
-        if (Schema::hasColumn('item_instances', 'issued_at')) {
+        if (SchemaCache::hasColumn('item_instances', 'issued_at')) {
             $update['issued_at'] = null;
         }
         DB::table('item_instances')->whereIn('item_id', $itemIds)->update($update);
@@ -1691,7 +1692,7 @@ class CurrentBaselineStockService
 
     private function recordDocumentStatus(string $documentId, ?string $from, string $to, string $action, ?string $actorId): void
     {
-        if ($actorId === null || ! Schema::hasTable('document_status_history')) {
+        if ($actorId === null || ! SchemaCache::hasTable('document_status_history')) {
             return;
         }
         DB::table('document_status_history')->insert([
@@ -1715,7 +1716,7 @@ class CurrentBaselineStockService
         ?string $actorId,
         array $snapshot
     ): void {
-        if (! Schema::hasTable('posting_event') && ! Schema::hasView('posting_event')) {
+        if (! SchemaCache::hasTable('posting_event') && ! SchemaCache::hasView('posting_event')) {
             return;
         }
         DB::table('posting_event')->insert([

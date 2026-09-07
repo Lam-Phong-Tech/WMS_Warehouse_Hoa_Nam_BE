@@ -78,3 +78,74 @@ thật. Muốn số chính xác thì chạy k6 từ một máy khác:
 ```bash
 docker run --rm -i -v "$PWD/load/k6:/scripts:ro" grafana/k6 run -e BASE_URL=http://<ip-server>:8080 -e PROFILE=target //scripts/wms-load.js
 ```
+
+## Bổ sung 07/09/2026
+
+### Bắt buộc trên Git Bash / Windows
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose -f load/docker-compose.k6.yml run --rm k6 run -e PROFILE=baseline /scripts/wms-load.js
+```
+
+Thiếu `MSYS_NO_PATHCONV=1` thì Git Bash đổi `/scripts/...` thành `C:/Git/scripts/...`
+và k6 báo không tìm thấy file. (Cách cũ `//scripts` vẫn dùng được.)
+
+### Tham số mới
+
+| Biến | Mặc định | Ý nghĩa |
+|------|----------|---------|
+| `INCLUDE_PUBLIC` | `1` | `0` = bỏ các luồng công khai (PV/catalog) khỏi mix. Chúng đi qua `throttle:pv-public` **120 req/phút theo IP**, mà k6 phát mọi request từ MỘT IP ⇒ 429 giả tạo của bộ đo, không phải năng lực hệ thống. Đặt `0` khi muốn tỉ lệ lỗi phản ánh đúng hệ thống. |
+| `RUN_TAG` | `run` | Nhãn của lượt đo, đi vào tag của mọi metric |
+| `SLOW_REQUEST_MS` | `500` (hồ sơ chịu tải) | Ngưỡng ghi log request chậm phía BE (xem bên dưới) |
+
+Luôn kèm `--summary-export=/results/<tag>.json` để so sánh được về sau.
+
+### Ba công cụ đi kèm
+
+```bash
+# 1. So sánh mọi lượt đã lưu trong load/results
+node load/summarize.mjs
+node load/summarize.mjs baseline           # lọc theo tên
+
+# 2. Cô lập từng tầng: bắn MỘT endpoint bằng mô hình đóng (constant-vus)
+MSYS_NO_PATHCONV=1 docker compose -f load/docker-compose.k6.yml run --rm k6 run \
+  -e VUS=40 -e DURATION=40s -e TARGET=health /scripts/probe-concurrency.js
+#   TARGET = health | products | inventory | hub
+#   Dùng để trả lời "nghẽn ở tầng nào": nếu /health (không auth, 5 câu SQL) đã
+#   bung ở 40 VU thì vấn đề nằm dưới tầng ứng dụng, không phải ở logic màn hình.
+
+# 3. Quy thời gian về từng ROUTE sau một lượt đo (cần SLOW_REQUEST_MS > 0)
+(docker logs --since 15m wms_warehouse_hoa_nam_be-backend-1 2>&1; \
+ docker logs --since 15m wms_warehouse_hoa_nam_be-backend-2 2>&1) \
+ | node load/analyze-slow-requests.mjs
+```
+
+Cột của công cụ 3: `p50/p95/max` tổng thời gian, `db_ms` + `sql#`, `lock` (thời
+gian chờ lock chống stampede), `miss%` cache. Đọc như sau:
+
+| Dấu hiệu | Kết luận |
+|---|---|
+| `db_ms` ≈ `duration` | nghẽn ở SQL (hoặc ở việc MỞ KẾT NỐI — xem PgBouncer trong `LOAD_TEST_2026-09-07.md`) |
+| `lock` lớn | nhiều request cùng dựng lại một khoá cache (stampede) |
+| `db_ms` và `lock` đều nhỏ mà `duration` lớn | tiến trình đang chờ CPU ⇒ máy đã bão hoà |
+
+### Trạng thái php-fpm trong lúc đo
+
+```bash
+docker compose exec nginx wget -qO- http://127.0.0.1/fpm-status
+```
+
+Chỉ mở cho loopback + mạng docker. Ba cột quyết định: `listen queue` (request
+đang xếp hàng chờ worker — khác 0 là đã quá tải), `active processes`,
+`max children reached`.
+
+### Hồ sơ chịu tải hiện tại (07/09/2026)
+
+Phải chạy kèm overlay, và nay gồm cả PgBouncer:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.perf.yml up -d --scale backend=2
+```
+
+Xem `docs/perf/LOAD_TEST_2026-09-07.md` để biết vì sao mã nguồn được phục vụ từ
+`/srv/app` trong container và vì sao PgBouncer là bắt buộc trong hồ sơ này.

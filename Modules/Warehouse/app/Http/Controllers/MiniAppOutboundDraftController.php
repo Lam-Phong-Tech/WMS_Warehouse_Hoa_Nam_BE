@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -11,7 +12,6 @@ use App\Support\Validation\InputLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
@@ -192,7 +192,7 @@ class MiniAppOutboundDraftController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ];
-        if (Schema::hasColumn('outbound_request_imports', 'uploaded_at')) {
+        if (SchemaCache::hasColumn('outbound_request_imports', 'uploaded_at')) {
             $importRow['uploaded_at'] = now();
             $importRow['uploaded_by'] = $actorId;
         }
@@ -214,7 +214,7 @@ class MiniAppOutboundDraftController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ];
-        if (Schema::hasColumn('outbound_requests', 'customer_name')) {
+        if (SchemaCache::hasColumn('outbound_requests', 'customer_name')) {
             $requestInsert['customer_name'] = $recipientName;
             $requestInsert['customer_address'] = $recipientAddress;
             $requestInsert['customer_phone'] = $recipientPhone;

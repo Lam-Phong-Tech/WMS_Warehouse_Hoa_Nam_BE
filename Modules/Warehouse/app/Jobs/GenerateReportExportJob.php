@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Controllers\OperationalReportController;
 use Modules\Warehouse\Models\ReportExportJob;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -71,7 +72,18 @@ class GenerateReportExportJob implements ShouldQueue
 
             $extension = $this->format === 'pdf' ? 'pdf' : 'xlsx';
             $storedPath = 'report-exports/'.$this->exportJobId.'.'.$extension;
-            Storage::disk('local')->put($storedPath, $payload['bytes']);
+            // `put()` KHÔNG ném lỗi khi ghi hỏng — nó trả về `false`. Không kiểm giá
+            // trị trả về thì job vẫn tự chuyển sang READY cho một file CHƯA BAO GIỜ
+            // được ghi, và người dùng chỉ phát hiện ở bước bấm Tải về (500/404) — mất
+            // hẳn manh mối vì log lúc đó không còn nói gì về nguyên nhân thật.
+            // Dựng lại được đúng tình huống này ngày 06/09/2026 khi thử trỏ đĩa export
+            // sang s3 trong lúc bucket chưa được tạo.
+            $disk = (string) config('wms_export.disk');
+            if (Storage::disk($disk)->put($storedPath, $payload['bytes']) === false) {
+                throw new RuntimeException(
+                    "Không ghi được file export vào đĩa '{$disk}' (đường dẫn: {$storedPath})."
+                );
+            }
 
             $job->update([
                 'status' => 'READY',

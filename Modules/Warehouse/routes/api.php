@@ -39,6 +39,7 @@ use Modules\Warehouse\Http\Controllers\ProductController;
 use Modules\Warehouse\Http\Controllers\ProductMasterController;
 use Modules\Warehouse\Http\Controllers\PutawayController;
 use Modules\Warehouse\Http\Controllers\PvAdminResourceController;
+use Modules\Warehouse\Http\Controllers\PvProductImageController;
 use Modules\Warehouse\Http\Controllers\PvPublicCatalogController;
 use Modules\Warehouse\Http\Controllers\ReversalDocumentController;
 use Modules\Warehouse\Http\Controllers\ScanController;
@@ -71,6 +72,13 @@ Route::prefix('v1')->group(function (): void {
         // Path lịch sử, giữ để client cũ không vỡ; thân hàm đã trỏ về cùng read model.
         Route::get('pv/catalog', [CurrentBaselineOperationsController::class, 'pvCatalog']);
         Route::get('pv/tags', [CanonicalMvpController::class, 'pvTags']);
+
+        // MST-PV-01 — ảnh sản phẩm phục vụ cho mặt ẩn danh. Bucket giữ PRIVATE,
+        // ảnh đi qua đây (xem config/pv.php `image_public_base`). Ràng buộc `where`
+        // khoá key về đúng dạng `<uuid>.<ext>`: không dấu `/`, không `..`, nên
+        // không có đường ghép ra đường dẫn trỏ sang tệp khác trong bucket.
+        Route::get('pv/product-images/{key}', [PvProductImageController::class, 'show'])
+            ->where('key', PvProductImageController::KEY_PATTERN);
     });
 
     Route::middleware('auth:api')->group(function (): void {
@@ -485,6 +493,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('pv-admin/resources/{resourceType}', [PvAdminResourceController::class, 'store'])
             ->middleware('permission:pv.master.manage');
         Route::patch('pv-admin/resources/{resourceType}/{id}', [PvAdminResourceController::class, 'update'])
+            ->middleware('permission:pv.master.manage');
+
+        // MST-PV-01 — upload ảnh sản phẩm lên object storage (MinIO dev / R2 deploy).
+        // Cùng quyền với việc sửa hồ sơ hiển thị: ai gắn được ảnh vào sản phẩm thì
+        // mới được đẩy ảnh lên.
+        Route::post('pv-admin/product-images', [PvProductImageController::class, 'store'])
             ->middleware('permission:pv.master.manage');
 
         // SRS §6 Reversal state model: DRAFT → (confirm) → post/cancel.

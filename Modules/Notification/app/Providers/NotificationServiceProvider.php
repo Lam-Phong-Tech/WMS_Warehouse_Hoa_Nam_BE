@@ -2,11 +2,11 @@
 
 namespace Modules\Notification\Providers;
 
-use Nwidart\Modules\Support\ModuleServiceProvider;
+use App\Support\Modules\HttpLeanModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Notification\Console\Commands\BackfillNotificationActorsCommand;
 
-class NotificationServiceProvider extends ModuleServiceProvider
+class NotificationServiceProvider extends HttpLeanModuleServiceProvider
 {
     /**
      * The name of the module.

@@ -11,25 +11,31 @@
     {
       "srsActor": "Admin hệ thống",
       "seededRoles": [
-        "ADMIN",
-        "WAREHOUSE_MANAGER"
+        "ADMIN"
       ],
-      "note": "Hai role cùng ánh xạ về một actor là bất thường — xem conformanceDeltas DELTA-01."
+      "note": "Từ 06/09/2026 chỉ còn ADMIN. WAREHOUSE_MANAGER đã chuyển sang actor 'Quản lý kho' theo tài liệu BA taikhoantheorole v2 — DELTA-01 khép lại bằng phương án (B)."
     },
     {
       "srsActor": "Quản lý kho",
       "seededRoles": [
-        "WAREHOUSE_KEEPER",
-        "WAREHOUSE_APPROVER"
+        "WAREHOUSE_MANAGER"
       ],
-      "note": "Tách theo thao tác duyệt/đăng chứng từ."
+      "note": "Từ 06/09/2026: vai GIÁM SÁT hoạt động kho (dashboard/báo cáo/tồn kho/chứng từ/truy vết), không thao tác nghiệp vụ. WAREHOUSE_KEEPER và WAREHOUSE_APPROVER — hai role từng ánh xạ về actor này, tách theo thao tác duyệt/đăng chứng từ — đã NGỪNG DÙNG ở production (AuthDatabaseSeeder::DEPRECATED_ROLES), vì BA bãi bỏ bước chờ một role khác Post."
     },
     {
       "srsActor": "Nhân viên kho",
       "seededRoles": [
         "WAREHOUSE_STAFF"
       ],
-      "note": ""
+      "note": "Từ 06/09/2026 nhận thêm inbound.post/cancel + outbound.post/cancel: BA chốt nhân viên kho tự Post ngay tại đầu nhập/xuất, không chờ role trung gian."
+    },
+    {
+      "srsActor": "(ngừng dùng) role của mô hình phân quyền cũ",
+      "seededRoles": [
+        "WAREHOUSE_KEEPER",
+        "WAREHOUSE_APPROVER"
+      ],
+      "note": "Chỉ còn seed ở local/testing để bộ E2E và dữ liệu lịch sử không đứt. Tài khoản production đang giữ hai vai này phải migrate về WAREHOUSE_STAFF (hoặc WAREHOUSE_MANAGER nếu thực chất chỉ giám sát) qua IAM."
     },
     {
       "srsActor": "Nhân viên bảo hành",
@@ -64,18 +70,21 @@
   "pinnedRoles": {
     "ADMIN": {
       "name": "Administrator",
-      "permissionCount": 61,
-      "permissionsSha256": "e73d9b10d04eb6d6348cf66baa7242b492c053345bff7c2e0036355afeb7f937"
+      "permissionCount": 60,
+      "permissionsSha256": "3a85c34c20ff3af661a1cd2df3afb6bbc93d8e736021a3016fa532c979a9ef04",
+      "note": "Cập nhật 06/09/2026 cùng DELTA-06 (tài liệu BA taikhoantheorole v2). Số quyền đi 61 -> 60 vì HAI nguyên nhân, đừng đọc thành 'thu hồi 1 quyền': (a) bản pin 61 đã trôi từ trước — seeder trước lần sửa này là 60; (b) lần sửa này CỘNG warranty.temp_only và TRỪ warranty.pii.export, net 0. warranty.pii.export gỡ theo ô ma trận 'Warranty PII export | ADMIN: Permission riêng' — cấp lẻ qua user_permission, không seed cho cả vai."
     },
     "WAREHOUSE_STAFF": {
       "name": "Warehouse Staff",
-      "permissionCount": 31,
-      "permissionsSha256": "6ce452be91ff2a84ab2c37c0dddd078918fd9ca612354cb565fdd993081f4bfb"
+      "permissionCount": 30,
+      "permissionsSha256": "ef918f43d566d7dc9931ec308aa04d78586850a2bfdfe8e12b64eea637061dba",
+      "note": "Cập nhật 06/09/2026 cùng DELTA-06. Seeder trước lần sửa là 25 quyền (pin 31 đã trôi từ đợt thu hồi 21 mã cũ 27/08); lần sửa này CỘNG đúng 5: inbound.post, inbound.cancel, outbound.post, outbound.cancel, packing_label.reprint. Đây là NỚI quyền có chủ ý — BA bãi bỏ bước chờ role khác Post, và bốn quyền post/cancel được chuyển sang từ WAREHOUSE_APPROVER/WAREHOUSE_KEEPER."
     },
     "WAREHOUSE_APPROVER": {
       "name": "Warehouse Approver",
-      "permissionCount": 22,
-      "permissionsSha256": "719c8bd3da46c0fafd684dee8f7c63f98cd32489497ac9cc24a6299286f15151"
+      "permissionCount": 19,
+      "permissionsSha256": "aec7b662c0bc778e0d4d1e1d08e0ac571b5ca5541f04c0e387a2864ead93d4c1",
+      "note": "Re-pin 06/09/2026 để khôi phục hiệu lực cổng — xem DELTA-05. Tập quyền KHÔNG đổi trong lần sửa này; 22 -> 19 là phần trôi có sẵn từ migration 2026_08_27_170000 thu hồi 21 mã cũ (role này giữ stock_document.* và physical_code.view). Vai đã ngừng dùng ở production."
     },
     "WAREHOUSE_KEEPER": {
       "name": "Warehouse Keeper",
@@ -85,40 +94,51 @@
     },
     "WARRANTY_STAFF": {
       "name": "Warranty Staff",
-      "permissionCount": 12,
-      "permissionsSha256": "8c051e2b718da90f62d2b73ced3adead183f9d6a1af563af46cd7861fdf905ec"
+      "permissionCount": 13,
+      "permissionsSha256": "beb29c9a20be550cdd3faf1007aa9967de959f79d030076b377bbb82462e3d7d",
+      "note": "Cập nhật 06/09/2026 cùng DELTA-06. Seeder trước lần sửa là 11; CỘNG đúng 2: warranty.pii.view (ma trận BA đánh ✅ — trước đây vai này xử lý hồ sơ nhưng tên/SĐT khách bị che nên không gọi lại khách được) và warranty.temp_only. warranty.pii.EXPORT vẫn KHÔNG cấp: BA ghi 'không mặc định được phép'."
     },
     "LEADERSHIP": {
       "name": "Leadership",
-      "permissionCount": 11,
-      "permissionsSha256": "f45c4171df6d45d43f2747064c28d6de1f593c976cf8f42ed1960bc051bac8bc"
+      "permissionCount": 12,
+      "permissionsSha256": "008cd6d9918de61f8d5f61b66670a8348eb02f8d74e53885efff72fff3fb0666",
+      "note": "Cập nhật 06/09/2026 cùng DELTA-06. Seeder trước lần sửa cũng là 12, nhưng TẬP quyền đổi: CỘNG inbound.view + outbound.view (drill-down read-only từ báo cáo), TRỪ audit_log.view + audit_log.view_all (BA: 'Không xem Audit Log toàn hệ thống mặc định'). Net 0 về số lượng — đây đúng là loại thay đổi mà chỉ có hash bắt được, count thì không."
     },
     "VIEWER": {
       "name": "Viewer",
-      "permissionCount": 17,
-      "permissionsSha256": "d9ffbd8fda978d3152fc371cd3f3b3e57038461e4eb422e05d427a2706e0f7e2"
+      "permissionCount": 14,
+      "permissionsSha256": "57bed422f7715ad0178a6646858c563cebc6298280f66f4a5c403fdaa8915332",
+      "note": "Cập nhật 06/09/2026 cùng DELTA-06. Seeder trước lần sửa cũng là 14 (pin 17 đã trôi từ đợt 27/08); TẬP quyền đổi: TRỪ audit_log.view (ma trận BA đánh ❌ ô Viewer × Audit Log), CỘNG putaway.view (ma trận đánh ✅ ô Viewer × Putaway xem)."
     },
     "WAREHOUSE_MANAGER": {
       "name": "Warehouse Manager",
-      "permissionCount": 69,
-      "permissionsSha256": "404e79c8ad23dec9eaa48b77caf193e610c0510ff62717f20d9e3181f2c4b3d5",
-      "refreshedAt": "2026-08-19T00:00:00Z (WWHN-268 round 2 evidence refresh, tại HEAD hien tai cua m1)",
-      "refreshReason": "howToUpdate.knownPendingChange da ap dung: WWHN-249 D-04 commit them 'pv.master.manage' cho WAREHOUSE_MANAGER (SRS §3 row PV Industry/Tag/Product Mapping/Recommendation Rule manage = A cho Quan ly kho). permissionCount 68→69, hash sinh lai theo dung buoc 2 cua howToUpdate."
+      "permissionCount": 17,
+      "permissionsSha256": "3327fa68fd0762d509618e777f1f1195b8d7eaa9dd13244e43346949f27803a6",
+      "refreshedAt": "2026-09-06 (DELTA-01 đóng theo tài liệu BA taikhoantheorole v2)",
+      "refreshReason": "THU HỒI QUYỀN quy mô lớn, không phải nới: 50 -> 17 (pin cũ 69 đã trôi). BA chọn phương án (B) của DELTA-01: giữ tên 'Quản lý kho' và gỡ toàn bộ nhóm quyền thao tác. Gỡ 5 mã iam.*, 5 mã master *.manage, 4 mã inbound ghi, 5 mã outbound ghi, inventory.reversal.post, 2 mã physical_code.*, 2 mã label.*, 4 mã bảo hành (manage/component_issue/temp_only/pii.export), warranty.pii.view, pv.publish, pv.master.manage, import_batch.manage, container.manage, item_instance.manage, scan.classify, audit_log.view_all. Cộng 2 mã đọc mà ma trận đánh ✅ nhưng seed cũ thiếu: warranty.view, putaway.view. Phần thu hồi phải làm ở HAI chỗ — hằng ROLES và WmsPermissionCompatibilitySeeder::ROLE_ASSIGNMENTS (nơi inbound.post/outbound.post/warranty.manage quay lại qua danh nghĩa 'alias FE')."
     },
     "SKU_MANAGER": {
       "name": "SKU Manager Test",
-      "permissionCount": 5,
-      "permissionsSha256": "5079ad8971dd6e540f02de282a0bda89a05f9b916842b6a6639146f27cbbb822"
+      "permissionCount": 3,
+      "permissionsSha256": "9b6a4386898b61efef57478a2bc9c7e2461aab968adf28f644386aa05440cf81",
+      "note": "Re-pin 06/09/2026 để khôi phục hiệu lực cổng — xem DELTA-05. Tập quyền KHÔNG đổi trong lần sửa này; 5 -> 3 là phần trôi có sẵn từ migration 2026_08_27_170000 (role này giữ product.view/product.manage đã bị thu hồi)."
     },
     "MASTER_MANAGER": {
       "name": "Master Data Manager Test",
-      "permissionCount": 5,
-      "permissionsSha256": "6abfebc26b7242aa92391dc3f3cab42a9b58883a85e5332f61d2fbe5bb5c51d0"
+      "permissionCount": 2,
+      "permissionsSha256": "bc0ada29a5e1034806a8501905ea7f6d3da853495f0f631582fdaf16fa3253d6",
+      "note": "Re-pin 06/09/2026 để khôi phục hiệu lực cổng — xem DELTA-05. Tập quyền KHÔNG đổi trong lần sửa này; 5 -> 2 là phần trôi có sẵn từ migration 2026_08_27_170000 (role này giữ master.manage và defect_catalog.view/manage đã bị thu hồi)."
     },
     "NO_PERMISSION": {
       "name": "No Permission Test",
       "permissionCount": 0,
       "permissionsSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "INBOUND_ONLY_TEST": {
+      "name": "Inbound Only Test",
+      "permissionCount": 24,
+      "permissionsSha256": "d7973c5e6573c52c889e52d51556cdb5185c9ce83de16f7160011cdf828f26c3",
+      "note": "Pin LẦN ĐẦU 06/09/2026 — xem DELTA-05. Role này được thêm vào seeder sau khi hồ sơ WWHN-267 chốt và CHƯA BAO GIỜ có dòng pin, nên test_role_baseline_matches_the_pin đỏ ngay ở phép so danh sách key và không bao giờ chạy tới phần băm của 11 role còn lại. Tập quyền không đổi trong lần sửa này."
     }
   },
   "conformanceDeltas": [
@@ -131,7 +151,8 @@
       "whyItMatters": "Nếu WAREHOUSE_MANAGER được coi là actor 'Quản lý kho' thì §3 đánh D cho đúng cột này. Người giữ role có thể tạo/sửa user khác và gán role bất kỳ — đường leo quyền ngang.",
       "compensatingControl": "Modules/Auth/app/Http/Middleware/PreventSelfRoleAssignment.php chặn tự đổi role của chính mình (409 SELF_ESCALATION_DENIED). Không chặn được việc thao tác trên tài khoản khác.",
       "recommendation": "BA + Tech Lead chọn 1 trong 2: (A) tuyên bố WAREHOUSE_MANAGER là biến thể của actor 'Admin hệ thống' và đổi tên/mô tả cho khớp; (B) giữ tên và gỡ nhóm iam.*/user.*/role.*/permission.view khỏi role này. WWHN-267 KHÔNG tự chọn vì cả hai đều chạm dữ liệu role thật, FE menu và bộ test RBAC.",
-      "disposition": "OPEN_NEEDS_BA_DECISION",
+      "resolution": "ĐÓNG 06/09/2026 theo phương án (B). Tài liệu BA 'taikhoantheorole_da_sua_v2' nguyên tắc 3 định nghĩa lại WAREHOUSE_MANAGER là vai GIÁM SÁT hoạt động kho và liệt kê 'Tạo/sửa User, Role hoặc ma trận Permission' trong phần Không làm được; ma trận đánh ❌ ô 'User/Role/Permission manage'. Seeder đã gỡ 5 mã iam.* cùng toàn bộ nhóm thao tác (xem pinnedRoles.WAREHOUSE_MANAGER.refreshReason). Đường leo quyền ngang mà delta này mô tả không còn tồn tại: vai này không còn quyền tạo/sửa user hay gán role nào.",
+      "disposition": "RESOLVED_BA_DECIDED_OPTION_B",
       "owner": "BA + Tech Lead",
       "raisedBy": "WWHN-267 (BE2)"
     },
@@ -144,7 +165,8 @@
       "whyItMatters": "Hai row §3 chỉ liệt kê permission key mức *manage*, nên không có nguồn nào nói ai được giữ mức *view*. Đây là khoảng trống nguồn, không phải lỗi cài đặt rõ ràng — nhưng đang bị đọc theo hai cách khác nhau giữa QA và DEV.",
       "compensatingControl": "PII bảo hành nằm sau permission riêng warranty.pii.view (App/Support/WarrantyPiiMasker.php); LEADERSHIP không có quyền đó nên customer_name/phone/address luôn ở dạng mask (pii_masked=true).",
       "recommendation": "BA bổ sung cột view-level cho hai row này trong §3, hoặc xác nhận 'D' áp cho cả view. Sau khi có quyết định, sửa seeder + pin trong một PR.",
-      "disposition": "OPEN_NEEDS_BA_DECISION",
+      "resolution": "ĐÓNG 06/09/2026. Tài liệu BA 'taikhoantheorole_da_sua_v2' trả lời đúng khoảng trống nguồn này: mục LEADERSHIP ghi 'Hồ sơ bảo hành ở chế độ read-only, PII mặc định bị che', và ma trận đánh ✅ cho ô 'Warranty view | Lãnh đạo' cùng ô 'Putaway/xếp khay xem | Lãnh đạo'. Tức 'D' của §3 chỉ áp cho mức manage, không áp cho mức view — đúng như cài đặt hiện có. Kiểm soát bù (PII sau warranty.pii.view) giữ nguyên và vẫn có test riêng test_leadership_cannot_read_warranty_pii_even_though_it_can_list_cases.",
+      "disposition": "RESOLVED_BA_CONFIRMED_VIEW_LEVEL_ALLOWED",
       "owner": "BA",
       "raisedBy": "WWHN-267 (BE2)"
     },
@@ -173,6 +195,49 @@
       "disposition": "RESOLVED_CONFORMS_TO_SRS",
       "owner": "BE (đã sửa) + Tech Lead (xác nhận RBAC_MATRIX)",
       "raisedBy": "Báo lỗi từ đội FE Mini App 05/09/2026 (đăng nhập được nhưng 403 khi gửi duyệt phiếu)"
+    },
+    {
+      "id": "DELTA-05",
+      "severity": "P2",
+      "role": "WAREHOUSE_APPROVER / SKU_MANAGER / MASTER_MANAGER / INBOUND_ONLY_TEST",
+      "srsRow": "(không phải lệch so với §3) — lệch giữa hồ sơ pin và seeder",
+      "observed": "Trước 06/09/2026 cổng test_role_baseline_matches_the_pin ĐỎ vì bản thân hồ sơ này đã trôi, không vì ai nới quyền: (a) INBOUND_ONLY_TEST có trong seeder nhưng chưa bao giờ có dòng pin, nên phép so danh sách key hỏng trước cả phần băm; (b) WAREHOUSE_APPROVER pin 22 / seeder 19, SKU_MANAGER pin 5 / seeder 3, MASTER_MANAGER pin 5 / seeder 2. Cả ba chênh lệch (b) đều là quyền BỊ THU HỒI bởi migration 2026_08_27_170000_retire_unenforced_legacy_permissions (21 mã cũ: stock_document.*, physical_code.view, product.*, master.manage, defect_catalog.*), không có mã nào được thêm.",
+      "whyItMatters": "Một cổng đỏ thường trực là cổng đã chết: assertSame đầu tiên ném ngoại lệ nên 11 role phía sau không bao giờ được băm — tức mọi thay đổi quyền ở các role đó đi qua mà không ai chặn. Đúng thứ pin sinh ra để ngăn.",
+      "compensatingControl": "Không có kiểm soát bù trong suốt giai đoạn cổng đỏ — đó chính là rủi ro. Từ 06/09/2026 cổng hoạt động trở lại: pin đã đủ 12 role và khớp seeder.",
+      "recommendation": "ĐÃ SỬA 06/09/2026: re-pin đúng bốn role trong danh sách này theo giá trị seeder hiện tại, ghi rõ trong pinnedRoles[*].note rằng tập quyền KHÔNG đổi ở lần sửa này và số chênh đến từ đợt thu hồi 27/08. Tech Lead cần xác nhận hậu kiểm rằng đợt thu hồi 27/08 là có chủ ý cho ba role (b) — nếu không, đây là quyền mất im lặng chứ không phải trôi hồ sơ.",
+      "disposition": "RESOLVED_GATE_RESTORED_PENDING_TECH_LEAD_ACK",
+      "owner": "Tech Lead",
+      "raisedBy": "Đợt áp ma trận phân quyền mới theo tài liệu BA 06/09/2026"
+    },
+    {
+      "id": "DELTA-06",
+      "severity": "P1",
+      "role": "ADMIN / WAREHOUSE_MANAGER / WAREHOUSE_STAFF / WARRANTY_STAFF / LEADERSHIP / VIEWER / WAREHOUSE_KEEPER / WAREHOUSE_APPROVER",
+      "srsRow": "Thay thế toàn bộ ma trận §3 bằng ma trận của tài liệu BA 'taikhoantheorole_da_sua_v2' (bảng 7 vai × 21 nhóm quyền)",
+      "observed": "Baseline cũ lệch tài liệu BA mới ở 6 nhóm: (1) WAREHOUSE_MANAGER giữ 50 quyền gồm cả IAM manage, master manage, Post nhập/xuất, Reversal, RFID, bảo hành và xuất PII trong khi BA định nghĩa là vai giám sát; (2) WAREHOUSE_STAFF thiếu inbound.post/outbound.post nên phải chờ role khác Post — mô hình BA đã bãi bỏ; (3) WARRANTY_STAFF thiếu warranty.pii.view dù BA cho xem PII để tiếp nhận/trả khách; (4) LEADERSHIP giữ audit_log.view_all nhưng thiếu inbound.view/outbound.view; (5) VIEWER giữ audit_log.view mà BA đánh ❌; (6) WAREHOUSE_KEEPER/WAREHOUSE_APPROVER vẫn được seed ở production dù BA tuyên bố ngừng dùng.",
+      "whyItMatters": "Ba trong sáu điểm là NỚI quyền (1, 5 và một phần 4) — vai giám sát Post được phiếu, vai chỉ đọc đọc được nhật ký thao tác của người khác. Hai điểm còn lại là THIẾU quyền làm đứt luồng nghiệp vụ (2, 3). Điểm (6) để lại đường gán nhầm vai đã bãi bỏ.",
+      "compensatingControl": "Không cần kiểm soát bù: thay đổi đã áp thẳng vào seeder + WmsPermissionCompatibilitySeeder, và ba cổng đi kèm được cập nhật cùng PR (Wwhn267ContractClosureTest::RBAC_MATRIX thêm hàng WAREHOUSE_MANAGER, Wwhn180PermissionAliasContractTest chặn quyền quay lại qua alias, Wwhn300ProductionSafeSeedingTest khẳng định hai vai ngừng dùng vắng mặt ở production).",
+      "recommendation": "Chạy lại 12 mục retest mà tài liệu BA liệt kê (§ 'Bắt buộc chạy lại sau khi cập nhật Seeder/Permission') trên build đã deploy trước khi cập nhật số PASS/FAIL. Riêng dữ liệu đã triển khai: tài khoản đang giữ WAREHOUSE_KEEPER/WAREHOUSE_APPROVER phải migrate, seeder không tự làm việc đó.",
+      "baDecisions20260907": [
+        {
+          "question": "Quản lý kho còn quản trị App PV (pv.publish / pv.master.manage) không? Tài liệu BA mới ngụ ý KHÔNG, SRS §3 cũ nói CÓ.",
+          "decision": "GIỮ THEO TÀI LIỆU BA MỚI — thu hồi cả hai quyền khỏi WAREHOUSE_MANAGER, chỉ ADMIN quản trị App PV. SRS §3 là bản cũ ở điểm này.",
+          "lockedBy": "tests/Feature/Wwhn249PvSurfaceGovernanceTest.php (hai test: reflection trên hằng ROLES + HTTP thật trên /pv-admin/resources/industries)"
+        },
+        {
+          "question": "Nhân viên bảo hành có được cấp report.view cho cả vai không? Tài liệu BA viết 'nếu được cấp', ma trận ghi 'Theo scope'.",
+          "decision": "KHÔNG. Nhân viên bảo hành không được xem báo cáo. Cần cho một người cụ thể thì cấp lẻ qua user_permission.",
+          "lockedBy": "Wwhn267ContractClosureTest::RBAC_MATRIX ô (WARRANTY_STAFF × report) = 403, cộng pin băm quyền của chính role này"
+        },
+        {
+          "question": "Migrate tài khoản đang giữ hai vai ngừng dùng — làm thế nào?",
+          "decision": "ĐỒNG Ý migrate. WAREHOUSE_STAFF cho người thực sự thao tác chứng từ, WAREHOUSE_MANAGER cho người chỉ giám sát.",
+          "lockedBy": "Lệnh app/Console/Commands/MigrateDeprecatedWarehouseRoles.php (mặc định dry-run, --apply mới ghi, ghi audit log từng tài khoản, chạy lại không nhân bản) + tests/Feature/MigrateDeprecatedWarehouseRolesCommandTest.php"
+        }
+      ],
+      "disposition": "APPLIED_BA_DECISIONS_CLOSED_PENDING_QA_RETEST",
+      "owner": "BA (nguồn, đã chốt 07/09/2026) + BE (đã áp) + QA (retest)",
+      "raisedBy": "Tài liệu BA taikhoantheorole_da_sua_v2, áp ngày 06/09/2026"
     }
   ],
   "measuredAt": {

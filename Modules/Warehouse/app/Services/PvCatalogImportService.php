@@ -2,8 +2,8 @@
 
 namespace Modules\Warehouse\Services;
 
+use App\Support\Database\SchemaCache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\ProductMaster;
@@ -235,10 +235,10 @@ class PvCatalogImportService
             'sort_order' => 0,
             'updated_at' => now(),
         ];
-        if (Schema::hasColumn($relation['table'], 'short_description')) {
+        if (SchemaCache::hasColumn($relation['table'], 'short_description')) {
             $fields['short_description'] = $record['short_description'];
         }
-        if (Schema::hasColumn($relation['table'], 'public_specifications') && $record['specifications'] !== null) {
+        if (SchemaCache::hasColumn($relation['table'], 'public_specifications') && $record['specifications'] !== null) {
             $fields['public_specifications'] = json_encode($record['specifications']);
         }
 

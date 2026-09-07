@@ -35,7 +35,25 @@ return [
     // Idempotent-Replay: AC-GWT-IDEMP-001, cho phép FE phân biệt lần chạy thật và replay.
     'exposed_headers' => ['X-Request-ID', 'ETag', 'Content-Disposition', 'Idempotent-Replay'],
 
-    'max_age' => 3600,
+    /*
+     * Thời gian trình duyệt được nhớ kết quả preflight, tính bằng GIÂY.
+     *
+     * Mỗi ĐƯỜNG DẪN API mới trong một phiên duyệt tốn MỘT request OPTIONS đi trọn
+     * vòng Laravel (đo 07/09/2026: 140–430 ms tuỳ tải máy). Một lần F5 màn Tổng
+     * quan chạm 7 đường dẫn khác nhau, nên đây là chi phí thật nằm trên đường
+     * tới hạn chứ không phải chi tiết lý thuyết.
+     *
+     * 86400 là trần của Firefox; Chrome tự cắt xuống 7200 giây (2 giờ) — vẫn gấp
+     * đôi giá trị 3600 cũ, tức số lần preflight trong một ca làm việc giảm một
+     * nửa. Đặt cao không có hại: chính sách CORS chỉ đổi khi deploy, và bộ nhớ
+     * preflight nằm trong từng trình duyệt.
+     *
+     * CÁCH TRIỆT ĐỂ (khuyến nghị cho môi trường thật): phục vụ FE và API CÙNG
+     * origin — nginx của FE proxy `/api` sang backend. Cùng origin thì trình
+     * duyệt không phát preflight nào cả. Mẫu cấu hình: repo FE,
+     * `deploy/nginx/frontend.conf.example`.
+     */
+    'max_age' => 86400,
 
     // Auth persistence depends on an HttpOnly refresh cookie. This is therefore a
     // protocol invariant rather than a deployment feature flag. Security remains

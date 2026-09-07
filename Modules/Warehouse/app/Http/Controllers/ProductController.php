@@ -29,10 +29,81 @@ class ProductController extends Controller
      * payload của các read cache khoá theo 'stock:version' (danh sách sản phẩm Mini
      * App, phiếu nhập/xuất, truy vết, báo cáo). ProductRepository chỉ bump
      * 'warehouse.sku:list' nên không ai vô hiệu hoá những cache đó hộ.
+     *
+     * PHẢI bump CẢ 'master:version'. `PvAdminResourceController::index`
+     * (GET /pv-admin/resources/product-profiles) cache dưới namespace đó và trả
+     * về chính cột `sku.published_to_app` mà `publishPvProduct` vừa ghi. Thiếu
+     * bump này thì bật/tắt công tắc hiển thị trên SCR-PV-ADM-01 và MST-PV-01 báo
+     * thành công nhưng danh sách đọc lại vẫn ra trạng thái CŨ tới hết TTL — công
+     * tắc bật rồi tự nhảy về. Đây đúng là cặp namespace mà
+     * `PvAdminResourceController` bump theo chiều ngược lại
+     * (`invalidateProductReadCache`); hai controller ghi lên cùng read model nên
+     * phải vô hiệu hoá cùng một bộ.
      */
     private function invalidateMasterReadCache(): void
     {
-        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+        DB::afterCommit(function (): void {
+            $this->bumpReadCache('stock:version');
+            $this->bumpReadCache('master:version');
+        });
+    }
+
+    /**
+     * Bảng tra SKU GỌN cho các màn báo cáo — MỘT request thay cho 9 request phân trang.
+     *
+     * VÌ SAO CÓ: 6 màn báo cáo cần biết mỗi mã SKU là Sản phẩm hay Linh kiện và
+     * định mức min/max — cho TOÀN BỘ danh mục, vì dòng báo cáo nào cũng có thể
+     * chạm bất kỳ SKU nào. Trước đây FE phải cuốn `GET /products` theo trang
+     * (trần 100/trang ⇒ 818 SKU = 9 request JSON đầy đủ trường) ở lần mở màn báo
+     * cáo đầu tiên của phiên. Với 3.000 người, riêng việc cuốn trang này đã là
+     * ~45 req/s dội vào backend.
+     *
+     * Ở đây: một truy vấn, 9 cột, không phân trang; cache theo chính sách `master`
+     * (30 phút) và khoá theo `master:version` — đúng namespace mà mọi đường ghi SKU
+     * (`store`/`update`/`publishPvProduct`, `PvAdminResourceController`) đã bump,
+     * nên sửa SKU là bảng tra mới ngay ở request kế tiếp.
+     *
+     * Global scope: danh mục SKU không phân theo kho, mọi người dùng chung một
+     * entry — đúng loại "cache mạnh" cho dữ liệu tham chiếu.
+     */
+    #[OA\Get(
+        path: '/api/v1/skus/lookup',
+        operationId: 'sku_lookup',
+        summary: 'Bảng tra SKU gọn (mã, tên, loại, đơn vị, định mức) — toàn bộ danh mục, một request',
+        security: [['bearerAuth' => []]],
+        tags: ['05. Product'],
+        parameters: [
+            new OA\Parameter(name: 'status', in: 'query', description: 'Bỏ trống: mọi trạng thái. ACTIVE: chỉ SKU đang hoạt động.', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'data: mảng {sku_id, sku_code, sku_name, sku_type, unit, category_id, min_stock, max_stock, status}'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền sku.view'),
+        ]
+    )]
+    public function lookup(Request $request)
+    {
+        $status = $request->query('status');
+        $filters = ['status' => is_string($status) && $status !== '' ? strtoupper($status) : null];
+
+        $payload = $this->cachedReadPayload(
+            'warehouse.sku:lookup',
+            $filters,
+            function () use ($filters): array {
+                $query = DB::table('sku')
+                    ->select(['sku_id', 'sku_code', 'sku_name', 'sku_type', 'unit', 'category_id', 'min_stock', 'max_stock', 'status'])
+                    ->orderBy('sku_code');
+                if ($filters['status'] !== null) {
+                    $query->where('status', $filters['status']);
+                }
+
+                return ['items' => array_map(static fn (object $row): array => (array) $row, $query->get()->all())];
+            },
+            'master',
+            'master:version',
+        );
+
+        return $this->respondSuccess($payload['items']);
     }
 
     #[OA\Get(

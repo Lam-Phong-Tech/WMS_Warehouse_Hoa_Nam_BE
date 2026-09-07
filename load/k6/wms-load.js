@@ -88,6 +88,13 @@ export const options = {
   thresholds: {
     // Ngưỡng "mượt": 95% request dưới P95_MS và tỉ lệ lỗi dưới ERROR_RATE.
     'http_req_duration{expected_response:true}': [`p(95)<${CONFIG.p95Ms}`],
+    // Ngưỡng theo NHÓM cố ý nới lỏng — chỉ để k6 ghi p50/p95/p99 của từng nhóm
+    // vào --summary-export (k6 chỉ xuất sub-metric có threshold). Không phải gate;
+    // gate thật là dòng trên + error rate + dropped_iterations.
+    ...Object.fromEntries(
+      ['dashboard', 'inventory', 'master', 'documents', 'reports', 'iam', 'notification', 'session', 'public']
+        .map((g) => [`http_req_duration{group:${g}}`, ['p(99)<60000']]),
+    ),
     wms_failed_requests: [`rate<${CONFIG.errorRate}`],
     // Iteration bị bỏ nghĩa là k6 không kịp phát request theo tốc độ yêu cầu —
     // dấu hiệu hệ thống (hoặc máy chạy k6) đã bão hoà.

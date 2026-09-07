@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Services;
 
+use App\Support\Database\SchemaCache;
 use App\Support\ApiError;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -31,7 +32,7 @@ class ScanClassificationService
     ): array {
         $code = trim($rawCode);
 
-        $physicalCode = (Schema::hasTable('physical_code') || Schema::hasView('physical_code'))
+        $physicalCode = (SchemaCache::hasTable('physical_code') || SchemaCache::hasView('physical_code'))
             ? DB::table('physical_code')->where('code_value', $code)->first()
             : null;
 
@@ -105,7 +106,7 @@ class ScanClassificationService
         Warehouse $warehouse,
         bool $hideCrossWarehouseExistence
     ): ?array {
-        if (! Schema::hasTable('inventory_serials')) {
+        if (! SchemaCache::hasTable('inventory_serials')) {
             return null;
         }
 
@@ -124,11 +125,11 @@ class ScanClassificationService
         Warehouse $warehouse,
         bool $hideCrossWarehouseExistence
     ): ?array {
-        if (Schema::hasTable('inventory_serials')) {
+        if (SchemaCache::hasTable('inventory_serials')) {
             $query = DB::table('inventory_serials');
             if (is_string($assignedId) && $assignedId !== '') {
                 $query->where('id', $assignedId);
-            } elseif (Schema::hasColumn('inventory_serials', 'physical_code_id')) {
+            } elseif (SchemaCache::hasColumn('inventory_serials', 'physical_code_id')) {
                 $query->where('physical_code_id', $physicalCodeId);
             } else {
                 $query->whereRaw('1 = 0');
@@ -142,11 +143,11 @@ class ScanClassificationService
 
         // Canonical subledger là item_instances (số nhiều) — luồng Post Receipt ghi vào
         // đây (DEC-INV-001); bảng không có warehouse_id vì REQ-SRS-001 một kho ACTIVE.
-        if (Schema::hasTable('item_instances') || Schema::hasView('item_instances')) {
+        if (SchemaCache::hasTable('item_instances') || SchemaCache::hasView('item_instances')) {
             $query = DB::table('item_instances');
             if (is_string($assignedId) && $assignedId !== '') {
                 $query->where('item_id', $assignedId);
-            } elseif (Schema::hasColumn('item_instances', 'physical_code_id')) {
+            } elseif (SchemaCache::hasColumn('item_instances', 'physical_code_id')) {
                 $query->where('physical_code_id', $physicalCodeId);
             } else {
                 $query->whereRaw('1 = 0');
@@ -216,7 +217,7 @@ class ScanClassificationService
         Warehouse $warehouse,
         bool $hideCrossWarehouseExistence
     ): ?array {
-        if (! Schema::hasTable('container') && ! Schema::hasView('container')) {
+        if (! SchemaCache::hasTable('container') && ! SchemaCache::hasView('container')) {
             return null;
         }
 
@@ -235,14 +236,14 @@ class ScanClassificationService
         Warehouse $warehouse,
         bool $hideCrossWarehouseExistence
     ): ?array {
-        if (! Schema::hasTable('container') && ! Schema::hasView('container')) {
+        if (! SchemaCache::hasTable('container') && ! SchemaCache::hasView('container')) {
             return null;
         }
 
         $query = DB::table('container');
         if (is_string($assignedId) && $assignedId !== '') {
             $query->where('container_id', $assignedId);
-        } elseif (Schema::hasColumn('container', 'physical_code_id')) {
+        } elseif (SchemaCache::hasColumn('container', 'physical_code_id')) {
             $query->where('physical_code_id', $physicalCodeId);
         } else {
             return null;
@@ -300,12 +301,12 @@ class ScanClassificationService
      */
     private function resolveSkuByCode(string $code, Warehouse $warehouse): ?array
     {
-        if (! Schema::hasTable('products') && ! Schema::hasView('products')) {
+        if (! SchemaCache::hasTable('products') && ! SchemaCache::hasView('products')) {
             return null;
         }
 
         $query = DB::table('products')->where('code', $code);
-        if (Schema::hasColumn('products', 'sku_code')) {
+        if (SchemaCache::hasColumn('products', 'sku_code')) {
             $query->orWhere('sku_code', $code);
         }
 
@@ -319,7 +320,7 @@ class ScanClassificationService
      */
     private function resolveSkuById(mixed $assignedId, Warehouse $warehouse): ?array
     {
-        if (! Schema::hasTable('products') && ! Schema::hasView('products') || ! is_string($assignedId) || $assignedId === '') {
+        if (! SchemaCache::hasTable('products') && ! SchemaCache::hasView('products') || ! is_string($assignedId) || $assignedId === '') {
             return null;
         }
 
@@ -339,7 +340,7 @@ class ScanClassificationService
             'SKU đang không hoạt động.'
         );
 
-        $balance = Schema::hasTable('inventory_balances')
+        $balance = SchemaCache::hasTable('inventory_balances')
             ? DB::table('inventory_balances')
                 ->where('warehouse_id', $warehouse->id)
                 ->where('product_id', $product->id)
@@ -376,9 +377,9 @@ class ScanClassificationService
         }
 
         $acceptableIds = [(string) $warehouse->id];
-        if ((Schema::hasTable('warehouse') || Schema::hasView('warehouse'))
-            && Schema::hasColumn('warehouse', 'warehouse_id')
-            && Schema::hasColumn('warehouse', 'warehouse_code')) {
+        if ((SchemaCache::hasTable('warehouse') || SchemaCache::hasView('warehouse'))
+            && SchemaCache::hasColumn('warehouse', 'warehouse_id')
+            && SchemaCache::hasColumn('warehouse', 'warehouse_code')) {
             $mirrorId = DB::table('warehouse')
                 ->where('warehouse_code', $warehouse->code)
                 ->value('warehouse_id');

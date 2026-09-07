@@ -288,7 +288,7 @@ class ImportReportController extends Controller
             return $this->respondNotFound('File lỗi của Import báo cáo này đã hết hạn.');
         }
 
-        $disk = Storage::disk(ImportErrorFileService::DISK);
+        $disk = Storage::disk(ImportErrorFileService::diskName());
         if (! $disk->exists($report->error_file_path)) {
             return $this->respondNotFound('Không tìm thấy file lỗi (có thể đã bị dọn dẹp).');
         }

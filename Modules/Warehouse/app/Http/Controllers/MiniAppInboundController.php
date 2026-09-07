@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -423,17 +424,17 @@ class MiniAppInboundController extends Controller
             'i.serial_number',
         ];
 
-        if (Schema::hasColumn('item_instances', 'item_code')) {
+        if (SchemaCache::hasColumn('item_instances', 'item_code')) {
             $columns[] = 'i.item_code';
         }
-        if (Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+        if (SchemaCache::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
             $columns[] = 'e.candidate_item_unique';
             $columns[] = 'e.candidate_serial_number';
         }
 
-        $hasScanEvent = Schema::hasColumn('inbound_scan_entries', 'scan_event_id')
-            && (Schema::hasTable('scan_event') || Schema::hasView('scan_event'))
-            && Schema::hasColumn('scan_event', 'raw_code');
+        $hasScanEvent = SchemaCache::hasColumn('inbound_scan_entries', 'scan_event_id')
+            && (SchemaCache::hasTable('scan_event') || SchemaCache::hasView('scan_event'))
+            && SchemaCache::hasColumn('scan_event', 'raw_code');
 
         $query = DB::table('inbound_scan_entries as e')
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')
@@ -490,8 +491,8 @@ class MiniAppInboundController extends Controller
         string $scanSource
     ): ?string {
         $scanEventId = null;
-        if (Schema::hasColumn('inbound_scan_entries', 'scan_event_id')
-            && (Schema::hasTable('scan_event') || Schema::hasView('scan_event'))) {
+        if (SchemaCache::hasColumn('inbound_scan_entries', 'scan_event_id')
+            && (SchemaCache::hasTable('scan_event') || SchemaCache::hasView('scan_event'))) {
             $scanEventId = DB::table('scan_event as se')
                 ->join('scan_batch as sb', 'sb.scan_batch_id', '=', 'se.scan_batch_id')
                 ->where('sb.source_id', $documentId)
@@ -508,7 +509,7 @@ class MiniAppInboundController extends Controller
 
         if ($itemId !== null) {
             $entryQuery->where('item_id', $itemId);
-        } elseif ($itemUnique !== null && Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+        } elseif ($itemUnique !== null && SchemaCache::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
             $entryQuery->where('candidate_item_unique', $itemUnique);
         }
 
@@ -518,7 +519,7 @@ class MiniAppInboundController extends Controller
         }
 
         $updates = ['scan_source' => $scanSource, 'updated_at' => now()];
-        if ($scanEventId !== null && Schema::hasColumn('inbound_scan_entries', 'scan_event_id')) {
+        if ($scanEventId !== null && SchemaCache::hasColumn('inbound_scan_entries', 'scan_event_id')) {
             $updates['scan_event_id'] = $scanEventId;
         }
         DB::table('inbound_scan_entries')->where('id', $entry->id)->update($updates);

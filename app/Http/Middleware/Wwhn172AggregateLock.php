@@ -2,10 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Database\SchemaCache;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
 class Wwhn172AggregateLock
@@ -16,7 +16,7 @@ class Wwhn172AggregateLock
         if ($mutex === null) {
             return $next($request);
         }
-        if (! Schema::hasTable('aggregate_mutexes')) {
+        if (! SchemaCache::hasTable('aggregate_mutexes')) {
             throw new \RuntimeException('Thiếu migration aggregate_mutexes của WWHN-172.');
         }
 

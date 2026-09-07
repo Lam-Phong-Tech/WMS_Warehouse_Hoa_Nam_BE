@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -383,7 +384,7 @@ class StockMovementController extends Controller
      *
      * `reversal_document` là bảng vật lý trên SQLite và là view tương thích trên
      * PostgreSQL (tên số nhiều thì ngược lại), nên phải dò bằng
-     * `HoaNamErdSchema::relationExists()` — `Schema::hasTable()` trả false cho view.
+     * `HoaNamErdSchema::relationExists()` — `SchemaCache::hasTable()` trả false cho view.
      *
      * @param  Collection<int, StockMovement>  $movements
      * @return array<string, object>

@@ -15,9 +15,16 @@ Alternatively, pass `--password` only in a secure local shell. The command exits
 | Username | Existing role |
 |---|---|
 | `uat.inbound` | `WAREHOUSE_STAFF` |
-| `uat.approver` | `WAREHOUSE_APPROVER` |
-| `uat.keeper` | `WAREHOUSE_KEEPER` |
+| `uat.outbound` | `WAREHOUSE_STAFF` |
+| `uat.manager` | `WAREHOUSE_MANAGER` |
 | `uat.viewer` | `VIEWER` |
+
+> Updated 2026-09-06 per BA document `taikhoantheorole_da_sua_v2`. `uat.approver`
+> (`WAREHOUSE_APPROVER`) and `uat.keeper` (`WAREHOUSE_KEEPER`) were removed: both roles
+> are retired from the production permission model, and the two-step "one person scans,
+> another posts" flow they existed for no longer exists. `uat.inbound` and `uat.outbound`
+> are two different accounts on the same `WAREHOUSE_STAFF` role — the setup BA retest
+> item 12 asks for. `uat.manager` covers the supervision-only side.
 
 ## Import traceability fixture
 

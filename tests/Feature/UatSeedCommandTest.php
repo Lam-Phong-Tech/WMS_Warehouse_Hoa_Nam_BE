@@ -29,7 +29,17 @@ class UatSeedCommandTest extends TestCase
 
         $this->artisan('wms:seed-uat', ['--password' => $password])->assertExitCode(0);
 
-        $this->assertSame(4, User::query()->whereIn('username', ['uat.inbound', 'uat.approver', 'uat.keeper', 'uat.viewer'])->count());
+        // Bộ tài khoản UAT đổi 06/09/2026 cùng UatScenarioSeeder::UAT_USERS: hai vai
+        // ngừng dùng (uat.approver/WAREHOUSE_APPROVER, uat.keeper/WAREHOUSE_KEEPER)
+        // được thay bằng uat.outbound (WAREHOUSE_STAFF thứ hai — hai đầu nhập/xuất
+        // thao tác độc lập, mục retest §12 của BA) và uat.manager (vai giám sát).
+        // Vẫn 4 tài khoản, và lần chạy thứ hai không được nhân bản.
+        $this->assertSame(4, User::query()->whereIn('username', ['uat.inbound', 'uat.outbound', 'uat.manager', 'uat.viewer'])->count());
+        $this->assertSame(
+            0,
+            User::query()->whereIn('username', ['uat.approver', 'uat.keeper'])->count(),
+            'Kịch bản UAT không được dựng lại tài khoản cho hai vai đã ngừng dùng.'
+        );
         $this->assertSame(1, $inbound->fresh()->roles()->where('role_code', 'WAREHOUSE_STAFF')->count());
         $this->assertSame(1, \DB::table('import_batches')->where('import_batch_code', 'UAT-IMP-2026-001')->count());
         $this->assertSame(1, \DB::table('item_instances')->where('serial_number', 'UAT-ITEM-0001')->count());

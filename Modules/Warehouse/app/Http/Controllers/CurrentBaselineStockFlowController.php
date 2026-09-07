@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -744,7 +745,7 @@ class CurrentBaselineStockFlowController extends Controller
 
     private function attachScanEventToEvidence(string $documentId, string $type, string $lineId, mixed $itemId): void
     {
-        if (! DB::getSchemaBuilder()->hasColumn($type === 'receipt' ? 'inbound_scan_entries' : 'outbound_item_matches', 'scan_event_id')) {
+        if (! SchemaCache::hasColumn($type === 'receipt' ? 'inbound_scan_entries' : 'outbound_item_matches', 'scan_event_id')) {
             return;
         }
         $scanEventId = DB::table('scan_event as se')

@@ -50,8 +50,6 @@ class RoleAccountMatrixSeeder extends Seeder
         'SUPER_ADMIN' => ['Quản trị hệ thống', 'HANH_CHINH'],
         'ADMIN' => ['Quản trị viên', 'HANH_CHINH'],
         'WAREHOUSE_MANAGER' => ['Quản lý kho', 'QUAN_LY_KHO'],
-        'WAREHOUSE_APPROVER' => ['Người duyệt kho', 'QUAN_LY_KHO'],
-        'WAREHOUSE_KEEPER' => ['Thủ kho', 'QUAN_LY_KHO'],
         'WAREHOUSE_STAFF' => ['Nhân viên kho', 'QUAN_LY_KHO'],
         'WARRANTY_STAFF' => ['Nhân viên bảo hành', 'BAO_HANH'],
         'LEADERSHIP' => ['Ban lãnh đạo', 'HANH_CHINH'],
@@ -70,7 +68,18 @@ class RoleAccountMatrixSeeder extends Seeder
 
         // Đi theo vai trò CÓ THẬT trong CSDL: production không seed 4 vai trò
         // test, và AuthDatabaseSeeder có thể bỏ qua chúng — không giả định.
-        $roles = Role::query()->orderBy('role_code')->get();
+        //
+        // Trừ hai vai ngừng dùng: bảng tài khoản mà BA nghiệm thu
+        // (taikhoantheorole v2) chỉ liệt kê 11 vai trò, không có WAREHOUSE_KEEPER/
+        // WAREHOUSE_APPROVER. Sinh thêm warehouse-keeper-01..03 sẽ mời người kiểm
+        // thử đăng nhập vào đúng mô hình phân quyền vừa bị bãi bỏ. Tài khoản CŨ
+        // (keeper01, approver01 từ AuthDatabaseSeeder::USERS) vẫn giữ nguyên cho bộ
+        // E2E và tài liệu bàn giao cũ.
+        $deprecated = (array) (new \ReflectionClass(AuthDatabaseSeeder::class))->getConstant('DEPRECATED_ROLES');
+        $roles = Role::query()
+            ->whereNotIn('role_code', $deprecated)
+            ->orderBy('role_code')
+            ->get();
         $created = 0;
         $rows = [];
 

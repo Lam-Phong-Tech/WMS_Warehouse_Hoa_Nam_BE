@@ -45,7 +45,7 @@ class PurgeExpiredImportErrorFiles extends Command
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
-        $disk = Storage::disk(ImportErrorFileService::DISK);
+        $disk = Storage::disk(ImportErrorFileService::diskName());
 
         // DEV330-P1-01R3: mốc xoá VẬT LÝ = hết hạn logic + khoảng đệm đã duyệt, chứ không
         // phải "now()" như trước. Hai mốc là hai chính sách khác nhau và phải đọc được

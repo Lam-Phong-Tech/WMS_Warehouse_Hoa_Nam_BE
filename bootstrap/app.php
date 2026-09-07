@@ -3,6 +3,7 @@
 use App\Http\Middleware\ApiConventionMiddleware;
 use App\Http\Middleware\EnsurePublicApiEnvelope;
 use App\Http\Middleware\NoStoreApiResponses;
+use App\Http\Middleware\SlowRequestLog;
 use App\Http\Middleware\Wwhn172AggregateLock;
 use App\Support\UserFacingMessageLocalizer;
 use Illuminate\Auth\AuthenticationException;
@@ -56,6 +57,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Keep this outermost so every successful API response is forced to
         // no-store after downstream middleware/controllers finish processing.
         $middleware->prepend(NoStoreApiResponses::class);
+        // Ngoài cùng: đo trọn thời gian của mọi middleware + controller, ghi
+        // request vượt ngưỡng wms_perf.slow_request_ms kèm phân rã SQL/cache.
+        $middleware->prepend(SlowRequestLog::class);
         // Global registration is deliberate: the middleware itself is a no-op
         // outside the six WWHN-211 read/trace endpoints. Registering centrally
         // prevents a future route refactor from silently dropping data-scope.

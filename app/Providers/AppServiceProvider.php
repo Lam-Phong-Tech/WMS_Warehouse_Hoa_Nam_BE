@@ -4,11 +4,16 @@ namespace App\Providers;
 
 use App\Support\Cache\CacheAutoInvalidator;
 use App\Support\Cache\CacheService;
+use App\Support\Database\SchemaCache;
 use App\Support\RateLimitResponse;
 use App\Swagger\Processors\MiniAppTagProcessor;
 use App\Swagger\Processors\RouteSyncProcessor;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\CommandFinished;
+use Illuminate\Database\Events\MigrationEnded;
+use Illuminate\Database\Events\MigrationsEnded;
+use Illuminate\Database\Events\MigrationsStarted;
+use Illuminate\Foundation\Events\DatabaseRefreshed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
@@ -46,6 +51,25 @@ class AppServiceProvider extends ServiceProvider
         $this->registerSwaggerProcessors();
         $this->registerRateLimiters();
         $this->registerCacheAutoInvalidation();
+        $this->registerSchemaCacheInvalidation();
+    }
+
+    /**
+     * `SchemaCache` nhớ danh sách bảng/cột trong RAM của TIẾN TRÌNH. Schema chỉ
+     * đổi thật khi migration chạy — trong artisan, và trong test khi bộ dựng lại
+     * DB giữa các case. Xoá sạch đúng những thời điểm đó là đủ để bộ nhớ đệm
+     * không bao giờ trả lời theo schema cũ.
+     */
+    private function registerSchemaCacheInvalidation(): void
+    {
+        foreach ([
+            MigrationsStarted::class,
+            MigrationsEnded::class,
+            MigrationEnded::class,
+            DatabaseRefreshed::class,
+        ] as $event) {
+            Event::listen($event, static fn () => SchemaCache::flush());
+        }
     }
 
     /**

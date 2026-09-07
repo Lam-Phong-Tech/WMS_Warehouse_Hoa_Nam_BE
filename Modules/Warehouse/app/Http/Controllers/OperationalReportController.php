@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\CacheKey;
@@ -17,7 +18,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -333,7 +333,7 @@ class OperationalReportController extends Controller
             return $this->respondNotFound('File export này đã hết hạn.');
         }
 
-        $disk = Storage::disk('local');
+        $disk = Storage::disk(config('wms_export.disk'));
         if (! $disk->exists($job->file_path)) {
             return $this->respondNotFound('Không tìm thấy file export (có thể đã bị dọn dẹp).');
         }
@@ -1399,7 +1399,7 @@ class OperationalReportController extends Controller
      */
     private function serialSubledgerCounts(array $productIds): array
     {
-        if ($productIds === [] || ! Schema::hasTable('item_instances')) {
+        if ($productIds === [] || ! SchemaCache::hasTable('item_instances')) {
             return [];
         }
 
@@ -1558,7 +1558,7 @@ class OperationalReportController extends Controller
      */
     private function boxSubledgerCounts(array $productIds): array
     {
-        if ($productIds === [] || ! Schema::hasTable('container_items')) {
+        if ($productIds === [] || ! SchemaCache::hasTable('container_items')) {
             return [];
         }
 
@@ -1581,7 +1581,7 @@ class OperationalReportController extends Controller
      */
     private function locationHints(array $productIds): array
     {
-        if ($productIds === [] || ! Schema::hasTable('containers')) {
+        if ($productIds === [] || ! SchemaCache::hasTable('containers')) {
             return [];
         }
 

@@ -22,4 +22,12 @@ return [
      * đổi thành 'r2' sau khi điền đủ biến R2_* trong .env (xem config/filesystems.php).
      */
     'video_disk' => env('WARRANTY_VIDEO_DISK', 'local'),
+
+    /*
+     * Ảnh bảo hành — trước đây ghi cứng 'local' trong controller. Nhiều instance
+     * sau load balancer thì ảnh tải lên ở instance này, xem ở instance khác ⇒ 404;
+     * hồ sơ chịu tải đặt WARRANTY_PHOTO_DISK=s3. Mỗi bản ghi vẫn lưu storage_disk
+     * của chính nó nên đổi giá trị này không làm hỏng ảnh đã có.
+     */
+    'photo_disk' => env('WARRANTY_PHOTO_DISK', 'local'),
 ];

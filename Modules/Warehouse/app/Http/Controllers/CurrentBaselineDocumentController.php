@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -10,7 +11,6 @@ use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
@@ -72,12 +72,12 @@ class CurrentBaselineDocumentController extends Controller
         // item_code chỉ tồn tại trên nhánh ERD PostgreSQL (migration bổ sung cột
         // này dùng cú pháp PG nên bị bỏ qua ở sqlite) — chọn có điều kiện để
         // endpoint chạy được trên cả hai driver mà CI đang dùng.
-        if (Schema::hasColumn('item_instances', 'item_code')) {
+        if (SchemaCache::hasColumn('item_instances', 'item_code')) {
             $columns[] = 'i.item_code';
         }
         // Change Pack QR/SKU (DEC-QR-03): entry candidate chưa có item_id cho tới
         // Post Receipt — FE hiển thị identity qua candidate_item_unique.
-        if (Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+        if (SchemaCache::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
             $columns[] = 'e.candidate_item_unique';
             $columns[] = 'e.candidate_serial_number';
         }

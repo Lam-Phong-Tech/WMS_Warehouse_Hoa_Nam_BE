@@ -67,6 +67,12 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
         // không vỡ. Gỡ hay giữ là quyết định của BA, không phải của DEV.
         'GET api/v1/pv/catalog' => 'Alias lịch sử của listPvProducts',
         'GET api/v1/pv/tags' => 'Alias lịch sử — tag public phục vụ bộ lọc',
+        // Ảnh sản phẩm App PV (MST-PV-01). Bắt buộc ẩn danh: listPvProducts vốn là
+        // mặt ẩn danh và trả `images[].url`, ảnh mà đòi token thì thẻ sản phẩm trên
+        // App PV vẽ ra ô trống. Chỉ trả BYTES ẢNH trong đúng prefix ảnh PV và key
+        // phải khớp `<uuid>.<jpg|jpeg|png|webp>`, nên không đọc được tệp nào khác
+        // trong bucket; không JSON, không dữ liệu vận hành.
+        'GET api/v1/pv/product-images/{key}' => 'SRS §15 OP-09 — ảnh của listPvProducts (security: [])',
         // Storefront công khai App PV — mặt API riêng, hợp đồng FE
         // `{VITE_PUBLIC_API_BASE_URL}/api/v1/public`. Chỉ trả sản phẩm
         // PUBLISHED + còn hàng và KHÔNG lộ số tồn, khác hẳn nhóm pv/* ở trên.
@@ -355,6 +361,28 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
      * bị 403 ở /pv-admin/resources dù ma trận quyền nói được. Test khoá cả hai
      * chiều: thiếu key thì đỏ, mà cấp nhầm cho vai chỉ-đọc (NV kho / lãnh đạo /
      * viewer) cũng đỏ — ma trận có cột V/D chứ không phải A cho họ.
+     *
+     * ─── CẬP NHẬT 06/09/2026: chỉ còn ADMIN. BA ĐÃ XÁC NHẬN 07/09/2026 ───
+     *
+     * Tài liệu BA 'taikhoantheorole_da_sua_v2' định nghĩa lại WAREHOUSE_MANAGER là vai
+     * GIÁM SÁT: ma trận đánh ❌ ô "Master/SKU manage", phần mô tả ghi "Danh mục: xem
+     * ... KHÔNG SỬA", và danh sách "Làm được" của vai này KHÔNG có mục App PV nào.
+     * Quản lý hồ sơ/ngành hàng PV và bật hiển thị công khai là hành vi GHI trên master
+     * data, nên đọc theo tài liệu mới thì vai này không còn giữ hai quyền đó.
+     *
+     * Nhưng SRS §3 (nguồn cũ, trích ở trên) vẫn xếp cả hai dòng App PV ở mức A cho
+     * actor "Quản lý kho" — và hai tài liệu KHÔNG nói cùng một chuyện. Lưu ý thêm: ở
+     * ánh xạ actor cũ (ROLE_BASELINE_PIN.json), actor "Quản lý kho" của SRS trỏ về
+     * WAREHOUSE_KEEPER/WAREHOUSE_APPROVER chứ không phải WAREHOUSE_MANAGER; việc gán
+     * hai quyền PV cho WAREHOUSE_MANAGER đến từ WWHN-249 D-04, không phải trực tiếp
+     * từ §3.
+     *
+     * BA đã chốt 07/09/2026: giữ theo tài liệu mới — Quản lý kho KHÔNG quản trị App PV.
+     * Xung đột với SRS §3 khép lại, §3 là bản cũ. ADMIN vẫn giữ đủ pv.publish +
+     * pv.master.manage nên màn quản trị App PV không mất chủ.
+     *
+     * Đừng "sửa cho khớp SRS" khi thấy hai tài liệu lệch nhau: quyết định đã có, và nó
+     * nằm ở đây cùng docs/evidence/WWHN-267/ROLE_BASELINE_PIN.json (DELTA-06).
      */
     public function test_seed_grants_pv_permissions_exactly_as_srs_role_matrix(): void
     {
@@ -369,9 +397,10 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
                 ->keys()->sort()->values()->all();
 
             $this->assertSame(
-                ['ADMIN', 'WAREHOUSE_MANAGER'],
+                ['ADMIN'],
                 $granted,
-                "SRS §3 cho Admin và Quản lý kho mức A với {$permission}; mọi vai khác là V/D."
+                "Chỉ ADMIN được giữ {$permission} theo tài liệu BA taikhoantheorole v2 (Quản lý kho "
+                .'là vai giám sát, không sửa master data). Mọi vai khác chỉ đọc App PV.'
             );
         }
     }
@@ -379,18 +408,24 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
     /**
      * DEV249-P1-03R2 — closure evidence đòi đúng định dạng "seed diff + manager
      * 200 + unauthorized 403 tests". Test reflection ở trên khoá seeder đúng ma
-     * trận SRS; test này chứng minh bằng HTTP thật qua AuthDatabaseSeeder thật
-     * (không phải permission rời rạc): WAREHOUSE_MANAGER đăng nhập vào được
-     * /pv-admin/resources (200), NV kho WAREHOUSE_STAFF (không có
-     * pv.master.manage theo §3, cột V/D) bị 403.
+     * trận quyền; test này chứng minh bằng HTTP thật qua AuthDatabaseSeeder thật
+     * (không phải permission rời rạc).
+     *
+     * Đổi tên + đổi kỳ vọng 06/09/2026 cùng thay đổi ở test phía trên: vai đứng ở vế
+     * 200 giờ là ADMIN. WAREHOUSE_MANAGER chuyển sang vế 403 — đây chính là bằng chứng
+     * HTTP cho việc thu hồi quyền quản trị App PV khỏi vai giám sát. Tên cũ
+     * (test_warehouse_manager_role_gets_200_...) còn được nhắc trong
+     * docs/evidence/WWHN-249/PV_SURFACE_EVIDENCE.md và WWHN-249_CLOSURE_REGISTER.json.
      */
-    public function test_warehouse_manager_role_gets_200_and_warehouse_staff_role_gets_403_on_pv_admin(): void
+    public function test_admin_role_gets_200_and_non_admin_roles_get_403_on_pv_admin(): void
     {
-        $this->getJson('/api/v1/pv-admin/resources/industries', $this->authHeadersWithRole('WAREHOUSE_MANAGER'))
+        $this->getJson('/api/v1/pv-admin/resources/industries', $this->authHeadersWithRole('ADMIN'))
             ->assertOk();
 
-        $this->getJson('/api/v1/pv-admin/resources/industries', $this->authHeadersWithRole('WAREHOUSE_STAFF'))
-            ->assertStatus(403);
+        foreach (['WAREHOUSE_MANAGER', 'WAREHOUSE_STAFF'] as $roleCode) {
+            $this->getJson('/api/v1/pv-admin/resources/industries', $this->authHeadersWithRole($roleCode))
+                ->assertStatus(403);
+        }
     }
 
     /** @return array{paths: array<string, mixed>} */

@@ -190,6 +190,25 @@ no-stock-side-effect.
    rạc): đăng nhập vai `WAREHOUSE_MANAGER` → `GET /pv-admin/resources/industries`
    trả `200`; đăng nhập vai `WAREHOUSE_STAFF` → cùng route trả `403`.
 
+> **Cập nhật 06/09/2026 — hai mục trên đã bị thay thế.** Tài liệu BA
+> `taikhoantheorole_da_sua_v2` định nghĩa lại `WAREHOUSE_MANAGER` là vai **giám sát**
+> (ma trận đánh ❌ ô "Master/SKU manage"; danh sách "Làm được" của vai không có mục
+> App PV nào), nên `pv.publish` và `pv.master.manage` đã bị thu hồi khỏi vai này —
+> chỉ còn `ADMIN` giữ. Trong repo:
+> - mục 1 giữ nguyên tên, đổi kỳ vọng `{ADMIN, WAREHOUSE_MANAGER}` → `{ADMIN}`;
+> - mục 2 đổi tên thành
+>   `test_admin_role_gets_200_and_non_admin_roles_get_403_on_pv_admin`, với `ADMIN`
+>   → `200` và cả `WAREHOUSE_MANAGER` lẫn `WAREHOUSE_STAFF` → `403`.
+>
+> Có một **xung đột nguồn** ở đây: SRS §3 vẫn xếp cả hai dòng App PV ở mức A cho actor
+> "Quản lý kho" (lưu ý ánh xạ actor cũ trỏ actor đó về
+> `WAREHOUSE_KEEPER`/`WAREHOUSE_APPROVER`, không phải `WAREHOUSE_MANAGER`; việc gán hai
+> quyền PV cho `WAREHOUSE_MANAGER` đến từ WWHN-249 D-04).
+>
+> **BA đã chốt ngày 07/09/2026: giữ theo tài liệu mới — Quản lý kho không quản trị App
+> PV.** SRS §3 là bản cũ ở điểm này. Xem `DELTA-06` trong
+> `docs/evidence/WWHN-267/ROLE_BASELINE_PIN.json`.
+
 Kết quả `Wwhn249PvSurfaceGovernanceTest` (9 test) tại SHA `c64fc2d`:
 - sqlite: **9/9 PASS**.
 - PostgreSQL (`hoa_nam_audit`, chạy độc lập tránh race với phiên khác): **9/9

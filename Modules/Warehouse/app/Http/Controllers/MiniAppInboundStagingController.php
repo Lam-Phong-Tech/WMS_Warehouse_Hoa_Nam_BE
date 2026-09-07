@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
@@ -576,7 +577,7 @@ class MiniAppInboundStagingController extends Controller
 
     private function assertCandidateNotReceiving(string $itemUnique): void
     {
-        if (! Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+        if (! SchemaCache::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
             ApiError::abort(422, 'INVALID_PAYLOAD', 'Schema chưa hỗ trợ new item candidate; hãy chạy migration mới nhất.');
         }
 
@@ -598,12 +599,12 @@ class MiniAppInboundStagingController extends Controller
     private function attachScanEventToEvidence(string $documentId, string $lineId, mixed $itemId, mixed $itemUnique, string $rawCode, string $scanSource): ?string
     {
         $scanEventId = null;
-        if (Schema::hasColumn('inbound_scan_entries', 'scan_event_id')
-            && (Schema::hasTable('scan_event') || Schema::hasView('scan_event'))) {
+        if (SchemaCache::hasColumn('inbound_scan_entries', 'scan_event_id')
+            && (SchemaCache::hasTable('scan_event') || SchemaCache::hasView('scan_event'))) {
             $eventQuery = DB::table('scan_event as se')
                 ->join('scan_batch as sb', 'sb.scan_batch_id', '=', 'se.scan_batch_id')
                 ->where('sb.source_id', $documentId);
-            if (Schema::hasColumn('scan_event', 'raw_code')) {
+            if (SchemaCache::hasColumn('scan_event', 'raw_code')) {
                 $eventQuery->where('se.raw_code', trim($rawCode));
             }
             if ($itemId !== null) {
@@ -620,7 +621,7 @@ class MiniAppInboundStagingController extends Controller
 
         if ($itemId !== null) {
             $entryQuery->where('item_id', $itemId);
-        } elseif ($itemUnique !== null && Schema::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
+        } elseif ($itemUnique !== null && SchemaCache::hasColumn('inbound_scan_entries', 'candidate_item_unique')) {
             $entryQuery->where('candidate_item_unique', strtoupper(trim((string) $itemUnique)));
         }
 
@@ -630,7 +631,7 @@ class MiniAppInboundStagingController extends Controller
         }
 
         $updates = ['scan_source' => $scanSource, 'updated_at' => now()];
-        if ($scanEventId !== null && Schema::hasColumn('inbound_scan_entries', 'scan_event_id')) {
+        if ($scanEventId !== null && SchemaCache::hasColumn('inbound_scan_entries', 'scan_event_id')) {
             $updates['scan_event_id'] = $scanEventId;
         }
         DB::table('inbound_scan_entries')->where('id', $entry->id)->update($updates);

@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Services;
 
+use App\Support\Database\SchemaCache;
 use App\Support\PublicApiCursor;
 use App\Support\PublicApiError;
 use App\Support\PublicApiErrorCode;
@@ -11,7 +12,6 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Modules\Warehouse\Support\PvRelations;
 
 /**
@@ -713,8 +713,8 @@ class PublicCatalogReadModel
     {
         if ($this->hasProfileExtras === null) {
             $this->hasProfileExtras = PvRelations::isPgsql()
-                && Schema::hasTable('pv_product_profiles')
-                && Schema::hasColumn('pv_product_profiles', 'seo_slug');
+                && SchemaCache::hasTable('pv_product_profiles')
+                && SchemaCache::hasColumn('pv_product_profiles', 'seo_slug');
         }
 
         return $this->hasProfileExtras;

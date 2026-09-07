@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
@@ -10,7 +11,6 @@ use App\Support\WarrantyPiiMasker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ProductIdentityResolver;
@@ -717,7 +717,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
     /** @return list<string> */
     private function currentDefectIds(string $caseId, mixed $legacyDefectId): array
     {
-        $ids = Schema::hasTable('warranty_case_defects')
+        $ids = SchemaCache::hasTable('warranty_case_defects')
             ? DB::table('warranty_case_defects')->where('warranty_case_id', $caseId)->pluck('defect_id')->all()
             : [];
         if ($ids === [] && $legacyDefectId !== null) {
@@ -730,10 +730,10 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
     /** @param list<string> $defectIds */
     private function syncWarrantyDefects(string $caseId, array $defectIds): void
     {
-        if (! Schema::hasTable('warranty_case_defects')) {
+        if (! SchemaCache::hasTable('warranty_case_defects')) {
             return;
         }
-        $hasPrimaryColumn = Schema::hasColumn('warranty_case_defects', 'is_primary');
+        $hasPrimaryColumn = SchemaCache::hasColumn('warranty_case_defects', 'is_primary');
         DB::table('warranty_case_defects')->where('warranty_case_id', $caseId)->delete();
         foreach (array_values($defectIds) as $index => $defectId) {
             $row = [
@@ -769,7 +769,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
         // GĐ1-REQ-009: chi tiết case phải trả đủ multi-defect, không chỉ defect_id đơn legacy —
         // khớp cách enrich của CanonicalMvpController::listWarrantyCases (WAR-01).
-        $defects = Schema::hasTable('warranty_case_defects')
+        $defects = SchemaCache::hasTable('warranty_case_defects')
             ? DB::table('warranty_case_defects as wcd')
                 ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
                 ->where('wcd.warranty_case_id', $id)

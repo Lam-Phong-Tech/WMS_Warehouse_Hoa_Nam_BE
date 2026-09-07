@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Services;
 
+use App\Support\Database\SchemaCache;
 use App\Support\ApiError;
 use App\Support\ConflictCode;
 use App\Support\DocumentEvidenceGuard;
@@ -957,7 +958,7 @@ class CurrentBaselineReversalService
 
     private function recordPostingEvent(string $reversalId, string $postingAction, string $key, string $hash, array $movementIds, ?string $actorId): void
     {
-        if (! DB::getSchemaBuilder()->hasTable('posting_event') && ! DB::getSchemaBuilder()->hasView('posting_event')) {
+        if (! SchemaCache::hasTable('posting_event') && ! DB::getSchemaBuilder()->hasView('posting_event')) {
             return;
         }
         DB::table('posting_event')->insert([

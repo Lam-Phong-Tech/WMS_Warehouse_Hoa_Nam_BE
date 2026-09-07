@@ -22,7 +22,7 @@ class PurgeExpiredReportExports extends Command
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
-        $disk = Storage::disk('local');
+        $disk = Storage::disk(config('wms_export.disk'));
 
         $expired = ReportExportJob::query()
             ->where('status', 'READY')

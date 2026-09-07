@@ -8,9 +8,9 @@
         ],
         "same_build": true,
         "quantity": 7,
-        "document_id": "9607564e-95f4-44a1-bb26-23aa6355e90b",
-        "box_container_id": "04e7ebcf-5640-42ac-992f-09bb86e65eb5",
-        "putaway_event_id": "0bfc8be0-d8a4-4e6e-9fe8-18310cebf96e",
+        "document_id": "bd467c0d-9d54-47ac-9abc-f6012cb23345",
+        "box_container_id": "120a1b68-a041-42df-bd72-db42141d4dfc",
+        "putaway_event_id": "8db78118-adf3-4813-9ae4-d4daed673dea",
         "steps": [
             {
                 "step": "create_inbound_document",
@@ -39,12 +39,12 @@
             {
                 "step": "box_eligible",
                 "box_status": "RECEIVED_PENDING_PUTAWAY",
-                "receipt_id": "9607564e-95f4-44a1-bb26-23aa6355e90b"
+                "receipt_id": "bd467c0d-9d54-47ac-9abc-f6012cb23345"
             },
             {
                 "step": "putaway_draft",
                 "http": 201,
-                "stock_document_id": "9607564e-95f4-44a1-bb26-23aa6355e90b",
+                "stock_document_id": "bd467c0d-9d54-47ac-9abc-f6012cb23345",
                 "stock_effect": "NONE"
             },
             {
@@ -61,7 +61,7 @@
             "mismatch_count": 0,
             "rows": [
                 {
-                    "key": "01a056eb-d2d6-7146-a79c-40cfba1bfe4f|01a056eb-d2d6-7146-a79c-40cfba9d78cd",
+                    "key": "01a0770c-238d-71c7-b0c1-5bd8b9f71653|01a0770c-238e-7326-a365-10d2abb50538",
                     "ledger_net": 7,
                     "balance_total": 7,
                     "match": true

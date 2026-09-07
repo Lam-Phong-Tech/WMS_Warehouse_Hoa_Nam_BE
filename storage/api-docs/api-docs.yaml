@@ -1549,6 +1549,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -1672,6 +1673,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -1955,6 +1957,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
                 brand_id:
                   description: 'Chỉ áp dụng cho product-models; brand tham chiếu phải ACTIVE'
@@ -2097,6 +2100,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
                 brand_id:
                   description: 'Chỉ áp dụng cho product-models'
@@ -2336,6 +2340,7 @@ paths:
                       required_qty:
                         type: integer
                         example: 2
+                        maximum: 1000000
                         minimum: 1
                       note:
                         type: string
@@ -2740,6 +2745,7 @@ paths:
                   description: 'Serial component bắt buộc quantity = 1.'
                   type: integer
                   example: 1
+                  maximum: 1000000
                   minimum: 1
               type: object
       responses:
@@ -3297,6 +3303,7 @@ paths:
                   type: integer
                   example: 10
                   nullable: true
+                  maximum: 1000000
                   minimum: 1
                 source_type:
                   type: string
@@ -6417,6 +6424,7 @@ paths:
                       quantity:
                         type: integer
                         example: 5
+                        maximum: 1000000
                         minimum: 1
                       item_id:
                         type: string
@@ -6873,12 +6881,14 @@ paths:
                   description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).'
                   type: integer
                   example: 1
+                  maximum: 1000000
                   minimum: 1
                 qty:
                   description: 'Alias của quantity; bắt buộc khi không gửi quantity.'
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 1000000
                   minimum: 1
                 code_value:
                   description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse authoritative, FE không tự tách. Plain code legacy vẫn nhận theo transition flag.'
@@ -16136,6 +16146,7 @@ paths:
                       quantity:
                         type: integer
                         example: 5
+                        maximum: 1000000
                         minimum: 1
                       item_id:
                         type: string
@@ -16442,12 +16453,14 @@ paths:
                   description: 'Bắt buộc khi không gửi qty (hai tên là alias của cùng một trường).'
                   type: integer
                   example: 1
+                  maximum: 1000000
                   minimum: 1
                 qty:
                   description: 'Alias của quantity; bắt buộc khi không gửi quantity.'
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 1000000
                   minimum: 1
                 code_value:
                   description: 'RAW scan payload. PRODUCT QR composite: HN1|SKU=<sku_code>|ITEM=<item_unique>; server parse + cross-check SKU embedded với item/dòng (WRONG_SKU khi lệch, UNKNOWN_CODE khi item chưa đăng ký).'
@@ -16825,6 +16838,7 @@ paths:
                       required_qty:
                         type: integer
                         example: 2
+                        maximum: 1000000
                         minimum: 1
                       note:
                         type: string
@@ -16984,6 +16998,7 @@ paths:
                       required_qty:
                         type: integer
                         example: 5
+                        maximum: 1000000
                         minimum: 1
                       note:
                         type: string
@@ -17261,6 +17276,7 @@ paths:
                       row_no:
                         type: integer
                         example: 1
+                        maximum: 2147483647
                         minimum: 1
                       sku_id:
                         type: string
@@ -17276,6 +17292,7 @@ paths:
                         type: integer
                         example: 2
                         nullable: true
+                        maximum: 1000000
                         minimum: 1
                     type: object
                   nullable: true
@@ -17967,6 +17984,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -18090,6 +18108,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -18864,6 +18883,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -18987,6 +19007,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -19507,6 +19528,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -19630,6 +19652,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -20246,6 +20269,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -20374,6 +20398,7 @@ paths:
                   type: integer
                   example: 1
                   nullable: true
+                  maximum: 9999
                   minimum: 0
               type: object
       responses:
@@ -25276,6 +25301,7 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'Danh mục báo cáo vận hành Flow 06'
+      description: "KHONG cache — co chu dich, khong phai bo sot.\n\nDanh sach nay la hang so viet thang trong ma nguon, khong cham co so du lieu.\nDua no qua Valkey chi them mot vong di-ve mang de doi lay dung thu vua doc\nduoc tu bo nho. Cache chi dang gia khi no thay the duoc mot phan viec that."
       operationId: report_hub
       parameters: []
       responses:
@@ -28207,6 +28233,7 @@ paths:
                       reversal_qty:
                         type: integer
                         example: 10
+                        maximum: 1000000
                         minimum: 1
                       item_id:
                         type: string
@@ -30300,6 +30327,7 @@ paths:
                       quantity:
                         type: number
                         example: 1
+                        maximum: 1000000
                         minimum: 0.001
                     type: object
                   maxItems: 100
@@ -31112,6 +31140,7 @@ paths:
                       quantity:
                         type: number
                         example: 1
+                        maximum: 1000000
                         minimum: 0.001
                     type: object
                   maxItems: 100

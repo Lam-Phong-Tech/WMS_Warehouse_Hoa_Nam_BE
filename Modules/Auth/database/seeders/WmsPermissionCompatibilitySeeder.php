@@ -40,17 +40,29 @@ class WmsPermissionCompatibilitySeeder extends Seeder
         'report.export' => 'FE action guard cho xuất báo cáo',
     ];
 
+    /**
+     * WAREHOUSE_MANAGER ĐÃ GỠ khỏi bảng này (BA taikhoantheorole v2 — vai giám sát).
+     *
+     * Đây là chỗ dễ bỏ sót nhất của cả đợt sửa: năm trong tám "alias" ở trên KHÔNG
+     * phải alias — `inbound.post`, `outbound.post`, `warranty.manage`,
+     * `inventory.trace`, `report.export` là mã canonical mà route thật đang gác. Gỡ
+     * chúng khỏi hằng ROLES của AuthDatabaseSeeder mà để nguyên ở đây thì Quản lý kho
+     * VẪN Post được phiếu và VẪN xử lý được bảo hành — seeder này chạy SAU và dùng
+     * insert cộng thêm, không phải sync. Ba mã còn lại (scan.inbound/outbound/warranty)
+     * không có cổng nào đọc tới nên gỡ đi không đổi hành vi, nhưng để lại thì ma trận
+     * IAM-01 vẫn bày ra như thể vai này có quyền quét.
+     *
+     * WAREHOUSE_KEEPER giữ nguyên: vai ngừng dùng, chỉ còn seed ở local/testing để bộ
+     * E2E và dữ liệu lịch sử không đổi hành vi giữa chừng.
+     */
     private const ROLE_ASSIGNMENTS = [
         'WAREHOUSE_KEEPER' => [
             'inbound.post', 'outbound.post', 'scan.inbound', 'scan.outbound', 'inventory.trace',
         ],
-        'WAREHOUSE_MANAGER' => [
-            'inbound.post', 'outbound.post', 'scan.inbound', 'scan.outbound', 'scan.warranty',
-            'inventory.trace', 'warranty.manage', 'report.export',
-        ],
     ];
 
-    private const SKU_MANAGE_ROLES = ['SKU_MANAGER', 'WAREHOUSE_MANAGER'];
+    /** WAREHOUSE_MANAGER gỡ khỏi đây cùng lý do: ma trận BA đánh ❌ ô "Master/SKU manage". */
+    private const SKU_MANAGE_ROLES = ['SKU_MANAGER'];
 
     public function run(): void
     {
@@ -63,7 +75,18 @@ class WmsPermissionCompatibilitySeeder extends Seeder
         }
 
         foreach (self::ROLE_ASSIGNMENTS as $roleCode => $permissionKeys) {
-            $role = Role::query()->where('role_code', $roleCode)->firstOrFail();
+            // first() chứ KHÔNG firstOrFail(): WAREHOUSE_KEEPER giờ nằm trong
+            // AuthDatabaseSeeder::DEPRECATED_ROLES nên không còn được seed ở
+            // production. firstOrFail() ở đây sẽ ném ModelNotFoundException và làm
+            // hỏng cả `php artisan db:seed` của môi trường thật — vắng vai ngừng dùng
+            // là trạng thái ĐÚNG, không phải lỗi seeding (cùng lối xử lý với
+            // SKU_MANAGE_ROLES bên dưới).
+            $role = Role::query()->where('role_code', $roleCode)->first();
+
+            if ($role === null) {
+                continue;
+            }
+
             foreach ($permissionKeys as $permissionKey) {
                 $this->attach($role, $permissions[$permissionKey]);
             }

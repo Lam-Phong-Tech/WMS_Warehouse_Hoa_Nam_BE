@@ -35,8 +35,28 @@ services:
       # đúng lỗi 502 cũ. Mở rộng ngang nhiều máy: nối thêm
       # "server host2:9000 resolve; server host3:9000 resolve;" vào biến này
       # (địa chỉ IP thuần cũng hợp lệ, có hay không có `resolve` đều được).
-      - WMS_PHP_UPSTREAM_SERVERS=${WMS_PHP_UPSTREAM_SERVERS:-server backend:9000 resolve max_fails=3 fail_timeout=10s;}
+      # max_fails=0 (KHÔNG loại upstream) — ĐO ĐƯỢC 07/09/2026, mức 200 req/s:
+      # nginx ghi 2.917 dòng "no live upstreams" và trả 502 cho 2.930 request,
+      # trong khi CẢ HAI backend vẫn sống và vẫn trả 200 cho request khác.
+      #
+      # Cơ chế: `max_fails=3 fail_timeout=10s` là kiểm tra sức khoẻ THỤ ĐỘNG. Khi
+      # quá tải, 3 request chậm quá hạn là đủ để nginx đánh dấu một backend "chết"
+      # 10 giây. Với đúng HAI backend và không có dự phòng, việc loại một cái dồn
+      # toàn bộ tải sang cái còn lại ⇒ cái đó cũng bị loại ⇒ "no live upstreams" ⇒
+      # 502 cho MỌI request trong 10 giây, kể cả những request lẽ ra phục vụ được.
+      # Chậm tạm thời bị KHUẾCH ĐẠI thành mất dịch vụ hoàn toàn.
+      #
+      # Với FastCGI, "upstream" ở đây không phải máy chủ độc lập có thể hỏng riêng
+      # — chúng là toàn bộ năng lực của hệ thống. Quá tải thì đúng hành vi là XẾP
+      # HÀNG (và để `fastcgi_next_upstream` xử lý lỗi từng request), không phải
+      # cắt dịch vụ. Khi có nhiều máy thật + dự phòng thì bật lại `max_fails` là
+      # hợp lý; lúc đó đặt qua biến môi trường này chứ không sửa file.
+      - WMS_PHP_UPSTREAM_SERVERS=${WMS_PHP_UPSTREAM_SERVERS:-server backend:9000 resolve max_fails=0;}
       - WMS_NGINX_MAX_BODY=${WMS_NGINX_MAX_BODY:-64m}
+      # Thư mục public mà php-fpm phục vụ (SCRIPT_FILENAME). Phải khớp
+      # PERF_LOCAL_CODE/PERF_APP_DIR của backend: bản chép trong container là
+      # /srv/app/public; quay về bind mount thì đặt /var/www/html/public.
+      - WMS_PHP_DOCROOT=${WMS_PHP_DOCROOT:-/srv/app/public}
       - WMS_NGINX_FASTCGI_TIMEOUT=${WMS_NGINX_FASTCGI_TIMEOUT:-60}
     ulimits:
       nofile:
@@ -44,6 +64,9 @@ services:
         hard: 65535
 
   backend:
+    depends_on:
+      pgbouncer:
+        condition: service_started
     # entrypoint riêng: sinh cấu hình php-fpm/opcache theo biến môi trường rồi
     # giao lại cho entrypoint gốc trong image. Gọi qua `sh` để không phụ thuộc
     # bit thực thi của file trên bind mount Windows.
@@ -64,9 +87,42 @@ services:
       - LOG_STACK=${PERF_LOG_STACK:-stderr}
       # phpredis (extension C) thay predis (thuần PHP). Đã cài sẵn trong image.
       - REDIS_CLIENT=${PERF_REDIS_CLIENT:-phpredis}
+      # Valkey: giữ kết nối qua các request của cùng worker php-fpm (phpredis
+      # pconnect) thay vì TCP connect + AUTH + SELECT mỗi request; và đặt trần
+      # thời gian chờ để Valkey treo không ghim worker (xem config/database.php).
+      - REDIS_PERSISTENT=${REDIS_PERSISTENT:-true}
+      - REDIS_TIMEOUT=${REDIS_TIMEOUT:-2}
+      - REDIS_READ_TIMEOUT=${REDIS_READ_TIMEOUT:-2}
       # Chỉ container này hâm nóng cache config/route/event. bootstrap/cache nằm
       # trên bind mount dùng chung nên nhiều container cùng ghi sẽ đua nhau.
       - PERF_OPTIMIZE=${PERF_OPTIMIZE:-true}
+      # Mã nguồn được chép vào filesystem của container lúc khởi động và php-fpm
+      # phục vụ từ đó (xem docker/php/perf-entrypoint.sh, mục PERF_LOCAL_CODE).
+      # ĐO 07/09/2026: bind mount Docker Desktop 65 req/s ⇒ bản chép 284 req/s ở
+      # 40 người dùng đồng thời, cùng mã cùng DB. Phải đi cùng WMS_PHP_DOCROOT của
+      # nginx bên dưới. Đặt PERF_LOCAL_CODE=false để quay về bind mount.
+      - PERF_LOCAL_CODE=${PERF_LOCAL_CODE:-true}
+      - PERF_APP_DIR=${PERF_APP_DIR:-/srv/app}
+      # Ghi request >= ngưỡng (ms) kèm phân rã route/SQL/cache/lock — xem
+      # App\Http\Middleware\SlowRequestLog và config/wms_perf.php. 0 = tắt.
+      - SLOW_REQUEST_MS=${SLOW_REQUEST_MS:-500}
+      # File export báo cáo: job nền (container queue) ghi, request HTTP (container
+      # backend BẤT KỲ) tải về. Nhiều replica sau load balancer thì đĩa local của
+      # từng container không còn là "cùng một chỗ" — hồ sơ chịu tải dùng đĩa chung
+      # (MinIO/S3). Bucket do minio-init tạo; kiểm chứng 07/09/2026:
+      #   docker compose exec backend php artisan tinker --execute="Storage::disk('s3')->put('healthcheck.txt','ok');"
+      # Backend và queue PHẢI cùng giá trị (xem config/wms_export.php).
+      # Postgres qua PgBouncer (xem service pgbouncer phía dưới).
+      - DB_HOST=${WMS_DB_HOST:-pgbouncer}
+      - DB_PORT=${WMS_DB_PORT:-5432}
+      - REPORT_EXPORT_DISK=${REPORT_EXPORT_DISK:-s3}
+      # Mọi file được ghi ở request này và đọc ở request khác phải nằm trên đĩa DÙNG
+      # CHUNG khi có nhiều instance: CSV lỗi import, ảnh/video bảo hành, chứng từ đính
+      # kèm. Bản ghi cũ vẫn lưu storage_disk của riêng nó nên đổi ở đây không hỏng file cũ.
+      - IMPORT_ERROR_FILE_DISK=${IMPORT_ERROR_FILE_DISK:-s3}
+      - DOCUMENT_ATTACHMENT_DISK=${DOCUMENT_ATTACHMENT_DISK:-s3}
+      - WARRANTY_PHOTO_DISK=${WARRANTY_PHOTO_DISK:-s3}
+      - WARRANTY_VIDEO_DISK=${WARRANTY_VIDEO_DISK:-s3}
 
       # --- Kích thước pool php-fpm (tính theo RAM thật, xem .env.perf.example) ---
       - PHP_FPM_PM=${PHP_FPM_PM:-dynamic}
@@ -74,7 +130,12 @@ services:
       - PHP_FPM_START_SERVERS=${PHP_FPM_START_SERVERS:-12}
       - PHP_FPM_MIN_SPARE=${PHP_FPM_MIN_SPARE:-12}
       - PHP_FPM_MAX_SPARE=${PHP_FPM_MAX_SPARE:-24}
-      - PHP_FPM_MAX_REQUESTS=${PHP_FPM_MAX_REQUESTS:-1000}
+      # 1000 → 5000 (07/09/2026): mỗi child php-fpm MỚI phải hỏi lại catalog cột của
+      # từng bảng (BaseRepository::getTableColumns / nonNullableColumns memo theo tiến
+      # trình) — pg_stat_statements ghi ~24.000 câu introspection / 150k request vì
+      # child bị tái sinh sau mỗi 1000 request. 5000 vẫn là chốt chống rò rỉ bộ nhớ
+      # thông dụng cho production.
+      - PHP_FPM_MAX_REQUESTS=${PHP_FPM_MAX_REQUESTS:-5000}
       - PHP_FPM_BACKLOG=${PHP_FPM_BACKLOG:-8192}
       - PHP_FPM_SLOWLOG_TIMEOUT=${PHP_FPM_SLOWLOG_TIMEOUT:-3s}
       - PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-512M}
@@ -119,8 +180,25 @@ services:
       - LOG_LEVEL=${PERF_LOG_LEVEL:-warning}
       - LOG_STACK=${PERF_LOG_STACK:-stderr}
       - REDIS_CLIENT=${PERF_REDIS_CLIENT:-phpredis}
+      # Valkey: giữ kết nối qua các request của cùng worker php-fpm (phpredis
+      # pconnect) thay vì TCP connect + AUTH + SELECT mỗi request; và đặt trần
+      # thời gian chờ để Valkey treo không ghim worker (xem config/database.php).
+      - REDIS_PERSISTENT=${REDIS_PERSISTENT:-true}
+      - REDIS_TIMEOUT=${REDIS_TIMEOUT:-2}
+      - REDIS_READ_TIMEOUT=${REDIS_READ_TIMEOUT:-2}
       # Không hâm nóng cache ở đây: backend đã làm, dùng chung bootstrap/cache.
       - PERF_OPTIMIZE=false
+      # Postgres qua PgBouncer (xem service pgbouncer phía dưới).
+      - DB_HOST=${WMS_DB_HOST:-pgbouncer}
+      - DB_PORT=${WMS_DB_PORT:-5432}
+      - REPORT_EXPORT_DISK=${REPORT_EXPORT_DISK:-s3}
+      # Mọi file được ghi ở request này và đọc ở request khác phải nằm trên đĩa DÙNG
+      # CHUNG khi có nhiều instance: CSV lỗi import, ảnh/video bảo hành, chứng từ đính
+      # kèm. Bản ghi cũ vẫn lưu storage_disk của riêng nó nên đổi ở đây không hỏng file cũ.
+      - IMPORT_ERROR_FILE_DISK=${IMPORT_ERROR_FILE_DISK:-s3}
+      - DOCUMENT_ATTACHMENT_DISK=${DOCUMENT_ATTACHMENT_DISK:-s3}
+      - WARRANTY_PHOTO_DISK=${WARRANTY_PHOTO_DISK:-s3}
+      - WARRANTY_VIDEO_DISK=${WARRANTY_VIDEO_DISK:-s3}
       - PHP_FPM_MAX_CHILDREN=4
       - OPCACHE_VALIDATE_TIMESTAMPS=${OPCACHE_VALIDATE_TIMESTAMPS:-0}
       - OPCACHE_JIT=${OPCACHE_JIT:-tracing}
@@ -134,7 +212,26 @@ services:
       - LOG_LEVEL=${PERF_LOG_LEVEL:-warning}
       - LOG_STACK=${PERF_LOG_STACK:-stderr}
       - REDIS_CLIENT=${PERF_REDIS_CLIENT:-phpredis}
+      # Valkey: giữ kết nối qua các request của cùng worker php-fpm (phpredis
+      # pconnect) thay vì TCP connect + AUTH + SELECT mỗi request; và đặt trần
+      # thời gian chờ để Valkey treo không ghim worker (xem config/database.php).
+      - REDIS_PERSISTENT=${REDIS_PERSISTENT:-true}
+      - REDIS_TIMEOUT=${REDIS_TIMEOUT:-2}
+      - REDIS_READ_TIMEOUT=${REDIS_READ_TIMEOUT:-2}
       - PERF_OPTIMIZE=false
+      # Postgres qua PgBouncer (xem service pgbouncer phía dưới).
+      - DB_HOST=${WMS_DB_HOST:-pgbouncer}
+      - DB_PORT=${WMS_DB_PORT:-5432}
+      # Scheduler chạy các lệnh DỌN DẸP (PurgeExpiredReportExports,
+      # PurgeExpiredImportErrorFiles) nên phải nhìn cùng đĩa với backend/queue.
+      - REPORT_EXPORT_DISK=${REPORT_EXPORT_DISK:-s3}
+      # Mọi file được ghi ở request này và đọc ở request khác phải nằm trên đĩa DÙNG
+      # CHUNG khi có nhiều instance: CSV lỗi import, ảnh/video bảo hành, chứng từ đính
+      # kèm. Bản ghi cũ vẫn lưu storage_disk của riêng nó nên đổi ở đây không hỏng file cũ.
+      - IMPORT_ERROR_FILE_DISK=${IMPORT_ERROR_FILE_DISK:-s3}
+      - DOCUMENT_ATTACHMENT_DISK=${DOCUMENT_ATTACHMENT_DISK:-s3}
+      - WARRANTY_PHOTO_DISK=${WARRANTY_PHOTO_DISK:-s3}
+      - WARRANTY_VIDEO_DISK=${WARRANTY_VIDEO_DISK:-s3}
       - OPCACHE_VALIDATE_TIMESTAMPS=${OPCACHE_VALIDATE_TIMESTAMPS:-0}
       - DB_DATABASE=${PERF_DB_DATABASE:-wms_hoanam}
     deploy:
@@ -149,6 +246,12 @@ services:
       - LOG_LEVEL=${PERF_LOG_LEVEL:-warning}
       - LOG_STACK=${PERF_LOG_STACK:-stderr}
       - REDIS_CLIENT=${PERF_REDIS_CLIENT:-phpredis}
+      # Valkey: giữ kết nối qua các request của cùng worker php-fpm (phpredis
+      # pconnect) thay vì TCP connect + AUTH + SELECT mỗi request; và đặt trần
+      # thời gian chờ để Valkey treo không ghim worker (xem config/database.php).
+      - REDIS_PERSISTENT=${REDIS_PERSISTENT:-true}
+      - REDIS_TIMEOUT=${REDIS_TIMEOUT:-2}
+      - REDIS_READ_TIMEOUT=${REDIS_READ_TIMEOUT:-2}
       - PERF_OPTIMIZE=false
       - OPCACHE_VALIDATE_TIMESTAMPS=${OPCACHE_VALIDATE_TIMESTAMPS:-0}
       # Mỗi người dùng đang mở app giữ MỘT WebSocket tới đây. 3000 người =
@@ -163,6 +266,52 @@ services:
       resources:
         limits:
           memory: ${REVERB_MEM_LIMIT:-512m}
+
+  # ---------------------------------------------------------------------------
+  # PgBouncer — gom kết nối Postgres (07/09/2026)
+  #
+  # ĐO ĐƯỢC ở 150 req/s (docs/perf/LOAD_TEST_2026-09-07.md §3): 4.790 request
+  # chậm trên 28 route, và ở MỌI route thời gian "SQL" chiếm 80–90 % dù chỉ có
+  # ~2 câu/request (auth/me: 646/696 ms cho vài câu PK lookup 0 ms theo
+  # pg_stat_statements). Laravel tính cả việc MỞ KẾT NỐI vào câu đầu tiên; mỗi
+  # request mở một kết nối mới (fork + SCRAM), Postgres ngốn 5,5 lõi cho việc đó
+  # khi CPU VM đã 96 %. Pool giữ kết nối server sẵn, client (php) chỉ nối TCP tới
+  # pgbouncer — không fork, không PBKDF2 phía server.
+  #
+  # Chế độ SESSION (không phải transaction): mỗi request PHP giữ nguyên MỘT kết
+  # nối server suốt request ⇒ lockForUpdate/transaction/prepared statement/
+  # search_path giữ đúng ngữ nghĩa; `DISCARD ALL` khi client ngắt dọn sạch
+  # transaction rò rỉ nếu PHP chết giữa chừng — an toàn hơn PDO persistent.
+  #
+  # Ngân sách: DEFAULT_POOL_SIZE (kết nối server tối đa) + queue + scheduler +
+  # reverb + 10 dự phòng ≤ PG_MAX_CONNECTIONS (120). Thêm replica KHÔNG tăng số
+  # kết nối server — chỉ tăng client (MAX_CLIENT_CONN).
+  # ---------------------------------------------------------------------------
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USERNAME:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=${PERF_DB_DATABASE:-wms_hoanam}
+      - AUTH_TYPE=scram-sha-256
+      - POOL_MODE=${PGBOUNCER_POOL_MODE:-session}
+      - DEFAULT_POOL_SIZE=${PGBOUNCER_POOL_SIZE:-100}
+      - MAX_DB_CONNECTIONS=${PGBOUNCER_POOL_SIZE:-100}
+      - MAX_CLIENT_CONN=${PGBOUNCER_MAX_CLIENT_CONN:-2000}
+      - SERVER_RESET_QUERY=DISCARD ALL
+      - SERVER_IDLE_TIMEOUT=${PGBOUNCER_SERVER_IDLE_TIMEOUT:-600}
+      - QUERY_WAIT_TIMEOUT=${PGBOUNCER_QUERY_WAIT_TIMEOUT:-60}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: ${PGBOUNCER_MEM_LIMIT:-128m}
+    networks:
+      - wms
 
   postgres:
     # Ảnh postgres mặc định là cấu hình "chạy được ở mọi nơi", không phải cấu

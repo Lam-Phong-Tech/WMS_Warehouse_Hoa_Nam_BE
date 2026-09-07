@@ -2,6 +2,7 @@
 
 namespace Modules\Auth\Providers;
 
+use App\Support\Modules\HttpLeanModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Auth\Console\Commands\LockExpiredFirstLoginAccounts;
 use Modules\Auth\Repositories\Contracts\PermissionRepositoryInterface;
@@ -10,9 +11,8 @@ use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
 use Modules\Auth\Repositories\PermissionRepository;
 use Modules\Auth\Repositories\RoleRepository;
 use Modules\Auth\Repositories\UserRepository;
-use Nwidart\Modules\Support\ModuleServiceProvider;
 
-class AuthServiceProvider extends ModuleServiceProvider
+class AuthServiceProvider extends HttpLeanModuleServiceProvider
 {
     /**
      * The name of the module.

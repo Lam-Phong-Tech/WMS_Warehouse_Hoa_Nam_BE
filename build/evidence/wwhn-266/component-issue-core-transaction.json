@@ -61,7 +61,7 @@
                 200,
                 422
             ],
-            "loser_error": "COMPONENT_BOX_INSUFFICIENT",
+            "loser_error": "INSUFFICIENT_STOCK",
             "balance_after": 2,
             "movements_total": 1
         },
@@ -71,19 +71,6 @@
             "balance_rolled_back_to": 10,
             "retry_http": 200,
             "balance_after_retry": 7
-        },
-        "LEDGER_BALANCE_RECONCILE": {
-            "register_item": "DEV266-P1-04",
-            "ledger_sum_qty_delta": 5,
-            "balance_on_hand": 5,
-            "reconcile_mismatch_count": 0,
-            "reconcile_status": "PASS",
-            "reconcile_overall_status": "PASS",
-            "variance": 0,
-            "movement_types": [
-                "COMPONENT_ISSUE",
-                "RECEIPT"
-            ]
         }
     }
 }

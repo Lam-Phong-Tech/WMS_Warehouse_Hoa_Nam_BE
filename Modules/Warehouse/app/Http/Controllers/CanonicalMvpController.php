@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
@@ -10,7 +11,6 @@ use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use OpenApi\Attributes as OA;
 
@@ -217,7 +217,15 @@ class CanonicalMvpController extends Controller
     )]
     public function listLabelSnapshots(Request $request)
     {
-        return $this->tablePage($request, 'label_snapshots');
+        // `outbound_document_id` là bộ lọc BỔ SUNG, không bắt buộc — client nào
+        // không gửi thì nhận đúng kết quả như trước, hợp đồng không đổi.
+        //
+        // Vì sao thêm: màn chi tiết phiếu xuất chỉ cần nhãn CỦA ĐÚNG phiếu đang
+        // mở, nhưng trước đó FE phải kéo NGUYÊN bảng label_snapshots về (vòng lặp
+        // phân trang TUẦN TỰ, tối đa 20 trang × 100 dòng) rồi tự `find()` lấy một
+        // dòng. Số nhãn chỉ tăng theo thời gian, nên mỗi lần mở modal lại đắt hơn
+        // lần trước — đúng loại chi phí không ai nhìn thấy cho tới lúc dữ liệu lớn.
+        return $this->tablePage($request, 'label_snapshots', 'created_at', [], ['outbound_document_id']);
     }
 
     public function storeLabelSnapshot(Request $request)
@@ -525,7 +533,7 @@ class CanonicalMvpController extends Controller
             $query->where('status', $request->input('status'));
         }
         foreach ($filterColumns as $column) {
-            if ($request->filled($column) && Schema::hasColumn($table, $column)) {
+            if ($request->filled($column) && SchemaCache::hasColumn($table, $column)) {
                 $query->where($column, $request->input($column));
             }
         }
@@ -663,7 +671,7 @@ class CanonicalMvpController extends Controller
             'pv_filter_tag' => ['tag_code', 'tag_name', 'display_name'],
         ][$table] ?? [];
 
-        return array_values(array_filter($candidates, fn (string $column): bool => Schema::hasColumn($table, $column)));
+        return array_values(array_filter($candidates, fn (string $column): bool => SchemaCache::hasColumn($table, $column)));
     }
 
     private function timestamps(array $data): array
