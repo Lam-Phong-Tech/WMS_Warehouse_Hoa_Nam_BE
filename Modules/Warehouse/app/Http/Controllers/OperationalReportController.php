@@ -2471,6 +2471,38 @@ class OperationalReportController extends Controller
         // có thể nằm ngoài kỳ đang lọc.
         $originalIds = $movements->pluck('original_movement_id')->filter()->unique()->values()->all();
         $originalNoById = $originalIds === [] ? collect() : DB::table('stock_movements')->whereIn('id', $originalIds)->pluck('movement_no', 'id');
+        /**
+         * MÃ CHỨNG TỪ NGUỒN — tra NGAY TẠI ĐÂY thay vì bắt FE tự ghép.
+         *
+         * `stock_movements.source_id` là UUID, còn §13.10 đòi cột "Chứng từ /
+         * dòng" phải truy ngược được bằng mã người đọc được. Trước đây FE tự lo:
+         * màn Truy vết hàng hoá gọi THÊM `/reports/document-history` (không phân
+         * trang) + `/reversal-documents` chỉ để dựng một Map<uuid, mã>. Đo được
+         * trên stack local: riêng document-history tốn 328 KB nén / 1,69 MB giải
+         * nén cho đúng HAI trường được dùng.
+         *
+         * Hai lệnh tra theo danh sách id dưới đây rẻ hơn hẳn (khoá chính, chỉ
+         * lấy 2 cột) và đi đúng khuôn mẫu `original_movement_no` ngay bên trên —
+         * cùng một bài toán "UUID -> mã nghiệp vụ", nay giải cùng một chỗ.
+         *
+         * THÊM trường, KHÔNG bỏ trường nào: `source_id` vẫn còn nguyên nên mọi
+         * consumer cũ không đổi.
+         */
+        $sourceIds = $movements->pluck('source_id')->filter()->unique()->values()->all();
+        $sourceNoById = collect();
+        if ($sourceIds !== []) {
+            $sourceNoById = DB::table('stock_documents')
+                ->whereIn('id', $sourceIds)
+                ->pluck('doc_no', 'id');
+            // Ledger trỏ tới CẢ phiếu đảo; bảng stock_documents không chứa chúng.
+            $reversalNoById = DB::table('reversal_documents')
+                ->whereIn('id', $sourceIds)
+                ->pluck('reversal_no', 'id');
+            foreach ($reversalNoById as $id => $no) {
+                $sourceNoById[$id] = $no;
+            }
+        }
+
         $objectIds = $movements->pluck('item_id')->merge($movements->pluck('container_id'))->filter()->unique()->values()->all();
         $codeMap = $objectIds === [] ? collect() : DB::table('physical_codes')->whereIn('assigned_object_id', $objectIds)->where('status', 'ACTIVE')->orderBy('created_at')->get(['assigned_object_id', 'code_value'])->groupBy('assigned_object_id')->map(fn ($rows) => (string) $rows->first()->code_value);
         $rows = $movements->map(fn ($m): array => [
@@ -2491,6 +2523,9 @@ class OperationalReportController extends Controller
             'physical_code' => (string) ($codeMap[(string) ($m->item_id ?? $m->container_id ?? '')] ?? ''),
             'source_type' => (string) ($m->source_type ?? ''),
             'source_id' => $m->source_id ?? null,
+            // Mã chứng từ đọc được của source_id; rỗng khi ledger trỏ tới một
+            // nguồn không phải phiếu nhập/xuất/đảo (FE hiển thị "Chưa có").
+            'source_no' => $m->source_id ? (string) ($sourceNoById[(string) $m->source_id] ?? '') : '',
             'actor' => (string) ($m->actor_display_name ?? $m->actor_username ?? ''),
             'original_movement_id' => $m->original_movement_id ?? null,
             'original_movement_no' => $m->original_movement_id ? (string) ($originalNoById[(string) $m->original_movement_id] ?? '') : null,

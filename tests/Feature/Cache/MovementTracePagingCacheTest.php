@@ -180,6 +180,69 @@ class MovementTracePagingCacheTest extends TestCase
         $this->assertSame([], array_intersect($firstIds, $secondIds));
     }
 
+    /**
+     * Mã chứng từ nguồn phải do BE tra sẵn (`source_no`).
+     *
+     * Trước 07/09/2026, FE tự ghép bảng tra UUID -> mã bằng HAI request phụ:
+     * `/reports/document-history` (KHÔNG phân trang — đo được 328 KB nén /
+     * 1,69 MB giải nén) và `/reversal-documents`, chỉ để lấy đúng hai trường.
+     * Nay ledger trả thẳng `source_no`, cùng khuôn mẫu `original_movement_no`.
+     *
+     * Test khoá cả hai nhánh: phiếu kho thường và phiếu ĐẢO — ledger trỏ tới cả
+     * hai bảng, mà `stock_documents` không chứa phiếu đảo.
+     */
+    public function test_rows_carry_resolved_source_document_number(): void
+    {
+        $headers = $this->authHeaders();
+        $userId = (string) auth('api')->user()->user_id;
+        $this->seedMovements($userId);
+
+        $warehouse = Warehouse::where('code', 'KHO-TONG-HN')->firstOrFail();
+        $sku = Sku::where('sku_code', 'MOV-TRACE-CACHE-01')->firstOrFail();
+
+        $docId = (string) Str::uuid();
+        DB::table('stock_documents')->insert([
+            'id' => $docId,
+            'doc_type' => 'INBOUND',
+            'doc_no' => 'PN-CACHE-0001',
+            'doc_date' => '2026-06-01',
+            'status' => 'posted',
+            'created_by' => $userId,
+            'version' => 1,
+        ]);
+
+        DB::table('stock_movements')->insert([
+            'id' => (string) Str::uuid(),
+            'movement_no' => 'MV-CACHE-SRC',
+            'business_key' => 'mov-trace-cache-src',
+            'movement_type' => 'RECEIPT',
+            'warehouse_id' => (string) $warehouse->id,
+            'product_id' => (string) $sku->sku_id,
+            'sku_id' => (string) $sku->sku_id,
+            'stock_status' => 'AVAILABLE',
+            'qty_before' => 0,
+            'qty_delta' => 1,
+            'qty_after' => 1,
+            'quantity' => 1,
+            'created_by' => $userId,
+            'source_type' => 'STOCK_DOCUMENT',
+            'source_id' => $docId,
+            'occurred_at' => '2026-06-02 09:00:00',
+            'created_at' => '2026-06-02 09:00:00',
+        ]);
+
+        $rows = $this->trace($headers)['rows'];
+
+        // Mọi dòng phải CÓ trường source_no (kể cả khi rỗng) — FE đọc thẳng nó.
+        foreach ($rows as $row) {
+            $this->assertArrayHasKey('source_no', $row);
+        }
+
+        $resolved = collect($rows)->firstWhere('source_id', $docId);
+        $this->assertNotNull($resolved, 'Dòng vừa thêm phải có mặt trong kỳ.');
+        $this->assertSame('PN-CACHE-0001', $resolved['source_no']);
+    }
+
     public function test_summary_and_by_movement_type_stay_period_wide_on_every_page(): void
     {
         $headers = $this->authHeaders();
