@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
@@ -205,7 +206,6 @@ class HoaNamBulkDemoSeeder extends Seeder
     // hàng ("Máy bơm nước Kubota B23 10HP"). Danh mục nay là hàng thật DongCheng
     // do DongChengCatalogSeeder nạp, nên cả 4 hàm đó đã bị gỡ — seeder này chỉ
     // còn nhiệm vụ dựng chứng từ trên danh mục có sẵn.
-
 
     // ==================================================================
     //  OPENING BALANCE (tồn đầu kỳ)
@@ -411,11 +411,11 @@ class HoaNamBulkDemoSeeder extends Seeder
 
     /**
      * @param  list<string>  $issuedProductItems
-     * @return list<string> active warranty case ids (cho component issue)
+     * @return list<string> case id ĐƯỢC PHÉP xuất linh kiện (CHECKING/REPAIRING)
      */
     private function seedWarrantyCases(array $issuedProductItems): array
     {
-        $activeCaseIds = [];
+        $issuableCaseIds = [];
         $n = count($issuedProductItems);
         if ($n === 0) {
             return $activeCaseIds;
@@ -434,12 +434,21 @@ class HoaNamBulkDemoSeeder extends Seeder
                 $tempOnly ? null : $itemId,
                 $skuId, $tempOnly, $day
             );
-            if (! in_array($status, ['RETURNED', 'CANCELLED'], true)) {
-                $activeCaseIds[] = $caseId;
+            // Xuất linh kiện CHỈ hợp lệ khi hồ sơ đang kiểm tra / đang sửa chữa —
+            // postComponentIssue() chặn cứng bằng WARRANTY_CASE_STATUS_NOT_ALLOWED
+            // ngay trước khi trừ tồn. Trước đây chỗ này tự chép một luật RỘNG HƠN
+            // ("khác RETURNED/CANCELLED", tức nhận cả RECEIVED và COMPLETED); khi
+            // guard siết lại thì seeder không đổi theo, nên db:seed chết ngay ở
+            // phiếu xuất linh kiện đầu tiên rơi vào case RECEIVED.
+            //
+            // Đọc thẳng hằng số của guard thay vì chép lại: luật đổi lần nữa thì
+            // seeder tự đi theo, không âm thầm lệch lần thứ hai.
+            if (in_array($status, CurrentBaselineComponentFlowController::CASE_STATUSES_ALLOWING_ISSUE, true)) {
+                $issuableCaseIds[] = $caseId;
             }
         }
 
-        return $activeCaseIds;
+        return $issuableCaseIds;
     }
 
     private function seedWarrantyCaseVariant(string $caseCode, string $status, ?string $itemId, ?string $skuId, bool $tempOnly, Carbon $day): string

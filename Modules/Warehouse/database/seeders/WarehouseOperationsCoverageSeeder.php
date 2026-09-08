@@ -736,11 +736,16 @@ class WarehouseOperationsCoverageSeeder extends Seeder
                 ['reversal_id' => (string) $doc->id, 'reversal_no' => $doc->reversal_no], $i % 2 === 0);
         }
 
+        // KHÔNG đọc customer_name ở đây. WWHN-SEC-06 đã mã hoá PII hồ sơ bảo hành
+        // và bỏ hẳn cột thô (2026_09_08_000400) — truy vấn cũ vì thế nổ 42703 và
+        // giết cả db:seed. Quan trọng hơn: `notifications.message` là cột THƯỜNG,
+        // không mã hoá, lại còn được broadcast; giải mã tên khách rồi nhét vào đó
+        // là dựng lại đúng thứ vừa gỡ đi. Mã hồ sơ đã đủ để người kho tra cứu.
         foreach (DB::table('warranty_case')->whereIn('status', ['RECEIVED', 'CHECKING', 'REPAIRING'])
-            ->orderByDesc('received_at')->limit(6)->get(['warranty_case_id', 'warranty_case_code', 'status', 'customer_name']) as $i => $case) {
+            ->orderByDesc('received_at')->limit(6)->get(['warranty_case_id', 'warranty_case_code', 'status']) as $i => $case) {
             $emit($case->status === 'RECEIVED' ? 'warranty.case_created' : 'warranty.status_changed',
                 $case->status === 'RECEIVED' ? 'Tiếp nhận hồ sơ bảo hành mới' : 'Hồ sơ bảo hành đổi trạng thái',
-                "Hồ sơ {$case->warranty_case_code} của khách {$case->customer_name} đang ở trạng thái {$case->status}.",
+                "Hồ sơ {$case->warranty_case_code} đang ở trạng thái {$case->status}.",
                 'info', 'warranty_case', (string) $case->warranty_case_id,
                 ['case_id' => (string) $case->warranty_case_id, 'to_status' => $case->status], $i % 3 === 1);
         }
