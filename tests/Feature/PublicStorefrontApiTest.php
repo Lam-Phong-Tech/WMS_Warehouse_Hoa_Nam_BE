@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\Security\BlindIndex;
 use App\Support\SqliteUnaccentFunction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -9,6 +10,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Models\PublicQuoteRequest;
+use Modules\Warehouse\Models\PublicQuoteRequestItem;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Support\PvRelations;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -693,7 +695,16 @@ class PublicStorefrontApiTest extends TestCase
             ['Idempotency-Key' => 'quote-key-phone-0000001'],
         )->assertStatus(201);
 
-        $this->assertSame('0912345678', PublicQuoteRequest::query()->value('phone_normalized'));
+        // WWHN-SEC-06: cột `phone_normalized` đã bị xoá — nó CHÍNH LÀ số điện
+        // thoại, chỉ bỏ khoảng trắng, nên giữ lại sẽ vô hiệu hoá việc mã hoá
+        // `phone`. Tính chất cần kiểm vẫn y nguyên và nay mạnh hơn: mọi cách gõ
+        // đều quy về CÙNG MỘT vân tay, và ứng dụng vẫn đọc lại đúng số gốc.
+        $this->assertSame('+84 912 345 678', PublicQuoteRequest::query()->firstOrFail()->phone);
+        $this->assertSame(
+            BlindIndex::phone('0912345678'),
+            DB::table('public_quote_requests')->value('phone_lookup'),
+            'Gõ +84/khoảng trắng phải ra cùng vân tay với 0912345678, nếu không người dùng không tìm lại được chính hồ sơ vừa gửi.',
+        );
     }
 
     public function test_quote_request_rejects_product_that_is_not_publicly_visible(): void
@@ -754,6 +765,304 @@ class PublicStorefrontApiTest extends TestCase
             DB::table('inventory_balances')->orderBy('id')->get()->toJson(),
             'Gửi yêu cầu tư vấn đã làm đổi ledger tồn kho.',
         );
+    }
+
+    // ==================================================================
+    // POST /quote-requests — nhiều sản phẩm (`items[]`)
+    // ==================================================================
+
+    /**
+     * Điều khoản trung tâm của hợp đồng nhiều sản phẩm: MỘT yêu cầu, N dòng,
+     * đúng thứ tự khách chọn, kèm ảnh chụp mã/tên để sáu tháng sau còn đọc lại
+     * được. Khoá chặt ở đây vì cả ba đường vòng phía FE (gửi N request, lấy
+     * sản phẩm đầu tiên, nhét vào `note`) đều "chạy được" khi nhìn từ màn hình
+     * — chỉ dữ liệu là sai.
+     */
+    public function test_quote_request_records_every_selected_product_as_its_own_line(): void
+    {
+        $first = $this->visibleSku('QR-M01', 'May bom dong 1');
+        $second = $this->visibleSku('QR-M02', 'May bom dong 2');
+        $third = $this->visibleSku('QR-M03', 'May bom dong 3');
+
+        $response = $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([
+                ['product_id' => $first->sku_id, 'quantity' => 2],
+                ['product_id' => $second->sku_id],
+                ['product_id' => $third->sku_id, 'quantity' => 10],
+            ]),
+            ['Idempotency-Key' => 'quote-key-multi-00000001'],
+        )->assertStatus(201);
+
+        // Hợp đồng response KHÔNG đổi theo: vẫn đúng hai khoá.
+        $this->assertSame(['request_id', 'status'], array_keys($response->json('data')));
+
+        $request = PublicQuoteRequest::query()->sole();
+        $this->assertSame(3, $request->item_count);
+        // Bảng cha giữ dòng 1 làm bản sao tương thích — KHÔNG phải "sản phẩm
+        // duy nhất của yêu cầu".
+        $this->assertSame($first->sku_id, $request->product_id);
+
+        $items = PublicQuoteRequestItem::query()
+            ->where('request_id', $request->id)
+            ->orderBy('line_no')
+            ->get();
+
+        $this->assertSame([1, 2, 3], $items->pluck('line_no')->all());
+        $this->assertSame(
+            [$first->sku_id, $second->sku_id, $third->sku_id],
+            $items->pluck('product_id')->all(),
+            'Thứ tự khách chọn không được sắp lại.',
+        );
+        // null KHÁC 1: dòng 2 khách không nêu số lượng.
+        $this->assertSame([2, null, 10], $items->pluck('quantity')->all());
+        $this->assertSame(['QR-M01', 'QR-M02', 'QR-M03'], $items->pluck('sku_code_snapshot')->all());
+        $this->assertSame('May bom dong 2', $items[1]->product_name_snapshot);
+    }
+
+    public function test_multi_item_request_replays_on_retry_and_conflicts_when_the_selection_changes(): void
+    {
+        $first = $this->visibleSku('QR-M04', 'May bom retry 1');
+        $second = $this->visibleSku('QR-M05', 'May bom retry 2');
+
+        $headers = ['Idempotency-Key' => 'quote-key-multi-00000002'];
+        $payload = $this->quoteItemsPayload([
+            ['product_id' => $first->sku_id],
+            ['product_id' => $second->sku_id],
+        ]);
+
+        $created = $this->postJson(self::BASE.'/quote-requests', $payload, $headers)->assertStatus(201);
+
+        $this->postJson(self::BASE.'/quote-requests', $payload, $headers)
+            ->assertOk()
+            ->assertJsonPath('data.request_id', $created->json('data.request_id'));
+
+        // Bỏ bớt một sản phẩm nhưng giữ nguyên khoá: nội dung đã khác, trả lại
+        // kết quả cũ sẽ giấu mất một lỗi thật của client.
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([['product_id' => $first->sku_id]]),
+            $headers,
+        )->assertStatus(409)->assertJsonPath('error_code', 'IDEMPOTENCY_CONFLICT');
+
+        $this->assertSame(1, PublicQuoteRequest::query()->count());
+        $this->assertSame(2, PublicQuoteRequestItem::query()->count());
+    }
+
+    public function test_single_product_body_still_works_and_becomes_one_line(): void
+    {
+        $sku = $this->visibleSku('QR-M06', 'May bom mot dong');
+
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quotePayload($sku->sku_id),
+            ['Idempotency-Key' => 'quote-key-legacy-0000001'],
+        )->assertStatus(201);
+
+        $this->assertSame(1, PublicQuoteRequest::query()->sole()->item_count);
+
+        $item = PublicQuoteRequestItem::query()->sole();
+        $this->assertSame(1, $item->line_no);
+        $this->assertSame($sku->sku_id, $item->product_id);
+        $this->assertNull($item->quantity);
+        $this->assertSame('QR-M06', $item->sku_code_snapshot);
+    }
+
+    /**
+     * Body một-sản-phẩm phải băm ra ĐÚNG chuỗi như hợp đồng trước khi có
+     * `items[]`. Không giữ được điều này thì mọi lần retry vắt qua thời điểm
+     * deploy sẽ ăn 409 — lỗi chỉ xuất hiện trên production, sống đúng 24h, và
+     * không tài nào tái hiện ở môi trường dev.
+     */
+    public function test_single_product_payload_hash_is_unchanged_by_the_items_contract(): void
+    {
+        $sku = $this->visibleSku('QR-M07', 'May bom bam');
+
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quotePayload($sku->sku_id),
+            ['Idempotency-Key' => 'quote-key-hash-000000001'],
+        )->assertStatus(201);
+
+        // Công thức băm CŨ, chép nguyên văn vào đây làm mốc.
+        $canonical = [
+            'product_id' => $sku->sku_id,
+            'variant_id' => null,
+            'full_name' => 'Nguyễn Văn A',
+            'phone' => '0912345678',
+            'phone_normalized' => '0912345678',
+            'province_code' => null,
+            'note' => null,
+            'privacy_version' => '1.0.0',
+        ];
+        ksort($canonical);
+
+        $this->assertSame(
+            hash('sha256', (string) json_encode($canonical, JSON_UNESCAPED_UNICODE)),
+            PublicQuoteRequest::query()->value('payload_hash'),
+        );
+    }
+
+    public function test_items_shape_rejects_empty_duplicate_and_oversized_selection(): void
+    {
+        $sku = $this->visibleSku('QR-M08', 'May bom validate items');
+
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([]),
+            ['Idempotency-Key' => 'quote-key-items-empty-01'],
+        )->assertStatus(422)->assertJsonPath('error_code', 'VALIDATION_FAILED');
+
+        // Cùng một sản phẩm hai lần là lỗi client; gộp hộ là tự ý sửa nội dung
+        // khách gửi, và khi đó danh sách ghi lại không còn khớp danh sách gửi đi.
+        $duplicate = $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([
+                ['product_id' => $sku->sku_id],
+                ['product_id' => $sku->sku_id],
+            ]),
+            ['Idempotency-Key' => 'quote-key-items-dup-0001'],
+        )->assertStatus(422);
+        $this->assertArrayHasKey('items.1.product_id', $duplicate->json('errors'));
+
+        config()->set('public_api.quote_request.max_items', 2);
+        $second = $this->visibleSku('QR-M09', 'May bom vuot tran 1');
+        $third = $this->visibleSku('QR-M10', 'May bom vuot tran 2');
+
+        $oversized = $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([
+                ['product_id' => $sku->sku_id],
+                ['product_id' => $second->sku_id],
+                ['product_id' => $third->sku_id],
+            ]),
+            ['Idempotency-Key' => 'quote-key-items-max-0001'],
+        )->assertStatus(422);
+        $this->assertArrayHasKey('items', $oversized->json('errors'));
+
+        $this->assertSame(0, PublicQuoteRequest::query()->count());
+    }
+
+    public function test_unavailable_product_names_the_exact_line_and_writes_nothing(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $visible = $this->visibleSku('QR-M11', 'May bom con hang');
+        $hidden = $this->sku('QR-M12', 'May bom chua publish');
+        $this->seedAvailableBalance($warehouse->id, $hidden->sku_id, 5);
+
+        $response = $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([
+                ['product_id' => $visible->sku_id],
+                ['product_id' => $hidden->sku_id],
+            ]),
+            ['Idempotency-Key' => 'quote-key-items-404-0001'],
+        )->assertNotFound()->assertJsonPath('error_code', 'PRODUCT_NOT_FOUND');
+
+        // FE phải bỏ được đúng dòng hỏng thay vì xoá sạch lựa chọn của khách.
+        $this->assertSame(['items.1.product_id'], array_keys($response->json('errors')));
+
+        // Hỏng một dòng thì KHÔNG được tạo yêu cầu nửa vời.
+        $this->assertSame(0, PublicQuoteRequest::query()->count());
+        $this->assertSame(0, PublicQuoteRequestItem::query()->count());
+    }
+
+    public function test_quantity_must_be_a_whole_number_within_the_configured_range(): void
+    {
+        $sku = $this->visibleSku('QR-M13', 'May bom so luong');
+
+        foreach ([0, -1, 'hai', 1.5, 10000] as $index => $quantity) {
+            $response = $this->postJson(
+                self::BASE.'/quote-requests',
+                $this->quoteItemsPayload([['product_id' => $sku->sku_id, 'quantity' => $quantity]]),
+                ['Idempotency-Key' => 'quote-key-items-qty-000'.$index],
+            )->assertStatus(422);
+
+            $this->assertArrayHasKey('items.0.quantity', $response->json('errors'));
+        }
+
+        $this->assertSame(0, PublicQuoteRequest::query()->count());
+    }
+
+    /**
+     * `variant_id` phải là thứ mà chính API danh mục đã đưa xuống.
+     *
+     * Trong danh mục này biến thể KHÔNG phải thực thể riêng — nó là một SKU anh
+     * em cùng family, đúng những id nằm trong `variants[]` của
+     * `GET /products/{slug}`. Luật cũ chỉ chấp nhận `variant_id === product_id`,
+     * nên FE gửi lại chính id mà API vừa đưa cho lại bị 422; luật mới nhận cả
+     * hai và vẫn chặn id của một sản phẩm không liên quan.
+     */
+    public function test_variant_id_must_be_the_product_itself_or_one_of_its_siblings(): void
+    {
+        $product = $this->visibleSku('QR-M16', 'May bom bien the goc');
+        $sibling = $this->visibleSku('QR-M17', 'May bom bien the 220V');
+        $stranger = $this->visibleSku('QR-M18', 'May bom khong lien quan');
+
+        DB::table('sku')
+            ->whereIn('sku_id', [$product->sku_id, $sibling->sku_id])
+            ->update(['family_name' => 'HN-FAMILY-BIEN-THE']);
+
+        // Cách FE cũ nói "không chọn biến thể nào": gửi lại chính product_id.
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([
+                ['product_id' => $product->sku_id, 'variant_id' => $product->sku_id],
+            ]),
+            ['Idempotency-Key' => 'quote-key-items-var-0001'],
+        )->assertStatus(201);
+
+        // Biến thể thật của cùng family.
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([
+                ['product_id' => $product->sku_id, 'variant_id' => $sibling->sku_id],
+            ]),
+            ['Idempotency-Key' => 'quote-key-items-var-0002'],
+        )->assertStatus(201);
+
+        // Một sản phẩm khác hẳn thì không phải biến thể của nó.
+        $rejected = $this->postJson(
+            self::BASE.'/quote-requests',
+            $this->quoteItemsPayload([
+                ['product_id' => $product->sku_id, 'variant_id' => $stranger->sku_id],
+            ]),
+            ['Idempotency-Key' => 'quote-key-items-var-0003'],
+        )->assertStatus(422)->assertJsonPath('error_code', 'VALIDATION_FAILED');
+
+        $this->assertArrayHasKey('items.0.variant_id', $rejected->json('errors'));
+        $this->assertSame(2, PublicQuoteRequest::query()->count());
+    }
+
+    public function test_legacy_product_id_may_ride_along_only_when_it_matches_line_one(): void
+    {
+        $first = $this->visibleSku('QR-M14', 'May bom chuyen tiep 1');
+        $second = $this->visibleSku('QR-M15', 'May bom chuyen tiep 2');
+
+        // FE trong giai đoạn chuyển tiếp gửi kèm cả hai hình để chạy được với
+        // bản BE cũ lẫn mới.
+        $this->postJson(
+            self::BASE.'/quote-requests',
+            ['product_id' => $first->sku_id] + $this->quoteItemsPayload([
+                ['product_id' => $first->sku_id],
+                ['product_id' => $second->sku_id],
+            ]),
+            ['Idempotency-Key' => 'quote-key-items-mix-0001'],
+        )->assertStatus(201);
+
+        // Lệch nhau: hai chỗ trong FE đang nói hai chuyện khác nhau. Im lặng
+        // chọn một bên chính là kiểu sai nghiệp vụ mà hợp đồng này sinh ra để
+        // chặn.
+        $mismatch = $this->postJson(
+            self::BASE.'/quote-requests',
+            ['product_id' => $second->sku_id] + $this->quoteItemsPayload([
+                ['product_id' => $first->sku_id],
+            ]),
+            ['Idempotency-Key' => 'quote-key-items-mix-0002'],
+        )->assertStatus(422);
+
+        $this->assertArrayHasKey('product_id', $mismatch->json('errors'));
+        $this->assertSame(1, PublicQuoteRequest::query()->count());
     }
 
     // ==================================================================
@@ -879,6 +1188,26 @@ class PublicStorefrontApiTest extends TestCase
         return [
             'product_id' => $productId,
             'variant_id' => null,
+            'full_name' => 'Nguyễn Văn A',
+            'phone' => '0912345678',
+            'province_code' => null,
+            'note' => null,
+            'consent' => true,
+            'privacy_version' => '1.0.0',
+        ];
+    }
+
+    /**
+     * Cùng phần thông tin liên hệ như quotePayload(), nhưng phần sản phẩm đi
+     * theo hình `items[]` của hợp đồng nhiều sản phẩm.
+     *
+     * @param  array<int, array<string, mixed>>  $items
+     * @return array<string, mixed>
+     */
+    private function quoteItemsPayload(array $items): array
+    {
+        return [
+            'items' => $items,
             'full_name' => 'Nguyễn Văn A',
             'phone' => '0912345678',
             'province_code' => null,

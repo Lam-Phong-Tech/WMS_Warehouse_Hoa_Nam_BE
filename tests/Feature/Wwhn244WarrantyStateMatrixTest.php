@@ -11,6 +11,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\TestCase;
 
 /**
@@ -275,7 +276,7 @@ class Wwhn244WarrantyStateMatrixTest extends TestCase
         $this->createCase($headers, $item);
 
         $this->expectException(QueryException::class);
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => (string) Str::uuid(),
             'warranty_case_code' => 'WC-BYPASS-'.Str::upper(Str::random(6)),
             'item_id' => $item->item_id,
@@ -292,7 +293,7 @@ class Wwhn244WarrantyStateMatrixTest extends TestCase
             'legal_hold_flag' => false,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
     }
 
     /** Sau khi case đóng (RETURNED/CANCELLED) item được nhận bảo hành lần kế tiếp. */

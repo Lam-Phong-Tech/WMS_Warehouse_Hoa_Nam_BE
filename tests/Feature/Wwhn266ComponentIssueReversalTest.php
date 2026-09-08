@@ -15,6 +15,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
+use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
 
 /**
@@ -40,6 +41,7 @@ use Tests\TestCase;
 class Wwhn266ComponentIssueReversalTest extends TestCase
 {
     use BuildsScanDrivenInbound;
+    use OpensWarrantyCaseForComponentIssue;
     use RefreshDatabase;
 
     private const EVIDENCE_PATH = 'build/evidence/wwhn-266/component-issue-reversal.json';
@@ -129,7 +131,7 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
             'manual_product_description' => 'Máy cắt',
         ], $headers + ['Idempotency-Key' => 'w266r-case-'.(string) Str::uuid()]);
         $case->assertCreated();
-        $caseId = (string) $case->json('data.id');
+        $caseId = $this->moveCaseToChecking($headers, (string) $case->json('data.id'));
 
         $doc = $this->postJson('/api/v1/component-issue-documents', [
             'warehouse_id' => $warehouseId,

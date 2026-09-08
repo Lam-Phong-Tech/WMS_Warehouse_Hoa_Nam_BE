@@ -1197,7 +1197,7 @@ paths:
       summary: Đối chiếu balance với ledger movement (RPT-INV-01)
       x-canonical-scope: HOA_NAM_G1
       x-stock-effect: NONE
-      x-permission: report.view
+      x-permission: report.stock_reconcile.view
       x-runtime-source: OperationalReportController@inventoryReconciliation
       x-requires-if-match: false
       x-requires-idempotency-key: false

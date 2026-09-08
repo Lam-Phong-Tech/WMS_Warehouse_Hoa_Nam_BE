@@ -137,6 +137,68 @@ class PublicCatalogReadModel
     }
 
     /**
+     * Kiểm tra hiển thị + lấy ảnh chụp mã/tên cho NHIỀU sản phẩm bằng MỘT câu.
+     *
+     * Một yêu cầu tư vấn nhiều sản phẩm mà hỏi từng cái một sẽ nhân baseQuery()
+     * — vốn có subquery cộng tồn kho — lên N lần cho mỗi lần bấm gửi. Trả về
+     * luôn mã và tên vì cùng một hàng đó chính là "ảnh chụp tại thời điểm gửi"
+     * mà bảng items cần: tra lại lần nữa lúc ghi là mở ra khe hở để hai giá trị
+     * lệch nhau.
+     *
+     * Sản phẩm không hiển thị công khai thì KHÔNG có khoá trong mảng kết quả —
+     * người gọi so khớp khoá để biết dòng nào hỏng.
+     *
+     * @param  array<int, string>  $productIds
+     * @return array<string, array{code: string, name: string}>
+     */
+    public function visibleProductSnapshots(array $productIds): array
+    {
+        $productIds = array_values(array_unique(array_filter($productIds)));
+        if ($productIds === []) {
+            return [];
+        }
+
+        return $this->baseQuery()
+            ->whereIn('s.sku_id', $productIds)
+            ->get()
+            ->mapWithKeys(fn (object $row): array => [
+                (string) $row->sku_id => [
+                    'code' => (string) $row->sku_code,
+                    'name' => (string) ($row->display_name ?: $row->sku_name),
+                ],
+            ])
+            ->all();
+    }
+
+    /**
+     * `variant_id` có thật sự là một biến thể của `product_id` không.
+     *
+     * Trong danh mục này biến thể KHÔNG phải một thực thể riêng: nó là một SKU
+     * anh em cùng family (xem variantsOf()). Nên câu hỏi đúng là "hai SKU này
+     * có cùng family, cùng nhãn hiệu, cùng nhóm hàng không", và dùng lại đúng
+     * siblingRows() mà GET /products/{slug} dùng để dựng danh sách `variants` —
+     * FE gửi lên id nào cũng phải khớp với id mà chính API đó đã đưa xuống.
+     *
+     * `variant_id === product_id` vẫn hợp lệ: đó là cách FE cũ nói "không chọn
+     * biến thể nào cả".
+     */
+    public function variantBelongsToProduct(string $productId, string $variantId): bool
+    {
+        if ($variantId === $productId) {
+            return true;
+        }
+
+        $row = $this->baseQuery()->where('s.sku_id', $productId)->first();
+        if ($row === null) {
+            return false;
+        }
+
+        return $this->siblingRows($row)->contains(
+            fn (object $sibling): bool => (string) $sibling->sku_id === $variantId
+        );
+    }
+
+    /**
      * Sản phẩm liên quan. Ba nhánh nối bằng HOẶC, theo thứ tự liên quan giảm
      * dần: cùng nhóm hàng, chia sẻ ít nhất một feature, hoặc cùng domain.
      *

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Events\StockDocumentScanStarted;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
 use Modules\Warehouse\Support\ProductQrPayload;
 
 class CurrentBaselineStockService
@@ -695,9 +696,20 @@ class CurrentBaselineStockService
                 ApiError::abort(422, 'COMPONENT_PURPOSE_INVALID', 'Component Issue chỉ cho purpose=WARRANTY.');
             }
 
+            // Guard cuối cùng ngay trước khi trừ tồn: chỉ hồ sơ Đang kiểm tra/Đang
+            // sửa chữa mới được xuất linh kiện (CurrentBaselineComponentFlowController
+            // ::CASE_STATUSES_ALLOWING_ISSUE). Nhân đôi với controller là CÓ CHỦ ĐÍCH —
+            // đây mới là nơi gọi mutateBalance(), controller chỉ là một đường vào.
             $case = DB::table('warranty_case')->where('warranty_case_id', $document->warranty_case_id)->lockForUpdate()->first();
             if ($case === null || in_array($case->status, ['RETURNED', 'CANCELLED'], true)) {
                 ApiError::abort(422, 'WARRANTY_CASE_NOT_ACTIVE', 'Component Issue yêu cầu warranty case đang active.');
+            }
+            if (! in_array(strtoupper((string) $case->status), CurrentBaselineComponentFlowController::CASE_STATUSES_ALLOWING_ISSUE, true)) {
+                ApiError::abort(422, 'WARRANTY_CASE_STATUS_NOT_ALLOWED', 'Chỉ hồ sơ bảo hành đang kiểm tra hoặc đang sửa chữa mới được xuất linh kiện.', [
+                    'warranty_case_id' => (string) $case->warranty_case_id,
+                    'warranty_case_status' => strtoupper((string) $case->status),
+                    'allowed_statuses' => CurrentBaselineComponentFlowController::CASE_STATUSES_ALLOWING_ISSUE,
+                ]);
             }
 
             $lines = DB::table('component_issue_lines')->where('component_issue_document_id', $documentId)->orderBy('line_no')->lockForUpdate()->get();

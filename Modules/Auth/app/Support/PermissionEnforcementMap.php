@@ -65,6 +65,15 @@ final class PermissionEnforcementMap
         'GET api/v1/auth/me',
         'POST api/v1/auth/logout',
         'POST api/v1/auth/change-password',
+        // Tự quản lý xác thực hai bước của CHÍNH mình. MfaService khoá mọi truy
+        // vấn theo `user_id = <actor>` và không nhận tham số nào trỏ sang user
+        // khác, nên không có đường leo thang. Gắn `permission:` vào đây sẽ biến
+        // việc tự bật MFA thành một quyền phải được cấp — đúng chiều ngược lại
+        // với mục tiêu bảo mật, và sẽ chặn luôn cả người đang bị bắt buộc bật.
+        'GET api/v1/auth/mfa/status',
+        'POST api/v1/auth/mfa/enroll',
+        'POST api/v1/auth/mfa/confirm',
+        'POST api/v1/auth/mfa/disable',
         'POST api/v1/auth/switch-context',
         'GET api/v1/audit-logs/me',
         'GET api/v1/notifications',

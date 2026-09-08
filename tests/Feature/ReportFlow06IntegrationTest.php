@@ -15,6 +15,7 @@ use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -1214,7 +1215,7 @@ class ReportFlow06IntegrationTest extends TestCase
         // chk_erd_warranty_identification_shape: IDENTIFIED đòi item_id;
         // report fixture không cần item nên dùng shape TEMP_ONLY đầy đủ.
         $caseId = (string) Str::uuid();
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $caseId,
             'warranty_case_code' => $code,
             'identification_status' => 'TEMP_ONLY',
@@ -1232,7 +1233,7 @@ class ReportFlow06IntegrationTest extends TestCase
             'created_by' => $this->user->user_id,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
 
         // BaM1ReportController::warrantyDefects()/defectSkuBreakdown() đọc quan hệ
         // N:N warranty_case_defects (một case có thể nhiều bệnh/lỗi), không phải

@@ -19,6 +19,7 @@ use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\ProductQrPayload;
 use OpenApi\Attributes as OA;
+use Modules\Warehouse\Support\WarrantyCasePii;
 
 /**
  * Lịch sử biến động tồn (inventory_movement) — append-only, không cho sửa/xoá.
@@ -591,19 +592,24 @@ class StockMovementController extends Controller
             ->leftJoin('defect_catalog', 'warranty_case.defect_id', '=', 'defect_catalog.defect_id')
             ->where('warranty_case.item_id', $itemId)
             ->orderByDesc('warranty_case.received_at')
-            ->select(
-                'warranty_case.warranty_case_id', 'warranty_case.warranty_case_code',
-                'warranty_case.status', 'warranty_case.identification_status',
-                'warranty_case.customer_name', 'warranty_case.customer_phone',
-                'warranty_case.description', 'warranty_case.confirmed_defect',
-                'warranty_case.received_at', 'warranty_case.completed_at', 'warranty_case.returned_at',
-                'warranty_case.created_at', 'defect_catalog.defect_name'
-            )
+            ->select(array_merge(
+                [
+                    'warranty_case.warranty_case_id', 'warranty_case.warranty_case_code',
+                    'warranty_case.status', 'warranty_case.identification_status',
+                    'warranty_case.description', 'warranty_case.confirmed_defect',
+                    'warranty_case.received_at', 'warranty_case.completed_at', 'warranty_case.returned_at',
+                    'warranty_case.created_at', 'defect_catalog.defect_name',
+                ],
+                // WWHN-SEC-06 — ciphertext thay cho hai cột PII.
+                WarrantyCasePii::selectColumns('warranty_case'),
+            ))
             ->get();
 
         if ($cases->isEmpty()) {
             return collect();
         }
+
+        WarrantyCasePii::decodeRows($cases);
 
         $showContact = (bool) $request->user()?->hasPermission('warranty.pii.view');
         $events = DB::table('warranty_event')

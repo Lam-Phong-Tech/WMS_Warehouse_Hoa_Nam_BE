@@ -1032,7 +1032,8 @@ class MiniAppNfcController extends Controller
     /** @return array<string, mixed>|null */
     private function activeWarrantyPayload(string $itemId): ?array
     {
-        if (! SchemaCache::hasTable('warranty_case') || ! SchemaCache::hasColumn('warranty_case', 'item_id')) {
+        if ((! SchemaCache::hasTable('warranty_case') && ! SchemaCache::hasView('warranty_case'))
+            || ! SchemaCache::hasRelationColumn('warranty_case', 'item_id')) {
             return null;
         }
 

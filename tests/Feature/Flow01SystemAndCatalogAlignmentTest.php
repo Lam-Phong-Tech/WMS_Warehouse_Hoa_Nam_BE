@@ -10,6 +10,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -242,7 +243,7 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
         // missing_code_reason + manual_product_description. Bản cũ khai IDENTIFIED mà
         // không có item nên chỉ chạy được trên sqlite (nhánh không có CHECK này).
         $caseId = (string) Str::uuid();
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $caseId,
             'warranty_case_code' => 'WC-DEF-OFF',
             'identification_status' => 'TEMP_ONLY',
@@ -256,7 +257,7 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
             'legal_hold_flag' => false,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
 
         $this->postJson("/api/v1/warranty-cases/{$caseId}/temp-only", [
             'temporary_item_code' => 'TEMP-0001',

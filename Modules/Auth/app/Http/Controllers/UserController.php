@@ -302,7 +302,7 @@ class UserController extends Controller
             $roleId = (string) $assignment['role_id'];
             $pivot = ['user_role_id' => (string) Str::uuid()];
             foreach (['scope_ref', 'effective_from', 'effective_to'] as $column) {
-                if (array_key_exists($column, $assignment) && SchemaCache::hasColumn('user_role', $column)) {
+                if (array_key_exists($column, $assignment) && SchemaCache::hasRelationColumn('user_role', $column)) {
                     $pivot[$column] = $assignment[$column];
                 }
             }

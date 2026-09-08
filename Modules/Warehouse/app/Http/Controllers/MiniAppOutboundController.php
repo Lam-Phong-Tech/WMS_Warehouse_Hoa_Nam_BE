@@ -434,12 +434,12 @@ class MiniAppOutboundController extends Controller
             && (SchemaCache::hasTable('scan_event') || SchemaCache::hasView('scan_event'));
         if ($hasScanEvent) {
             $query->leftJoin('scan_event as se', 'se.scan_event_id', '=', 'm.scan_event_id');
-            if (SchemaCache::hasColumn('scan_event', 'raw_code')) {
+            if (SchemaCache::hasRelationColumn('scan_event', 'raw_code')) {
                 $columns[] = 'se.raw_code';
             } else {
                 $columns[] = DB::raw('NULL as raw_code');
             }
-            if (SchemaCache::hasColumn('scan_event', 'scan_source')) {
+            if (SchemaCache::hasRelationColumn('scan_event', 'scan_source')) {
                 $columns[] = 'se.scan_source';
             } else {
                 $columns[] = DB::raw('NULL as scan_source');

@@ -433,7 +433,7 @@ class MiniAppInboundController extends Controller
 
         $hasScanEvent = SchemaCache::hasColumn('inbound_scan_entries', 'scan_event_id')
             && (SchemaCache::hasTable('scan_event') || SchemaCache::hasView('scan_event'))
-            && SchemaCache::hasColumn('scan_event', 'raw_code');
+            && SchemaCache::hasRelationColumn('scan_event', 'raw_code');
 
         $query = DB::table('inbound_scan_entries as e')
             ->join('stock_document_lines as l', 'l.id', '=', 'e.inbound_line_id')

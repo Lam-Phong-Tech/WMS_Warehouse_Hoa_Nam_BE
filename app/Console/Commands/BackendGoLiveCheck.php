@@ -2,7 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Http\Middleware\EnsureApiDocsEnabled;
 use App\Support\HoaNamErdSchema;
+use App\Support\Security\PiiKeyring;
 use Illuminate\Console\Command;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Support\Facades\DB;
@@ -70,6 +72,56 @@ class BackendGoLiveCheck extends Command
         'api/v1/pv/industries',
         'api/v1/pv/recommendations',
         'api/v1/pv/tags',
+
+        // ---- WWHN-SEC-04 (07/09/2026) --------------------------------------
+        // Danh sách trên được viết khi hệ thống mới chỉ có App PV. Từ đó thêm cả
+        // mặt storefront `api/v1/public/*` và hai bước còn lại của luồng quên
+        // mật khẩu, nhưng allowlist không được cập nhật — nên gate
+        // `security.route_default_deny` đỏ liên tục vì 14 route CÓ CHỦ Ý công
+        // khai. Một gate đỏ thường trực là gate bị bỏ qua, nên nó phải phản ánh
+        // đúng thực tế thì mới dùng làm cổng chặn deploy được.
+        //
+        // Đã kiểm từng route trước khi thêm (không thêm hàng loạt theo tiền tố):
+        // toàn bộ nhóm này đều là GET chỉ đọc dữ liệu đã publish, hoặc là các
+        // bước trao đổi credential vốn không thể yêu cầu đăng nhập trước. Mỗi
+        // route đều có trần gọi riêng — xem `config/rate_limit.php`.
+        'api/v1/public/home',
+        'api/v1/public/config',
+        'api/v1/public/categories',
+        'api/v1/public/facets',
+        'api/v1/public/products',
+        'api/v1/public/products/{slug}',
+        'api/v1/public/products/{slug}/related',
+        'api/v1/public/health/version',
+
+        // Ghi PII từ người ẩn danh — an toàn nhờ throttle 5/phút khoá theo
+        // (IP + số điện thoại), validation tường minh và DB constraint.
+        'api/v1/public/quote-requests',
+
+        // Ảnh sản phẩm App PV. `KEY_PATTERN` ép {key} là UUID + đuôi ảnh nên
+        // không mở đường path traversal.
+        'api/v1/pv/product-images/{key}',
+
+        // Luồng quên mật khẩu: cả ba bước đều phải gọi được khi CHƯA đăng nhập.
+        // Cả ba nay đều có limiter riêng — bước reset-password mới được bổ sung
+        // ở WWHN-SEC-04, trước đó là endpoint ẩn danh duy nhất không có trần.
+        'api/v1/auth/forgot-password',
+        'api/v1/auth/verify-otp',
+        'api/v1/auth/reset-password',
+
+        // Chỉ tăng counter Web Vitals trong Valkey, whitelist LCP/INP/CLS.
+        'api/v1/telemetry/vitals',
+
+        // ---- WWHN-SEC-08 ----------------------------------------------------
+        // Bước 2 của đăng nhập. KHÔNG thể yêu cầu `auth:api`: đúng lúc gọi nó,
+        // người dùng mới qua bước mật khẩu và CỐ Ý chưa được phát token nào —
+        // thêm auth vào đây sẽ làm luồng đăng nhập không bao giờ hoàn tất được.
+        //
+        // Thứ thay thế vai trò của `auth:api` ở endpoint này là mã phiên chờ
+        // dùng-một-lần (hết hạn 5 phút, huỷ ngay khi tiêu thụ), cộng hai lớp
+        // chống dò độc lập: `throttle:auth-mfa-verify` theo (IP + mfa_token) và
+        // trần theo TÀI KHOẢN trong MfaService (failed_attempts/locked_until).
+        'api/v1/auth/mfa/verify',
     ];
 
     /**
@@ -83,6 +135,47 @@ class BackendGoLiveCheck extends Command
         'api/v1/auth/logout',
         'api/v1/auth/change-password',
         'api/v1/auth/switch-context',
+
+        // ---- WWHN-SEC-04 (07/09/2026) --------------------------------------
+        // Sáu route dưới đây đã có `auth:api` nhưng không có `permission:`, nên
+        // gate xếp chúng vào "authenticated_without_permission". Đã đọc từng
+        // controller: tất cả đều lọc CỨNG theo user_id của chính người gọi, nên
+        // không có quyền nào để mà kiểm.
+        //
+        // CẢNH BÁO CHO NGƯỜI SỬA SAU: tính an toàn ở đây nằm trong câu query,
+        // KHÔNG nằm ở middleware. Bỏ mệnh đề `where('user_id', ...)` trong bất
+        // kỳ controller nào bên dưới sẽ biến nó thành lỗ hổng đọc dữ liệu người
+        // khác mà gate này KHÔNG bắt được — nó chỉ kiểm cấu hình route.
+        'api/v1/notifications',
+        'api/v1/notifications/unread-count',
+        'api/v1/notifications/read-all',
+        'api/v1/notifications/{id}/read',
+
+        // Ép cứng object_type='user' + object_id = user_id người gọi bằng scope
+        // closure, không đi qua danh sách filter nên client không override được.
+        'api/v1/audit-logs/me',
+
+        // Uỷ quyền cho Broadcast::auth(); routes/channels.php chỉ khai kênh
+        // `user.{userId}` với điều kiện so khớp chính chủ, kênh không khai báo
+        // thì mặc định từ chối.
+        'api/v1/broadcasting/auth',
+
+        // ---- WWHN-SEC-08 ----------------------------------------------------
+        // Quản lý MFA của CHÍNH tài khoản đang đăng nhập. Không có `permission:`
+        // vì không tồn tại quyền nào để kiểm: mọi thao tác đều đọc/ghi bản ghi
+        // `user_mfa` khoá theo `auth()->user()->user_id`, không nhận id từ client.
+        //
+        // Thêm `permission:` vào nhóm này còn TẠO RA lỗ hổng thay vì bịt: người
+        // chưa được cấp quyền đó sẽ không tự bật được MFA, tức là lớp bảo vệ chỉ
+        // đến được với những người vốn đã có nhiều quyền nhất.
+        //
+        // `disable` là thao tác nguy hiểm nhất trong nhóm và được bảo vệ ở tầng
+        // controller thay vì tầng route: đòi mật khẩu hiện tại + một mã hợp lệ,
+        // và từ chối thẳng nếu vai trò thuộc nhóm bắt buộc MFA.
+        'api/v1/auth/mfa/status',
+        'api/v1/auth/mfa/enroll',
+        'api/v1/auth/mfa/confirm',
+        'api/v1/auth/mfa/disable',
     ];
 
     /**
@@ -118,6 +211,12 @@ class BackendGoLiveCheck extends Command
         $this->check('security.runtime_config', fn (): array => $this->runtimeConfig());
         $this->check('security.browser_runtime_contract', $this->browserRuntimeContract(...));
         $this->check('security.route_default_deny', $this->routeDefaultDeny(...));
+        // WWHN-SEC-05 — bien van chuyen tang du lieu (DB / Redis / object storage).
+        $this->check('security.data_transport', $this->dataTransport(...));
+        // WWHN-SEC-06 — du lieu ca nhan o trang thai nghi.
+        $this->check('security.pii_at_rest', $this->piiAtRest(...));
+        // WWHN-SEC-08 — xac thuc hai buoc cho tai khoan dac quyen.
+        $this->check('security.mfa', $this->mfaReadiness(...));
         $this->check('release.build_identity', $this->buildIdentity(...));
         $this->check('runtime.queue_retry_window', $this->queueRetryWindow(...));
         $this->check('core.idempotency_store', $this->idempotencyStore(...));
@@ -521,6 +620,40 @@ class BackendGoLiveCheck extends Command
             $findings['jwt_secret'] = 'JWT_SECRET vẫn là giá trị mặc định dùng cho test.';
         }
 
+        // WWHN-SEC-04 — trần vòng đời token. Lý do đầy đủ ở config/golive.php
+        // ('session'). Tóm tắt: access token là JWT stateless, TTL của nó CHÍNH
+        // LÀ trần thời gian một token bị đánh cắp còn dùng được.
+        if (! $isDevelopment) {
+            $rawTtl = config('jwt.ttl');
+            $maxTtl = (int) config('golive.session.max_jwt_ttl_minutes', 120);
+
+            if ($rawTtl === null || $rawTtl === '') {
+                // tymon/jwt-auth coi ttl null là "không bao giờ hết hạn".
+                $findings['jwt_ttl'] = 'JWT_TTL trống — token sẽ KHÔNG BAO GIỜ hết hạn.';
+            } elseif ($maxTtl > 0 && (int) $rawTtl > $maxTtl) {
+                $findings['jwt_ttl'] = sprintf(
+                    'JWT_TTL=%d phút vượt trần %d phút (golive.session.max_jwt_ttl_minutes). '
+                    .'Dùng refresh token xoay vòng cho thiết bị chạy dài, đừng kéo dài access token.',
+                    (int) $rawTtl,
+                    $maxTtl,
+                );
+            }
+
+            $maxRefreshTtl = (int) config('golive.session.max_jwt_refresh_ttl_minutes', 20160);
+            $refreshTtl = (int) config('jwt.refresh_ttl');
+            if ($maxRefreshTtl > 0 && $refreshTtl > $maxRefreshTtl) {
+                $findings['jwt_refresh_ttl'] = sprintf(
+                    'JWT_REFRESH_TTL=%d phút vượt trần %d phút (golive.session.max_jwt_refresh_ttl_minutes).',
+                    $refreshTtl,
+                    $maxRefreshTtl,
+                );
+            }
+
+            if (! config('jwt.blacklist_enabled')) {
+                $findings['jwt_blacklist'] = 'JWT_BLACKLIST_ENABLED=false — đăng xuất không thu hồi được access token đã phát.';
+            }
+        }
+
         // WWHN-295: BE luôn chạy sau nginx/TLS terminator. Không khai trusted proxy
         // thì $request->ip() ghi vào refresh_tokens.ip_address là IP của proxy —
         // trường bằng chứng phiên đăng nhập mất giá trị điều tra mà không có lỗi nào.
@@ -554,6 +687,357 @@ class BackendGoLiveCheck extends Command
                 'debug_override_environments' => array_values((array) config('golive.debug_override_environments', [])),
                 'trusted_proxies' => $trustedProxies === '' ? null : $trustedProxies,
                 'findings' => $findings,
+            ],
+        ];
+    }
+
+    /**
+     * WWHN-SEC-08 — xác thực hai bước cho tài khoản đặc quyền.
+     *
+     * Ba trạng thái khác hẳn nhau mà nếu không kiểm thì đều trông giống "đã có
+     * MFA" trong một bản báo cáo:
+     *
+     *  1. Tính năng có mặt nhưng CƯỠNG CHẾ TẮT — MFA chỉ là tuỳ chọn, và lớp bảo
+     *     vệ tồn tại đúng với những người vốn đã cẩn thận.
+     *  2. Cưỡng chế bật nhưng KHÔNG CÓ tài khoản đặc quyền nào đăng ký — nghĩa là
+     *     đúng vào lúc bật, toàn bộ quản trị viên bị chặn ra ngoài. Đây là lý do
+     *     trình tự đúng luôn là: deploy -> đăng ký -> mới bật cờ.
+     *  3. Cưỡng chế bật và mọi tài khoản đặc quyền đã đăng ký — trạng thái đích.
+     *
+     * @return array{status:string, detail:array<string,mixed>}
+     */
+    private function mfaReadiness(): array
+    {
+        $isDevelopment = $this->isDevelopment();
+        $findings = [];
+        $warnings = [];
+
+        $enforced = (bool) config('mfa.enforce', false);
+        $requiredRoles = array_values(array_filter(array_map(
+            static fn ($role): string => strtoupper(trim((string) $role)),
+            (array) config('mfa.required_roles', []),
+        )));
+
+        if ($requiredRoles === []) {
+            $message = 'MFA_REQUIRED_ROLES trống — không vai trò nào bắt buộc xác thực hai bước.';
+            $isDevelopment ? $warnings['mfa_no_required_roles'] = $message : $findings['mfa_no_required_roles'] = $message;
+        }
+
+        if (! $enforced && ! $isDevelopment) {
+            $findings['mfa_not_enforced'] = 'MFA_ENFORCE_FOR_PRIVILEGED_ROLES=false ngoài local/testing — '
+                .'tài khoản đặc quyền vẫn đăng nhập được chỉ bằng mật khẩu. '
+                .'Trình tự đúng: quản trị viên đăng ký MFA trước, rồi bật cờ này.';
+        }
+
+        // Đếm tài khoản ACTIVE có vai trò bắt buộc nhưng CHƯA bật MFA.
+        $privilegedWithoutMfa = null;
+        $privilegedTotal = null;
+
+        if ($requiredRoles !== [] && Schema::hasTable('user_mfa') && Schema::hasTable('user_role') && Schema::hasTable('role')) {
+            $privilegedIds = DB::table('user_role as ur')
+                ->join('role as r', 'r.role_id', '=', 'ur.role_id')
+                ->whereIn(DB::raw('UPPER(r.role_code)'), $requiredRoles)
+                ->distinct()
+                ->pluck('ur.user_id')
+                ->map(static fn ($id): string => (string) $id)
+                ->all();
+
+            $privilegedTotal = count($privilegedIds);
+
+            if ($privilegedIds !== []) {
+                $enrolled = DB::table('user_mfa')
+                    ->whereIn('user_id', $privilegedIds)
+                    ->whereNotNull('confirmed_at')
+                    ->count();
+
+                $privilegedWithoutMfa = $privilegedTotal - $enrolled;
+
+                if ($privilegedWithoutMfa > 0 && ! $isDevelopment) {
+                    $message = $privilegedWithoutMfa.'/'.$privilegedTotal.' tài khoản đặc quyền chưa đăng ký MFA.';
+                    // Cưỡng chế ĐANG bật mà còn tài khoản chưa đăng ký = những
+                    // người đó sẽ bị chặn ngay khi cutover. Cưỡng chế chưa bật thì
+                    // đây chỉ là cảnh báo tiến độ.
+                    $enforced
+                        ? $findings['mfa_privileged_locked_out'] = $message.' Cưỡng chế đang BẬT — họ sẽ bị chặn ngay sau cutover.'
+                        : $warnings['mfa_privileged_pending'] = $message;
+                }
+            }
+        }
+
+        return [
+            'status' => $findings !== [] ? 'fail' : ($warnings !== [] ? 'warn' : 'ok'),
+            'detail' => [
+                'environment_class' => $isDevelopment ? 'development' : 'production-like',
+                'enforced' => $enforced,
+                'required_roles' => $requiredRoles,
+                'privileged_accounts' => $privilegedTotal,
+                'privileged_without_mfa' => $privilegedWithoutMfa,
+                'totp' => [
+                    'digits' => (int) config('mfa.totp.digits'),
+                    'period_seconds' => (int) config('mfa.totp.period'),
+                    'window_steps' => (int) config('mfa.totp.window'),
+                ],
+                'max_verify_attempts' => (int) config('mfa.max_verify_attempts'),
+                'findings' => $findings,
+                'warnings' => $warnings,
+            ],
+        ];
+    }
+
+    /**
+     * WWHN-SEC-06 — dữ liệu cá nhân ở trạng thái NGHỈ.
+     *
+     * Ba câu hỏi mà một môi trường production phải trả lời được, và trước check
+     * này không ai trả lời được câu nào:
+     *
+     *  1. Keyring PII có được khai tường minh không, hay hệ thống đang chạy bằng
+     *     khoá DẪN XUẤT từ APP_KEY? Khoá dẫn xuất là tiện ích dành cho máy lập
+     *     trình viên. Trên dữ liệu thật nó có nghĩa là: ai đọc được APP_KEY (biến
+     *     môi trường, dump cấu hình, log lỗi có config) là giải mã được toàn bộ
+     *     PII — tức lớp mã hoá không bảo vệ thêm được gì.
+     *
+     *  2. Khoá mã hoá và khoá blind index có PHẢI là hai khoá khác nhau không?
+     *     Dùng chung thì một khoá lộ vừa giải mã được dữ liệu vừa cho phép dựng
+     *     bảng tra ngược số điện thoại.
+     *
+     *  3. Cột plaintext đã thực sự biến mất khỏi schema chưa? Có ciphertext mà
+     *     vẫn còn cột plaintext bên cạnh thì bản dump vẫn đọc được như cũ —
+     *     đây đúng là trạng thái giữa Phase 1 và Phase 6, và nó KHÔNG được coi
+     *     là "đã mã hoá".
+     *
+     * @return array{status:string, detail:array<string,mixed>}
+     */
+    private function piiAtRest(): array
+    {
+        $isDevelopment = $this->isDevelopment();
+        $findings = [];
+        $warnings = [];
+
+        $derivedEncryption = null;
+        $derivedBlindIndex = null;
+        $sameKeyMaterial = null;
+
+        try {
+            $derivedEncryption = PiiKeyring::isDerived(PiiKeyring::PURPOSE_ENCRYPTION);
+            $derivedBlindIndex = PiiKeyring::isDerived(PiiKeyring::PURPOSE_BLIND_INDEX);
+
+            // So sánh bằng hash_equals trên chính vật liệu khoá. Không log, không
+            // trả giá trị ra ngoài — chỉ trả về true/false.
+            $sameKeyMaterial = hash_equals(
+                PiiKeyring::activeKey(PiiKeyring::PURPOSE_ENCRYPTION),
+                PiiKeyring::activeKey(PiiKeyring::PURPOSE_BLIND_INDEX),
+            );
+        } catch (Throwable $error) {
+            $findings['pii_keyring'] = 'Không phân giải được keyring PII: '.mb_substr($error->getMessage(), 0, 200);
+        }
+
+        if (! $isDevelopment) {
+            if ($derivedEncryption === true) {
+                $findings['pii_encryption_key_derived'] = 'PII_ENCRYPTION_KEYS chưa khai — hệ thống đang dùng khoá dẫn xuất từ APP_KEY. '
+                    .'Sinh khoá bằng `php artisan pii:make-key` và đưa vào secret manager.';
+            }
+            if ($derivedBlindIndex === true) {
+                $findings['pii_blind_index_key_derived'] = 'PII_BLIND_INDEX_KEYS chưa khai — blind index đang dùng khoá dẫn xuất từ APP_KEY.';
+            }
+        }
+
+        if ($sameKeyMaterial === true) {
+            $findings['pii_key_reuse'] = 'Khoá mã hoá và khoá blind index đang GIỐNG NHAU. '
+                .'Một khoá lộ sẽ vừa giải mã dữ liệu vừa dựng được bảng tra ngược — phải là hai khoá riêng.';
+        }
+
+        // Trạng thái schema: cột plaintext còn hay hết.
+        //
+        // Kiểm trên BẢNG GỐC, không phải view: `warranty_case` là view legacy,
+        // còn dữ liệu thật (thứ nằm trong bản dump) ở `warranty_cases`.
+        $plaintextWatchlist = [
+            'public_quote_requests' => ['full_name', 'phone', 'phone_normalized', 'note'],
+            'warranty_cases' => ['customer_name', 'customer_phone', 'customer_address'],
+        ];
+
+        $pendingPlaintextColumns = [];
+
+        foreach ($plaintextWatchlist as $relation => $columns) {
+            if (! Schema::hasTable($relation)) {
+                continue;
+            }
+
+            foreach ($columns as $column) {
+                if (Schema::hasColumn($relation, $column)) {
+                    $pendingPlaintextColumns[] = $relation.'.'.$column;
+                }
+            }
+        }
+
+        if ($pendingPlaintextColumns !== []) {
+            $message = 'Cột plaintext còn tồn tại: '.implode(', ', $pendingPlaintextColumns)
+                .'. Chạy `php artisan pii:quote-requests --encrypt` / `pii:warranty-cases --encrypt`, rồi `--verify`, '
+                .'rồi `php artisan migrate` (Phase 6). Chừng nào cột còn đó thì bản dump vẫn đọc được như trước khi mã hoá.';
+            $isDevelopment ? $warnings['pii_plaintext_columns'] = $message : $findings['pii_plaintext_columns'] = $message;
+        }
+
+        return [
+            'status' => $findings !== [] ? 'fail' : ($warnings !== [] ? 'warn' : 'ok'),
+            'detail' => [
+                'environment_class' => $isDevelopment ? 'development' : 'production-like',
+                // Chỉ trạng thái, KHÔNG bao giờ là giá trị khoá hay key id thật.
+                'encryption_key_derived_from_app_key' => $derivedEncryption,
+                'blind_index_key_derived_from_app_key' => $derivedBlindIndex,
+                'encryption_and_blind_index_share_key' => $sameKeyMaterial,
+                'encrypted_columns' => array_values((array) config('pii.classification.encrypted', [])),
+                'blind_indexed_columns' => array_values((array) config('pii.classification.blind_indexed', [])),
+                'plaintext_columns_remaining' => $pendingPlaintextColumns,
+                'findings' => $findings,
+                'warnings' => $warnings,
+            ],
+        ];
+    }
+
+    /**
+     * WWHN-SEC-05 — biên vận chuyển của TẦNG DỮ LIỆU.
+     *
+     * `security.browser_runtime_contract` đã phủ biên browser <-> API (HTTPS,
+     * CORS, cookie). Nhưng phía SAU API vẫn còn ba đường mạng chở đúng thứ dữ
+     * liệu mà TLS phía trước đang bảo vệ, và trước check này không có gate nào
+     * nhìn tới chúng:
+     *
+     *  1. API -> PostgreSQL: mọi câu lệnh, mật khẩu ứng dụng, PII phiếu bảo hành.
+     *     `sslmode=prefer` (giá trị cũ của repo) THÀNH CÔNG cả khi server từ chối
+     *     TLS — libpq tự hạ xuống kết nối rõ, không exception, không log.
+     *  2. API -> Valkey/Redis: session, hàng đợi, bộ đếm rate-limit và cache đọc
+     *     (payload báo cáo bảo hành có customer_name/phone/address).
+     *  3. API -> object storage: file export báo cáo, ảnh/video hồ sơ bảo hành.
+     *
+     * Gate này CỐ Ý không tự "sửa" gì. Nó chỉ từ chối cutover khi cấu hình cho
+     * phép rơi xuống plaintext ngoài local/testing, và nói rõ thiếu gì.
+     *
+     * Ranh giới hiểu biết: lệnh này đọc CẤU HÌNH, không đo được rằng handshake
+     * TLS thật sự đã xảy ra (điều đó cần quyền trên cụm DB/Redis). Vì vậy phần
+     * `verified` của detail ghi rõ 'config' — reviewer không được đọc PASS ở đây
+     * thành "đã kiểm chứng trên đường dây".
+     *
+     * @return array{status:string, detail:array<string,mixed>}
+     */
+    private function dataTransport(): array
+    {
+        $isDevelopment = $this->isDevelopment();
+        $findings = [];
+        $warnings = [];
+
+        // --- PostgreSQL ------------------------------------------------------
+        $driver = (string) config('database.default');
+        $pgsql = (array) config('database.connections.pgsql', []);
+        $sslMode = strtolower(trim((string) ($pgsql['sslmode'] ?? '')));
+        $sslRootCert = trim((string) ($pgsql['sslrootcert'] ?? ''));
+
+        // disable/allow/prefer đều CHO PHÉP kết nối rõ. require trở lên thì libpq
+        // huỷ kết nối nếu không bắt tay được TLS.
+        $insecureModes = ['disable', 'allow', 'prefer'];
+        $verifyingModes = ['verify-ca', 'verify-full'];
+
+        if ($driver === 'pgsql' && ! $isDevelopment) {
+            if ($sslMode === '' || in_array($sslMode, $insecureModes, true)) {
+                $findings['db_sslmode'] = sprintf(
+                    'DB_SSLMODE=%s ngoài local/testing — chế độ này KẾT NỐI ĐƯỢC cả khi không có TLS, '
+                    .'nên toàn bộ câu lệnh và PII có thể đi qua mạng ở dạng rõ mà không có lỗi nào. '
+                    .'Tối thiểu "require", đích đến "verify-full".',
+                    $sslMode === '' ? '(trống)' : $sslMode,
+                );
+            } elseif (! in_array($sslMode, $verifyingModes, true)) {
+                // require = mã hoá nhưng KHÔNG xác thực danh tính server: vẫn hở
+                // với MITM chủ động. Đây là WARN chứ không FAIL vì nâng lên
+                // verify-full cần CA do DevOps cấp, không phải việc của repo.
+                $warnings['db_sslmode_unverified'] = sprintf(
+                    'DB_SSLMODE=%s chỉ mã hoá, KHÔNG xác thực danh tính server (vẫn MITM được). '
+                    .'Nâng lên verify-full và trỏ DB_SSLROOTCERT tới CA của cụm DB.',
+                    $sslMode,
+                );
+            } elseif ($sslRootCert === '') {
+                $findings['db_sslrootcert'] = sprintf(
+                    'DB_SSLMODE=%s nhưng DB_SSLROOTCERT trống — không có CA thì libpq không xác thực được chứng chỉ server.',
+                    $sslMode,
+                );
+            }
+        }
+
+        // --- Valkey / Redis --------------------------------------------------
+        $redisScheme = strtolower(trim((string) (config('database.redis.default.scheme') ?? 'tcp')));
+        $redisScheme = $redisScheme !== '' ? $redisScheme : 'tcp';
+        $redisPassword = (string) (config('database.redis.default.password') ?? '');
+        $redisContext = (array) (config('database.redis.default.context') ?? []);
+        $redisVerifyPeer = (bool) ($redisContext['ssl']['verify_peer'] ?? false);
+
+        // Redis chỉ đáng siết khi nó thật sự chở dữ liệu nhạy cảm. Ở dự án này
+        // luôn đúng: session + queue + rate limit + cache đọc đều nằm trên đó.
+        $redisCarriesSensitiveData = in_array('redis', [
+            (string) config('session.driver'),
+            (string) config('queue.default'),
+            (string) config('cache.default'),
+        ], true);
+
+        if (! $isDevelopment && $redisCarriesSensitiveData) {
+            if (! in_array($redisScheme, ['tls', 'ssl'], true)) {
+                $findings['redis_scheme'] = 'REDIS_SCHEME='.$redisScheme.' ngoài local/testing trong khi Valkey đang giữ '
+                    .'session/hàng đợi/cache đọc (có PII) — đặt REDIS_SCHEME=tls và REDIS_SSL_CAFILE.';
+            } elseif (! $redisVerifyPeer) {
+                $findings['redis_verify_peer'] = 'REDIS_SSL_VERIFY_PEER=false — TLS không xác thực danh tính thì vẫn MITM được.';
+            }
+
+            if ($redisPassword === '') {
+                $findings['redis_password'] = 'REDIS_PASSWORD trống ngoài local/testing — Valkey không yêu cầu xác thực.';
+            }
+        }
+
+        // --- Object storage --------------------------------------------------
+        // Chỉ đọc cấu hình đĩa đang dùng cho export/ảnh: endpoint http:// ngoài
+        // local nghĩa là file export báo cáo đi qua mạng ở dạng rõ.
+        $storageFindings = [];
+        foreach (['s3', 'r2'] as $disk) {
+            $endpoint = trim((string) config('filesystems.disks.'.$disk.'.endpoint', ''));
+            if ($endpoint === '') {
+                continue;
+            }
+            $scheme = strtolower((string) (parse_url($endpoint, PHP_URL_SCHEME) ?: ''));
+            $host = strtolower((string) (parse_url($endpoint, PHP_URL_HOST) ?: ''));
+            $isLoopback = in_array($host, ['localhost', '127.0.0.1', '::1', 'minio'], true);
+            if (! $isDevelopment && $scheme !== 'https' && ! $isLoopback) {
+                $storageFindings[$disk] = 'endpoint không phải https: '.$endpoint;
+            }
+        }
+        if ($storageFindings !== []) {
+            $findings['storage_endpoint_insecure'] = 'Object storage endpoint đi HTTP ngoài local/testing: '
+                .json_encode($storageFindings, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        }
+
+        // --- Tài liệu API ----------------------------------------------------
+        // Swagger UI công bố toàn bộ bề mặt API + schema. Ngoài local/testing nó
+        // phải tắt trừ khi được bật tường minh bằng API_DOCS_ENABLED.
+        if (! $isDevelopment && EnsureApiDocsEnabled::enabled()) {
+            $warnings['api_docs_enabled'] = 'Swagger UI đang BẬT ngoài local/testing — công bố toàn bộ bề mặt API. '
+                .'Đặt API_DOCS_ENABLED=false nếu không phải chủ đích.';
+        }
+
+        return [
+            'status' => $findings !== [] ? 'fail' : ($warnings !== [] ? 'warn' : 'ok'),
+            'detail' => [
+                'environment_class' => $isDevelopment ? 'development' : 'production-like',
+                // "config" = đọc từ cấu hình đang chạy. KHÔNG phải bằng chứng
+                // handshake TLS đã xảy ra thật trên đường dây.
+                'verified' => 'config',
+                'database' => [
+                    'driver' => $driver,
+                    'sslmode' => $sslMode === '' ? null : $sslMode,
+                    'sslrootcert_present' => $sslRootCert !== '',
+                ],
+                'redis' => [
+                    'scheme' => $redisScheme,
+                    'password_present' => $redisPassword !== '',
+                    'verify_peer' => $redisVerifyPeer,
+                    'carries_sensitive_data' => $redisCarriesSensitiveData,
+                ],
+                'api_docs_enabled' => EnsureApiDocsEnabled::enabled(),
+                'findings' => $findings,
+                'warnings' => $warnings,
             ],
         ];
     }

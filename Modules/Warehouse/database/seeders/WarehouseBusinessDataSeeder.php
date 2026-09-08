@@ -12,6 +12,7 @@ use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Support\WarrantyCasePii;
 
 /**
  * Dữ liệu nghiệp vụ mẫu cho dev/QA test UI + API ngay sau `migrate:fresh --seed`.
@@ -387,7 +388,7 @@ class WarehouseBusinessDataSeeder extends Seeder
         $caseId = (string) Str::uuid();
         $defectId = DB::table('defect_catalogs')->where('defect_code', $defectCode)->value('defect_id');
 
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $caseId,
             'warranty_case_code' => $caseCode,
             'item_id' => $itemId,
@@ -413,7 +414,7 @@ class WarehouseBusinessDataSeeder extends Seeder
             'legal_hold_flag' => false,
             'created_at' => now()->subDays(2),
             'updated_at' => now(),
-        ]);
+        ]));
 
         DB::table('item_instances')->where('item_id', $itemId)->update([
             'item_status' => 'IN_WARRANTY',

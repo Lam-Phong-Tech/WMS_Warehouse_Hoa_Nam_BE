@@ -14,6 +14,7 @@ use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Services\StockDocumentService;
+use Modules\Warehouse\Support\WarrantyCasePii;
 
 /**
  * Dữ liệu DEMO KHỐI LƯỢNG LỚN cho "Báo cáo truy vết hàng hoá" (TabTraceability) và
@@ -461,7 +462,7 @@ class HoaNamBulkDemoSeeder extends Seeder
                 ? 'KTV xác nhận lỗi ('.$defectCode.') sau khi mở máy — hồ sơ '.$caseCode.'.'
                 : null;
 
-            DB::table('warranty_case')->insert([
+            DB::table('warranty_case')->insert(WarrantyCasePii::encode([
                 'warranty_case_id' => $caseId,
                 'warranty_case_code' => $caseCode,
                 'item_id' => $itemId,
@@ -490,7 +491,7 @@ class HoaNamBulkDemoSeeder extends Seeder
                 'legal_hold_flag' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ]));
 
             if ($itemId !== null) {
                 DB::table('item_instances')->where('item_id', $itemId)->update([

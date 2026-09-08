@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\TestCase;
 
 class ErdRuntimeMirrorParityTest extends TestCase
@@ -96,7 +97,7 @@ class ErdRuntimeMirrorParityTest extends TestCase
         $id = (string) Str::uuid();
         $now = now();
 
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $id,
             'warranty_case_code' => 'WC-ERD-RUNTIME-001',
             'inventory_serial_id' => null,
@@ -122,7 +123,7 @@ class ErdRuntimeMirrorParityTest extends TestCase
             'legal_hold_flag' => false,
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ]));
 
         $canonical = DB::table('warranty_cases')->where('id', $id)->first();
         $this->assertNotNull($canonical);

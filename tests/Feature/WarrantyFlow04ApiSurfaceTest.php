@@ -13,6 +13,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
 
 /**
@@ -22,6 +23,7 @@ use Tests\TestCase;
  */
 class WarrantyFlow04ApiSurfaceTest extends TestCase
 {
+    use OpensWarrantyCaseForComponentIssue;
     use RefreshDatabase;
 
     private function authHeaders(): array
@@ -255,7 +257,8 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             'is_serial_tracked' => false,
             'status' => 'ACTIVE',
         ]);
-        $caseId = $this->createTempOnlyCase($headers);
+        // Xuất linh kiện chỉ mở cho hồ sơ Đang kiểm tra/Đang sửa chữa.
+        $caseId = $this->moveCaseToChecking($headers, $this->createTempOnlyCase($headers));
 
         $create = $this->postJson('/api/v1/component-issue-documents', [
             'warehouse_id' => $warehouse->id,

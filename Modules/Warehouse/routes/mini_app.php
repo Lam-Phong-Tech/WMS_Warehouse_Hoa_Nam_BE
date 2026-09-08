@@ -6,6 +6,7 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentIssueQueryController;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyAttachmentController;
 use Modules\Warehouse\Http\Controllers\DocumentAttachmentController;
+use Modules\Warehouse\Http\Controllers\MiniAppComponentIssueStagingController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
 use Modules\Warehouse\Http\Controllers\MiniAppNfcController;
@@ -225,11 +226,37 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
 
     Route::get('warranty-component-issues', [CanonicalMvpController::class, 'listComponentIssueDocuments'])
         ->middleware('permission:warranty.component_issue');
+
+    // Local staging cho màn "Xuất linh kiện": quét trước — hệ thống tự nhận SKU và
+    // gom số lượng — rồi một lệnh `record` dựng phiếu + bằng chứng quét + Post. Cùng
+    // hình dạng với inbound/outbound staging; hai endpoint này phải đứng TRƯỚC nhóm
+    // `{id}` để `resolve-code`/`record` không bị nuốt thành uuid phiếu.
+    Route::post('warranty-component-issues/resolve-code', [MiniAppComponentIssueStagingController::class, 'resolveCode'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::post('warranty-component-issues/record', [MiniAppComponentIssueStagingController::class, 'record'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+
+    // Alias `component-issue-documents/*`: nghiệp vụ này vốn mang sẵn hai tên
+    // resource song song (xem nhóm alias cuối routes/api.php), nên client gọi tên
+    // nào cũng phải vào đúng một handler. Cũng phải đứng TRƯỚC nhóm `{id}`.
+    Route::post('component-issue-documents/resolve-code', [MiniAppComponentIssueStagingController::class, 'resolveCode'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::post('component-issue-documents/record', [MiniAppComponentIssueStagingController::class, 'record'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+
     Route::post('warranty-component-issues', [CurrentBaselineComponentFlowController::class, 'store'])
         ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
     Route::get('warranty-component-issues/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])
         ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
     Route::post('warranty-component-issues/{id}/scans', [CurrentBaselineComponentFlowController::class, 'scan'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::post('warranty-component-issues/{id}/unscan', [CurrentBaselineComponentFlowController::class, 'unscan'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::post('warranty-component-issues/{id}/lines', [CurrentBaselineComponentFlowController::class, 'storeLine'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::patch('warranty-component-issues/{id}/lines/{lineId}', [CurrentBaselineComponentFlowController::class, 'updateLine'])
+        ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+    Route::delete('warranty-component-issues/{id}/lines/{lineId}', [CurrentBaselineComponentFlowController::class, 'destroyLine'])
         ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
     Route::post('warranty-component-issues/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])
         ->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);

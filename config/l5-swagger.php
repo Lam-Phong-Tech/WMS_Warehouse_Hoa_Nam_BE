@@ -124,6 +124,17 @@ return [
                     // requestBody rỗng — FE App PV sẽ không đọc được schema items[] để build
                     // gói import. KHÔNG được bỏ dòng dưới.
                     base_path('Modules/Warehouse/app/Http/Controllers/PvCatalogImportController.php'),
+                    // Mặt storefront công khai `/api/v1/public/*` của App PV — CÙNG LỖI LỚP
+                    // với WWHN-184/240/244/252 ở trên, chỉ là chưa ai phát hiện: cả ba
+                    // controller trong PublicApi/ đều đã có annotation OpenAPI thật (9
+                    // operation, kể cả schema `items[]` của POST /quote-requests) nhưng thư
+                    // mục chưa bao giờ nằm trong danh sách scan, nên OpenAPI publish ra 9
+                    // skeleton "GET /api/v1/public/... - Modules Warehouse Http Controllers
+                    // ..." với requestBody `{additionalProperties: true}`. Đội App PV vì thế
+                    // không có hợp đồng chính thức nào để wire, và đó chính là chỗ hở đẻ ra
+                    // những cách lách phía FE (gửi N request, lấy sản phẩm đầu tiên).
+                    // KHÔNG được bỏ dòng dưới.
+                    base_path('Modules/Warehouse/app/Http/Controllers/PublicApi'),
                     // WWHN-153/WWHN-180/WWHN-152: cùng lỗi lớp với WWHN-184/240/244/252 ở trên
                     // — annotation TEMP_ONLY (requestBody temporary_item_code/missing_code_reason/
                     // manual_product_description/condition_status, permission warranty.temp_only)
@@ -163,6 +174,10 @@ return [
                     // `post_api_v1_inbound__documents_id_{reversals,scans}` — bị pin bởi
                     // Wwhn184InboundContractParityTest. KHÔNG được bỏ các dòng dưới.
                     base_path('Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php'),
+                    // Staging của màn "Xuất linh kiện" Mini App: annotation ở đây mang
+                    // hợp đồng thật (body items[], mã lỗi theo dòng) nên phải được quét,
+                    // nếu không Swagger chỉ có summary máy sinh.
+                    base_path('Modules/Warehouse/app/Http/Controllers/MiniAppComponentIssueStagingController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportController.php'),

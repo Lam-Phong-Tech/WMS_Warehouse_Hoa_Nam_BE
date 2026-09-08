@@ -2,11 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Support\Security\BlindIndex;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController as WarrantyContract;
+use Modules\Warehouse\Support\WarrantyCasePii;
 
 /**
  * SRS v1.12 §13.8 Privacy Contract: customer name/phone/address, ảnh và mô tả máy của
@@ -42,9 +44,15 @@ class PurgeWarrantyPii extends Command
                 $query->whereNull('legal_hold_flag')->orWhere('legal_hold_flag', false);
             })
             // Idempotent: case đã anonymize ở lần chạy trước không bị đếm/ghi lại.
+            //
+            // WWHN-SEC-06: so trên BLIND INDEX chứ không trên cột plaintext (đã
+            // xoá ở Phase 6). Vân tay là tất định nên "tên đã bằng [ANONYMIZED]"
+            // vẫn nhận ra được mà không cần giải mã 500 hồ sơ chỉ để lọc.
             ->where(function ($query): void {
-                $query->where('customer_name', '!=', self::ANONYMIZED)
-                    ->orWhereNull('customer_name');
+                $anonymizedFingerprint = BlindIndex::nameTokens(self::ANONYMIZED);
+
+                $query->where('customer_name_lookup', '!=', $anonymizedFingerprint)
+                    ->orWhereNull('customer_name_lookup');
             })
             ->orderBy('retention_until')
             ->limit($limit)
@@ -76,7 +84,12 @@ class PurgeWarrantyPii extends Command
         $attachmentsPurged = 0;
 
         DB::transaction(function () use ($caseIds, &$attachmentsPurged): void {
-            DB::table('warranty_case')->whereIn('warranty_case_id', $caseIds)->update([
+            // WWHN-SEC-06: đi qua encode() nên giá trị anonymize được ghi vào cột
+            // ciphertext VÀ blind index được tính lại theo giá trị mới. Ghi thẳng
+            // vào cột plaintext (đã xoá ở Phase 6) sẽ ném lỗi cột không tồn tại,
+            // còn ghi ciphertext mà quên blind index thì hồ sơ đã anonymize vẫn
+            // tra cứu được bằng số điện thoại CŨ — tức là purge không thật sự purge.
+            DB::table('warranty_case')->whereIn('warranty_case_id', $caseIds)->update(WarrantyCasePii::encode([
                 'customer_name' => self::ANONYMIZED,
                 'customer_phone' => self::ANONYMIZED,
                 'customer_address' => null,
@@ -85,7 +98,7 @@ class PurgeWarrantyPii extends Command
                 // báo cáo RPT-WAR-01 không mất số liệu lịch sử.
                 'manual_product_description' => self::ANONYMIZED,
                 'updated_at' => now(),
-            ]);
+            ]));
 
             $attachments = DB::table('warranty_attachments')
                 ->whereIn('warranty_case_id', $caseIds)

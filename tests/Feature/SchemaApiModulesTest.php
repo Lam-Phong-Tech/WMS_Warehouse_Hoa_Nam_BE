@@ -12,6 +12,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\TestCase;
 
 class SchemaApiModulesTest extends TestCase
@@ -41,7 +42,7 @@ class SchemaApiModulesTest extends TestCase
     private function warrantyCase(string $status = 'RECEIVED', ?string $serialId = null): string
     {
         $id = (string) Str::uuid();
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $id,
             'warranty_case_code' => 'WRN-'.Str::upper(Str::random(10)),
             'status' => $status,
@@ -57,7 +58,7 @@ class SchemaApiModulesTest extends TestCase
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
 
         return $id;
     }

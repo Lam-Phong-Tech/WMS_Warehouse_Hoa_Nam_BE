@@ -134,6 +134,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Chính sách vòng đời token (WWHN-SEC-04)
+    |--------------------------------------------------------------------------
+    |
+    | Access token của dự án là JWT stateless HS256: đã phát ra thì có hiệu lực
+    | tới lúc hết hạn tự nhiên. `EnforceCredentialFreshness` chỉ cắt được nó khi
+    | nạn nhân CHỦ ĐỘNG đổi mật khẩu; blacklist chỉ bắt được token đã đi qua
+    | logout. Nên TTL chính là trần thời gian một token bị đánh cắp còn dùng
+    | được — thiết bị quét thất lạc, XSS, hay log bị lộ đều nằm trong trần đó.
+    |
+    | 31/08/2026 `.env` được đặt JWT_TTL=43200 (30 NGÀY) cho đợt quét ngoài kho,
+    | kèm ghi chú "KHÔNG deploy giá trị này". Nhưng không có gate nào kiểm, nên
+    | giá trị đó có thể lên production hoàn toàn im lặng. Cách xử lý đúng cho
+    | máy quét là refresh token xoay vòng (đã có sẵn: HttpOnly cookie +
+    | refresh_ttl 14 ngày) — người dùng KHÔNG phải đăng nhập lại, chỉ access
+    | token là ngắn. Kéo dài access token không đổi lấy được gì về trải nghiệm
+    | mà chỉ nới cửa sổ tấn công.
+    |
+    | Đặt 0 để tắt kiểm (không khuyến nghị; chỉ dùng khi đang điều tra sự cố).
+    |
+    */
+    'session' => [
+        'max_jwt_ttl_minutes' => (int) env('GOLIVE_MAX_JWT_TTL_MINUTES', 120),
+        'max_jwt_refresh_ttl_minutes' => (int) env('GOLIVE_MAX_JWT_REFRESH_TTL_MINUTES', 20160),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Hợp đồng đã pin
     |--------------------------------------------------------------------------
     */

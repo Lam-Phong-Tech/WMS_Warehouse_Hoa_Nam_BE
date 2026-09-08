@@ -402,7 +402,10 @@ const OPERATIONS = [
     operationId: 'wwhn190InventoryReconciliation',
     tag: 'Reconciliation',
     summary: 'Đối chiếu balance với ledger movement (RPT-INV-01)',
-    permission: 'report.view',
+    // 07/09/2026: đổi từ `report.view` sang mã riêng của màn RPT-02 (Tồn kho & đối
+    // soát) khi BA tách quyền xem báo cáo theo từng màn. Endpoint này chỉ phục vụ
+    // RPT-02 nên gác được bằng đúng mã màn.
+    permission: 'report.stock_reconcile.view',
     source: 'OperationalReportController@inventoryReconciliation',
     ifMatch: false,
     idempotency: false,

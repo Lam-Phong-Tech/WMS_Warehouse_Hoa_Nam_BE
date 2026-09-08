@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\Security\BlindIndex;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,8 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyController as Warr
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Support\WarrantyCasePii;
+use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -30,6 +33,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
  */
 class WarrantyFlow04DocsAlignmentTest extends TestCase
 {
+    use OpensWarrantyCaseForComponentIssue;
     use RefreshDatabase;
 
     // ── ① permission đọc/ghi ───────────────────────────────────────────────
@@ -134,6 +138,64 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
         $this->assertCount(0, $filtered->json('data'));
     }
 
+    /**
+     * Ô tìm kiếm WAR-01 phải khớp đúng thứ người dùng đang NHÌN trên bảng: mã
+     * phiếu ở cột "Phiếu" và mã/tên SKU ở cột "Sản phẩm".
+     *
+     * Nhánh mã phiếu từng chết IM LẶNG trên PostgreSQL — `warranty_case` là VIEW
+     * nên `SchemaCache::hasColumn()` trả false cho mọi cột và quét sạch danh sách
+     * cột keyword. sqlite (bộ test) coi `warranty_case` là bảng thật nên lớp test
+     * KHÔNG tự phát hiện được lớp lỗi đó; phần view do
+     * `SchemaCacheTest::test_relation_columns_also_sees_columns_of_a_view` giữ.
+     * Test này giữ phần còn lại: nhánh SKU và việc keyword không đụng vào enum.
+     */
+    public function test_keyword_finds_case_by_case_code_and_product_sku(): void
+    {
+        $headers = $this->authHeaders('SUPER_ADMIN_W4KW');
+        $sku = Sku::create([
+            'sku_code' => 'PROD-W4-SEARCH',
+            'sku_name' => 'May cat gach tim kiem',
+            'sku_type' => 'PRODUCT',
+            'unit' => 'cai',
+            'is_serial_tracked' => true,
+            'status' => 'ACTIVE',
+        ]);
+        ItemInstance::create([
+            'sku_id' => $sku->sku_id,
+            'serial_number' => 'SER-W4-SEARCH-001',
+            'item_status' => 'ISSUED',
+        ]);
+
+        $create = $this->postJson('/api/v1/warranty-cases', [
+            'warranty_case_code' => 'WC-W4-SEARCH-01',
+            'item_code' => 'SER-W4-SEARCH-001',
+            'customer_name' => 'Khach Tim Kiem',
+            'customer_phone' => '0900000022',
+            'description' => 'Khong len nguon',
+        ], $headers);
+        $create->assertCreated();
+        $caseId = (string) $create->json('data.id');
+
+        // mã phiếu · mã SKU · một mảnh TÊN SKU (người dùng nhớ mặt hàng, không nhớ mã).
+        foreach (['WC-W4-SEARCH-01', 'PROD-W4-SEARCH', 'cat gach'] as $keyword) {
+            $found = $this->getJson('/api/v1/warranty-cases?keyword='.urlencode($keyword), $headers)->assertOk();
+            $this->assertCount(1, $found->json('data'), "Không tìm được case theo {$keyword}");
+            $this->assertSame($caseId, (string) $found->json('data.0.warranty_case_id'));
+        }
+
+        // Nhánh SKU phải nằm TRONG nhóm OR của keyword, không được vô hiệu filter khác.
+        $filtered = $this->getJson(
+            '/api/v1/warranty-cases?keyword=PROD-W4-SEARCH&identification_status=TEMP_ONLY',
+            $headers
+        )->assertOk();
+        $this->assertCount(0, $filtered->json('data'));
+
+        // `status` KHÔNG được nằm trong cột keyword của warranty_case: nếu không,
+        // gõ tên hàng có chứa "re"/"can" sẽ kéo về toàn bộ hồ sơ RECEIVED/CANCELLED.
+        $byStatus = $this->getJson('/api/v1/warranty-cases?keyword=RECEIVED', $headers)->assertOk();
+        $this->assertCount(0, $byStatus->json('data'), 'Keyword không được khớp vào enum trạng thái.');
+    }
+
     // ── ⑦⑧ sửa defect/PII + terminal immutability ─────────────────────────
 
     public function test_defect_and_pii_are_correctable_after_intake(): void
@@ -233,28 +295,40 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
 
         // Chưa tới hạn -> purge không đụng gì.
         $this->artisan('warranty:purge-pii')->assertExitCode(0);
+        // WWHN-SEC-06: `customer_name` không còn là cột — so trên BLIND INDEX,
+        // giá trị tất định nên vẫn nhận ra được "đã anonymize hay chưa" mà không
+        // phải giải mã.
         $this->assertDatabaseMissing('warranty_case', [
             'warranty_case_id' => $caseId,
-            'customer_name' => '[ANONYMIZED]',
+            'customer_name_lookup' => BlindIndex::nameTokens('[ANONYMIZED]'),
         ]);
 
-        DB::table('warranty_case')->where('warranty_case_id', $caseId)->update([
+        DB::table('warranty_case')->where('warranty_case_id', $caseId)->update(WarrantyCasePii::encode([
             'retention_until' => now()->subDay(),
-        ]);
+        ]));
 
         // dry-run báo cáo nhưng không ghi.
         $this->artisan('warranty:purge-pii --dry-run')->assertExitCode(0);
+        // WWHN-SEC-06: `customer_name` không còn là cột — so trên BLIND INDEX,
+        // giá trị tất định nên vẫn nhận ra được "đã anonymize hay chưa" mà không
+        // phải giải mã.
         $this->assertDatabaseMissing('warranty_case', [
             'warranty_case_id' => $caseId,
-            'customer_name' => '[ANONYMIZED]',
+            'customer_name_lookup' => BlindIndex::nameTokens('[ANONYMIZED]'),
         ]);
 
         $movementsBefore = DB::table('stock_movements')->count();
         $this->artisan('warranty:purge-pii')->assertExitCode(0);
         $this->assertDatabaseHas('warranty_case', [
             'warranty_case_id' => $caseId,
-            'customer_name' => '[ANONYMIZED]',
+            'customer_name_lookup' => BlindIndex::nameTokens('[ANONYMIZED]'),
         ]);
+        // Và giá trị THẬT sau giải mã cũng phải là [ANONYMIZED]: chỉ kiểm vân tay
+        // thôi thì một bug ghi đúng blind index nhưng sai ciphertext sẽ lọt.
+        $purged = DB::table('warranty_case')->where('warranty_case_id', $caseId)->first();
+        WarrantyCasePii::decodeRow($purged);
+        $this->assertSame('[ANONYMIZED]', $purged->customer_name);
+        $this->assertNull($purged->customer_address);
         // §13.8: không được xóa Inventory_Movement/business evidence.
         $this->assertSame($movementsBefore, DB::table('stock_movements')->count());
         $this->assertDatabaseHas('warranty_case', ['warranty_case_id' => $caseId, 'status' => 'CANCELLED']);
@@ -281,15 +355,18 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
             'cancel_reason' => 'Tranh chap phap ly',
         ], $headers + ['If-Match' => '1'])->assertOk();
 
-        DB::table('warranty_case')->where('warranty_case_id', $caseId)->update([
+        DB::table('warranty_case')->where('warranty_case_id', $caseId)->update(WarrantyCasePii::encode([
             'retention_until' => now()->subYear(),
             'legal_hold_flag' => true,
-        ]);
+        ]));
 
         $this->artisan('warranty:purge-pii')->assertExitCode(0);
+        // WWHN-SEC-06: `customer_name` không còn là cột — so trên BLIND INDEX,
+        // giá trị tất định nên vẫn nhận ra được "đã anonymize hay chưa" mà không
+        // phải giải mã.
         $this->assertDatabaseMissing('warranty_case', [
             'warranty_case_id' => $caseId,
-            'customer_name' => '[ANONYMIZED]',
+            'customer_name_lookup' => BlindIndex::nameTokens('[ANONYMIZED]'),
         ]);
     }
 
@@ -456,7 +533,8 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
             'is_serial_tracked' => false,
             'status' => 'ACTIVE',
         ]);
-        $caseId = $this->createTempOnlyCase($headers);
+        // Xuất linh kiện chỉ mở cho hồ sơ Đang kiểm tra/Đang sửa chữa.
+        $caseId = $this->moveCaseToChecking($headers, $this->createTempOnlyCase($headers));
 
         $created = $this->postJson('/api/v1/warranty-component-issues', [
             'warehouse_id' => $warehouseId,

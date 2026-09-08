@@ -3,6 +3,98 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
+/*
+|--------------------------------------------------------------------------
+| WWHN-SEC-05 — chính sách TLS cho kết nối PostgreSQL
+|--------------------------------------------------------------------------
+|
+| Trước đây giá trị duy nhất là `env('DB_SSLMODE', 'prefer')`. `prefer` là chế
+| độ nguy hiểm nhất của libpq vì nó THÀNH CÔNG cả khi không có TLS: client thử
+| bắt tay TLS, server từ chối, libpq âm thầm chạy tiếp bằng kết nối rõ. Không
+| exception, không log, không dấu hiệu nào — mật khẩu ứng dụng, toàn bộ PII của
+| phiếu bảo hành và mọi câu lệnh đi qua mạng ở dạng plaintext. Đo trên runtime
+| thật 08/09/2026: config('database.connections.pgsql.sslmode') === 'prefer'.
+|
+| Mặc định MỚI phụ thuộc môi trường thay vì là một hằng số:
+|   local/testing  -> 'prefer'   (stack docker dev không dựng CA; giữ nguyên
+|                                 hành vi cũ để không ai phải cấu hình thêm)
+|   mọi nơi khác   -> 'require'  (fail-closed: không TLS thì KHÔNG kết nối)
+|
+| APP_ENV gõ sai rơi vào nhánh 'mọi nơi khác' — cố ý, cùng nguyên tắc
+| fail-closed với config/golive.php.
+|
+| 'require' mã hoá đường truyền nhưng KHÔNG xác thực danh tính server nên vẫn hở
+| với MITM chủ động. Đích đến là 'verify-full', cần DB_SSLROOTCERT trỏ tới CA của
+| cụm DB. CA đó do DevOps sở hữu và không nằm trong repo, nên giá trị được đặt
+| qua env; `wms:golive-check` (security.db_transport) nói rõ môi trường nào chưa
+| đạt verify-full và thiếu gì, thay vì im lặng chấp nhận.
+|
+| Bốn khoá ssl* dưới đây được Laravel ghép thẳng vào DSN
+| (Illuminate\Database\Connectors\PostgresConnector::addSslOptions) và chỉ được
+| ghép khi isset() — vì vậy null = không xuất hiện trong DSN.
+*/
+$appEnvForDbTls = strtolower(trim((string) env('APP_ENV', 'production')));
+$dbTlsIsDevelopment = in_array($appEnvForDbTls, ['local', 'testing'], true);
+$dbSslMode = strtolower(trim((string) env('DB_SSLMODE', $dbTlsIsDevelopment ? 'prefer' : 'require')));
+$dbSslMode = $dbSslMode !== '' ? $dbSslMode : 'require';
+
+/*
+|--------------------------------------------------------------------------
+| WWHN-SEC-05 — TLS cho Valkey/Redis
+|--------------------------------------------------------------------------
+|
+| Redis/Valkey của hệ thống KHÔNG chỉ giữ cache vô hại: SESSION_DRIVER=redis,
+| QUEUE_CONNECTION=redis, toàn bộ bộ đếm rate-limit, và lớp cache đọc
+| (CachesReadPayload, 55/84 endpoint) — trong đó có payload báo cáo bảo hành
+| mang customer_name/phone/address. Trước thay đổi này config không có khoá
+| `scheme` nào, nên phpredis luôn nối bằng TCP trần: ai bắt được gói tin trong
+| mạng nội bộ đọc được cả phiên đăng nhập lẫn PII.
+|
+| Mặc định `tcp` — stack dev và mọi môi trường đang chạy giữ nguyên hành vi cũ,
+| không ai phải dựng CA để `docker compose up` chạy được. Production đặt
+| REDIS_SCHEME=tls (Laravel ghép tiền tố `tls://` vào host trong
+| PhpRedisConnector::formatHost) và trỏ REDIS_SSL_CAFILE tới CA của cụm.
+|
+| REDIS_SSL_VERIFY_PEER mặc định BẬT: tắt xác thực chứng chỉ biến TLS thành lớp
+| mã hoá không danh tính, vẫn MITM được. Chỉ tắt khi đang chẩn đoán sự cố.
+|
+| `context` PHẢI là null khi không chạy TLS. Đã đo 08/09/2026: truyền mảng RỖNG
+| vẫn khiến PhpRedisConnector::establishConnection() đẩy tham số stream-context
+| thứ 7 xuống Redis::connect(), và phpredis khi đó cố bật TLS -> "Failed to
+| enable crypto" / "Redis server went away". Chỉ null mới thật sự là no-op.
+*/
+$redisScheme = strtolower(trim((string) env('REDIS_SCHEME', 'tcp')));
+$redisScheme = $redisScheme !== '' ? $redisScheme : 'tcp';
+$redisTlsContext = null;
+
+// Chỉ truyền khoá "scheme" xuống phpredis khi THẬT SỰ bật TLS. Với giá trị
+// 'tcp', PhpRedisConnector::formatHost() sẽ ghép tiền tố 'tcp://' vào host —
+// hợp lệ nhưng là một thay đổi hành vi không cần thiết trên mọi môi trường đang
+// chạy. null => isset() trả false => Laravel giữ nguyên host như trước.
+$redisSchemeForConnection = null;
+
+if ($redisScheme === 'tls' || $redisScheme === 'ssl') {
+    $redisSslOptions = [
+        'verify_peer' => filter_var(env('REDIS_SSL_VERIFY_PEER', true), FILTER_VALIDATE_BOOL),
+        'verify_peer_name' => filter_var(env('REDIS_SSL_VERIFY_PEER_NAME', true), FILTER_VALIDATE_BOOL),
+    ];
+
+    if (($redisCaFile = trim((string) env('REDIS_SSL_CAFILE', ''))) !== '') {
+        $redisSslOptions['cafile'] = $redisCaFile;
+    }
+
+    if (($redisSslCert = trim((string) env('REDIS_SSL_LOCAL_CERT', ''))) !== '') {
+        $redisSslOptions['local_cert'] = $redisSslCert;
+    }
+
+    if (($redisSslKey = trim((string) env('REDIS_SSL_LOCAL_PK', ''))) !== '') {
+        $redisSslOptions['local_pk'] = $redisSslKey;
+    }
+
+    $redisTlsContext = ['ssl' => $redisSslOptions];
+    $redisSchemeForConnection = $redisScheme;
+}
+
 return [
 
     /*
@@ -96,7 +188,13 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
-            'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // WWHN-SEC-05 — xem khối chính sách TLS ở đầu file.
+            'sslmode' => $dbSslMode,
+            // Chỉ có ý nghĩa với verify-ca / verify-full. Để trống thì khoá không
+            // xuất hiện trong DSN và libpq giữ nguyên hành vi mặc định.
+            'sslrootcert' => ($v = trim((string) env('DB_SSLROOTCERT', ''))) !== '' ? $v : null,
+            'sslcert' => ($v = trim((string) env('DB_SSLCERT', ''))) !== '' ? $v : null,
+            'sslkey' => ($v = trim((string) env('DB_SSLKEY', ''))) !== '' ? $v : null,
         ],
 
         'sqlsrv' => [
@@ -156,6 +254,9 @@ return [
         'default' => [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),
+            // WWHN-SEC-05 — xem khối "TLS cho Valkey/Redis" ở đầu file.
+            'scheme' => $redisSchemeForConnection,
+            'context' => $redisTlsContext,
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
@@ -178,6 +279,9 @@ return [
         'cache' => [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),
+            // WWHN-SEC-05 — xem khối "TLS cho Valkey/Redis" ở đầu file.
+            'scheme' => $redisSchemeForConnection,
+            'context' => $redisTlsContext,
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),

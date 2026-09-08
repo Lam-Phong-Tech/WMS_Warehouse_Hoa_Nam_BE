@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -228,12 +229,18 @@ class AlignedWarrantyReportController extends Controller
             });
         }
 
-        $cases = $query->orderByDesc(DB::raw('COALESCE(wc.received_at, wc.created_at)'))->get([
+        // WWHN-SEC-06: ba cột PII lấy ở dạng ciphertext rồi giải mã ngay sau truy
+        // vấn, TRƯỚC lớp mask §13.8 bên dưới. Giữ nguyên tên cột plaintext trong
+        // SELECT vẫn chạy tới Phase 6 rồi vỡ ở production với "column does not
+        // exist" — nên chuyển một lần ở đây thay vì chờ.
+        $cases = $query->orderByDesc(DB::raw('COALESCE(wc.received_at, wc.created_at)'))->get(array_merge([
             'wc.warranty_case_id', 'wc.warranty_case_code', 'wc.identification_status', 'wc.status',
-            'wc.created_at', 'wc.updated_at', 'wc.temporary_item_code', 'wc.customer_name',
-            'wc.customer_phone', 'wc.customer_address', 'wc.purchase_date', 'wc.received_at',
+            'wc.created_at', 'wc.updated_at', 'wc.temporary_item_code',
+            'wc.purchase_date', 'wc.received_at',
             'wc.completed_at', 'wc.returned_at', 's.sku_code', 'd.defect_code', 'd.defect_name',
-        ]);
+        ], WarrantyCasePii::selectColumns('wc')));
+
+        WarrantyCasePii::decodeRows($cases);
 
         $caseIds = $cases->pluck('warranty_case_id')->all();
         $issuedByCase = collect();

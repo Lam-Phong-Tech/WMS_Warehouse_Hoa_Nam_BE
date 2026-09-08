@@ -10,6 +10,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Warehouse\Http\Controllers\Concerns\CachesReportPayload;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use OpenApi\Attributes as OA;
 
 /**
@@ -301,13 +302,19 @@ class BaM1ReportController extends Controller
         $total = (clone $query)->count();
         $cases = $query->orderByDesc(DB::raw('COALESCE(wc.received_at, wc.created_at)'))
             ->forPage($page, $perPage)
-            ->get([
+            ->get(array_merge([
                 'wc.warranty_case_id', 'wc.warranty_case_code', 'wc.identification_status', 'wc.status',
-                'wc.temporary_item_code', 'wc.manual_product_description', 'wc.customer_name',
-                'wc.customer_phone', 'wc.customer_address', 'wc.purchase_date', 'wc.received_at',
+                'wc.temporary_item_code', 'wc.manual_product_description',
+                'wc.purchase_date', 'wc.received_at',
                 'wc.created_at', 'wc.updated_at', 'wc.completed_at', 'wc.returned_at',
                 'wc.estimated_completion_date', 's.sku_id', 's.sku_code', 's.sku_name',
-            ]);
+            ], WarrantyCasePii::selectColumns('wc')));
+
+        // WWHN-SEC-06: giải mã trước khi WarrantyPiiMasker chạy. Bỏ bước này thì
+        // báo cáo hiển thị bản MASK CỦA CIPHERTEXT — vẫn ra chuỗi trông "hợp lệ",
+        // nên lỗi sẽ không lộ ra ở test smoke mà chỉ lộ khi người dùng đọc.
+        WarrantyCasePii::decodeRows($cases);
+
         $caseIds = $cases->pluck('warranty_case_id')->map(fn ($id) => (string) $id)->all();
 
         $defectsByCase = collect();
@@ -378,8 +385,42 @@ class BaM1ReportController extends Controller
             ];
         })->values();
 
+        // Khối tổng hợp phải chạy trên ĐÚNG tập đã lọc như bảng bên dưới.
+        //
+        // Trước bản vá này, `$summaryBase` chỉ mang điều kiện KHOẢNG NGÀY: lọc
+        // "Trạng thái = RECEIVED" cho ra bảng 1 dòng nhưng ô tổng vẫn ghi 2. Đó
+        // là kiểu sai nguy hiểm nhất của một báo cáo — nó không báo lỗi, chỉ đưa
+        // ra một con số sai mà người đọc không có cách nào nghi ngờ.
+        // `ReportFlow06IntegrationTest::test_warranty_defects_filters_by_status`
+        // đã khai đúng hành vi mong đợi từ trước; chỉ phần cài đặt chưa theo kịp.
         $summaryBase = DB::table('warranty_case as wc')
+            ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+
+        if (! empty($validated['status'])) {
+            $summaryBase->where('wc.status', $validated['status']);
+        }
+        if (! empty($validated['identification_status'])) {
+            $summaryBase->where('wc.identification_status', $validated['identification_status']);
+        }
+        if ($filterDefects !== []) {
+            // whereExists chứ không join: một case nhiều bệnh/lỗi sẽ bị JOIN nhân
+            // dòng lên và ô tổng đếm trùng.
+            $summaryBase->whereExists(function ($sub) use ($filterDefects): void {
+                $sub->selectRaw('1')
+                    ->from('warranty_case_defects as wcd_summary')
+                    ->whereColumn('wcd_summary.warranty_case_id', 'wc.warranty_case_id')
+                    ->whereIn('wcd_summary.defect_id', $filterDefects);
+            });
+        }
+        if (! empty($validated['model'])) {
+            $summaryLike = '%'.mb_strtolower(trim((string) $validated['model'])).'%';
+            $summaryBase->where(function ($nested) use ($summaryLike): void {
+                $nested->whereRaw("LOWER(COALESCE(s.sku_code, '')) LIKE ?", [$summaryLike])
+                    ->orWhereRaw("LOWER(COALESCE(s.sku_name, '')) LIKE ?", [$summaryLike])
+                    ->orWhereRaw("LOWER(COALESCE(wc.manual_product_description, '')) LIKE ?", [$summaryLike]);
+            });
+        }
 
         // RPT-WAR-DEFECT-BREAKDOWN: chart "Top bệnh/lỗi" ở FE. Đi qua
         // warranty_case_defects (N:N) như $query ở trên chứ KHÔNG group theo

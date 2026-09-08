@@ -20,8 +20,10 @@ use Illuminate\Validation\ValidationException;
 use Modules\Auth\Http\Middleware\CheckPermission;
 use Modules\Auth\Http\Middleware\EnforceActiveAccountStatus;
 use Modules\Auth\Http\Middleware\EnforceCredentialFreshness;
+use Modules\Auth\Http\Middleware\EnforceMfaEnrollment;
 use Modules\Auth\Http\Middleware\EnforcePasswordChangeRequired;
 use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
+use Modules\Warehouse\Http\Middleware\EnsureWarehouseOperational;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -78,6 +80,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // `throttle:pv-public`. Hệ quả nếu đăng ký global: nhóm PV công khai bị
         // đếm hai lần và bị hạ trần từ 120/phút xuống 60/phút.
         $middleware->api(append: [ApiRateLimit::class]);
+        // Kho tạm dừng -> đóng băng GHI trên toàn API (BA 07/09/2026, màn Cấu hình kho).
+        // Gắn vào nhóm `api` chứ KHÔNG global, cùng lý do với ApiRateLimit ở trên:
+        // middleware global chạy trước bước khớp route nên `$request->route()` là null,
+        // mà danh sách route được phép ghi lúc kho tạm dừng so theo `Route::uri()`.
+        $middleware->api(append: [EnsureWarehouseOperational::class]);
         // Global registration is deliberate: the middleware itself is a no-op
         // outside the six WWHN-211 read/trace endpoints. Registering centrally
         // prevents a future route refactor from silently dropping data-scope.
@@ -89,6 +96,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Cấp tài khoản nhân viên: bắt buộc đổi mật khẩu lần đầu trước khi
         // dùng bất kỳ endpoint nào khác (trừ change-password/logout).
         $middleware->append(EnforcePasswordChangeRequired::class);
+        // WWHN-SEC-08: vai tro dac quyen phai dang ky MFA truoc khi dung API.
+        // Dat SAU EnforcePasswordChangeRequired: doi mat khau lan dau la dieu
+        // kien truoc, dang ky MFA la dieu kien sau. Middleware tu no la no-op
+        // khi MFA_ENFORCE_FOR_PRIVILEGED_ROLES=false.
+        $middleware->append(EnforceMfaEnrollment::class);
         // WWHN-SEC-02: từ chối access token phát hành TRƯỚC lần đổi mật khẩu
         // gần nhất. Thu hồi refresh token là chưa đủ vì access token JWT
         // stateless vẫn sống tới khi hết hạn tự nhiên.

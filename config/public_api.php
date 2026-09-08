@@ -159,6 +159,23 @@ return [
         'full_name_max_length' => 120,
         // Giữ bản ghi trùng Idempotency-Key trong bao lâu thì trả lại kết quả cũ.
         'idempotency_ttl_hours' => (int) env('PUBLIC_API_QUOTE_IDEMPOTENCY_TTL_HOURS', 24),
+
+        /*
+        | Số sản phẩm tối đa trong MỘT yêu cầu tư vấn (`items[]`).
+        |
+        | Đây là ranh giới NGHIỆP VỤ, không phải giới hạn kỹ thuật: một yêu cầu
+        | 100 dòng thì người trực máy không tư vấn nổi trong một cuộc gọi, và nó
+        | đã là đơn hàng chứ không còn là yêu cầu tư vấn. Cũng là trần chi phí
+        | của endpoint ghi ẩn danh duy nhất: mỗi dòng là một sản phẩm phải đối
+        | chiếu với danh mục công khai.
+        */
+        'max_items' => (int) env('PUBLIC_API_QUOTE_MAX_ITEMS', 20),
+
+        /*
+        | Trần số lượng khách được nêu cho một dòng. Không liên quan tồn kho —
+        | đây chỉ là chặn số vô nghĩa (gõ nhầm 999999) trước khi nó vào DB.
+        */
+        'max_quantity' => (int) env('PUBLIC_API_QUOTE_MAX_QUANTITY', 9999),
     ],
 
     /*
@@ -167,6 +184,13 @@ return [
     |--------------------------------------------------------------------------
     | Chỉ công bố version của HỢP ĐỒNG API, không phải version build/commit —
     | lộ commit SHA ra endpoint ẩn danh là thông tin thừa cho người tấn công.
+    |
+    | 1.1.0 (08/09/2026): POST /quote-requests nhận `items[]` nhiều sản phẩm.
+    | Thay đổi CỘNG THÊM, body một-sản-phẩm cũ vẫn chạy y nguyên — nên tăng
+    | MINOR chứ không phải MAJOR. FE đọc số này ở GET /config và
+    | GET /health/version để biết BE trước mặt có `items[]` hay chưa; một
+    | `contract_version` không bao giờ đổi khi hợp đồng đổi thì vô dụng.
+    | Cần trả lại giá trị cũ thì đặt PUBLIC_API_CONTRACT_VERSION, không sửa code.
     */
-    'contract_version' => env('PUBLIC_API_CONTRACT_VERSION', '1.0.0'),
+    'contract_version' => env('PUBLIC_API_CONTRACT_VERSION', '1.1.0'),
 ];

@@ -16,6 +16,7 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
+use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
 
 /**
@@ -41,6 +42,7 @@ use Tests\TestCase;
 class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
 {
     use BuildsScanDrivenInbound;
+    use OpensWarrantyCaseForComponentIssue;
     use RefreshDatabase;
 
     private const EVIDENCE_PATH = 'build/evidence/wwhn-266/component-issue-core-transaction.json';
@@ -141,13 +143,14 @@ class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
             'manual_product_description' => 'Máy khoan',
         ], $headers + ['Idempotency-Key' => 'w266-case-'.(string) Str::uuid()]);
         $case->assertCreated();
+        $caseId = $this->moveCaseToChecking($headers, (string) $case->json('data.id'));
 
         return [
             'headers' => $headers,
             'warehouse_id' => $warehouseId,
             'sku_id' => (string) $sku->sku_id,
             'container_id' => $containerId,
-            'case_id' => (string) $case->json('data.id'),
+            'case_id' => $caseId,
         ];
     }
 

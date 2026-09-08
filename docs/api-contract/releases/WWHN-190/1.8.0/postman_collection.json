@@ -381,7 +381,7 @@
             "inventory-reconciliation"
           ]
         },
-        "description": "permission: report.view\nIf-Match bắt buộc: false\nIdempotency-Key bắt buộc: false\nstock_effect: NONE\nlifecycle: n/a -> n/a (Read-only; PASS khi mismatch_count = 0.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED; 422=VALIDATION_ERROR"
+        "description": "permission: report.stock_reconcile.view\nIf-Match bắt buộc: false\nIdempotency-Key bắt buộc: false\nstock_effect: NONE\nlifecycle: n/a -> n/a (Read-only; PASS khi mismatch_count = 0.)\nerror codes: 401=UNAUTHENTICATED; 403=ACCESS_DENIED; 422=VALIDATION_ERROR"
       },
       "response": []
     }

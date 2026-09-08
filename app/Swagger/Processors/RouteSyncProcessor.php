@@ -123,6 +123,16 @@ class RouteSyncProcessor
         'post api/v1/component-issue-documents/{id}/scan' => 'Quét linh kiện cho phiếu xuất bảo hành',
         'post api/v1/component-issue-documents/{id}/cancel' => 'Huỷ phiếu xuất linh kiện bảo hành',
         'post api/v1/component-issue-documents/{id}/post' => 'Ghi nhận phiếu xuất linh kiện bảo hành',
+        // Cặp staging của màn "Xuất linh kiện" phơi ở 4 đường dẫn tương đương (2 tên
+        // resource × có/không prefix mini-app). Chỉ path gốc mang annotation OA; 3
+        // bí danh còn lại do processor này sinh ra nên phải khai summary ở đây, nếu
+        // không sẽ rơi về summary máy sinh và làm SwaggerRouteSyncTest đỏ.
+        'post api/v1/component-issue-documents/resolve-code' => 'Tiền kiểm mã linh kiện vừa quét cho màn xuất linh kiện bảo hành',
+        'post api/v1/component-issue-documents/record' => 'Xác nhận xuất linh kiện từ danh sách đã quét',
+        'post api/v1/warranty-component-issues/resolve-code' => 'Tiền kiểm mã linh kiện vừa quét cho màn xuất linh kiện bảo hành (Annex C)',
+        'post api/v1/warranty-component-issues/record' => 'Xác nhận xuất linh kiện từ danh sách đã quét (Annex C)',
+        'post api/v1/mini-app/component-issue-documents/resolve-code' => 'Mini App — tiền kiểm mã linh kiện vừa quét cho màn xuất linh kiện bảo hành',
+        'post api/v1/mini-app/component-issue-documents/record' => 'Mini App — xác nhận xuất linh kiện từ danh sách đã quét',
         'get api/v1/warranty-cases/{id}/events' => 'Lịch sử sự kiện của hồ sơ bảo hành',
         'post api/v1/warranty-cases/{id}/temp-only' => 'Đánh dấu hồ sơ bảo hành chỉ xử lý tạm',
         'get api/v1/warranty-cases/{id}/attachments' => 'Danh sách tệp đính kèm của hồ sơ bảo hành',
@@ -144,8 +154,25 @@ class RouteSyncProcessor
         'post api/v1/warranty-component-issues' => 'Tạo phiếu xuất linh kiện bảo hành (Annex C)',
         'get api/v1/warranty-component-issues/{id}' => 'Chi tiết phiếu xuất linh kiện bảo hành (Annex C)',
         'post api/v1/warranty-component-issues/{id}/scans' => 'Quét linh kiện cho phiếu xuất bảo hành (Annex C)',
+        'post api/v1/warranty-component-issues/{id}/unscan' => 'Gỡ dòng linh kiện đã quét khỏi phiếu xuất bảo hành (Annex C)',
+        'post api/v1/warranty-component-issues/{id}/lines' => 'Thêm dòng linh kiện vào phiếu xuất bảo hành (Annex C)',
+        'patch api/v1/warranty-component-issues/{id}/lines/{lineid}' => 'Sửa số lượng cần xuất của dòng linh kiện (Annex C)',
+        'delete api/v1/warranty-component-issues/{id}/lines/{lineid}' => 'Xoá dòng linh kiện chưa quét khỏi phiếu xuất bảo hành (Annex C)',
         'post api/v1/warranty-component-issues/{id}/cancel' => 'Huỷ phiếu xuất linh kiện bảo hành (Annex C)',
         'post api/v1/warranty-component-issues/{id}/post' => 'Ghi nhận phiếu xuất linh kiện bảo hành (Annex C)',
+        // Mini App — cùng handler với nhóm canonical ở trên, chỉ khác prefix. Khai
+        // summary ở đây là "fix đúng chỗ" mà SwaggerRouteSyncTest nhắc tới, thay cho
+        // pin KNOWN_MACHINE_SUMMARY_OPERATIONS bên tests/.
+        'get api/v1/mini-app/warranty-component-issues' => 'Mini App — danh sách phiếu xuất linh kiện bảo hành',
+        'post api/v1/mini-app/warranty-component-issues' => 'Mini App — tạo phiếu xuất linh kiện bảo hành',
+        'get api/v1/mini-app/warranty-component-issues/{id}' => 'Mini App — chi tiết phiếu xuất linh kiện bảo hành',
+        'post api/v1/mini-app/warranty-component-issues/{id}/scans' => 'Mini App — quét linh kiện cho phiếu xuất bảo hành',
+        'post api/v1/mini-app/warranty-component-issues/{id}/unscan' => 'Mini App — gỡ dòng linh kiện đã quét khỏi phiếu xuất bảo hành',
+        'post api/v1/mini-app/warranty-component-issues/{id}/lines' => 'Mini App — thêm dòng linh kiện vào phiếu xuất bảo hành',
+        'patch api/v1/mini-app/warranty-component-issues/{id}/lines/{lineid}' => 'Mini App — sửa số lượng cần xuất của dòng linh kiện',
+        'delete api/v1/mini-app/warranty-component-issues/{id}/lines/{lineid}' => 'Mini App — xoá dòng linh kiện chưa quét khỏi phiếu xuất bảo hành',
+        'post api/v1/mini-app/warranty-component-issues/{id}/cancel' => 'Mini App — huỷ phiếu xuất linh kiện bảo hành',
+        'post api/v1/mini-app/warranty-component-issues/{id}/post' => 'Mini App — ghi nhận phiếu xuất linh kiện bảo hành',
         'post api/v1/outbound-request-imports/{id}/confirm' => 'Xác nhận import yêu cầu xuất (Annex C)',
         'post api/v1/outbound-request-imports/manual' => 'Tạo toa yêu cầu xuất nhập tay (Annex C)',
         'get api/v1/inventory' => 'Tồn kho hiện tại (Annex C)',

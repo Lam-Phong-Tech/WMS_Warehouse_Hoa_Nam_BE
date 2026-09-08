@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use OpenApi\Attributes as OA;
+use Modules\Warehouse\Support\WarrantyCasePii;
 
 /**
  * DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 3) — chỉ 6 trong số các public
@@ -346,10 +347,10 @@ class CanonicalMvpController extends Controller
         security: [['bearerAuth' => []]],
         tags: ['13. Warranty'],
         parameters: [
-            new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'status', in: 'query', description: 'Một trạng thái, hoặc nhiều trạng thái phân tách bằng dấu phẩy — ví dụ `CHECKING,REPAIRING` cho màn xuất linh kiện.', schema: new OA\Schema(type: 'string', example: 'CHECKING,REPAIRING')),
             new OA\Parameter(name: 'identification_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['IDENTIFIED', 'TEMP_ONLY'])),
             new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
-            new OA\Parameter(name: 'keyword', in: 'query', description: 'Khớp customer_name/customer_phone/customer_address (mask nếu thiếu quyền warranty.pii.view) hoặc serial/mã vật lý của item gắn case', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'keyword', in: 'query', description: 'Khớp mã hồ sơ / mã tạm, serial + mã vật lý của item gắn case, mã hoặc tên SKU sản phẩm, mô tả sản phẩm nhập tay (TEMP_ONLY), và customer_name/customer_phone qua blind index — chỉ khi có quyền warranty.pii.view (tên khớp trọn từ không dấu, SĐT khớp chính xác; địa chỉ không tìm được sau WWHN-SEC-06)', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
         ],
@@ -370,7 +371,7 @@ class CanonicalMvpController extends Controller
             // Wireframe WAR-01 cho tìm cả "mã máy": serial của item gắn case và mọi
             // Physical_Code ACTIVE map vào item đó. Cả hai đều không phải cột của
             // warranty_case nên phải bơm thêm nhánh OR bằng subquery item_id.
-            function ($query, string $keyword, string $operator): void {
+            function ($query, string $keyword, string $operator) use ($request): void {
                 $query->orWhereIn('item_id', function ($sub) use ($keyword, $operator): void {
                     $sub->select('item_id')->from('item_instances')
                         ->where('serial_number', $operator, "%{$keyword}%");
@@ -381,6 +382,30 @@ class CanonicalMvpController extends Controller
                         ->where('status', 'ACTIVE')
                         ->where('code_value', $operator, "%{$keyword}%");
                 });
+
+                // Cột "Sản phẩm" của WAR-01 hiển thị sku_code (hoặc sku_name khi
+                // thiếu mã), nên ô tìm kiếm phải khớp được đúng thứ người dùng đang
+                // nhìn. warranty_case chỉ giữ product_id (uuid) — cùng lý do với
+                // serial/Physical_Code ở trên, phải đi bằng subquery chứ không JOIN:
+                // cả `sku` lẫn `warranty_case` đều có cột `status`, JOIN sẽ làm mọi
+                // `where('status', ...)` phía ngoài thành ambiguous column trên
+                // PostgreSQL.
+                $query->orWhereIn('product_id', function ($sub) use ($keyword, $operator): void {
+                    $sub->select('sku_id')->from('sku')
+                        ->where('sku_code', $operator, "%{$keyword}%")
+                        ->orWhere('sku_name', $operator, "%{$keyword}%");
+                });
+
+                // WWHN-SEC-06: PII đã mã hoá nên không LIKE được nữa; tìm qua
+                // blind index. Ngữ nghĩa mới: SĐT khớp CHÍNH XÁC sau chuẩn hoá,
+                // tên khớp TRỌN TỪ không dấu, địa chỉ không còn tìm được.
+                //
+                // Vẫn tôn trọng §13.8: thiếu `warranty.pii.view` thì KHÔNG được
+                // tìm theo PII — nếu không, ô tìm kiếm trở thành oracle để dò
+                // từng số điện thoại mà không cần quyền đọc.
+                if ($request->user()?->hasPermission('warranty.pii.view')) {
+                    WarrantyCasePii::applyKeyword($query, $keyword);
+                }
             },
             // FE cột "Sản phẩm" (WAR-01) đọc row.sku/row.sku_code/row.sku_name — nhưng
             // warranty_case chỉ lưu product_id (uuid). Không JOIN thẳng vào query
@@ -389,6 +414,11 @@ class CanonicalMvpController extends Controller
             // PostgreSQL) — enrich SAU KHI đã phân trang, gom 1 query duy nhất theo
             // các product_id có mặt trong trang hiện tại (không phải N+1).
             function ($rows): void {
+                // WWHN-SEC-06: giải mã NGAY đầu enricher — tablePage() chạy lớp
+                // mask §13.8 SAU enricher, nên đây là chỗ duy nhất còn kịp để lớp
+                // mask nhận được giá trị thật thay vì ciphertext.
+                WarrantyCasePii::decodeRows($rows);
+
                 $productIds = $rows->pluck('product_id')->filter()->unique()->values()->all();
                 if ($productIds !== []) {
                     $skus = DB::table('sku')->whereIn('sku_id', $productIds)
@@ -530,10 +560,27 @@ class CanonicalMvpController extends Controller
     {
         $query = DB::table($table);
         if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+            // Nhận cả một giá trị lẫn danh sách phân tách bằng dấu phẩy
+            // (`?status=CHECKING,REPAIRING`). Màn "Xuất linh kiện" cần đúng hai
+            // trạng thái Đang kiểm tra + Đang sửa chữa; trước đây phải gọi hai lần
+            // rồi tự trộn ở client — vừa sai phân trang, vừa sai tổng số dòng.
+            // Không enum nào của WMS chứa dấu phẩy nên tách như vậy là an toàn.
+            $statuses = array_values(array_filter(array_map(
+                static fn (string $value): string => trim($value),
+                explode(',', (string) $request->input('status'))
+            ), static fn (string $value): bool => $value !== ''));
+
+            if (count($statuses) > 1) {
+                $query->whereIn('status', $statuses);
+            } else {
+                $query->where('status', $statuses[0] ?? $request->input('status'));
+            }
         }
+        // hasRelationColumn chứ không hasColumn: `warranty_case` là VIEW trên
+        // PostgreSQL và hasColumn() trả false cho mọi cột của view — bộ lọc sẽ
+        // biến mất không một tiếng động. Xem SchemaCache::relationColumns().
         foreach ($filterColumns as $column) {
-            if ($request->filled($column) && SchemaCache::hasColumn($table, $column)) {
+            if ($request->filled($column) && SchemaCache::hasRelationColumn($table, $column)) {
                 $query->where($column, $request->input($column));
             }
         }
@@ -666,12 +713,25 @@ class CanonicalMvpController extends Controller
             'label_snapshots' => ['status'],
             'printer_configs' => ['printer_code', 'printer_name', 'agent_code', 'label_size'],
             'component_issue_documents' => ['component_issue_no', 'status'],
-            'warranty_case' => ['warranty_case_code', 'customer_name', 'customer_phone', 'temporary_item_code', 'status'],
+            // WWHN-SEC-06: customer_name/customer_phone ĐÃ RỜI danh sách này. Hai
+            // cột đó nay là ciphertext — `LIKE '%kw%'` trên chúng không bao giờ
+            // khớp và chỉ tạo ra một nhánh OR vô dụng trong mọi truy vấn. Tìm
+            // kiếm theo PII đi qua blind index ở `listWarrantyCases()`.
+            // KHÔNG có 'status' ở đây (khác các bảng trên): WAR-01 đã có dropdown
+            // trạng thái riêng, còn LIKE trên enum máy biến mọi từ khoá chứa
+            // "can"/"re" thành "trả về toàn bộ hồ sơ CANCELLED / RETURNED..." —
+            // đúng những chữ hay nằm trong tên hàng DongCheng ("Cần siết lực").
+            // Trước đây nhánh này chết im trên PostgreSQL vì lỗi view ở
+            // hasRelationColumn nên không ai thấy; đừng thêm lại.
+            'warranty_case' => ['warranty_case_code', 'temporary_item_code', 'manual_product_description'],
             'pv_industry' => ['industry_code', 'industry_name', 'display_name'],
             'pv_filter_tag' => ['tag_code', 'tag_name', 'display_name'],
         ][$table] ?? [];
 
-        return array_values(array_filter($candidates, fn (string $column): bool => SchemaCache::hasColumn($table, $column)));
+        // hasRelationColumn: xem chú thích ở tablePage() — `warranty_case` là
+        // view nên hasColumn() sẽ quét sạch danh sách này thành mảng rỗng, và
+        // ô tìm kiếm mất hẳn nhánh mã hồ sơ / mã tạm.
+        return array_values(array_filter($candidates, fn (string $column): bool => SchemaCache::hasRelationColumn($table, $column)));
     }
 
     private function timestamps(array $data): array

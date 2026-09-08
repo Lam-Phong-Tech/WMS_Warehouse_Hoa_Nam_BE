@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\MasterSelectionGuard;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
@@ -318,7 +319,8 @@ class CurrentBaselineOperationsController extends Controller
             }
 
             $caseId = (string) Str::uuid();
-            DB::table('warranty_case')->insert([
+            // WWHN-SEC-06: xem Modules/Warehouse/app/Support/WarrantyCasePii.php.
+            DB::table('warranty_case')->insert(WarrantyCasePii::encode([
                 'warranty_case_id' => $caseId,
                 'warranty_case_code' => $validated['warranty_case_code'] ?? ('WC-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4))),
                 'item_id' => $item?->item_id,
@@ -341,7 +343,7 @@ class CurrentBaselineOperationsController extends Controller
                 'legal_hold_flag' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ]));
 
             if ($item !== null) {
                 DB::table('item_instances')->where('item_id', $item->item_id)->update([
@@ -1047,6 +1049,9 @@ class CurrentBaselineOperationsController extends Controller
         if ($case === null) {
             return [];
         }
+
+        // WWHN-SEC-06: giải mã trước lớp mask §13.8 bên dưới.
+        WarrantyCasePii::decodeRow($case);
 
         if (! $request->user()?->hasPermission('warranty.pii.view')) {
             $case->customer_name = $this->mask((string) $case->customer_name);

@@ -43,6 +43,9 @@ final class SchemaCache
     /** @var array<string, bool> "<connection>|<view>" => view có tồn tại không */
     private static array $views = [];
 
+    /** @var array<string, list<string>> "<connection>|<quan hệ>" => danh sách cột, tính CẢ view */
+    private static array $relationColumns = [];
+
     private function __construct() {}
 
     public static function hasTable(string $table, ?string $connection = null): bool
@@ -101,11 +104,60 @@ final class SchemaCache
         return self::$columns[$key];
     }
 
+    /**
+     * Như `columns()` nhưng ĐÚNG cả khi quan hệ là VIEW.
+     *
+     * BẪY: trên PostgreSQL, `Schema::hasTable()` của Laravel chỉ liệt kê BASE
+     * TABLE — với view nó trả FALSE, nên `columns()` kết luận "quan hệ này
+     * không có cột nào". Mọi đoạn dạng
+     *
+     *     if (SchemaCache::hasColumn($rel, $c)) { $query->where($c, ...); }
+     *
+     * chạy trên một view vì thế BỊ BỎ QUA IM LẶNG: không lỗi, không log, chỉ là
+     * bộ lọc biến mất và người dùng nhận về dữ liệu chưa lọc. sqlite (bộ test)
+     * lại trả true cho view nên lớp test không bao giờ chạm tới lỗi này — đúng
+     * cách nó sống sót tới lúc lọc "Nhận diện"/"Bệnh/lỗi" và tìm theo mã hồ sơ
+     * ở WAR-01 cùng chết trên môi trường thật.
+     *
+     * ERD dự án chiếu khá nhiều bảng qua view (`warranty_case`, `sku`,
+     * `products`, `scan_event`, `container`...), nên chỗ nào hỏi theo TÊN QUAN
+     * HỆ ĐANG TRUY VẤN chứ không theo bảng gốc thì phải dùng hàm này.
+     *
+     * `hasColumn()`/`columns()` giữ nguyên ngữ nghĩa "bảng thật" — có chỗ dựa
+     * vào đó để phân biệt bảng với view, đổi chúng là đổi ngầm 61 điểm gọi.
+     *
+     * @return list<string>
+     */
+    public static function relationColumns(string $relation, ?string $connection = null): array
+    {
+        $key = self::key($relation, $connection);
+        if (! array_key_exists($key, self::$relationColumns)) {
+            // Bảng thật đi qua cache sẵn có -> view mới phải hỏi thêm catalog.
+            $columns = self::columns($relation, $connection);
+            if ($columns === [] && self::hasView($relation, $connection)) {
+                $columns = array_map('strtolower', Schema::connection($connection)->getColumnListing($relation));
+            }
+            self::$relationColumns[$key] = $columns;
+        }
+
+        return self::$relationColumns[$key];
+    }
+
+    public static function hasRelationColumn(string $relation, string $column, ?string $connection = null): bool
+    {
+        return in_array(
+            strtolower($column),
+            self::relationColumns($relation, $connection),
+            true,
+        );
+    }
+
     /** Gọi khi schema thay đổi thật (migration, refresh DB trong test). */
     public static function flush(): void
     {
         self::$columns = [];
         self::$tables = [];
+        self::$relationColumns = [];
         self::$views = [];
     }
 

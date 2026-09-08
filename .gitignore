@@ -39,3 +39,44 @@ CLAUDE.md
 # WWHN-309: docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md được README và
 # HN-BE-ARCH-001 trỏ tới như baseline kiến trúc, nên phải nằm trong repo để
 # reviewer resolve được reference tại exact SHA (bản gốc do FE/Tech Lead sở hữu).
+
+# WWHN-SEC-04: DB SQLite dev tuyet doi khong duoc theo doi.
+# File `wms_hoanam` truoc day BI COMMIT (chi co schema, nhung moi lan `db:seed`
+# se ghi du lieu that vao no roi `git add .` la day PII len remote.
+wms_hoanam
+*.sqlite
+*.sqlite3
+*.db
+
+# WWHN-SEC-05 — bản sao lưu và vật liệu khoá không bao giờ được vào git.
+#
+# Bối cảnh: 08/09/2026 tìm thấy `wms_hoanam-20260904-035730.dump` (pg_dump custom
+# format, 2,3 MB, KHÔNG mã hoá) nằm ngay tại C:\LAM_PHONG_TECH. Thư mục đó tình
+# cờ không phải git repo nên nó chưa lọt vào lịch sử — nhưng chỉ cần một lần
+# `pg_dump` chạy bên trong repo rồi `git add .` là toàn bộ PII khách hàng lên
+# remote vĩnh viễn (git giữ blob sau khi xoá file).
+#
+# Đây là hàng rào cuối. Hàng rào chính là quy trình ở
+# docs/ops/SECURITY_BACKUP_POLICY.md: dump phải được mã hoá NGAY khi tạo và để
+# ngoài cây làm việc.
+*.dump
+*.dump.gz
+*.pgdump
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+*.tar.gz.enc
+*.bak
+backup/
+backups/
+_backup/
+
+# Vật liệu khoá / chứng chỉ. `storage/*.key` đã có sẵn ở trên nhưng chỉ phủ đúng
+# một thư mục; CA và client cert của DB/Redis (WWHN-SEC-05) nằm nơi khác.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+!public/**/*.key

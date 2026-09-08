@@ -39,12 +39,9 @@ class SwaggerRouteSyncTest extends TestCase
         'PATCH /api/v1/mini-app/warranty-cases/{id}',
         'GET /api/v1/mini-app/warranty-cases/{id}/attachments',
         'POST /api/v1/mini-app/warranty-cases/{id}/attachments',
-        'GET /api/v1/mini-app/warranty-component-issues',
-        'POST /api/v1/mini-app/warranty-component-issues',
-        'GET /api/v1/mini-app/warranty-component-issues/{id}',
-        'POST /api/v1/mini-app/warranty-component-issues/{id}/cancel',
-        'POST /api/v1/mini-app/warranty-component-issues/{id}/post',
-        'POST /api/v1/mini-app/warranty-component-issues/{id}/scans',
+        // 6 route mini-app warranty-component-issues ĐÃ RA KHỎI pin này: summary đã
+        // được khai trong RouteSyncProcessor::ROUTE_SUMMARIES, đúng "fix ở app code"
+        // mà ghi chú trên nói tới. Pin chỉ được co lại, không được nới thêm.
         'GET /api/v1/recipients',
         'POST /api/v1/recipients',
         'GET /api/v1/recipients/{id}',

@@ -17,6 +17,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
+use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -33,6 +34,7 @@ use Tests\TestCase;
 class Wwhn234P1P2ClosureTest extends TestCase
 {
     use BuildsScanDrivenInbound;
+    use OpensWarrantyCaseForComponentIssue;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -96,7 +98,7 @@ class Wwhn234P1P2ClosureTest extends TestCase
         ], $adminHeaders + ['Idempotency-Key' => 'w234-case-'.(string) Str::uuid()]);
         $case->assertCreated();
 
-        return (string) $case->json('data.id');
+        return $this->moveCaseToChecking($adminHeaders, (string) $case->json('data.id'));
     }
 
     /** @return array{document_id: string, warehouse_id: string} */

@@ -58,6 +58,16 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
         'POST api/v1/auth/forgot-password' => 'SRS §8.1 IAM — phát OTP đặt lại mật khẩu',
         'POST api/v1/auth/verify-otp' => 'SRS §8.1 IAM — xác thực OTP, cấp reset_token',
         'POST api/v1/auth/reset-password' => 'SRS §8.1 IAM — đặt mật khẩu mới bằng reset_token',
+        // WWHN-SEC-08 — bước 2 của đăng nhập. Cùng loại với login/refresh: nó LÀ
+        // quá trình trao đổi credential, nên đòi `auth:api` ở đây sẽ khiến luồng
+        // đăng nhập không bao giờ hoàn tất được — đúng lúc gọi, người dùng mới
+        // qua bước mật khẩu và CỐ Ý chưa được phát token nào.
+        //
+        // Không phải "nới mặt ẩn danh": thứ đứng thay `auth:api` ở endpoint này
+        // là mã phiên chờ dùng-MỘT-lần, hết hạn 5 phút, huỷ ngay khi tiêu thụ,
+        // cộng hai lớp chống dò độc lập — throttle theo (IP + mfa_token) và trần
+        // theo TÀI KHOẢN trong MfaService (failed_attempts/locked_until).
+        'POST api/v1/auth/mfa/verify' => 'WWHN-SEC-08 — bước 2 xác thực hai bước (mfa_token dùng một lần)',
         // Annex C: 4 operation PUBLIC_ANONYMOUS của App PV.
         'GET api/v1/pv/products' => 'Annex C listPvProducts (security: [])',
         'GET api/v1/pv/products/{skuId}' => 'Annex C getPvProduct (security: [])',

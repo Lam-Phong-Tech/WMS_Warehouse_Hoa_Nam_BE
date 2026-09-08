@@ -243,7 +243,7 @@ class ScanClassificationService
         $query = DB::table('container');
         if (is_string($assignedId) && $assignedId !== '') {
             $query->where('container_id', $assignedId);
-        } elseif (SchemaCache::hasColumn('container', 'physical_code_id')) {
+        } elseif (SchemaCache::hasRelationColumn('container', 'physical_code_id')) {
             $query->where('physical_code_id', $physicalCodeId);
         } else {
             return null;
@@ -306,7 +306,7 @@ class ScanClassificationService
         }
 
         $query = DB::table('products')->where('code', $code);
-        if (SchemaCache::hasColumn('products', 'sku_code')) {
+        if (SchemaCache::hasRelationColumn('products', 'sku_code')) {
             $query->orWhere('sku_code', $code);
         }
 

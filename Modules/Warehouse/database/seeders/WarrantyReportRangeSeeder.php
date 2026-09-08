@@ -12,6 +12,7 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Throwable;
 
 /**
@@ -291,7 +292,7 @@ class WarrantyReportRangeSeeder extends Seeder
         }
 
         $caseId = (string) Str::uuid();
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $caseId,
             'warranty_case_code' => $c['code'],
             'item_id' => $c['item_id'],
@@ -333,7 +334,7 @@ class WarrantyReportRangeSeeder extends Seeder
             'legal_hold_flag' => false,
             'created_at' => $receivedAt,
             'updated_at' => $closedAt ?? $now,
-        ]);
+        ]));
 
         // Event: RECEIVE + 1 event/transition.
         $eventTypes = [

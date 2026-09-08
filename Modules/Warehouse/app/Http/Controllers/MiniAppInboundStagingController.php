@@ -1012,7 +1012,7 @@ class MiniAppInboundStagingController extends Controller
             $eventQuery = DB::table('scan_event as se')
                 ->join('scan_batch as sb', 'sb.scan_batch_id', '=', 'se.scan_batch_id')
                 ->where('sb.source_id', $documentId);
-            if (SchemaCache::hasColumn('scan_event', 'raw_code')) {
+            if (SchemaCache::hasRelationColumn('scan_event', 'raw_code')) {
                 $eventQuery->where('se.raw_code', trim($rawCode));
             }
             if ($itemId !== null) {

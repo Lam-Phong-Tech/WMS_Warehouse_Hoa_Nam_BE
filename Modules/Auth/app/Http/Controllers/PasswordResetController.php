@@ -169,6 +169,7 @@ class PasswordResetController extends Controller
         responses: [
             new OA\Response(response: 200, description: 'Đặt lại mật khẩu thành công'),
             new OA\Response(response: 422, description: 'reset_token không hợp lệ/đã hết hạn hoặc dữ liệu không hợp lệ'),
+            new OA\Response(response: 429, description: 'Vượt ngưỡng đặt lại mật khẩu (WWHN-SEC-04)'),
         ]
     )]
     public function resetPassword(ResetPasswordRequest $request)
@@ -176,6 +177,20 @@ class PasswordResetController extends Controller
         $email = Str::lower(trim((string) $request->input('email')));
         $resetToken = (string) $request->input('reset_token');
         $genericError = 'Yêu cầu đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.';
+
+        // WWHN-SEC-04 — trần gọi cho bước cuối của luồng quên mật khẩu.
+        // Đếm MỌI lần gọi (không chỉ lần hỏng) vì thứ cần bảo vệ ở đây là CPU:
+        // `Hash::check` bcrypt bên dưới chạy trước khi biết request đúng hay sai.
+        // Khoá theo (IP + email) giống hai bước trước của cùng luồng, nên một
+        // kho dùng chung NAT không tự khoá lẫn nhau.
+        $throttleKey = 'password-reset-confirm:'.sha1($request->ip().'|'.$email);
+        $maxAttempts = (int) config('rate_limit.password_reset_confirm_per_minute', 5);
+        if ($maxAttempts > 0 && RateLimiter::tooManyAttempts($throttleKey, $maxAttempts)) {
+            return RateLimitResponse::make($request, ['Retry-After' => (string) RateLimiter::availableIn($throttleKey)]);
+        }
+        if ($maxAttempts > 0) {
+            RateLimiter::hit($throttleKey, 60);
+        }
 
         $record = PasswordResetOtp::query()
             ->where('email', $email)
@@ -208,6 +223,10 @@ class PasswordResetController extends Controller
         $user->markPasswordChangedNow();
         $this->refreshTokens->revokeAllForUser($user->user_id);
         $record->forceFill(['consumed_at' => now()])->save();
+
+        // Đặt lại thành công thì bộ đếm không còn ý nghĩa: token đã bị tiêu, và
+        // giữ bộ đếm chỉ phạt oan người vừa lấy lại được tài khoản.
+        RateLimiter::clear($throttleKey);
 
         $this->auditLogger->log(
             'PASSWORD_RESET', 'app_user', $user->user_id, $user->user_id,

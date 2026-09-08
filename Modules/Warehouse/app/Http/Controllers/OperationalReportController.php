@@ -28,6 +28,7 @@ use Modules\Warehouse\Jobs\GenerateReportExportJob;
 use Modules\Warehouse\Models\ReportExportJob;
 use Modules\Warehouse\Services\LedgerReconciliationService;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -1058,13 +1059,32 @@ class OperationalReportController extends Controller
             ->whereDate('estimated_completion_date', '<', $today->toDateString())
             ->whereNotIn('status', self::WARRANTY_CLOSED_STATUSES);
         $overdueCount = (int) $overdueBase()->count();
-        $overdueSample = $overdueBase()
+
+        // WWHN-SEC-06: `customer_name` KHÔNG còn là cột của bảng — chỉ còn
+        // ciphertext. Đọc qua WarrantyCasePii::selectColumns() rồi decodeRows()
+        // gán ngược về tên thuộc tính cũ.
+        //
+        // Tên khách ở đây LUÔN mask, KHÔNG có nhánh `warranty.pii.view` như màn
+        // RPT-WAR-01: payload của endpoint này được cache dưới khoá KHÔNG mang
+        // danh tính người gọi (`…:dashboard-overview:…:scope-global:v1`), nên chỉ
+        // cần một người có quyền xem PII nạp cache là mọi vai khác đọc được tên
+        // thật từ đúng cache đó. Dashboard cũng không cần tên thật: FE chỉ dùng
+        // `days_overdue` của mẫu này.
+        $overdueRows = $overdueBase()
             ->orderBy('estimated_completion_date')
             ->limit(self::DASHBOARD_WARNING_LIMIT)
-            ->get(['warranty_case_code', 'customer_name', 'status', 'estimated_completion_date'])
+            ->get(array_merge(
+                ['warranty_case_code', 'status', 'estimated_completion_date'],
+                WarrantyCasePii::selectColumns()
+            ));
+        WarrantyCasePii::decodeRows($overdueRows);
+
+        $overdueSample = $overdueRows
             ->map(fn ($row): array => [
                 'warranty_case_code' => (string) $row->warranty_case_code,
-                'customer_name' => $row->customer_name === null ? null : (string) $row->customer_name,
+                'customer_name' => $row->customer_name === null
+                    ? null
+                    : WarrantyPiiMasker::name((string) $row->customer_name),
                 'status' => (string) $row->status,
                 'estimated_completion_date' => (string) $row->estimated_completion_date,
                 'days_overdue' => (int) Carbon::parse($row->estimated_completion_date)->diffInDays($today),

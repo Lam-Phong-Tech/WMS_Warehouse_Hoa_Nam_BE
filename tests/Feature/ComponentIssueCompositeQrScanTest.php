@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
+use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -27,6 +28,7 @@ use Tests\TestCase;
 class ComponentIssueCompositeQrScanTest extends TestCase
 {
     use BuildsScanDrivenInbound;
+    use OpensWarrantyCaseForComponentIssue;
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
@@ -53,7 +55,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
             'missing_code_reason' => 'Mất tem mã',
             'manual_product_description' => 'Máy khoan',
         ], $headers + ['Idempotency-Key' => 'ciq-case-'.Str::random(10)])->assertCreated();
-        $caseId = (string) $case->json('data.id');
+        $caseId = $this->moveCaseToChecking($headers, (string) $case->json('data.id'));
 
         $document = $this->postJson('/api/v1/component-issue-documents', [
             'warehouse_id' => $warehouse->id,
@@ -103,7 +105,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
             'missing_code_reason' => 'Mất tem mã',
             'manual_product_description' => 'Máy khoan',
         ], $headers + ['Idempotency-Key' => 'ciq-case2-'.Str::random(10)])->assertCreated();
-        $caseId = (string) $case->json('data.id');
+        $caseId = $this->moveCaseToChecking($headers, (string) $case->json('data.id'));
 
         $document = $this->postJson('/api/v1/component-issue-documents', [
             'warehouse_id' => $warehouse->id,
@@ -137,7 +139,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
             'missing_code_reason' => 'Mất tem mã',
             'manual_product_description' => 'Máy khoan',
         ], $headers + ['Idempotency-Key' => 'ciq-case3-'.Str::random(10)])->assertCreated();
-        $caseId = (string) $case->json('data.id');
+        $caseId = $this->moveCaseToChecking($headers, (string) $case->json('data.id'));
 
         $document = $this->postJson('/api/v1/component-issue-documents', [
             'warehouse_id' => $warehouse->id,
@@ -191,7 +193,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
         ], $headers + ['Idempotency-Key' => 'ciq-shared-a-'.Str::random(10)])->assertCreated();
         $documentA = $this->postJson('/api/v1/component-issue-documents', [
             'warehouse_id' => $warehouse->id,
-            'warranty_case_id' => (string) $caseA->json('data.id'),
+            'warranty_case_id' => $this->moveCaseToChecking($headers, (string) $caseA->json('data.id')),
             'purpose' => 'WARRANTY',
             'lines' => [['sku_id' => $sku->sku_id, 'required_qty' => 1]],
         ], $headers)->assertCreated();
@@ -216,7 +218,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
         ], $headers + ['Idempotency-Key' => 'ciq-shared-b-'.Str::random(10)])->assertCreated();
         $documentB = $this->postJson('/api/v1/component-issue-documents', [
             'warehouse_id' => $warehouse->id,
-            'warranty_case_id' => (string) $caseB->json('data.id'),
+            'warranty_case_id' => $this->moveCaseToChecking($headers, (string) $caseB->json('data.id')),
             'purpose' => 'WARRANTY',
             'lines' => [['sku_id' => $sku->sku_id, 'required_qty' => 1]],
         ], $headers)->assertCreated();

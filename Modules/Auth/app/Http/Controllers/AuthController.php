@@ -23,6 +23,7 @@ class AuthController extends Controller
     public function __construct(
         private readonly RefreshTokenService $refreshTokens,
         private readonly AuditLogger $auditLogger,
+        private readonly \Modules\Auth\Support\MfaService $mfa,
     ) {}
 
     #[OA\Post(
@@ -180,6 +181,34 @@ class AuthController extends Controller
 
         // Đăng nhập thành công xoá bộ đếm để người dùng hợp lệ không bị phạt oan.
         RateLimiter::clear($throttleKey);
+
+        // WWHN-SEC-08 — mật khẩu mới chỉ là YẾU TỐ THỨ NHẤT.
+        //
+        // Tài khoản đã bật MFA thì dừng ở đây: KHÔNG phát access token, KHÔNG
+        // phát refresh token, KHÔNG cập nhật last_login_at. Chỉ trả một mã phiên
+        // chờ ngắn hạn dùng một lần. Bất kỳ biến thể nào phát ra một token "hạn
+        // chế" ở bước này đều làm hỏng mục đích của MFA — kẻ có mật khẩu đã ở
+        // bên trong rồi.
+        //
+        // JWT vừa tạo ở bước xác thực mật khẩu phải được huỷ ngay: nó là một
+        // access token hợp lệ đầy đủ và không bao giờ được rời khỏi tiến trình.
+        if ($this->mfa->isEnabled($user)) {
+            auth('api')->logout();
+
+            $challenge = $this->mfa->issueChallenge($user);
+
+            $this->auditLogger->log(
+                'MFA_CHALLENGE_ISSUED', 'app_user', $user->user_id, $user->user_id,
+                $this->currentRequestId(), [], [], null, result: 'SUCCESS',
+            );
+
+            return $this->respondSuccess([
+                'mfa_required' => true,
+                'mfa_token' => $challenge['mfa_token'],
+                'expires_in' => $challenge['expires_in'],
+            ], 'Nhập mã xác thực hai bước để hoàn tất đăng nhập.');
+        }
+
         $user->forceFill(['last_login_at' => now()])->save();
 
         $refreshToken = $this->refreshTokens->issue($user, $request);

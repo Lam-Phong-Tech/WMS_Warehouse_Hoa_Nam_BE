@@ -31,6 +31,9 @@ return [
     'auth_login_per_minute' => (int) env('RATE_LIMIT_AUTH_LOGIN_PER_MINUTE', 10),
 
     // Refresh token: chống quay vòng token bị đánh cắp.
+    // WWHN-SEC-08: tran thu ma 2 buoc theo (IP + mfa_token). Tran theo TAI KHOAN
+    // nam o MfaService (failed_attempts/locked_until) — hai lop bu cho nhau.
+    'auth_mfa_verify_per_minute' => (int) env('RATE_LIMIT_AUTH_MFA_VERIFY_PER_MINUTE', 10),
     'auth_refresh_per_minute' => (int) env('RATE_LIMIT_AUTH_REFRESH_PER_MINUTE', 30),
 
     // Quên mật khẩu: chặn dò email/spam gửi OTP, khoá theo (IP + email).
@@ -38,6 +41,18 @@ return [
 
     // Xác thực OTP: chặn brute-force mã 6 số, khoá theo (IP + email).
     'otp_verify_per_minute' => (int) env('RATE_LIMIT_OTP_VERIFY_PER_MINUTE', 10),
+
+    // WWHN-SEC-04 — Đặt lại mật khẩu (bước cuối). Trước đây đây là endpoint ẩn
+    // danh DUY NHẤT của luồng quên-mật-khẩu KHÔNG có trần nào: không throttle ở
+    // route, không limiter trong controller, và `ApiAuthContext::PUBLIC_PATH_PATTERNS`
+    // lại cố ý cho `ApiRateLimit` bỏ qua nó với ghi chú "đã có limiter riêng
+    // trong PasswordResetController" — đúng với forgot-password và verify-otp,
+    // nhưng SAI với chính endpoint này.
+    //
+    // Rủi ro chính không phải đoán token (`Str::random(64)`, không đoán được) mà
+    // là CPU: mỗi request hợp lệ về hình thức đều kéo theo một `Hash::check`
+    // bcrypt — phép tính cố ý đắt — mà không cần đăng nhập.
+    'password_reset_confirm_per_minute' => (int) env('RATE_LIMIT_PASSWORD_RESET_CONFIRM_PER_MINUTE', 5),
 
     /*
     |--------------------------------------------------------------------------

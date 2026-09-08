@@ -161,6 +161,31 @@ class AppServiceProvider extends ServiceProvider
                 ));
         });
 
+        // WWHN-SEC-08 — bước 2 của đăng nhập. Mã 6 chữ số chỉ có 10^6 khả năng,
+        // nên đây là bề mặt dò rõ ràng nhất của cả luồng xác thực.
+        //
+        // Khoá theo (IP + mfa_token) chứ không chỉ IP: một mã phiên chờ chỉ nên
+        // được thử vài lần, còn khoá thuần theo IP sẽ để cả văn phòng dùng chung
+        // NAT tự khoá lẫn nhau khi một người gõ nhầm. Trần theo TÀI KHOẢN nằm ở
+        // MfaService (failed_attempts + locked_until) — hai lớp bù cho nhau:
+        // throttle IP bị vượt bằng botnet, còn trần tài khoản không chặn được kẻ
+        // rải mã qua nhiều tài khoản khác nhau.
+        RateLimiter::for('auth-mfa-verify', static function (Request $request) {
+            $perMinute = (int) config('rate_limit.auth_mfa_verify_per_minute', 10);
+            if ($perMinute <= 0) {
+                return Limit::none();
+            }
+
+            $challenge = (string) $request->input('mfa_token', '');
+
+            return Limit::perMinute($perMinute)
+                ->by('auth-mfa-verify:'.$request->ip().':'.($challenge !== '' ? sha1($challenge) : 'anonymous'))
+                ->response(static fn (Request $throttled, array $headers) => RateLimitResponse::make(
+                    $throttled,
+                    $headers,
+                    'Bạn đã nhập mã xác thực quá nhiều lần. Vui lòng thử lại sau.',
+                ));
+        });
         RateLimiter::for('auth-refresh', static function (Request $request) {
             $perMinute = (int) config('rate_limit.auth_refresh_per_minute', 30);
             if ($perMinute <= 0) {

@@ -1,0 +1,485 @@
+openapi: 3.0.3
+
+# =============================================================================
+# HN-BE-API-007 — App PV: gửi yêu cầu tư vấn (nhiều sản phẩm)
+#
+# Bản đặc tả THU HẸP cho đúng một endpoint, dành cho đội FE App PV đọc và wire.
+# Nguồn sự thật vẫn là annotation trên
+# Modules/Warehouse/app/Http/Controllers/PublicApi/PublicQuoteRequestController.php
+# và bản sinh máy `storage/api-docs/api-docs.json` (operationId
+# `createPublicQuoteRequest`). File này KHÔNG được mô tả khác hai nguồn đó; nó
+# tồn tại vì bản sinh máy có ~360 operation, không đọc tay được.
+#
+# Văn bản diễn giải: docs/api-contract/HN-BE-API-007_PUBLIC_QUOTE_REQUEST.md
+# =============================================================================
+
+info:
+  title: WMS Hoa Nam — App PV Public Quote Request
+  version: 1.1.0
+  description: |
+    `version` ở đây là **contract version của mặt công khai**, đúng giá trị mà
+    `GET /api/v1/public/config` và `GET /api/v1/public/health/version` trả về ở
+    trường `contract_version`. FE dùng nó để biết BE trước mặt đã có `items[]`
+    hay chưa:
+
+      - `1.0.0` — chỉ nhận một sản phẩm (`product_id` ở gốc body).
+      - `1.1.0` — nhận `items[]` nhiều sản phẩm; body cũ vẫn chạy y nguyên.
+
+    Version của ĐƯỜNG DẪN (`/api/v1/`) không đổi: đây là thay đổi cộng thêm,
+    không phá vỡ client cũ, nên không sinh `/api/v2/`.
+
+servers:
+  - url: http://localhost:8080
+    description: |
+      DEV (máy lập trình / docker compose). Khớp `APP_URL` trong `.env` và
+      `VITE_API_BASE_URL` của FE (`http://localhost:8080/api/v1`).
+  - url: https://{uat_host}
+    description: |
+      UAT. Host KHÔNG nằm trong repo: workflow `.github/workflows/hn-devops-ci-cd.yml`
+      lấy từ secret `UAT_SSH_HOST` / biến `UAT_ARTIFACT_ROOT`. Lấy giá trị thật
+      từ DevOps, đừng đoán theo tên miền của FE.
+    variables:
+      uat_host:
+        default: uat-host-chua-cong-bo-trong-repo
+  - url: https://{prod_host}
+    description: |
+      PRODUCTION — **chưa tồn tại tại thời điểm 08/09/2026**. Job `deploy-uat`
+      chỉ chạy bằng `workflow_dispatch` và đang bị chặn bởi CI đỏ; chưa có
+      pipeline production nào. Điền khi có.
+    variables:
+      prod_host:
+        default: chua-co-moi-truong-production
+
+tags:
+  - name: 13. Public Storefront
+    description: Mặt công khai `/api/v1/public/*` — ẩn danh, không Authorization.
+
+paths:
+  /api/v1/public/quote-requests:
+    post:
+      tags: ['13. Public Storefront']
+      operationId: createPublicQuoteRequest
+      summary: Storefront — gửi yêu cầu tư vấn (ẩn danh, idempotent, nhiều sản phẩm)
+      description: |
+        Ghi nhận MỘT yêu cầu tư vấn kèm DANH SÁCH sản phẩm khách đã chọn.
+
+        Phạm vi đóng: không giá, không số tồn, không giỏ hàng, không đơn hàng,
+        không job/mail/event. `status` chỉ có một giá trị `RECEIVED`.
+      security: []          # ẩn danh có chủ đích — KHÔNG gửi Authorization
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequestBody'
+            examples:
+              nhieu_san_pham:
+                summary: Hình CHÍNH — nhiều sản phẩm
+                value:
+                  items:
+                    - product_id: 01a07b0e-9fee-7196-a008-ad03bce9aa38
+                      quantity: 2
+                    - product_id: 01a07b0e-9ff3-70d0-a9aa-0b589dec6e89
+                    - product_id: 01a07b0e-a00b-7279-a481-e64f6918f89a
+                      quantity: 5
+                  full_name: Nguyễn Văn Quang
+                  phone: '+84 912 345 678'
+                  province_code: '79'
+                  note: Xin báo giá 3 mã máy khoan
+                  consent: true
+                  privacy_version: 1.0.0
+              mot_san_pham_hinh_moi:
+                summary: Một sản phẩm, vẫn dùng items[] (khuyến nghị cho app mới)
+                value:
+                  items:
+                    - product_id: 01a07b0e-9fee-7196-a008-ad03bce9aa38
+                  full_name: Nguyễn Văn Quang
+                  phone: '0912345678'
+                  consent: true
+                  privacy_version: 1.0.0
+              mot_san_pham_hinh_cu:
+                summary: Hình CŨ — app đang chạy ngoài thị trường, không cần sửa
+                value:
+                  product_id: 01a07b0e-9fee-7196-a008-ad03bce9aa38
+                  variant_id: null
+                  full_name: Nguyễn Văn Quang
+                  phone: '0912345678'
+                  province_code: null
+                  note: null
+                  consent: true
+                  privacy_version: 1.0.0
+      responses:
+        '201':
+          description: Đã tạo yêu cầu mới.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteRequestSuccessEnvelope'
+              example:
+                success: true
+                message: Đã tiếp nhận yêu cầu tư vấn.
+                data:
+                  request_id: 01a080be-3183-725e-8e5e-64514d6df08f
+                  status: RECEIVED
+                meta:
+                  request_id: 1a794f43-7fda-46da-9c27-ccb04ed699e9
+                error_code: null
+                errors: null
+        '200':
+          description: |
+            Đã nhận trước đó với CÙNG `Idempotency-Key` và cùng nội dung —
+            retry an toàn, không tạo lead thứ hai.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteRequestSuccessEnvelope'
+              example:
+                success: true
+                message: Yêu cầu tư vấn đã được tiếp nhận trước đó.
+                data:
+                  request_id: 01a080be-3183-725e-8e5e-64514d6df08f
+                  status: RECEIVED
+                meta:
+                  request_id: df4fee4d-9443-4482-84b3-c11ea7f92d95
+                error_code: null
+                errors: null
+        '400':
+          description: '`IDEMPOTENCY_KEY_INVALID` — khoá sai độ dài hoặc chứa ký tự ngoài `A-Za-z0-9-_.:`'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: Idempotency-Key phải dài 16-128 ký tự.
+                data: null
+                meta:
+                  request_id: 5f2f...
+                error_code: IDEMPOTENCY_KEY_INVALID
+                errors: null
+        '404':
+          description: |
+            `PRODUCT_NOT_FOUND` — ít nhất một sản phẩm không còn hiển thị công
+            khai. CỐ Ý không phân biệt "không tồn tại" với "chưa publish / hết
+            hàng": phân biệt là xác nhận sản phẩm đó có thật trong hệ thống cho
+            người ẩn danh.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: Không tìm thấy sản phẩm.
+                data: null
+                meta:
+                  request_id: 3ee91b40-9950-4d58-80ed-b3c8b5ecf544
+                error_code: PRODUCT_NOT_FOUND
+                errors:
+                  items.1.product_id:
+                    - Sản phẩm không còn khả dụng.
+        '409':
+          description: |
+            `IDEMPOTENCY_CONFLICT` — cùng khoá nhưng nội dung khác lần trước
+            (thêm/bớt sản phẩm, đổi số lượng, đổi thứ tự, đổi thông tin liên hệ).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                success: false
+                message: Idempotency-Key này đã được dùng cho một yêu cầu khác.
+                data: null
+                meta:
+                  request_id: 7c1d...
+                error_code: IDEMPOTENCY_CONFLICT
+                errors: null
+        '422':
+          description: |
+            Ba mã khác nhau, FE phải phân biệt:
+
+              - `VALIDATION_FAILED` — sai định dạng / trùng sản phẩm / vượt trần
+                / `quantity` sai / `variant_id` không thuộc sản phẩm. Khoá trong
+                `errors` trỏ đúng dòng hỏng.
+              - `CONSENT_REQUIRED` — `consent` không phải `true`. Tách riêng để
+                FE trỏ vào ô checkbox thay vì báo lỗi form chung chung.
+              - `PRIVACY_VERSION_MISMATCH` — khách đang xem bản chính sách cũ;
+                `errors.privacy_version[0]` là bản hiện hành.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                validation_theo_dong:
+                  summary: VALIDATION_FAILED — lỗi trỏ đúng dòng
+                  value:
+                    success: false
+                    message: Dữ liệu gửi lên chưa hợp lệ.
+                    data: null
+                    meta:
+                      request_id: 9ab1...
+                    error_code: VALIDATION_FAILED
+                    errors:
+                      items.1.product_id:
+                        - Sản phẩm này đã có ở dòng 1.
+                      items.2.quantity:
+                        - Số lượng phải từ 1 đến 9999.
+                consent:
+                  summary: CONSENT_REQUIRED
+                  value:
+                    success: false
+                    message: Bạn cần đồng ý với chính sách bảo mật trước khi gửi yêu cầu.
+                    data: null
+                    meta:
+                      request_id: 9ab2...
+                    error_code: CONSENT_REQUIRED
+                    errors: null
+                privacy:
+                  summary: PRIVACY_VERSION_MISMATCH
+                  value:
+                    success: false
+                    message: Chính sách bảo mật đã được cập nhật. Vui lòng tải lại và đồng ý phiên bản mới nhất.
+                    data: null
+                    meta:
+                      request_id: 9ab3...
+                    error_code: PRIVACY_VERSION_MISMATCH
+                    errors:
+                      privacy_version:
+                        - 1.0.0
+        '428':
+          description: '`IDEMPOTENCY_KEY_REQUIRED` — thiếu header `Idempotency-Key`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '429':
+          description: |
+            `RATE_LIMIT_EXCEEDED` — mặc định 5 request/phút, khoá theo
+            (IP + số điện thoại). Header `Retry-After` cho biết chờ bao lâu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '503':
+          description: |
+            `FEATURE_DISABLED` (tắt cờ tính năng) hoặc `SERVICE_UNAVAILABLE`
+            (đang bảo trì). Các endpoint ĐỌC vẫn phục vụ để FE dựng được màn
+            hình bảo trì.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Chuỗi 16–128 ký tự do client sinh, chỉ gồm `A-Z a-z 0-9 - _ . :`.
+
+        - Cùng khoá + cùng nội dung → `200` và đúng `request_id` cũ.
+        - Cùng khoá + khác nội dung → `409 IDEMPOTENCY_CONFLICT`.
+        - Khoá KHÔNG hết hạn: bản ghi nằm lại vĩnh viễn trong
+          `public_quote_requests.idempotency_key` (UNIQUE). Biến
+          `PUBLIC_API_QUOTE_IDEMPOTENCY_TTL_HOURS=24` hiện chỉ khai trong config
+          và **chưa có code nào đọc** — đừng thiết kế FE dựa vào việc khoá sẽ
+          hết hạn sau 24 giờ.
+        - Đổi lựa chọn thì SINH KHOÁ MỚI, đừng dùng lại khoá cũ.
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 128
+        pattern: '^[A-Za-z0-9\-_.:]+$'
+        example: quote-01J8Z6-3f9a1c2b7d
+
+  schemas:
+    QuoteRequestBody:
+      type: object
+      required: [full_name, phone, consent, privacy_version]
+      description: |
+        Lựa chọn sản phẩm đi theo `items[]` (hình chính) HOẶC `product_id` ở gốc
+        body (hình cũ, một sản phẩm). Gửi kèm cả hai cũng được — dành cho FE
+        giai đoạn chuyển tiếp muốn chạy với cả BE cũ lẫn mới — nhưng khi đó
+        `product_id` PHẢI trùng `items[0].product_id`, lệch nhau là `422`.
+
+        KHÔNG có trường `product_ids: string[]`: xem HN-BE-API-007 §2.5 để biết
+        vì sao chỉ có một hình danh sách.
+
+        Trường lạ bị bỏ qua, không phải lỗi.
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          description: |
+            Danh sách sản phẩm khách chọn, GIỮ NGUYÊN thứ tự trên màn hình.
+            Trần 20 dòng (`PUBLIC_API_QUOTE_MAX_ITEMS`) là ranh giới nghiệp vụ:
+            một yêu cầu tư vấn dài hơn thế đã là đơn hàng. Không được trùng
+            `product_id` giữa các dòng.
+          items:
+            $ref: '#/components/schemas/QuoteRequestItem'
+        product_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: HÌNH CŨ — một sản phẩm. Được chuẩn hoá thành `items[0]`.
+        variant_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: HÌNH CŨ — biến thể của `product_id`.
+        full_name:
+          type: string
+          minLength: 2
+          maxLength: 120
+          example: Nguyễn Văn Quang
+        phone:
+          type: string
+          description: |
+            Số Việt Nam. BE tự chuẩn hoá `+84…` / `84…` về `0…` rồi kiểm
+            `^0[0-9]{9,10}$`. Lưu ở dạng mã hoá (WWHN-SEC-06).
+          example: '+84 912 345 678'
+        province_code:
+          type: string
+          maxLength: 16
+          pattern: '^[A-Za-z0-9_-]{1,16}$'
+          nullable: true
+        note:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: |
+            Ghi chú tự do của khách. **Không dùng ô này để liệt kê sản phẩm** —
+            đã có `items`; và `note` là cột PII đã mã hoá nên không truy vấn được.
+        consent:
+          type: boolean
+          description: Phải là `true`. Điều kiện pháp lý để lưu dữ liệu cá nhân.
+          example: true
+        privacy_version:
+          type: string
+          maxLength: 32
+          description: Đúng chuỗi lấy từ `GET /api/v1/public/config` (`privacy.version`).
+          example: 1.0.0
+
+    QuoteRequestItem:
+      type: object
+      required: [product_id]
+      properties:
+        product_id:
+          type: string
+          format: uuid
+          description: |
+            `id` của sản phẩm, lấy từ `GET /products` hoặc `GET /products/{slug}`.
+            Phải đang publish VÀ còn hàng, nếu không cả yêu cầu bị `404`.
+        variant_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: |
+            Bỏ trống nếu khách không chọn biến thể. Nếu gửi thì phải là chính
+            `product_id`, hoặc một `id` nằm trong `variants[]` của sản phẩm đó
+            (biến thể trong danh mục này là SKU anh em cùng family).
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+          description: |
+            Số lượng khách nêu, để người tư vấn gọi lại cho đúng. KHÔNG trừ tồn,
+            KHÔNG giữ chỗ. **Bỏ trống ≠ 1**: `null` nghĩa là khách chưa nói số
+            lượng, BE không điền hộ.
+
+    QuoteRequestSuccessEnvelope:
+      type: object
+      required: [success, message, data, meta, error_code, errors]
+      description: |
+        Envelope của mặt công khai LUÔN đủ sáu khoá, kể cả khi giá trị là `null`
+        — FE parse mọi response bằng một hàm duy nhất.
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          $ref: '#/components/schemas/QuoteRequestResult'
+        meta:
+          type: object
+          description: '`request_id` của LẦN GỌI (trace id), khác `data.request_id`.'
+          properties:
+            request_id:
+              type: string
+        error_code:
+          type: string
+          nullable: true
+          example: null
+        errors:
+          type: object
+          nullable: true
+          example: null
+
+    QuoteRequestResult:
+      type: object
+      required: [request_id, status]
+      description: |
+        CHỈ hai khoá. Response KHÔNG trả lại danh sách sản phẩm đã nhận, vì BE
+        không bao giờ tự sửa danh sách: trùng sản phẩm thì báo lỗi chứ không
+        gộp, sản phẩm hỏng thì báo lỗi chứ không bỏ dòng — nên bản echo sẽ luôn
+        bằng đúng cái FE vừa gửi. Xem HN-BE-API-007 §4 nếu muốn đổi.
+      properties:
+        request_id:
+          type: string
+          format: uuid
+          description: Mã yêu cầu tư vấn, để đối soát với người trực máy.
+        status:
+          type: string
+          enum: [RECEIVED]
+
+    ErrorEnvelope:
+      type: object
+      required: [success, message, data, meta, error_code, errors]
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: Câu tiếng Việt hiển thị được cho người dùng cuối.
+        data:
+          nullable: true
+          example: null
+        meta:
+          type: object
+          properties:
+            request_id:
+              type: string
+        error_code:
+          type: string
+          description: |
+            FE switch-case trên trường NÀY, không phải trên `message`.
+          enum:
+            - IDEMPOTENCY_KEY_REQUIRED
+            - IDEMPOTENCY_KEY_INVALID
+            - IDEMPOTENCY_CONFLICT
+            - VALIDATION_FAILED
+            - CONSENT_REQUIRED
+            - PRIVACY_VERSION_MISMATCH
+            - PRODUCT_NOT_FOUND
+            - RATE_LIMIT_EXCEEDED
+            - FEATURE_DISABLED
+            - SERVICE_UNAVAILABLE
+        errors:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: |
+            Khoá là ĐƯỜNG DẪN tới ô lỗi, theo đúng chỉ số client gửi lên (đếm
+            từ 0): `items.1.product_id`, `items.2.quantity`. Với hình cũ (một
+            sản phẩm) khoá vẫn là `product_id` / `variant_id` như trước. Lỗi
+            cấp cả mảng dùng khoá `items`.

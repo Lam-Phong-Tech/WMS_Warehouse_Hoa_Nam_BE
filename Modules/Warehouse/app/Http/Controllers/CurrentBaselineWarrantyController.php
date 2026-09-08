@@ -16,6 +16,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineWarrantyController extends CurrentBaselineOperationsController
@@ -186,7 +187,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             }
 
             $caseId = (string) Str::uuid();
-            DB::table('warranty_case')->insert([
+            // WWHN-SEC-06: encode() đổi customer_name/phone/address thành
+            // ciphertext + blind index. Bỏ lớp bọc này là ghi thẳng PII dạng rõ.
+            DB::table('warranty_case')->insert(WarrantyCasePii::encode([
                 'warranty_case_id' => $caseId,
                 'warranty_case_code' => $caseCode,
                 'item_id' => $item?->item_id,
@@ -215,7 +218,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'legal_hold_flag' => false,
                 'created_at' => now(),
                 'updated_at' => now(),
-            ]);
+            ]));
             $this->syncWarrantyDefects($caseId, $defectIds);
 
             if ($item !== null) {
@@ -412,6 +415,11 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             if ($case === null) {
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy ca bảo hành.');
             }
+            // WWHN-SEC-06: giải mã NGAY sau khi đọc. Update bên dưới dùng
+            // `$validated[...] ?? $case->customer_name` làm giá trị giữ nguyên —
+            // không giải mã ở đây thì một lần cập nhật status sẽ ghi đè PII bằng
+            // chính ciphertext, tức mã hoá hai lần và mất dữ liệu gốc.
+            WarrantyCasePii::decodeRow($case);
             if ((int) $case->version !== $expectedVersion) {
                 ApiError::abort(412, 'STALE_VERSION', 'Hồ sơ bảo hành vừa được cập nhật ở nơi khác. Hãy tải lại rồi thao tác lại.', [
                     'expected_version' => $expectedVersion,
@@ -480,7 +488,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             $closing = in_array($target, self::TERMINAL_STATUSES, true);
             $closedAt = $closing ? ($case->closed_at ?? now()) : $case->closed_at;
 
-            DB::table('warranty_case')->where('warranty_case_id', $id)->update([
+            DB::table('warranty_case')->where('warranty_case_id', $id)->update(WarrantyCasePii::encode([
                 'status' => $target,
                 'condition_status' => $validated['condition_status'] ?? $case->condition_status,
                 'description' => $validated['description'] ?? $case->description,
@@ -511,7 +519,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     : ($case->retention_until ?? null),
                 'updated_at' => now(),
                 'updated_by' => $this->currentActorId(),
-            ]);
+            ]));
             // GĐ1-REQ-009: warranty_case_defects là contract canonical — đồng bộ cả khi
             // client chỉ gửi defect_id/defect_code đơn, nếu không hai nguồn sẽ lệch nhau.
             if (
@@ -757,6 +765,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         if ($case === null) {
             return [];
         }
+
+        // WWHN-SEC-06: giải mã trước khi lớp mask PII (§13.8) chạm vào giá trị.
+        WarrantyCasePii::decodeRow($case);
 
         $item = $case->item_id
             ? DB::table('item_instances')->where('item_id', $case->item_id)->first()

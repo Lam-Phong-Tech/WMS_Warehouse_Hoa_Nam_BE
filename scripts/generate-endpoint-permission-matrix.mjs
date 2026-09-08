@@ -44,6 +44,12 @@ const PUBLIC_ALLOWLIST = new Set([
   "POST /api/v1/auth/forgot-password",
   "POST /api/v1/auth/verify-otp",
   "POST /api/v1/auth/reset-password",
+  // WWHN-SEC-08 — bước 2 của đăng nhập (xác thực hai bước). Cùng nhóm bootstrap
+  // phiên với login/refresh: đúng lúc gọi nó, người dùng mới qua bước mật khẩu và
+  // CỐ Ý chưa được phát token nào, nên không thể đòi `auth:api`.
+  // Thứ đứng thay: mã phiên chờ dùng-MỘT-lần (TTL 5 phút, huỷ ngay khi tiêu thụ),
+  // throttle theo (IP + mfa_token), và trần theo TÀI KHOẢN trong MfaService.
+  "POST /api/v1/auth/mfa/verify",
   // WWHN-249 (DEV249-P1-03): 4 operation PUBLIC_ANONYMOUS theo Annex C là
   // listPvProducts / getPvProduct / listPvIndustries / listPvRecommendations;
   // SRS §12 (bảng Security) khai đích danh chúng phải override security: [].

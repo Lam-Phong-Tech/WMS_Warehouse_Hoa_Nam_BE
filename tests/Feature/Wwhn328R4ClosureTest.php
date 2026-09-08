@@ -14,6 +14,7 @@ use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -72,10 +73,16 @@ class Wwhn328R4ClosureTest extends TestCase
             'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE',
         ]);
 
-        $this->globalUser = $this->makeUser('r4-global', ['report.view'], null, 'SUPER_ADMIN');
+        // Lớp này đo DATA SCOPE và số liệu dashboard, không đo phân quyền theo màn.
+        // Từ 07/09/2026 `report.view` không còn tự mở màn nào (BA tách theo từng màn),
+        // nên phải cấp kèm mã của màn RPT-02 — reports/inventory-balance và
+        // reports/inventory-reconciliation nay gác bằng nó.
+        $reportPermissions = ['report.view', 'report.stock_reconcile.view'];
+
+        $this->globalUser = $this->makeUser('r4-global', $reportPermissions, null, 'SUPER_ADMIN');
         $this->globalToken = JWTAuth::fromUser($this->globalUser);
         $this->scopedToken = JWTAuth::fromUser(
-            $this->makeUser('r4-scoped', ['report.view'], (string) $this->warehouseA->id, 'R4_SCOPED_A')
+            $this->makeUser('r4-scoped', $reportPermissions, (string) $this->warehouseA->id, 'R4_SCOPED_A')
         );
     }
 
@@ -311,7 +318,7 @@ class Wwhn328R4ClosureTest extends TestCase
      */
     private function warrantyCase(string $status): void
     {
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => (string) Str::uuid(),
             'warranty_case_code' => 'WC-328R4-'.Str::random(6),
             'product_id' => $this->product->id,
@@ -328,6 +335,6 @@ class Wwhn328R4ClosureTest extends TestCase
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
     }
 }

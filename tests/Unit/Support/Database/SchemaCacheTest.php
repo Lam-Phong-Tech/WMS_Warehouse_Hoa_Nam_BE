@@ -22,6 +22,39 @@ class SchemaCacheTest extends TestCase
         $this->assertFalse(SchemaCache::hasColumn('bang_khong_ton_tai', 'x'));
     }
 
+    /**
+     * VIEW cũng phải trả lời được "có cột này không".
+     *
+     * `Schema::hasTable()` trên PostgreSQL chỉ liệt kê BASE TABLE, nên
+     * `hasColumn()` trả FALSE cho MỌI cột của một view. Mọi bộ lọc canh theo
+     * `hasColumn()` trên quan hệ là view sẽ bị bỏ qua IM LẶNG — đúng lỗi đã làm
+     * chết bộ lọc "Nhận diện"/"Bệnh/lỗi" và tìm theo mã hồ sơ ở WAR-01, vì
+     * `warranty_case` là view trên `warranty_cases`.
+     *
+     * Bộ test chạy sqlite nên KHÔNG tái hiện được lỗi gốc; test này khoá HỢP
+     * ĐỒNG của `relationColumns()` (view phải đọc được cột) để lần refactor sau
+     * không lặng lẽ quay về `hasColumn()`.
+     */
+    public function test_relation_columns_also_sees_columns_of_a_view(): void
+    {
+        DB::statement('create view v_schema_cache_probe as select user_id, email from app_user');
+
+        try {
+            SchemaCache::flush();
+
+            $this->assertTrue(SchemaCache::hasRelationColumn('v_schema_cache_probe', 'email'));
+            $this->assertTrue(SchemaCache::hasRelationColumn('v_schema_cache_probe', 'USER_ID'), 'Hỏi cột phải không phân biệt hoa thường.');
+            $this->assertFalse(SchemaCache::hasRelationColumn('v_schema_cache_probe', 'cot_khong_ton_tai'));
+            $this->assertFalse(SchemaCache::hasRelationColumn('quan_he_khong_ton_tai', 'email'));
+
+            // Bảng thật vẫn đi qua đúng một lần đọc schema như cũ.
+            $this->assertTrue(SchemaCache::hasRelationColumn('app_user', 'email'));
+        } finally {
+            DB::statement('drop view v_schema_cache_probe');
+            SchemaCache::flush();
+        }
+    }
+
     public function test_repeat_questions_do_not_hit_the_database_again(): void
     {
         SchemaCache::flush();

@@ -155,7 +155,7 @@ class WarehouseController extends Controller
     #[OA\Patch(
         path: '/api/v1/warehouses/{id}',
         operationId: 'warehouse_update',
-        summary: 'Sửa tên/địa chỉ/thông tin liên hệ kho trong data scope',
+        summary: 'Sửa tên/địa chỉ/liên hệ kho; đổi status chỉ Super Admin',
         security: [['bearerAuth' => []]],
         tags: ['06. Warehouse'],
         parameters: [
@@ -167,13 +167,21 @@ class WarehouseController extends Controller
                 new OA\Property(property: 'address', type: 'string', maxLength: 500, nullable: true, example: '123 Đường Láng, Hà Nội'),
                 new OA\Property(property: 'contact_person', type: 'string', maxLength: 200, nullable: true, example: 'Trần Thị B'),
                 new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
+                new OA\Property(
+                    property: 'status',
+                    description: 'Chỉ Super Admin được đổi. INACTIVE đóng băng mọi thao tác ghi của toàn hệ thống.',
+                    type: 'string',
+                    enum: ['ACTIVE', 'INACTIVE'],
+                    example: 'ACTIVE'
+                ),
             ])
         ),
         responses: [
             new OA\Response(response: 200, description: 'Cập nhật thành công'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
-            new OA\Response(response: 403, description: 'Không có quyền hoặc kho ngoài data scope'),
+            new OA\Response(response: 403, description: 'Không có quyền, kho ngoài data scope, hoặc đổi status mà không phải Super Admin'),
             new OA\Response(response: 404, description: 'Không tìm thấy kho'),
+            new OA\Response(response: 409, description: 'Đã có kho ACTIVE khác (REQ-SRS-001)'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
         ]
     )]
@@ -187,6 +195,28 @@ class WarehouseController extends Controller
         }
 
         $validated = $request->validated();
+
+        // BA 07/09/2026 — ĐỔI TRẠNG THÁI KHO CHỈ SUPER ADMIN.
+        //
+        // Tách khỏi `warehouse.manage`: quyền đó vẫn cho ADMIN sửa tên/địa chỉ/liên hệ,
+        // nhưng bật/tắt kho là công tắc đóng băng toàn bộ nghiệp vụ ghi của cả hệ thống
+        // (xem EnsureWarehouseOperational), không cùng mức rủi ro với sửa số điện thoại.
+        //
+        // So `$before->status` để chỉ chặn khi THỰC SỰ đổi: FE gửi nguyên form kèm
+        // `status` không đổi ở mọi lần lưu, chặn theo "có mặt field" sẽ khoá luôn việc
+        // ADMIN sửa tên kho.
+        $statusChange = isset($validated['status'])
+            && strtoupper((string) $validated['status']) !== strtoupper((string) $before->status);
+
+        if ($statusChange && ! $this->authenticatedUser()->isSuperAdmin()) {
+            ApiError::abort(
+                403,
+                'ACCESS_DENIED',
+                'Chỉ Super Admin được đổi trạng thái hoạt động của kho.',
+                ['field' => 'status'],
+            );
+        }
+
         // REQ-SRS-001 + §8.1: chỉ tồn tại một kho ACTIVE. Trả 409 STATE_CONFLICT
         // thay vì để unique index ném 500.
         if (($validated['status'] ?? null) === 'ACTIVE' && (string) $before->status !== 'ACTIVE') {

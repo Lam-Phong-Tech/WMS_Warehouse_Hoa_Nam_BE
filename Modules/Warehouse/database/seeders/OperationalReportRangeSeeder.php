@@ -13,6 +13,7 @@ use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Support\WarrantyCasePii;
 
 /**
  * Dữ liệu mẫu BỔ SUNG cho "Báo cáo vận hành" (8 tab, xem AlignedReportsPage) —
@@ -421,7 +422,7 @@ class OperationalReportRangeSeeder extends Seeder
         $caseId = (string) Str::uuid();
         $defectId = DB::table('defect_catalogs')->where('defect_code', $defectCode)->value('defect_id');
 
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $caseId,
             'warranty_case_code' => $caseCode,
             'item_id' => $itemId,
@@ -449,7 +450,7 @@ class OperationalReportRangeSeeder extends Seeder
             'legal_hold_flag' => false,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
 
         if ($itemId !== null) {
             DB::table('item_instances')->where('item_id', $itemId)->update([

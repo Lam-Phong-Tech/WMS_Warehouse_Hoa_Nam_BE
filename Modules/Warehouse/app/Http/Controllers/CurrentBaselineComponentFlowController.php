@@ -26,6 +26,21 @@ class CurrentBaselineComponentFlowController extends Controller
     use CachesReadPayload;
     use ResolvesActor;
 
+    /**
+     * Nghiệp vụ 04: chỉ hồ sơ "Đang kiểm tra" (CHECKING) và "Đang sửa chữa"
+     * (REPAIRING) mới được xuất linh kiện.
+     *
+     * Guard cũ chỉ loại RETURNED/CANCELLED nên `RECEIVED` (vừa tiếp nhận, chưa ai
+     * kiểm tra) và `COMPLETED` (đã sửa xong, chỉ chờ trả khách) vẫn xuất được linh
+     * kiện — vừa lệch quy trình, vừa thổi phồng "linh kiện dùng cho case đang xử lý"
+     * của RPT-WAR-COMP-01. Kiểm ở CẢ store/scan/lines/post vì case có thể đổi trạng
+     * thái giữa lúc quét và lúc Post.
+     */
+    public const CASE_STATUSES_ALLOWING_ISSUE = ['CHECKING', 'REPAIRING'];
+
+    /** §6: hai trạng thái đóng — giữ nguyên mã lỗi cũ để client đang bắt không vỡ. */
+    private const CASE_CLOSED_STATUSES = ['RETURNED', 'CANCELLED'];
+
     public function __construct(
         private readonly CurrentBaselineStockService $stock,
         private readonly ComponentContainerSubledgerService $containers,
@@ -40,6 +55,55 @@ class CurrentBaselineComponentFlowController extends Controller
     private function invalidateReadCache(): void
     {
         DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+    }
+
+    /**
+     * Cửa duy nhất kiểm trạng thái hồ sơ bảo hành cho luồng xuất linh kiện.
+     *
+     * Tách hai mã lỗi vì hướng xử lý khác hẳn nhau: case đã đóng thì không làm gì
+     * được nữa, còn case "chưa tới lượt" (RECEIVED) chỉ cần chuyển sang Đang kiểm
+     * tra rồi quét lại — client cần phân biệt để chỉ đúng việc cho người quét.
+     *
+     * @param  string  $phase  Mô tả bước đang chạy, ghép thẳng vào thông điệp lỗi.
+     */
+    private function assertCaseAllowsComponentIssue(?object $case, string $phase): void
+    {
+        if ($case === null) {
+            ApiError::abort(422, 'WARRANTY_CASE_NOT_ACTIVE', 'Không tìm thấy hồ sơ bảo hành của phiếu xuất linh kiện.');
+        }
+
+        $status = strtoupper((string) $case->status);
+        if (in_array($status, self::CASE_STATUSES_ALLOWING_ISSUE, true)) {
+            return;
+        }
+
+        if (in_array($status, self::CASE_CLOSED_STATUSES, true)) {
+            ApiError::abort(422, 'WARRANTY_CASE_NOT_ACTIVE', "Hồ sơ bảo hành đã đóng nên không xuất linh kiện được {$phase}.", [
+                'warranty_case_id' => (string) $case->warranty_case_id,
+                'warranty_case_status' => $status,
+                'allowed_statuses' => self::CASE_STATUSES_ALLOWING_ISSUE,
+            ]);
+        }
+
+        ApiError::abort(422, 'WARRANTY_CASE_STATUS_NOT_ALLOWED', "Chỉ hồ sơ bảo hành đang kiểm tra hoặc đang sửa chữa mới được xuất linh kiện {$phase}.", [
+            'warranty_case_id' => (string) $case->warranty_case_id,
+            'warranty_case_status' => $status,
+            'allowed_statuses' => self::CASE_STATUSES_ALLOWING_ISSUE,
+        ]);
+    }
+
+    /**
+     * Khoá hàng hồ sơ bảo hành của phiếu rồi kiểm trạng thái. Dùng chung cho mọi
+     * mutation sau bước tạo phiếu (scan/unscan/lines/post).
+     */
+    private function assertDocumentCaseAllowsIssue(object $document, string $phase): void
+    {
+        $case = DB::table('warranty_case')
+            ->where('warranty_case_id', $document->warranty_case_id)
+            ->lockForUpdate()
+            ->first();
+
+        $this->assertCaseAllowsComponentIssue($case, $phase);
     }
 
     #[OA\Post(
@@ -97,9 +161,7 @@ class CurrentBaselineComponentFlowController extends Controller
                 ApiError::abort(422, 'WAREHOUSE_NOT_ACTIVE', 'Component Issue yêu cầu warehouse ACTIVE.');
             }
             $case = DB::table('warranty_case')->where('warranty_case_id', $validated['warranty_case_id'])->lockForUpdate()->first();
-            if ($case === null || in_array($case->status, ['RETURNED', 'CANCELLED'], true)) {
-                ApiError::abort(422, 'WARRANTY_CASE_NOT_ACTIVE', 'Component Issue yêu cầu warranty case active.');
-            }
+            $this->assertCaseAllowsComponentIssue($case, 'khi tạo phiếu');
 
             $documentId = (string) Str::uuid();
             DB::table('component_issue_documents')->insert([
@@ -200,10 +262,7 @@ class CurrentBaselineComponentFlowController extends Controller
             if (! in_array($document->status, ['DRAFT', 'SCANNING'], true)) {
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được scan Component Issue.');
             }
-            $case = DB::table('warranty_case')->where('warranty_case_id', $document->warranty_case_id)->lockForUpdate()->first();
-            if ($case === null || in_array($case->status, ['RETURNED', 'CANCELLED'], true)) {
-                ApiError::abort(422, 'WARRANTY_CASE_NOT_ACTIVE', 'Warranty case không còn active.');
-            }
+            $this->assertDocumentCaseAllowsIssue($document, 'khi quét linh kiện');
 
             $line = DB::table('component_issue_lines')->where('id', $validated['line_id'])->where('component_issue_document_id', $id)->lockForUpdate()->first();
             if ($line === null) {
@@ -310,6 +369,318 @@ class CurrentBaselineComponentFlowController extends Controller
     }
 
     #[OA\Post(
+        path: '/api/v1/component-issue-documents/{id}/unscan',
+        operationId: 'unscanComponentIssue',
+        summary: 'Gỡ một dòng linh kiện đã quét khỏi phiếu xuất bảo hành (stock-neutral)',
+        description: 'Quét nhầm thì gỡ đúng dòng đó thay vì phải huỷ cả phiếu. Chỉ tác động lên bằng chứng quét: dòng chuyển REMOVED, scanned_qty của line giảm tương ứng, tồn kho không đổi. Dòng quét theo HỘP bị gỡ nguyên dòng (muốn sửa số lượng thì gỡ rồi quét lại với số đúng).',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string', example: '"2"')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'component_issue_item_id', type: 'string', format: 'uuid', nullable: true, description: 'Id dòng quét lấy từ `lines[].items[].id` của bề mặt chi tiết — cách chỉ định chính xác nhất.', example: '3fa85f64-5717-4562-b3fc-2c963f66afa6'),
+                    new OA\Property(property: 'line_id', type: 'string', format: 'uuid', nullable: true, description: 'Thu hẹp phạm vi tìm khi gỡ theo mã quét.'),
+                    new OA\Property(property: 'code_value', type: 'string', maxLength: 200, nullable: true, description: 'Quét lại đúng mã cần gỡ; gỡ dòng ACTIVE mới nhất khớp mã đó.', example: 'BOX-HN-COMP-BASE-003-0001'),
+                    new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'container_id', type: 'string', format: 'uuid', nullable: true),
+                    new OA\Property(property: 'reason', type: 'string', maxLength: 2000, nullable: true, example: 'Quét nhầm linh kiện'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã gỡ dòng quét; stock_effect=NONE; ETag = version mới.'),
+            new OA\Response(response: 404, description: 'RESOURCE_NOT_FOUND hoặc COMPONENT_SCAN_NOT_FOUND'),
+            new OA\Response(response: 409, description: 'Chỉ DRAFT/SCANNING mới được gỡ dòng quét'),
+        ]
+    )]
+    public function unscan(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'component_issue_item_id' => ['nullable', 'uuid'],
+            'line_id' => ['nullable', 'uuid'],
+            'code_value' => ['nullable', 'string', 'max:200'],
+            'item_id' => ['nullable', 'uuid', 'exists:item_instances,item_id'],
+            'container_id' => ['nullable', 'uuid', 'exists:containers,container_id'],
+            'reason' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $expectedVersion = $this->expectedVersion($request);
+
+        $result = DB::transaction(function () use ($id, $validated, $expectedVersion, $request): array {
+            $document = $this->lockMutableDocument($id, $expectedVersion, 'gỡ dòng quét', 'khi gỡ dòng quét');
+            $row = $this->resolveActiveScanRow($id, $validated);
+
+            DB::table('component_issue_items')->where('id', $row->id)->update([
+                'status' => 'REMOVED',
+                'updated_at' => now(),
+                'updated_by' => $this->actorId(),
+            ]);
+
+            // max(0, ...) là phòng vệ: scanned_qty được cập nhật cùng transaction với
+            // mọi lần scan nên về lý không thể âm, nhưng cột này còn được đọc bởi
+            // guard FULL_POST_REQUIRED — âm một lần là phiếu không bao giờ Post được.
+            $after = max(0, (int) $row->scanned_qty - (int) $row->quantity);
+            DB::table('component_issue_lines')->where('id', $row->line_id)->update([
+                'scanned_qty' => $after,
+                'version' => ((int) $row->line_version) + 1,
+                'updated_at' => now(),
+                'updated_by' => $this->actorId(),
+            ]);
+
+            // Không còn dòng quét nào ACTIVE thì phiếu quay về DRAFT — đúng ngữ nghĩa
+            // "chưa quét gì", và là trạng thái mà postComponentIssue() yêu cầu.
+            $stillScanning = DB::table('component_issue_items as ci')
+                ->join('component_issue_lines as cl', 'cl.id', '=', 'ci.component_issue_line_id')
+                ->where('cl.component_issue_document_id', $id)
+                ->where('ci.status', 'ACTIVE')
+                ->exists();
+            $status = $stillScanning ? 'SCANNING' : 'DRAFT';
+
+            DB::table('component_issue_documents')->where('id', $id)->update([
+                'status' => $status,
+                'version' => $expectedVersion + 1,
+                'updated_at' => now(),
+                'updated_by' => $this->actorId(),
+            ]);
+
+            AuditLogger::record(
+                action: 'UNSCAN_COMPONENT_ISSUE',
+                objectType: 'component_issue_document',
+                objectId: $id,
+                actorId: $this->actorId(),
+                requestId: $request->attributes->get('request_id'),
+                reason: $validated['reason'] ?? null,
+                beforeData: ['status' => (string) $document->status, 'scanned_qty' => (int) $row->scanned_qty, 'version' => $expectedVersion],
+                afterData: ['status' => $status, 'scanned_qty' => $after, 'version' => $expectedVersion + 1],
+            );
+            $this->invalidateReadCache();
+
+            return [
+                'component_issue_document_id' => $id,
+                'component_issue_item_id' => (string) $row->id,
+                'line_id' => (string) $row->line_id,
+                'item_id' => $row->item_id !== null ? (string) $row->item_id : null,
+                'container_id' => $row->container_id !== null ? (string) $row->container_id : null,
+                'removed_qty' => (int) $row->quantity,
+                'required_qty' => (int) $row->required_qty,
+                'scanned_qty' => $after,
+                'status' => $status,
+                'version' => $expectedVersion + 1,
+                'lines' => $this->linesSummary($id),
+                'stock_effect' => 'NONE',
+            ];
+        }, 3);
+
+        return $this->respondSuccess($result, 'Đã gỡ dòng quét khỏi phiếu xuất linh kiện; tồn kho không đổi (stock_effect=NONE).')
+            ->header('ETag', '"'.$result['version'].'"');
+    }
+
+    #[OA\Post(
+        path: '/api/v1/component-issue-documents/{id}/lines',
+        operationId: 'addComponentIssueLine',
+        summary: 'Thêm dòng linh kiện vào phiếu xuất bảo hành đang soạn (stock-neutral)',
+        description: 'Phát sinh thêm linh kiện giữa chừng thì thêm dòng, không phải huỷ phiếu tạo lại.',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string', example: '"1"')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['sku_id', 'required_qty'],
+                properties: [
+                    new OA\Property(property: 'sku_id', type: 'string', format: 'uuid', description: 'Chỉ nhận SKU COMPONENT ACTIVE.'),
+                    new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, example: 1),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã thêm dòng; stock_effect=NONE; ETag = version mới.'),
+        ]
+    )]
+    public function storeLine(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'sku_id' => ['required', 'uuid', 'exists:sku,sku_id'],
+            'required_qty' => ['required', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ]);
+        $expectedVersion = $this->expectedVersion($request);
+
+        $result = DB::transaction(function () use ($id, $validated, $expectedVersion): array {
+            $this->lockMutableDocument($id, $expectedVersion, 'thêm dòng', 'khi thêm dòng linh kiện');
+            $this->assertComponentSku((string) $validated['sku_id']);
+
+            $lineNo = (int) DB::table('component_issue_lines')->where('component_issue_document_id', $id)->max('line_no') + 1;
+            $lineId = (string) Str::uuid();
+            DB::table('component_issue_lines')->insert([
+                'id' => $lineId,
+                'component_issue_document_id' => $id,
+                'line_no' => $lineNo,
+                'sku_id' => $validated['sku_id'],
+                'required_qty' => (int) $validated['required_qty'],
+                'scanned_qty' => 0,
+                'note' => $validated['note'] ?? null,
+                'created_at' => now(),
+                'created_by' => $this->actorId(),
+                'updated_at' => now(),
+                'updated_by' => $this->actorId(),
+                'version' => 1,
+            ]);
+            $this->touchDocumentVersion($id, $expectedVersion);
+            $this->invalidateReadCache();
+
+            return [
+                'component_issue_document_id' => $id,
+                'line_id' => $lineId,
+                'line_no' => $lineNo,
+                'version' => $expectedVersion + 1,
+                'lines' => $this->linesSummary($id),
+                'stock_effect' => 'NONE',
+            ];
+        }, 3);
+
+        return $this->respondSuccess($result, 'Đã thêm dòng linh kiện vào phiếu; tồn kho chưa thay đổi (stock_effect=NONE).')
+            ->header('ETag', '"'.$result['version'].'"');
+    }
+
+    #[OA\Patch(
+        path: '/api/v1/component-issue-documents/{id}/lines/{lineId}',
+        operationId: 'updateComponentIssueLine',
+        summary: 'Sửa số lượng cần xuất của một dòng linh kiện (stock-neutral)',
+        description: 'Xuất ít/nhiều hơn dự kiến thì chỉnh required_qty rồi Post, thay vì huỷ phiếu tạo lại. Không hạ được xuống dưới số đã quét — gỡ bớt dòng quét trước (POST .../unscan).',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'lineId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string', example: '"2"')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'required_qty', type: 'integer', minimum: 1, maximum: InputLimits::QUANTITY_MAX, nullable: true, example: 1),
+                    new OA\Property(property: 'note', type: 'string', maxLength: 2000, nullable: true),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã cập nhật dòng; stock_effect=NONE; ETag = version mới.'),
+            new OA\Response(response: 422, description: 'REQUIRED_QTY_BELOW_SCANNED — hạ dưới số đã quét'),
+        ]
+    )]
+    public function updateLine(Request $request, string $id, string $lineId)
+    {
+        $validated = $request->validate([
+            'required_qty' => ['nullable', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ]);
+        if (! $request->has('required_qty') && ! $request->has('note')) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'Phải gửi ít nhất một trong required_qty hoặc note.');
+        }
+        $expectedVersion = $this->expectedVersion($request);
+
+        $result = DB::transaction(function () use ($id, $lineId, $validated, $request, $expectedVersion): array {
+            $this->lockMutableDocument($id, $expectedVersion, 'sửa dòng', 'khi sửa dòng linh kiện');
+            $line = $this->lockLine($id, $lineId);
+
+            $requiredQty = array_key_exists('required_qty', $validated) && $validated['required_qty'] !== null
+                ? (int) $validated['required_qty']
+                : (int) $line->required_qty;
+            if ($requiredQty < (int) $line->scanned_qty) {
+                ApiError::abort(422, 'REQUIRED_QTY_BELOW_SCANNED', 'Số lượng cần xuất không được nhỏ hơn số đã quét; gỡ bớt dòng quét trước.', [
+                    'line_id' => $lineId,
+                    'required_qty' => $requiredQty,
+                    'scanned_qty' => (int) $line->scanned_qty,
+                ]);
+            }
+
+            DB::table('component_issue_lines')->where('id', $lineId)->update([
+                'required_qty' => $requiredQty,
+                'note' => $request->has('note') ? ($validated['note'] ?? null) : $line->note,
+                'version' => ((int) $line->version) + 1,
+                'updated_at' => now(),
+                'updated_by' => $this->actorId(),
+            ]);
+            $this->touchDocumentVersion($id, $expectedVersion);
+            $this->invalidateReadCache();
+
+            return [
+                'component_issue_document_id' => $id,
+                'line_id' => $lineId,
+                'required_qty' => $requiredQty,
+                'scanned_qty' => (int) $line->scanned_qty,
+                'version' => $expectedVersion + 1,
+                'lines' => $this->linesSummary($id),
+                'stock_effect' => 'NONE',
+            ];
+        }, 3);
+
+        return $this->respondSuccess($result, 'Đã cập nhật dòng linh kiện; tồn kho chưa thay đổi (stock_effect=NONE).')
+            ->header('ETag', '"'.$result['version'].'"');
+    }
+
+    #[OA\Delete(
+        path: '/api/v1/component-issue-documents/{id}/lines/{lineId}',
+        operationId: 'deleteComponentIssueLine',
+        summary: 'Xoá một dòng linh kiện chưa quét khỏi phiếu (stock-neutral)',
+        security: [['bearerAuth' => []]],
+        tags: ['14. Component Issue'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'lineId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string', example: '"2"')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Đã xoá dòng; stock_effect=NONE; ETag = version mới.'),
+            new OA\Response(response: 422, description: 'COMPONENT_LINE_HAS_SCANS — dòng còn bằng chứng quét'),
+        ]
+    )]
+    public function destroyLine(Request $request, string $id, string $lineId)
+    {
+        $expectedVersion = $this->expectedVersion($request);
+
+        $result = DB::transaction(function () use ($id, $lineId, $expectedVersion): array {
+            $this->lockMutableDocument($id, $expectedVersion, 'xoá dòng', 'khi xoá dòng linh kiện');
+            $line = $this->lockLine($id, $lineId);
+
+            // Bằng chứng quét là dữ liệu chỉ ghi thêm (NFR-SRS-004): không xoá kèm
+            // dòng quét, bắt gỡ tường minh bằng unscan trước.
+            if ((int) $line->scanned_qty > 0
+                || DB::table('component_issue_items')->where('component_issue_line_id', $lineId)->where('status', 'ACTIVE')->exists()) {
+                ApiError::abort(422, 'COMPONENT_LINE_HAS_SCANS', 'Dòng còn bằng chứng quét; gỡ hết dòng quét (unscan) trước khi xoá.', [
+                    'line_id' => $lineId,
+                    'scanned_qty' => (int) $line->scanned_qty,
+                ]);
+            }
+
+            DB::table('component_issue_lines')->where('id', $lineId)->delete();
+            $this->touchDocumentVersion($id, $expectedVersion);
+            $this->invalidateReadCache();
+
+            return [
+                'component_issue_document_id' => $id,
+                'line_id' => $lineId,
+                'deleted' => true,
+                'version' => $expectedVersion + 1,
+                'lines' => $this->linesSummary($id),
+                'stock_effect' => 'NONE',
+            ];
+        }, 3);
+
+        return $this->respondSuccess($result, 'Đã xoá dòng linh kiện khỏi phiếu; tồn kho chưa thay đổi (stock_effect=NONE).')
+            ->header('ETag', '"'.$result['version'].'"');
+    }
+
+    #[OA\Post(
         path: '/api/v1/component-issue-documents/{id}/cancel',
         operationId: 'cancelComponentIssue',
         summary: 'Huỷ phiếu xuất linh kiện bảo hành (chỉ DRAFT/SCANNING)',
@@ -393,7 +764,7 @@ class CurrentBaselineComponentFlowController extends Controller
             new OA\Response(response: 404, description: 'Không tìm thấy Component Issue'),
             new OA\Response(response: 409, description: 'Chỉ DRAFT/SCANNING mới được Post'),
             new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp version hiện tại'),
-            new OA\Response(response: 422, description: 'WARRANTY_CASE_NOT_ACTIVE hoặc FULL_POST_REQUIRED (còn dòng chưa quét đủ)'),
+            new OA\Response(response: 422, description: 'WARRANTY_CASE_STATUS_NOT_ALLOWED (hồ sơ không ở Đang kiểm tra/Đang sửa chữa), WARRANTY_CASE_NOT_ACTIVE (hồ sơ đã đóng) hoặc FULL_POST_REQUIRED (còn dòng chưa quét đủ)'),
             new OA\Response(response: 428, description: 'Thiếu Idempotency-Key hoặc If-Match hợp lệ'),
         ]
     )]
@@ -417,10 +788,7 @@ class CurrentBaselineComponentFlowController extends Controller
                     if (! in_array($document->status, ['DRAFT', 'SCANNING'], true)) {
                         ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được Post.');
                     }
-                    $case = DB::table('warranty_case')->where('warranty_case_id', $document->warranty_case_id)->lockForUpdate()->first();
-                    if ($case === null || in_array($case->status, ['RETURNED', 'CANCELLED'], true)) {
-                        ApiError::abort(422, 'WARRANTY_CASE_NOT_ACTIVE', 'Warranty case không còn active tại thời điểm Post.');
-                    }
+                    $this->assertDocumentCaseAllowsIssue($document, 'tại thời điểm Post');
                     foreach (DB::table('component_issue_lines')->where('component_issue_document_id', $id)->lockForUpdate()->get() as $line) {
                         if ((int) $line->scanned_qty !== (int) $line->required_qty) {
                             ApiError::abort(422, 'FULL_POST_REQUIRED', 'Mọi Component line phải scanned_qty = required_qty.');
@@ -459,6 +827,133 @@ class CurrentBaselineComponentFlowController extends Controller
         $version = is_array($body) ? ($body['data']['version'] ?? null) : null;
 
         return $version !== null ? $response->header('ETag', '"'.$version.'"') : $response;
+    }
+
+    /**
+     * Khoá phiếu + kiểm version/trạng thái/hồ sơ bảo hành cho mọi mutation soạn thảo.
+     *
+     * @param  string  $action  Tên thao tác, ghép vào thông điệp 409.
+     * @param  string  $phase   Mô tả bước, ghép vào thông điệp guard trạng thái case.
+     */
+    private function lockMutableDocument(string $id, int $expectedVersion, string $action, string $phase): object
+    {
+        $document = DB::table('component_issue_documents')->where('id', $id)->lockForUpdate()->first();
+        if ($document === null) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy Component Issue.');
+        }
+        $this->assertVersion($document, $expectedVersion);
+        if (! in_array($document->status, ['DRAFT', 'SCANNING'], true)) {
+            ApiError::abort(409, 'STATE_CONFLICT', "Chỉ DRAFT/SCANNING mới được {$action}.");
+        }
+        $this->assertDocumentCaseAllowsIssue($document, $phase);
+
+        return $document;
+    }
+
+    private function lockLine(string $documentId, string $lineId): object
+    {
+        $line = DB::table('component_issue_lines')
+            ->where('id', $lineId)
+            ->where('component_issue_document_id', $documentId)
+            ->lockForUpdate()
+            ->first();
+        if ($line === null) {
+            ApiError::abort(404, 'COMPONENT_LINE_NOT_FOUND', 'Không tìm thấy Component Issue line.');
+        }
+
+        return $line;
+    }
+
+    private function assertComponentSku(string $skuId): object
+    {
+        $sku = DB::table('sku')->where('sku_id', $skuId)->first();
+        if ($sku === null || strtoupper((string) $sku->status) !== 'ACTIVE' || strtoupper((string) $sku->sku_type) !== 'COMPONENT') {
+            ApiError::abort(422, 'COMPONENT_SKU_REQUIRED', 'Component Issue chỉ nhận SKU COMPONENT ACTIVE.');
+        }
+
+        return $sku;
+    }
+
+    private function touchDocumentVersion(string $id, int $expectedVersion): void
+    {
+        DB::table('component_issue_documents')->where('id', $id)->update([
+            'version' => $expectedVersion + 1,
+            'updated_at' => now(),
+            'updated_by' => $this->actorId(),
+        ]);
+    }
+
+    /**
+     * Ảnh chụp gọn các dòng của phiếu, đủ để client vẽ lại màn quét sau mỗi mutation
+     * mà không phải gọi thêm bề mặt chi tiết.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function linesSummary(string $documentId): array
+    {
+        return DB::table('component_issue_lines as cl')
+            ->leftJoin('sku as s', 's.sku_id', '=', 'cl.sku_id')
+            ->where('cl.component_issue_document_id', $documentId)
+            ->orderBy('cl.line_no')
+            ->get(['cl.id', 'cl.line_no', 'cl.sku_id', 'cl.required_qty', 'cl.scanned_qty', 'cl.note', 'cl.version', 's.sku_code', 's.sku_name'])
+            ->map(fn (object $row): array => [
+                'line_id' => (string) $row->id,
+                'line_no' => (int) $row->line_no,
+                'sku_id' => (string) $row->sku_id,
+                'sku_code' => $row->sku_code !== null ? (string) $row->sku_code : null,
+                'sku_name' => $row->sku_name !== null ? (string) $row->sku_name : null,
+                'required_qty' => (int) $row->required_qty,
+                'scanned_qty' => (int) $row->scanned_qty,
+                'note' => $row->note !== null ? (string) $row->note : null,
+                'version' => (int) $row->version,
+            ])
+            ->all();
+    }
+
+    /**
+     * Tìm đúng một dòng quét ACTIVE để gỡ.
+     *
+     * Ưu tiên `component_issue_item_id` (chính xác tuyệt đối). Không có thì resolve
+     * mã quét qua CÙNG hàm mà scan() dùng — hai bề mặt phải hiểu mã giống hệt nhau,
+     * nếu không sẽ có mã quét vào được nhưng gỡ không ra. Trùng nhiều dòng (quét cùng
+     * một hộp nhiều lần) thì gỡ dòng mới nhất, đúng trực giác "undo".
+     */
+    private function resolveActiveScanRow(string $documentId, array $validated): object
+    {
+        $query = DB::table('component_issue_items as ci')
+            ->join('component_issue_lines as cl', 'cl.id', '=', 'ci.component_issue_line_id')
+            ->where('cl.component_issue_document_id', $documentId)
+            ->where('ci.status', 'ACTIVE');
+
+        if (! empty($validated['component_issue_item_id'])) {
+            $query->where('ci.id', $validated['component_issue_item_id']);
+        } else {
+            [$itemId, $containerId] = $this->resolveTarget($validated);
+            if ($itemId === null && $containerId === null) {
+                ApiError::abort(422, 'COMPONENT_UNSCAN_TARGET_REQUIRED', 'Phải chỉ định dòng cần gỡ bằng component_issue_item_id hoặc code_value/item_id/container_id.');
+            }
+            if (! empty($validated['line_id'])) {
+                $query->where('cl.id', $validated['line_id']);
+            }
+            if ($itemId !== null) {
+                $query->where('ci.item_id', $itemId);
+            } else {
+                $query->where('ci.container_id', $containerId);
+            }
+        }
+
+        $row = $query
+            ->orderByDesc('ci.created_at')
+            ->lockForUpdate()
+            ->first([
+                'ci.id', 'ci.quantity', 'ci.item_id', 'ci.container_id',
+                'cl.id as line_id', 'cl.scanned_qty', 'cl.required_qty', 'cl.version as line_version',
+            ]);
+        if ($row === null) {
+            ApiError::abort(404, 'COMPONENT_SCAN_NOT_FOUND', 'Không tìm thấy dòng quét đang hiệu lực khớp yêu cầu trong phiếu này.');
+        }
+
+        return $row;
     }
 
     private function resolveTarget(array $validated): array

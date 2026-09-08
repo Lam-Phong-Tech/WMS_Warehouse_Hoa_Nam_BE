@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\DepartmentController;
+use Modules\Auth\Http\Controllers\MfaController;
 use Modules\Auth\Http\Controllers\PasswordResetController;
 use Modules\Auth\Http\Controllers\PermissionController;
 use Modules\Auth\Http\Controllers\RoleController;
@@ -25,6 +26,14 @@ Route::prefix('v1')->group(function (): void {
     Route::post('auth/verify-otp', [PasswordResetController::class, 'verifyOtp']);
     Route::post('auth/reset-password', [PasswordResetController::class, 'resetPassword']);
 
+    // WWHN-SEC-08 — bước 2 của đăng nhập. KHÔNG có `auth:api`: đúng lúc gọi nó
+    // người dùng chưa có access token nào (mật khẩu mới chỉ đúng nửa quá trình).
+    // Chống dò 6 chữ số bằng cả throttle theo IP ở đây LẪN trần theo tài khoản
+    // trong MfaService — chỉ một trong hai là không đủ: throttle IP bị vượt bằng
+    // botnet, còn trần theo tài khoản không chặn được kẻ rải mã qua nhiều tài khoản.
+    Route::post('auth/mfa/verify', [MfaController::class, 'verify'])
+        ->middleware(['throttle:auth-mfa-verify', PersistRefreshTokenCookie::class]);
+
     Route::middleware('auth:api')->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout'])
             ->middleware(PersistRefreshTokenCookie::class);
@@ -32,6 +41,14 @@ Route::prefix('v1')->group(function (): void {
         Route::post('auth/change-password', [AuthController::class, 'changePassword'])
             ->middleware(PersistRefreshTokenCookie::class);
         Route::post('auth/switch-context', [AuthController::class, 'switchContext']);
+
+        // WWHN-SEC-08 — quản lý MFA của CHÍNH tài khoản đang đăng nhập.
+        // Không có `permission:` vì đây là self-service, cùng nhóm với
+        // change-password và auth/me.
+        Route::get('auth/mfa/status', [MfaController::class, 'status']);
+        Route::post('auth/mfa/enroll', [MfaController::class, 'enroll']);
+        Route::post('auth/mfa/confirm', [MfaController::class, 'confirm']);
+        Route::post('auth/mfa/disable', [MfaController::class, 'disable']);
 
         Route::get('users', [UserController::class, 'index'])->middleware('permission:iam.user.view');
         Route::post('users', [UserController::class, 'store'])->middleware('permission:iam.user.manage');

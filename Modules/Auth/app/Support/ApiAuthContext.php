@@ -41,6 +41,17 @@ final class ApiAuthContext
      */
     public const PUBLIC_PATH_PATTERNS = [
         'api/v1/auth/login',
+        // Bước 2 của đăng nhập hai bước. Route này CỐ Ý không có `auth:api`: bước
+        // 1 không phát token nào, nên tại đây chưa hề có actor. Không khai vào
+        // đây thì EnforceActiveAccountStatus / EnforceCredentialFreshness /
+        // EnforcePasswordChangeRequired vẫn chạy trên một request không có user —
+        // ba lượt resolve vô nghĩa, và tệ hơn là che mất chỗ kiểm tra thật.
+        //
+        // Không mất lớp chặn nào: route có `throttle:auth-mfa-verify` riêng (nên
+        // ApiRateLimit vốn đã bỏ qua nó qua nhánh hasExplicitThrottle), phiên chờ
+        // chỉ dùng được một lần, và MfaController::verify tự kiểm lại
+        // `status === 'ACTIVE'` trước khi phát token.
+        'api/v1/auth/mfa/verify',
         'api/v1/auth/refresh',
         'api/v1/auth/forgot-password',
         'api/v1/auth/verify-otp',

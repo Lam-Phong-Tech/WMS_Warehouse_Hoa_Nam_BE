@@ -1,0 +1,237 @@
+{
+  "$comment": [
+    "HN-BE-API-007 — bộ mẫu request/response của POST /api/v1/public/quote-requests.",
+    "MỌI response dưới đây được BẮT THẬT từ stack DEV (http://localhost:8080) ngày 2026-09-08,",
+    "không phải viết tay theo trí nhớ. Chỉ có phần `request_id`/`meta.request_id` là của lần chạy đó.",
+    "Đặc tả đầy đủ: HN-BE-API-007_PUBLIC_QUOTE_REQUEST.md và HN-BE-API-007-public-quote-request-openapi.yaml.",
+    "Lưu ý envelope: `meta.timestamp` CÓ ở một số lỗi (429, MALFORMED_JSON) và KHÔNG có ở lỗi khác —",
+    "FE đừng phụ thuộc vào nó; sáu khoá success/message/data/meta/error_code/errors mới là phần bảo đảm."
+  ],
+  "environment": {
+    "captured_on": "DEV",
+    "base_url": "http://localhost:8080",
+    "endpoint": "POST /api/v1/public/quote-requests",
+    "contract_version": "1.1.0"
+  },
+  "cases": [
+    {
+      "name": "201 — nhiều sản phẩm, tạo mới",
+      "http_status": 201,
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Idempotency-Key": "smoke-multi-20260908-0001"
+        },
+        "body": {
+          "items": [
+            { "product_id": "01a07b0e-9fee-7196-a008-ad03bce9aa38", "quantity": 2 },
+            { "product_id": "01a07b0e-9ff3-70d0-a9aa-0b589dec6e89" },
+            { "product_id": "01a07b0e-a00b-7279-a481-e64f6918f89a", "quantity": 5 }
+          ],
+          "full_name": "Nguyễn Văn Quang",
+          "phone": "+84 912 345 678",
+          "province_code": "79",
+          "note": "Xin báo giá 3 mã máy khoan",
+          "consent": true,
+          "privacy_version": "1.0.0"
+        }
+      },
+      "response": {
+        "success": true,
+        "message": "Đã tiếp nhận yêu cầu tư vấn.",
+        "data": { "request_id": "01a080be-3183-725e-8e5e-64514d6df08f", "status": "RECEIVED" },
+        "meta": { "request_id": "1a794f43-7fda-46da-9c27-ccb04ed699e9" },
+        "error_code": null,
+        "errors": null
+      },
+      "stored": {
+        "public_quote_requests": { "item_count": 3, "product_id": "01a07b0e-9fee-7196-a008-ad03bce9aa38" },
+        "public_quote_request_items": [
+          { "line_no": 1, "quantity": 2, "sku_code_snapshot": "DCZC02-26" },
+          { "line_no": 2, "quantity": null, "sku_code_snapshot": "DCPL2045" },
+          { "line_no": 3, "quantity": 5, "sku_code_snapshot": "DCPB358" }
+        ]
+      }
+    },
+    {
+      "name": "200 — retry cùng khoá, cùng nội dung (replay)",
+      "http_status": 200,
+      "request": {
+        "headers": { "Idempotency-Key": "smoke-multi-20260908-0001" },
+        "body": "y hệt case 201 ở trên"
+      },
+      "response": {
+        "success": true,
+        "message": "Yêu cầu tư vấn đã được tiếp nhận trước đó.",
+        "data": { "request_id": "01a080be-3183-725e-8e5e-64514d6df08f", "status": "RECEIVED" },
+        "meta": { "request_id": "df4fee4d-9443-4482-84b3-c11ea7f92d95" },
+        "error_code": null,
+        "errors": null
+      },
+      "note": "Cùng request_id với lần 201 — không tạo lead thứ hai."
+    },
+    {
+      "name": "428 — thiếu header Idempotency-Key",
+      "http_status": 428,
+      "request": { "headers": {}, "body": { "items": [{ "product_id": "01a07b0e-9fee-7196-a008-ad03bce9aa38" }], "full_name": "Tran Thi B", "phone": "0901000001", "consent": true, "privacy_version": "1.0.0" } },
+      "response": {
+        "success": false,
+        "message": "Thiếu header Idempotency-Key.",
+        "data": null,
+        "meta": { "request_id": "de02f4ce-03b4-4423-b26f-278d8fa2102d" },
+        "error_code": "IDEMPOTENCY_KEY_REQUIRED",
+        "errors": null
+      }
+    },
+    {
+      "name": "400 — khoá sai độ dài",
+      "http_status": 400,
+      "request": { "headers": { "Idempotency-Key": "abc" }, "body": "như trên" },
+      "response": {
+        "success": false,
+        "message": "Idempotency-Key phải dài 16-128 ký tự.",
+        "data": null,
+        "meta": { "request_id": "72269713-ed78-4f15-83da-2ddbeb16d7e3" },
+        "error_code": "IDEMPOTENCY_KEY_INVALID",
+        "errors": null
+      }
+    },
+    {
+      "name": "422 VALIDATION_FAILED — trùng sản phẩm + số lượng sai, lỗi trỏ đúng dòng",
+      "http_status": 422,
+      "request": {
+        "headers": { "Idempotency-Key": "sample-422-validate-000001" },
+        "body": {
+          "items": [
+            { "product_id": "01a07b0e-9fee-7196-a008-ad03bce9aa38" },
+            { "product_id": "01a07b0e-9fee-7196-a008-ad03bce9aa38" },
+            { "product_id": "01a07b0e-9ff3-70d0-a9aa-0b589dec6e89", "quantity": 0 }
+          ],
+          "full_name": "Tran Thi B",
+          "phone": "0901000003",
+          "consent": true,
+          "privacy_version": "1.0.0"
+        }
+      },
+      "response": {
+        "success": false,
+        "message": "Dữ liệu gửi lên chưa hợp lệ.",
+        "data": null,
+        "meta": { "request_id": "70788779-27ec-4be5-893c-3fe13aad9933" },
+        "error_code": "VALIDATION_FAILED",
+        "errors": {
+          "items.1.product_id": ["Sản phẩm này đã có ở dòng 1."],
+          "items.2.quantity": ["Số lượng phải từ 1 đến 9999."]
+        }
+      }
+    },
+    {
+      "name": "422 VALIDATION_FAILED — vượt trần số sản phẩm (gửi 21 dòng)",
+      "http_status": 422,
+      "request": { "headers": { "Idempotency-Key": "sample-422-maxitems-00001" }, "body": "items[] có 21 phần tử" },
+      "response": {
+        "success": false,
+        "message": "Dữ liệu gửi lên chưa hợp lệ.",
+        "data": null,
+        "meta": { "request_id": "a022126c-475a-4681-b79a-0bec51ffaa20" },
+        "error_code": "VALIDATION_FAILED",
+        "errors": { "items": ["Một yêu cầu tư vấn tối đa 20 sản phẩm."] }
+      }
+    },
+    {
+      "name": "422 CONSENT_REQUIRED — chưa tích đồng ý chính sách",
+      "http_status": 422,
+      "request": { "headers": { "Idempotency-Key": "sample-422-consent-0000001" }, "body": { "consent": false, "...": "phần còn lại hợp lệ" } },
+      "response": {
+        "success": false,
+        "message": "Bạn cần đồng ý với chính sách bảo mật trước khi gửi yêu cầu.",
+        "data": null,
+        "meta": { "request_id": "e836a180-06cd-40f7-9b86-dcf4c0497028" },
+        "error_code": "CONSENT_REQUIRED",
+        "errors": null
+      }
+    },
+    {
+      "name": "422 PRIVACY_VERSION_MISMATCH — khách đang xem bản chính sách cũ",
+      "http_status": 422,
+      "request": { "headers": { "Idempotency-Key": "sample-422-privacy-0000001" }, "body": { "privacy_version": "0.9.0", "...": "phần còn lại hợp lệ" } },
+      "response": {
+        "success": false,
+        "message": "Chính sách bảo mật đã được cập nhật. Vui lòng tải lại và đồng ý phiên bản mới nhất.",
+        "data": null,
+        "meta": { "request_id": "2dab1e72-e9b4-4b91-99aa-cd9c61f204fd" },
+        "error_code": "PRIVACY_VERSION_MISMATCH",
+        "errors": { "privacy_version": ["1.0.0"] }
+      },
+      "note": "errors.privacy_version[0] là bản chính sách hiện hành — FE tải lại /config rồi cho khách đồng ý lại."
+    },
+    {
+      "name": "422 VALIDATION_FAILED — gửi kèm product_id cũ nhưng lệch items[0]",
+      "http_status": 422,
+      "request": {
+        "headers": { "Idempotency-Key": "sample-422-mixshape-000001" },
+        "body": {
+          "product_id": "01a07b0e-9ff3-70d0-a9aa-0b589dec6e89",
+          "items": [{ "product_id": "01a07b0e-9fee-7196-a008-ad03bce9aa38" }],
+          "full_name": "Tran Thi B",
+          "phone": "0901000007",
+          "consent": true,
+          "privacy_version": "1.0.0"
+        }
+      },
+      "response": {
+        "success": false,
+        "message": "Dữ liệu gửi lên chưa hợp lệ.",
+        "data": null,
+        "meta": { "request_id": "dc675e1f-6111-4653-ad80-a2bf3a34f723" },
+        "error_code": "VALIDATION_FAILED",
+        "errors": { "product_id": ["Body có cả items[] và product_id nhưng không khớp nhau; chỉ cần gửi items[]."] }
+      }
+    },
+    {
+      "name": "404 PRODUCT_NOT_FOUND — một dòng không còn khả dụng",
+      "http_status": 404,
+      "request": {
+        "headers": { "Idempotency-Key": "sample-404-product-0000001" },
+        "body": {
+          "items": [
+            { "product_id": "01a07b0e-9fee-7196-a008-ad03bce9aa38" },
+            { "product_id": "00000000-0000-4000-8000-000000000000" }
+          ],
+          "full_name": "Tran Thi B",
+          "phone": "0901000008",
+          "consent": true,
+          "privacy_version": "1.0.0"
+        }
+      },
+      "response": {
+        "success": false,
+        "message": "Không tìm thấy sản phẩm.",
+        "data": null,
+        "meta": { "request_id": "e9b9c960-5a3d-4cd4-b1d4-dc4044b966ed" },
+        "error_code": "PRODUCT_NOT_FOUND",
+        "errors": { "items.1.product_id": ["Sản phẩm không còn khả dụng."] }
+      },
+      "note": "Không có ghi một phần: hỏng một dòng thì KHÔNG yêu cầu nào được tạo."
+    },
+    {
+      "name": "429 RATE_LIMIT_EXCEEDED — quá 5 request/phút cho cùng (IP + số điện thoại)",
+      "http_status": 429,
+      "response_headers": {
+        "X-RateLimit-Limit": "5",
+        "X-RateLimit-Remaining": "0",
+        "Retry-After": "59",
+        "X-RateLimit-Reset": "1788867907"
+      },
+      "response": {
+        "success": false,
+        "message": "Bạn đã gửi quá nhiều yêu cầu tư vấn. Vui lòng thử lại sau ít phút.",
+        "data": null,
+        "meta": { "request_id": "bbaac4f9-ce50-41f6-8813-63edcadac90a", "timestamp": "2026-09-08T18:44:08+07:00" },
+        "error_code": "RATE_LIMIT_EXCEEDED",
+        "errors": null
+      },
+      "note": "Đếm MỌI request tới endpoint này, kể cả các lần 422 — 5 lần gõ sai form là chạm trần. FE nên đọc Retry-After."
+    }
+  ]
+}

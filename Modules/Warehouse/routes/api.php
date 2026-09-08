@@ -32,6 +32,7 @@ use Modules\Warehouse\Http\Controllers\InboundDocumentController;
 use Modules\Warehouse\Http\Controllers\InboundSkuInfoController;
 use Modules\Warehouse\Http\Controllers\InventoryBalanceController;
 use Modules\Warehouse\Http\Controllers\ItemInstanceController;
+use Modules\Warehouse\Http\Controllers\MiniAppComponentIssueStagingController;
 use Modules\Warehouse\Http\Controllers\OperationalReportController;
 use Modules\Warehouse\Http\Controllers\OutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\OutboundRequestController;
@@ -421,8 +422,22 @@ Route::prefix('v1')->group(function (): void {
         // reversal, không chỉ permission chức năng.
         Route::get('component-issue-documents', [CanonicalMvpController::class, 'listComponentIssueDocuments'])->middleware('permission:warranty.component_issue');
         Route::post('component-issue-documents', [CurrentBaselineComponentFlowController::class, 'store'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        // Local staging (quét trước ở client — hệ thống tự nhận SKU/hộp và gom số
+        // lượng — rồi một lệnh `record` dựng phiếu + bằng chứng quét + Post). Bản
+        // gốc nằm ở routes/mini_app.php; phơi thêm ở đây vì client gọi thẳng
+        // /api/v1/component-issue-documents/* mà không qua prefix mini-app. Cùng
+        // handler, cùng permission, cùng guard §8.1 — không có bề mặt mới.
+        // Đặt TRƯỚC nhóm `{id}` để `resolve-code`/`record` không bị nuốt thành uuid.
+        Route::post('component-issue-documents/resolve-code', [MiniAppComponentIssueStagingController::class, 'resolveCode'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('component-issue-documents/record', [MiniAppComponentIssueStagingController::class, 'record'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
         Route::get('component-issue-documents/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
         Route::post('component-issue-documents/{id}/scan', [CurrentBaselineComponentFlowController::class, 'scan'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        // Sửa sai giữa chừng mà không phải huỷ cả phiếu tạo lại: gỡ dòng quét nhầm,
+        // thêm/sửa/xoá dòng linh kiện. Toàn bộ stock-neutral, cùng guard §8.1.
+        Route::post('component-issue-documents/{id}/unscan', [CurrentBaselineComponentFlowController::class, 'unscan'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('component-issue-documents/{id}/lines', [CurrentBaselineComponentFlowController::class, 'storeLine'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::patch('component-issue-documents/{id}/lines/{lineId}', [CurrentBaselineComponentFlowController::class, 'updateLine'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::delete('component-issue-documents/{id}/lines/{lineId}', [CurrentBaselineComponentFlowController::class, 'destroyLine'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
         Route::post('component-issue-documents/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
         Route::post('component-issue-documents/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
 
@@ -470,8 +485,16 @@ Route::prefix('v1')->group(function (): void {
         // với nhóm component-issue-documents ở trên.
         Route::get('warranty-component-issues', [CanonicalMvpController::class, 'listComponentIssueDocuments'])->middleware('permission:warranty.component_issue');
         Route::post('warranty-component-issues', [CurrentBaselineComponentFlowController::class, 'store'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        // Cùng cặp staging như nhóm component-issue-documents ở trên — bí danh này
+        // "không lệch" nghĩa là có gì bên kia thì bên đây có nấy.
+        Route::post('warranty-component-issues/resolve-code', [MiniAppComponentIssueStagingController::class, 'resolveCode'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('warranty-component-issues/record', [MiniAppComponentIssueStagingController::class, 'record'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
         Route::get('warranty-component-issues/{id}', [CurrentBaselineComponentIssueQueryController::class, 'show'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
         Route::post('warranty-component-issues/{id}/scans', [CurrentBaselineComponentFlowController::class, 'scan'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('warranty-component-issues/{id}/unscan', [CurrentBaselineComponentFlowController::class, 'unscan'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::post('warranty-component-issues/{id}/lines', [CurrentBaselineComponentFlowController::class, 'storeLine'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::patch('warranty-component-issues/{id}/lines/{lineId}', [CurrentBaselineComponentFlowController::class, 'updateLine'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
+        Route::delete('warranty-component-issues/{id}/lines/{lineId}', [CurrentBaselineComponentFlowController::class, 'destroyLine'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
         Route::post('warranty-component-issues/{id}/cancel', [CurrentBaselineComponentFlowController::class, 'cancel'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
         Route::post('warranty-component-issues/{id}/post', [CurrentBaselineComponentFlowController::class, 'post'])->middleware(['permission:warranty.component_issue', EnforceComponentIssueWarehouseScope::class]);
 

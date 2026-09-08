@@ -342,6 +342,90 @@ class Wwhn300BackendGoLiveCheckTest extends TestCase
     }
 
     // -----------------------------------------------------------------------
+    // WWHN-SEC-04 — trần vòng đời token
+    // -----------------------------------------------------------------------
+
+    /**
+     * `.env` từng mang JWT_TTL=43200 (30 ngày) cho đợt quét, kèm ghi chú "KHÔNG
+     * deploy giá trị này" — nhưng không có gate nào kiểm, nên nó lên được
+     * production hoàn toàn im lặng. Đây là test khoá lại đường đó.
+     */
+    public function test_an_over_long_jwt_ttl_fails_the_gate_outside_development(): void
+    {
+        $this->pretendProductionEnvironment();
+        config()->set('golive.session.max_jwt_ttl_minutes', 120);
+        config()->set('jwt.ttl', 43200);
+
+        $check = $this->runCheck(expectFailure: true)['checks']['security.runtime_config'];
+
+        $this->assertSame('fail', $check['status']);
+        $this->assertArrayHasKey('jwt_ttl', $check['detail']['findings']);
+        $this->assertStringContainsString('43200', $check['detail']['findings']['jwt_ttl']);
+    }
+
+    /** TTL trống bị tymon hiểu là "token không bao giờ hết hạn". */
+    public function test_an_empty_jwt_ttl_fails_the_gate_outside_development(): void
+    {
+        $this->pretendProductionEnvironment();
+        config()->set('jwt.ttl', null);
+
+        $check = $this->runCheck(expectFailure: true)['checks']['security.runtime_config'];
+
+        $this->assertArrayHasKey('jwt_ttl', $check['detail']['findings']);
+    }
+
+    /** Blacklist tắt ⇒ đăng xuất không thu hồi được access token đã phát. */
+    public function test_disabled_jwt_blacklist_fails_the_gate_outside_development(): void
+    {
+        $this->pretendProductionEnvironment();
+        config()->set('jwt.blacklist_enabled', false);
+
+        $check = $this->runCheck(expectFailure: true)['checks']['security.runtime_config'];
+
+        $this->assertArrayHasKey('jwt_blacklist', $check['detail']['findings']);
+    }
+
+    /**
+     * ĐỐI CHỨNG — quan trọng không kém các case đỏ ở trên: một gate báo đỏ với
+     * MỌI cấu hình là gate vô dụng. Ở đây TTL hợp lệ (60 phút) nên phải KHÔNG có
+     * phát hiện jwt_ttl, trong khi phát hiện app_debug vẫn xuất hiện — chứng tỏ
+     * check thật sự chạy chứ không phải im lặng vì lý do khác.
+     */
+    public function test_a_policy_compliant_jwt_ttl_produces_no_finding(): void
+    {
+        $this->pretendProductionEnvironment();
+        config()->set('golive.session.max_jwt_ttl_minutes', 120);
+        config()->set('jwt.ttl', 60);
+        config()->set('jwt.blacklist_enabled', true);
+        config()->set('app.debug', true); // mồi để chắc chắn check có chạy
+
+        $check = $this->runCheck(expectFailure: true)['checks']['security.runtime_config'];
+
+        $this->assertArrayNotHasKey('jwt_ttl', $check['detail']['findings']);
+        $this->assertArrayNotHasKey('jwt_blacklist', $check['detail']['findings']);
+        $this->assertArrayHasKey('app_debug', $check['detail']['findings']);
+    }
+
+    /**
+     * Trên môi trường dev, TTL dài là chuyện bình thường và không được báo đỏ —
+     * nếu không, lập trình viên sẽ học cách phớt lờ gate.
+     *
+     * Dùng `runCheckIgnoringExit()` vì ở môi trường dev không có cách nào ép
+     * gate đỏ một cách chắc chắn (app_debug bị bỏ qua ở đúng môi trường này),
+     * mà điều cần khẳng định chỉ là NỘI DUNG phát hiện.
+     */
+    public function test_jwt_ttl_policy_does_not_apply_to_development(): void
+    {
+        app()->detectEnvironment(fn (): string => 'local');
+        config()->set('golive.development_environments', ['local', 'testing']);
+        config()->set('jwt.ttl', 43200);
+
+        $check = $this->runCheckIgnoringExit()['checks']['security.runtime_config'];
+
+        $this->assertArrayNotHasKey('jwt_ttl', $check['detail']['findings']);
+    }
+
+    // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
 
@@ -378,6 +462,30 @@ class Wwhn300BackendGoLiveCheckTest extends TestCase
         } else {
             $this->assertSame(1, $exitCode, 'wms:golive-check phải thoát 1 khi có FAIL.');
         }
+
+        return $payload;
+    }
+
+    /**
+     * WWHN-SEC-04 — chạy gate và trả payload mà KHÔNG ràng buộc mã thoát.
+     *
+     * Dùng cho các case chỉ khẳng định về NỘI DUNG một phát hiện, ở những cấu
+     * hình mà ta không kiểm soát được toàn bộ các dimension khác. Ép một
+     * `expectFailure` sai chỗ sẽ biến test thành thứ đo nhầm đối tượng.
+     *
+     * @return array<string, mixed>
+     */
+    private function runCheckIgnoringExit(): array
+    {
+        $path = storage_path('app/testing/wwhn-300-golive-check.json');
+        File::delete($path);
+
+        $this->artisan('wms:golive-check', ['--json' => $path])->run();
+
+        $this->assertFileExists($path);
+        /** @var array<string, mixed> $payload */
+        $payload = json_decode((string) File::get($path), true);
+        File::delete($path);
 
         return $payload;
     }

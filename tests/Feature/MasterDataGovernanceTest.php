@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -144,7 +145,7 @@ class MasterDataGovernanceTest extends TestCase
             'defect_name' => 'Lỗi test',
         ], $headers)->assertCreated()->json('data.defect_id');
 
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => (string) Str::uuid(),
             'warranty_case_code' => 'WC-GOV-001',
             'identification_status' => 'TEMP_ONLY',
@@ -159,7 +160,7 @@ class MasterDataGovernanceTest extends TestCase
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
 
         $this->patchJson("/api/v1/defect-catalogs/{$defectId}", ['defect_code' => 'DEF-GOV-001-NEW'], $headers)
             ->assertStatus(409)

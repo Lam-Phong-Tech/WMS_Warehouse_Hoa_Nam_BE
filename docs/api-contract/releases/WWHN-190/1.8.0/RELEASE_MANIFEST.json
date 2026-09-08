@@ -22,18 +22,18 @@
   "files": [
     {
       "file": "openapi.json",
-      "bytes": 58399,
-      "sha256": "288a8cf2e4d5c2cf577058fb20c3699dcb6b3b7621a4d5f29f5b946b321642d7"
+      "bytes": 58415,
+      "sha256": "c66ce120bccfed5e819845300e8b95ecdc455e33c2b88078def41bef0ccfa841"
     },
     {
       "file": "openapi.yaml",
-      "bytes": 44101,
-      "sha256": "bd4c97454d1c1a1c5007e16bc09513a2cad75454374152d2b7cf57485d42892a"
+      "bytes": 44117,
+      "sha256": "44c7dcce8b1c68f6ee7f995b7b597d97ce5cc9d71237fce8d187b6c7f828da9a"
     },
     {
       "file": "postman_collection.json",
-      "bytes": 14532,
-      "sha256": "782a13ce4aaa2c66d3f799d8b77d59107c206702e6532821b47c6559f958da35"
+      "bytes": 14548,
+      "sha256": "697dbe116decf36b821daee1dc1bda1deea4581de5d90da45a5ff94758da14c9"
     }
   ]
 }
