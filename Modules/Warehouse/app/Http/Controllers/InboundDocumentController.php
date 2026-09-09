@@ -59,6 +59,7 @@ class InboundDocumentController extends Controller
             new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'])),
             new OA\Parameter(name: 'pending_product_info', in: 'query', required: false, description: 'true = chỉ phiếu còn mở (DRAFT/SCANNING) đang có SKU sinh ra lúc quét chưa đủ thông tin (thiếu tên thật hoặc đơn vị tính); false = phần còn lại. Không gửi = không lọc.', schema: new OA\Schema(type: 'boolean')),
+            new OA\Parameter(name: 'sort_order', in: 'query', required: false, description: 'Sắp xếp theo thời điểm tạo/sửa gần nhất (COALESCE(updated_at, created_at)): desc = Mới nhất trước, asc = Cũ nhất trước. Không gửi = giữ thứ tự mặc định cũ (created_at desc). Giá trị khác trả 422.', schema: new OA\Schema(type: 'string', enum: ['desc', 'asc'])),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Danh sách phiếu nhập kho. Mỗi phiếu kèm pending_product_info (bool) + pending_product_info_count để hiện dấu "Chờ bổ sung thông tin" ngay trên danh sách.'),

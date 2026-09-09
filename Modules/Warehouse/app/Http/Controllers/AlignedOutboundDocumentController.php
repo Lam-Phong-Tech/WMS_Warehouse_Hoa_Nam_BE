@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockDocument;
+use Modules\Warehouse\Support\ListSortOrder;
 use OpenApi\Attributes as OA;
 
 /** Read-side alignment: Packing Label progress is 0/1 per outbound document; RFID is optional metadata. */
@@ -21,6 +22,7 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
             new OA\Parameter(name: 'keyword', in: 'query', description: 'Khớp doc_no/note', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+            new OA\Parameter(name: 'sort_order', in: 'query', required: false, description: 'Sắp xếp theo thời điểm tạo/sửa gần nhất (COALESCE(updated_at, created_at)): desc = Mới nhất trước, asc = Cũ nhất trước. Không gửi = giữ thứ tự mặc định cũ (created_at desc). Giá trị khác trả 422.', schema: new OA\Schema(type: 'string', enum: ['desc', 'asc'])),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Trang danh sách phiếu xuất, mỗi item kèm required_total/matched_count/label_printed_count/packing_label_count/packing_label_applied_count/rfid_mapped_count'),
@@ -57,12 +59,32 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
             ->with('lines')
             ->where('doc_type', $this->docType());
 
+        // WWHN-SEC-09 (BOLA): lọc theo warehouse data-scope như bản danh sách gốc
+        // (OutboundDocumentController::buildIndexPayload) — khoá cache đã mang scope.
+        $user = $request->user();
+        if ($user !== null && method_exists($user, 'warehouseScopeIds')) {
+            $warehouseScopeIds = $user->warehouseScopeIds();
+            if (is_array($warehouseScopeIds)) {
+                $query->whereIn('src_warehouse_id', $warehouseScopeIds);
+            }
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
         $this->applyKeyword($query, $request, ['doc_no', 'note']);
 
-        $paginator = $query->orderByDesc('created_at')->paginate($this->perPage($request));
+        // "Sắp xếp theo" của OUT-01 — sort_order nằm trong query string nên khoá
+        // cache (readFiltersWithPaging giữ nguyên toàn bộ query) tự tách entry
+        // theo chiều sắp xếp, không cần đổi gì ở tầng cache.
+        $sortOrder = ListSortOrder::fromRequest($request);
+        if ($sortOrder === null) {
+            $query->orderByDesc('created_at');
+        } else {
+            ListSortOrder::applyRecency($query, $sortOrder);
+        }
+
+        $paginator = $query->paginate($this->perPage($request));
         $ids = collect($paginator->items())->map(fn (StockDocument $doc): string => (string) $doc->id)->all();
         $stats = $this->alignedProgressStats($ids);
         $requestNoById = $this->requestNoByOutboundRequestId(

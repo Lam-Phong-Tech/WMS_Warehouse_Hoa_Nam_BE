@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use OpenApi\Attributes as OA;
+use Modules\Warehouse\Support\ListSortOrder;
 use Modules\Warehouse\Support\WarrantyCasePii;
 
 /**
@@ -353,6 +354,7 @@ class CanonicalMvpController extends Controller
             new OA\Parameter(name: 'keyword', in: 'query', description: 'Khớp mã hồ sơ / mã tạm, serial + mã vật lý của item gắn case, mã hoặc tên SKU sản phẩm, mô tả sản phẩm nhập tay (TEMP_ONLY), và customer_name/customer_phone qua blind index — chỉ khi có quyền warranty.pii.view (tên khớp trọn từ không dấu, SĐT khớp chính xác; địa chỉ không tìm được sau WWHN-SEC-06)', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+            new OA\Parameter(name: 'sort_order', in: 'query', required: false, description: 'Sắp xếp theo thời điểm tạo/sửa gần nhất (COALESCE(updated_at, created_at)): desc = Mới nhất trước, asc = Cũ nhất trước. Không gửi = giữ thứ tự mặc định cũ (created_at desc). Giá trị khác trả 422.', schema: new OA\Schema(type: 'string', enum: ['desc', 'asc'])),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Trang danh sách warranty_case; mỗi item kèm cờ pii_masked (§13.8)'),
@@ -628,7 +630,30 @@ class CanonicalMvpController extends Controller
             $this->applyKeyword($query, $request, $keywordColumns);
         }
 
-        $page = $query->orderByDesc($orderBy)->paginate($this->perPage($request));
+        // "Sắp xếp theo" (WAR-01 và các danh sách tablePage khác): có sort_order
+        // thì xếp theo tạo/sửa gần nhất, vắng mặt thì giữ nguyên desc cũ.
+        $sortOrder = ListSortOrder::fromRequest($request);
+        if ($sortOrder === null) {
+            $query->orderByDesc($orderBy);
+        } else {
+            // hasRelationColumn chứ không hasColumn — `warranty_case` là VIEW
+            // (xem chú thích filterColumns ở trên). Bảng/view thiếu updated_at
+            // thì rơi về đúng cột $orderBy, chỉ đổi chiều.
+            if (SchemaCache::hasRelationColumn($table, 'updated_at')) {
+                $query->orderByRaw("COALESCE(updated_at, {$orderBy}) {$sortOrder}");
+            }
+            $query->orderBy($orderBy, $sortOrder);
+            // Tie-break bằng khoá chính cho phân trang ổn định khi timestamp
+            // trùng nhau: bảng thường có `id`, view warranty_case dùng
+            // `warranty_case_id`.
+            foreach (['id', "{$table}_id"] as $primaryKey) {
+                if (SchemaCache::hasRelationColumn($table, $primaryKey)) {
+                    $query->orderBy($primaryKey, $sortOrder);
+                    break;
+                }
+            }
+        }
+        $page = $query->paginate($this->perPage($request));
         if ($collectionEnricher !== null) {
             $collectionEnricher($page->getCollection());
         }

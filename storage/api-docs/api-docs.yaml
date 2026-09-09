@@ -1056,6 +1056,417 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/auth/mfa/confirm:
+    post:
+      tags:
+        - '01. Authentication'
+      summary: 'Xác nhận đăng ký MFA và nhận mã khôi phục (hiển thị một lần)'
+      operationId: auth_mfa_confirm
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  example: '123456'
+              type: object
+      responses:
+        200:
+          description: 'recovery_codes — LƯU LẠI NGAY, không hiển thị lần thứ hai'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        422:
+          description: MFA_CODE_INVALID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/auth/mfa/disable:
+    post:
+      tags:
+        - '01. Authentication'
+      summary: 'Tắt MFA (yêu cầu mật khẩu hiện tại và một mã hợp lệ)'
+      operationId: auth_mfa_disable
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - password
+                - code
+              properties:
+                password:
+                  type: string
+                  format: password
+                code:
+                  description: 'Mã TOTP hoặc mã khôi phục'
+                  type: string
+              type: object
+      responses:
+        200:
+          description: 'Đã tắt MFA'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'MFA_REQUIRED_FOR_ROLE — vai trò này bắt buộc MFA'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Sai mật khẩu hoặc sai mã'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/auth/mfa/enroll:
+    post:
+      tags:
+        - '01. Authentication'
+      summary: 'Bắt đầu đăng ký MFA — trả về bí mật và URI otpauth để quét QR'
+      description: 'Bí mật chỉ hiển thị ở response này. MFA CHƯA có hiệu lực cho tới khi gọi /confirm với một mã hợp lệ.'
+      operationId: auth_mfa_enroll
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'secret + otpauth_uri'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        409:
+          description: 'MFA_ALREADY_ENABLED — phải /disable trước khi đổi thiết bị'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/auth/mfa/status:
+    get:
+      tags:
+        - '01. Authentication'
+      summary: 'Trạng thái MFA của tài khoản đang đăng nhập'
+      operationId: auth_mfa_status
+      parameters: []
+      responses:
+        200:
+          description: 'enabled / pending / required_for_role / recovery_codes_remaining'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/auth/mfa/verify:
+    post:
+      tags:
+        - '01. Authentication'
+      summary: 'Bước 2 của đăng nhập: đổi mfa_token + mã xác thực lấy access token'
+      description: 'mfa_token do POST /auth/login trả về khi tài khoản đã bật MFA. Mã có thể là TOTP 6 chữ số hoặc một mã khôi phục.'
+      operationId: auth_mfa_verify
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - mfa_token
+                - code
+              properties:
+                mfa_token:
+                  type: string
+                code:
+                  type: string
+              type: object
+      responses:
+        200:
+          description: 'access_token + refresh_token'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        401:
+          description: 'MFA_CHALLENGE_INVALID hoặc MFA_CODE_INVALID'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        423:
+          description: 'MFA_LOCKED — quá số lần thử'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security: []
   /api/v1/auth/refresh:
     post:
       tags:
@@ -1180,6 +1591,12 @@ paths:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
         422:
           description: 'reset_token không hợp lệ/đã hết hạn hoặc dữ liệu không hợp lệ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: 'Vượt ngưỡng đặt lại mật khẩu (WWHN-SEC-04)'
           content:
             application/json:
               schema:
@@ -2414,6 +2831,173 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/component-issue-documents/record:
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'Xác nhận xuất linh kiện từ danh sách đã quét'
+      operationId: post_api_v1_component__issue__documents_record
+      parameters:
+        -
+          name: Idempotency-Key
+          in: header
+          description: 'Bắt buộc. Chuỗi 8-100 ký tự do client sinh. Gửi lại cùng key trả về kết quả lần đầu (replay); dùng lại key cho payload khác trả 409.'
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/component-issue-documents/resolve-code:
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'Tiền kiểm mã linh kiện vừa quét cho màn xuất linh kiện bảo hành'
+      operationId: post_api_v1_component__issue__documents_resolve__code
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/component-issue-documents/{id}':
     get:
       tags:
@@ -2591,6 +3175,316 @@ paths:
       security:
         -
           bearerAuth: []
+  '/api/v1/component-issue-documents/{id}/lines':
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'Thêm dòng linh kiện vào phiếu xuất bảo hành đang soạn (stock-neutral)'
+      description: 'Phát sinh thêm linh kiện giữa chừng thì thêm dòng, không phải huỷ phiếu tạo lại.'
+      operationId: addComponentIssueLine
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        -
+          name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+            example: '"1"'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - sku_id
+                - required_qty
+              properties:
+                sku_id:
+                  description: 'Chỉ nhận SKU COMPONENT ACTIVE.'
+                  type: string
+                  format: uuid
+                required_qty:
+                  type: integer
+                  example: 1
+                  maximum: 1000000
+                  minimum: 1
+                note:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+              type: object
+      responses:
+        200:
+          description: 'Đã thêm dòng; stock_effect=NONE; ETag = version mới.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/component-issue-documents/{id}/lines/{lineId}':
+    delete:
+      tags:
+        - '14. Component Issue'
+      summary: 'Xoá một dòng linh kiện chưa quét khỏi phiếu (stock-neutral)'
+      operationId: deleteComponentIssueLine
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        -
+          name: lineId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        -
+          name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+            example: '"2"'
+      responses:
+        200:
+          description: 'Đã xoá dòng; stock_effect=NONE; ETag = version mới.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        422:
+          description: 'COMPONENT_LINE_HAS_SCANS — dòng còn bằng chứng quét'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+    patch:
+      tags:
+        - '14. Component Issue'
+      summary: 'Sửa số lượng cần xuất của một dòng linh kiện (stock-neutral)'
+      description: 'Xuất ít/nhiều hơn dự kiến thì chỉnh required_qty rồi Post, thay vì huỷ phiếu tạo lại. Không hạ được xuống dưới số đã quét — gỡ bớt dòng quét trước (POST .../unscan).'
+      operationId: updateComponentIssueLine
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        -
+          name: lineId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        -
+          name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+            example: '"2"'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                required_qty:
+                  type: integer
+                  example: 1
+                  nullable: true
+                  maximum: 1000000
+                  minimum: 1
+                note:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+              type: object
+      responses:
+        200:
+          description: 'Đã cập nhật dòng; stock_effect=NONE; ETag = version mới.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        422:
+          description: 'REQUIRED_QTY_BELOW_SCANNED — hạ dưới số đã quét'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/component-issue-documents/{id}/post':
     post:
       tags:
@@ -2652,7 +3546,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         422:
-          description: 'WARRANTY_CASE_NOT_ACTIVE hoặc FULL_POST_REQUIRED (còn dòng chưa quét đủ)'
+          description: 'WARRANTY_CASE_STATUS_NOT_ALLOWED (hồ sơ không ở Đang kiểm tra/Đang sửa chữa), WARRANTY_CASE_NOT_ACTIVE (hồ sơ đã đóng) hoặc FULL_POST_REQUIRED (còn dòng chưa quét đủ)'
           content:
             application/json:
               schema:
@@ -2781,6 +3675,129 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         409:
           description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/component-issue-documents/{id}/unscan':
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'Gỡ một dòng linh kiện đã quét khỏi phiếu xuất bảo hành (stock-neutral)'
+      description: 'Quét nhầm thì gỡ đúng dòng đó thay vì phải huỷ cả phiếu. Chỉ tác động lên bằng chứng quét: dòng chuyển REMOVED, scanned_qty của line giảm tương ứng, tồn kho không đổi. Dòng quét theo HỘP bị gỡ nguyên dòng (muốn sửa số lượng thì gỡ rồi quét lại với số đúng).'
+      operationId: unscanComponentIssue
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        -
+          name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+            example: '"2"'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                component_issue_item_id:
+                  description: 'Id dòng quét lấy từ `lines[].items[].id` của bề mặt chi tiết — cách chỉ định chính xác nhất.'
+                  type: string
+                  format: uuid
+                  example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                  nullable: true
+                line_id:
+                  description: 'Thu hẹp phạm vi tìm khi gỡ theo mã quét.'
+                  type: string
+                  format: uuid
+                  nullable: true
+                code_value:
+                  description: 'Quét lại đúng mã cần gỡ; gỡ dòng ACTIVE mới nhất khớp mã đó.'
+                  type: string
+                  example: BOX-HN-COMP-BASE-003-0001
+                  nullable: true
+                  maxLength: 200
+                item_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                container_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                reason:
+                  type: string
+                  example: 'Quét nhầm linh kiện'
+                  nullable: true
+                  maxLength: 2000
+              type: object
+      responses:
+        200:
+          description: 'Đã gỡ dòng quét; stock_effect=NONE; ETag = version mới.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        404:
+          description: 'RESOURCE_NOT_FOUND hoặc COMPONENT_SCAN_NOT_FOUND'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Chỉ DRAFT/SCANNING mới được gỡ dòng quét'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
           content:
             application/json:
               schema:
@@ -5331,9 +6348,26 @@ paths:
               - SCANNING
               - POSTED
               - CANCELLED
+        -
+          name: pending_product_info
+          in: query
+          description: 'true = chỉ phiếu còn mở (DRAFT/SCANNING) đang có SKU sinh ra lúc quét chưa đủ thông tin (thiếu tên thật hoặc đơn vị tính); false = phần còn lại. Không gửi = không lọc.'
+          required: false
+          schema:
+            type: boolean
+        -
+          name: sort_order
+          in: query
+          description: 'Sắp xếp theo thời điểm tạo/sửa gần nhất (COALESCE(updated_at, created_at)): desc = Mới nhất trước, asc = Cũ nhất trước. Không gửi = giữ thứ tự mặc định cũ (created_at desc). Giá trị khác trả 422.'
+          required: false
+          schema:
+            type: string
+            enum:
+              - desc
+              - asc
       responses:
         200:
-          description: 'Danh sách phiếu nhập kho'
+          description: 'Danh sách phiếu nhập kho. Mỗi phiếu kèm pending_product_info (bool) + pending_product_info_count để hiện dấu "Chờ bổ sung thông tin" ngay trên danh sách.'
           content:
             application/json:
               schema:
@@ -6171,6 +7205,97 @@ paths:
       parameters:
         -
           name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/inbound-documents/{id}/lines/{lineId}/sku':
+    patch:
+      tags:
+        - '09. Stock In (Inbound)'
+      summary: 'Cập nhật phiếu nhập'
+      operationId: patch_api_v1_inbound__documents_id_lines_lineid_sku
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: lineId
           in: path
           required: true
           schema:
@@ -8508,6 +9633,173 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/mini-app/component-issue-documents/record:
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App — xác nhận xuất linh kiện từ danh sách đã quét'
+      operationId: post_api_v1_mini__app_component__issue__documents_record
+      parameters:
+        -
+          name: Idempotency-Key
+          in: header
+          description: 'Bắt buộc. Chuỗi 8-100 ký tự do client sinh. Gửi lại cùng key trả về kết quả lần đầu (replay); dùng lại key cho payload khác trả 409.'
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/mini-app/component-issue-documents/resolve-code:
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App — tiền kiểm mã linh kiện vừa quét cho màn xuất linh kiện bảo hành'
+      operationId: post_api_v1_mini__app_component__issue__documents_resolve__code
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   /api/v1/mini-app/document-attachments/pending-evidence:
     get:
       tags:
@@ -8786,7 +10078,7 @@ paths:
             minimum: 1
       responses:
         200:
-          description: 'Danh sách phân trang. Mỗi document có expected_total_qty, scanned_total_qty, remaining_qty, progress_percent, ready_for_post, mini_app_status.'
+          description: 'Danh sách phân trang. Mỗi document có expected_total_qty, scanned_total_qty, remaining_qty, progress_percent, ready_for_post, mini_app_status, product_info_complete, pending_product_info_count, skus_pending_info[], can_post, post_blocked_reason. lines[] kèm product_code/product_name/product_type/product_unit + product_info_complete/product_missing_info.'
           content:
             application/json:
               schema:
@@ -9015,7 +10307,7 @@ paths:
       tags:
         - '22. Mini App'
       summary: 'Mini App - chi tiết phiếu nhập'
-      description: 'Trả document + lines + status history và các field progress dùng cho review/approval: expected_total_qty, scanned_total_qty, remaining_qty, progress_percent, ready_for_post, mini_app_status.'
+      description: 'Trả document + lines + status history và các field progress dùng cho review/approval: expected_total_qty, scanned_total_qty, remaining_qty, progress_percent, ready_for_post, mini_app_status. Kèm can_post/post_blocked_reason/product_info_complete/skus_pending_info[] để biết phiếu có Post được chưa, và mỗi line có product_code/product_name/product_type/product_unit + product_info_complete/product_missing_info.'
       operationId: mini_app_inbound_documents_detail
       parameters:
         -
@@ -9627,7 +10919,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         422:
-          description: 'Business rule không hợp lệ.'
+          description: 'Business rule không hợp lệ. Hay gặp nhất: INBOUND_SKU_INFO_INCOMPLETE — phiếu còn SKU sinh ra lúc quét chưa có tên thật/đơn vị tính (errors.skus[] liệt kê sku_code + missing_fields). Phiếu vẫn ở SCANNING; người ở web bổ sung thông tin rồi Ghi nhận nhập kho. Đọc can_post/post_blocked_reason ở danh sách/chi tiết để khoá nút duyệt trước, đừng để người quét bấm rồi mới báo lỗi.'
           content:
             application/json:
               schema:
@@ -10013,7 +11305,7 @@ paths:
       tags:
         - '22. Mini App'
       summary: 'Mini App - atomic ghi nhận batch local thành phiếu WMS chờ duyệt'
-      description: 'Dùng khi bấm XÁC NHẬN GHI NHẬN. Server validate toàn batch, chống duplicate, group theo SKU, tạo receipt + lines + toàn bộ scan evidence trong một DB transaction. Lỗi bất kỳ item nào sẽ rollback toàn bộ. Kết quả canonical status=SCANNING, mini_app_status=WAITING_APPROVAL, ready_for_post=true; chưa Post Receipt và chưa tăng tồn.'
+      description: 'Dùng khi bấm XÁC NHẬN GHI NHẬN. Server validate toàn batch, chống duplicate, group theo SKU, tạo receipt + lines + toàn bộ scan evidence trong một DB transaction. Lỗi bất kỳ item nào sẽ rollback toàn bộ. Kết quả canonical status=SCANNING, mini_app_status=WAITING_APPROVAL, ready_for_post=true; chưa Post Receipt và chưa tăng tồn. Body chấp nhận `warehouse_id` như alias của `dst_warehouse_id` (cùng tên field với bước resolve-code); gửi cả hai mà khác nhau -> 422 WAREHOUSE_ID_CONFLICT. Mỗi phần tử items[] có thể gửi nguyên row local từ resolve-code: raw_code là nguồn sự thật, các field echo (sku_id, sku_code, item_id, item_unique, resolution_status, ...) được nhận nhưng không dùng để quyết định. Mã hộp BOX-<sku_code>-<số hộp> ghi nhận theo `quantity` đếm tay (bắt buộc, 422 BOX_QUANTITY_REQUIRED nếu thiếu) vào dòng SKU COMPONENT + container BOX; mã item chỉ cho quantity=1.'
       operationId: mini_app_inbound_record
       parameters:
         -
@@ -10032,8 +11324,6 @@ paths:
             schema:
               required:
                 - name
-                - dst_warehouse_id
-                - expected_total_qty
                 - items
               properties:
                 name:
@@ -10041,11 +11331,19 @@ paths:
                   example: 'Nhập hàng sáng 23/08'
                   maxLength: 200
                 dst_warehouse_id:
+                  description: 'Kho nhận. Bắt buộc trừ khi gửi alias warehouse_id.'
                   type: string
                   format: uuid
+                warehouse_id:
+                  description: 'Alias của dst_warehouse_id (đúng tên field của bước resolve-code). Gửi cả hai mà khác nhau -> 422 WAREHOUSE_ID_CONFLICT.'
+                  type: string
+                  format: uuid
+                  nullable: true
                 expected_total_qty:
+                  description: 'Chỉ để tương thích client cũ; backend nhận đúng số đã quét thực tế.'
                   type: integer
                   example: 2
+                  nullable: true
                   maximum: 1000
                   minimum: 1
                 doc_date:
@@ -10059,10 +11357,12 @@ paths:
                 items:
                   type: array
                   items:
+                    description: 'Row local. Ngoài các field dưới đây còn nhận nguyên các field echo của resolve-code (sku_id, sku_code, sku_name, sku_type, item_id, item_unique, item_status, serial_number, payload_format, payload_version, normalized_code_value, resolution_status, box_code, requires_quantity) — nhận để FE gửi thẳng row, không dùng để quyết định. Field ngoài whitelist -> 422 VALIDATION_ERROR kèm errors.unexpected_fields.'
                     required:
                       - raw_code
                     properties:
                       raw_code:
+                        description: 'QR item composite, barcode legacy, hoặc mã hộp BOX-<sku_code>-<số hộp>. Đây là nguồn sự thật của dòng.'
                         type: string
                         example: HN1|SKU=DCPL02-8|ITEM=DCPL02-8-000001
                         maxLength: 512
@@ -10076,13 +11376,39 @@ paths:
                           - SCANNER
                           - HARDWARE
                           - MANUAL
+                      item_type:
+                        description: 'Chỉ để đối chiếu; backend tự nhận diện từ raw_code. Lệch -> 422 ITEM_TYPE_MISMATCH.'
+                        type: string
+                        nullable: true
+                        enum:
+                          - ITEM
+                          - BOX
+                      quantity:
+                        description: 'Số lượng đếm tay trong hộp — bắt buộc với item_type=BOX. Với mã item chỉ được là 1 (hoặc bỏ trống).'
+                        type: integer
+                        example: 50
+                        nullable: true
+                        maximum: 100000
+                        minimum: 1
+                      box_number:
+                        description: 'Số hộp; đối chiếu theo giá trị số với đuôi của mã hộp. Lệch -> 422 BOX_NUMBER_MISMATCH.'
+                        type: string
+                        example: '0001'
+                        nullable: true
+                      new_sku_type:
+                        description: 'Trả lời của người quét khi resolve-code báo requires_new_sku_type=true. COMPONENT chọn từ MÃ ITEM = linh kiện dán mã từng cái -> SKU mới có is_serial_tracked=true (quét +1, không cần hộp). Bỏ trống = tạo PRODUCT như trước. Không ảnh hưởng SKU đã tồn tại.'
+                        type: string
+                        nullable: true
+                        enum:
+                          - PRODUCT
+                          - COMPONENT
                     type: object
                   maxItems: 1000
                   minItems: 1
               type: object
       responses:
         201:
-          description: 'Tạo phiếu + lines + scan evidence thành công; status=SCANNING, mini_app_status=WAITING_APPROVAL, ready_for_post=true, stock_effect=NONE.'
+          description: 'Tạo phiếu + lines + scan evidence thành công; status=SCANNING, mini_app_status=WAITING_APPROVAL, ready_for_post=true, stock_effect=NONE. items[] trả kèm item_type, quantity, box_code, box_number. Nếu batch có SKU vừa được sinh ra khi quét, phiếu VẪN được ghi nhận nhưng response trả product_info_complete=false, skus_pending_info[] (sku_code + missing_fields), can_post=false, post_blocked_reason=INBOUND_SKU_INFO_INCOMPLETE: người ở web phải bổ sung tên + đơn vị tính rồi mới Ghi nhận nhập kho được.'
           content:
             application/json:
               schema:
@@ -10100,13 +11426,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         409:
-          description: 'Duplicate/idempotency/concurrency/item đang receiving; toàn batch rollback.'
+          description: 'Duplicate item/hộp trong batch, idempotency/concurrency, item đang receiving, hộp đang thuộc phiếu nhập khác; toàn batch rollback.'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         422:
-          description: 'Sai expected count/QR/SKU/item/business rule; toàn batch rollback.'
+          description: 'VALIDATION_ERROR (field ngoài whitelist), WAREHOUSE_ID_CONFLICT, ITEM_TYPE_MISMATCH, SKU_CODE_MISMATCH, BOX_NUMBER_MISMATCH, BOX_QUANTITY_REQUIRED, ITEM_QUANTITY_MUST_BE_ONE, BOX_SKU_NOT_COMPONENT, QR/SKU/item không hợp lệ; toàn batch rollback.'
           content:
             application/json:
               schema:
@@ -10156,7 +11482,7 @@ paths:
       tags:
         - '22. Mini App'
       summary: 'Mini App - resolve QR/barcode cho local staging'
-      description: 'Dùng khi camera đang điền các dòng local trước khi tạo phiếu WMS. Endpoint chỉ resolve SKU/item identity, không tạo document, không tạo scan evidence, không tạo movement và không đổi tồn. Composite QR HN1|SKU=<sku_code>|ITEM=<item_unique> hỗ trợ NEW_ITEM_CANDIDATE.'
+      description: 'Dùng khi camera đang điền các dòng local trước khi tạo phiếu WMS. Endpoint chỉ resolve SKU/item identity, không tạo document, không tạo scan evidence, không tạo movement và không đổi tồn. Composite QR HN1|SKU=<sku_code>|ITEM=<item_unique> hỗ trợ NEW_ITEM_CANDIDATE. Mã HỘP linh kiện BOX-<sku_code>-<số hộp> được nhận diện riêng: trả item_type=BOX, requires_quantity=true, box_code/box_number và SKU COMPONENT đọc thẳng từ mã (chưa có thì resolution_status=NEW_SKU_CANDIDATE) để FE hiện ô nhập số lượng đếm tay. Mã còn lại trả item_type=ITEM, requires_quantity=false (mỗi mã là một hiện vật, +1).'
       operationId: mini_app_inbound_resolve_code
       parameters: []
       requestBody:
@@ -10173,6 +11499,7 @@ paths:
                   type: string
                   format: uuid
                 raw_code:
+                  description: 'QR item composite, barcode legacy, hoặc mã hộp linh kiện BOX-<sku_code>-<số hộp>.'
                   type: string
                   example: HN1|SKU=DCPL02-8|ITEM=DCPL02-8-000001
                   maxLength: 512
@@ -10180,7 +11507,7 @@ paths:
               type: object
       responses:
         200:
-          description: 'Resolve thành công; stock_effect=NONE, scan_evidence_created=false, wms_document_created=false.'
+          description: 'Resolve thành công; stock_effect=NONE, scan_evidence_created=false, wms_document_created=false. Kèm item_type (ITEM|BOX), requires_quantity, box_code, box_number, is_serial_tracked và requires_new_sku_type — requires_new_sku_type=true nghĩa là sku_code chưa từng đăng ký: Mini App phải hỏi "Sản phẩm hay Linh kiện?" rồi gửi kèm new_sku_type ở bước record.'
           content:
             application/json:
               schema:
@@ -14065,7 +15392,7 @@ paths:
     get:
       tags:
         - '22. Mini App'
-      summary: 'GET /api/v1/mini-app/warranty-component-issues - Modules Warehouse Http Controllers CanonicalMvpController listComponentIssueDocuments'
+      summary: 'Mini App — danh sách phiếu xuất linh kiện bảo hành'
       operationId: get_api_v1_mini__app_warranty__component__issues
       parameters: []
       responses:
@@ -14135,7 +15462,7 @@ paths:
     post:
       tags:
         - '22. Mini App'
-      summary: 'POST /api/v1/mini-app/warranty-component-issues - Modules Warehouse Http Controllers CurrentBaselineComponentFlowController store'
+      summary: 'Mini App — tạo phiếu xuất linh kiện bảo hành'
       operationId: post_api_v1_mini__app_warranty__component__issues
       parameters: []
       requestBody:
@@ -14210,11 +15537,249 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/mini-app/warranty-component-issues/record:
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Xác nhận xuất linh kiện từ danh sách đã quét (một lệnh nguyên tử)'
+      description: 'Nhận nguyên danh sách mã đã quét local, tự gom theo SKU để dựng phiếu + dòng + bằng chứng quét, rồi Post trừ tồn (`post_immediately=false` để dừng ở bước chờ Post). Bất kỳ dòng nào sai là rollback toàn bộ. Bắt buộc Idempotency-Key.'
+      operationId: miniAppComponentIssueRecord
+      parameters:
+        -
+          name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - warehouse_id
+                - warranty_case_id
+                - items
+              properties:
+                warehouse_id:
+                  type: string
+                  format: uuid
+                warranty_case_id:
+                  description: 'Hồ sơ phải đang ở Đang kiểm tra (CHECKING) hoặc Đang sửa chữa (REPAIRING).'
+                  type: string
+                  format: uuid
+                component_issue_no:
+                  type: string
+                  nullable: true
+                  maxLength: 80
+                document_date:
+                  type: string
+                  format: date
+                  nullable: true
+                note:
+                  type: string
+                  nullable: true
+                  maxLength: 2000
+                post_immediately:
+                  description: 'true (mặc định): xuất kho luôn. false: dừng ở phiếu đã quét đủ, chờ Post riêng.'
+                  type: boolean
+                  nullable: true
+                  default: true
+                items:
+                  type: array
+                  items:
+                    required:
+                      - raw_code
+                    properties:
+                      raw_code:
+                        type: string
+                        example: BOX-HN-COMP-BASE-003-0001
+                      quantity:
+                        description: 'Bắt buộc với mã hộp; mã dán trên linh kiện thì bỏ trống hoặc bằng 1.'
+                        type: integer
+                        nullable: true
+                        maximum: 1000000
+                        minimum: 1
+                      scan_source:
+                        type: string
+                        nullable: true
+                        enum:
+                          - CAMERA
+                          - SCANNER
+                          - HARDWARE
+                          - MANUAL
+                    type: object
+                  minItems: 1
+              type: object
+      responses:
+        201:
+          description: 'Đã xuất linh kiện (hoặc dựng xong phiếu chờ Post khi post_immediately=false).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        409:
+          description: 'IDEMPOTENCY_CONFLICT hoặc xung đột trạng thái/đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'WARRANTY_CASE_STATUS_NOT_ALLOWED, COMPONENT_SKU_REQUIRED, BOX_QUANTITY_REQUIRED, COMPONENT_BOX_INSUFFICIENT, …'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu Idempotency-Key'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/mini-app/warranty-component-issues/resolve-code:
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Tiền kiểm một mã linh kiện vừa quét cho màn xuất linh kiện bảo hành'
+      description: 'Thuần ĐỌC: không tạo phiếu, không tạo bằng chứng quét, không đụng tồn. Mã hộp `BOX-<SKU>-<số hộp>` trả `requires_quantity=true` + `available_qty` để Mini App hiện ô nhập số lượng; mã dán trên từng linh kiện trả `requires_quantity=false` (mỗi lần quét là +1). Luôn trả HTTP 200 kể cả khi mã không dùng được — client phải đọc `resolved` + `eligible_for_issue` (bí danh của `eligible_for_component_issue`) chứ không bắt lỗi theo status code, và kiểm thêm `case_allows_issue` cho điều kiện hồ sơ bảo hành. Gọi được ở 4 đường dẫn tương đương: `/api/v1/mini-app/warranty-component-issues/resolve-code`, `/api/v1/mini-app/component-issue-documents/resolve-code`, `/api/v1/component-issue-documents/resolve-code` và bí danh Annex C tương ứng.'
+      operationId: miniAppComponentIssueResolveCode
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - warehouse_id
+                - raw_code
+              properties:
+                warehouse_id:
+                  type: string
+                  format: uuid
+                raw_code:
+                  description: 'Payload thô của camera/máy quét: QR composite, mã vật lý hoặc mã hộp.'
+                  type: string
+                  example: BOX-HN-COMP-BASE-003-0001
+                warranty_case_id:
+                  description: 'Gửi kèm để BE trả luôn trạng thái hồ sơ và cờ `case_allows_issue`.'
+                  type: string
+                  format: uuid
+                  nullable: true
+              type: object
+      responses:
+        200:
+          description: 'Đã resolve mã; stock_effect=NONE; chưa ghi gì vào WMS.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền warranty.component_issue hoặc ngoài warehouse data scope'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Kho không ACTIVE hoặc payload sai định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/mini-app/warranty-component-issues/{id}':
     get:
       tags:
         - '22. Mini App'
-      summary: 'GET /api/v1/mini-app/warranty-component-issues/{id} - Modules Warehouse Http Controllers CurrentBaselineComponentIssueQueryController show'
+      summary: 'Mini App — chi tiết phiếu xuất linh kiện bảo hành'
       operationId: get_api_v1_mini__app_warranty__component__issues_id
       parameters:
         -
@@ -14291,7 +15856,7 @@ paths:
     post:
       tags:
         - '22. Mini App'
-      summary: 'POST /api/v1/mini-app/warranty-component-issues/{id}/cancel - Modules Warehouse Http Controllers CurrentBaselineComponentFlowController cancel'
+      summary: 'Mini App — huỷ phiếu xuất linh kiện bảo hành'
       operationId: post_api_v1_mini__app_warranty__component__issues_id_cancel
       parameters:
         -
@@ -14380,11 +15945,293 @@ paths:
       security:
         -
           bearerAuth: []
+  '/api/v1/mini-app/warranty-component-issues/{id}/lines':
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App — thêm dòng linh kiện vào phiếu xuất bảo hành'
+      operationId: post_api_v1_mini__app_warranty__component__issues_id_lines
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}':
+    delete:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App — xoá dòng linh kiện chưa quét khỏi phiếu xuất bảo hành'
+      operationId: delete_api_v1_mini__app_warranty__component__issues_id_lines_lineid
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: lineId
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+    patch:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App — sửa số lượng cần xuất của dòng linh kiện'
+      operationId: patch_api_v1_mini__app_warranty__component__issues_id_lines_lineid
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: lineId
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/mini-app/warranty-component-issues/{id}/post':
     post:
       tags:
         - '22. Mini App'
-      summary: 'POST /api/v1/mini-app/warranty-component-issues/{id}/post - Modules Warehouse Http Controllers CurrentBaselineComponentFlowController post'
+      summary: 'Mini App — ghi nhận phiếu xuất linh kiện bảo hành'
       operationId: post_api_v1_mini__app_warranty__component__issues_id_post
       parameters:
         -
@@ -14486,8 +16333,101 @@ paths:
     post:
       tags:
         - '22. Mini App'
-      summary: 'POST /api/v1/mini-app/warranty-component-issues/{id}/scans - Modules Warehouse Http Controllers CurrentBaselineComponentFlowController scan'
+      summary: 'Mini App — quét linh kiện cho phiếu xuất bảo hành'
       operationId: post_api_v1_mini__app_warranty__component__issues_id_scans
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/mini-app/warranty-component-issues/{id}/unscan':
+    post:
+      tags:
+        - '22. Mini App'
+      summary: 'Mini App — gỡ dòng linh kiện đã quét khỏi phiếu xuất bảo hành'
+      operationId: post_api_v1_mini__app_warranty__component__issues_id_unscan
       parameters:
         -
           name: id
@@ -15024,6 +16964,16 @@ paths:
           schema:
             type: integer
             default: 15
+        -
+          name: sort_order
+          in: query
+          description: 'Sắp xếp theo thời điểm tạo/sửa gần nhất (COALESCE(updated_at, created_at)): desc = Mới nhất trước, asc = Cũ nhất trước. Không gửi = giữ thứ tự mặc định cũ (created_at desc). Giá trị khác trả 422.'
+          required: false
+          schema:
+            type: string
+            enum:
+              - desc
+              - asc
       responses:
         200:
           description: 'Trang danh sách phiếu xuất, mỗi item kèm required_total/matched_count/label_printed_count/packing_label_count/packing_label_applied_count/rfid_mapped_count'
@@ -21182,18 +23132,33 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/public/categories - Modules Warehouse Http Controllers PublicApi PublicCatalogController categories'
-      operationId: get_api_v1_public_categories
-      parameters: []
+      summary: 'Storefront — danh mục theo domain'
+      operationId: listPublicCategories
+      parameters:
+        -
+          name: domain
+          in: query
+          schema:
+            type: string
+            enum:
+              - POWER_TOOLS
+              - HAND_TOOLS
+              - ACCESSORIES
       responses:
         200:
-          description: 'Thành công'
+          description: 'Danh sách danh mục'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
         400:
-          description: 'Yêu cầu không đúng định dạng'
+          description: INVALID_DOMAIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
           content:
             application/json:
               schema:
@@ -21251,16 +23216,22 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/public/config - Modules Warehouse Http Controllers PublicApi PublicAppController config'
-      operationId: get_api_v1_public_config
+      summary: 'Storefront — cấu hình khởi động (hotline, Zalo OA, giờ hỗ trợ, maintenance, feature flags)'
+      operationId: getPublicConfig
       parameters: []
       responses:
         200:
-          description: 'Thành công'
+          description: 'Cấu hình công khai'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -21320,18 +23291,51 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/public/facets - Modules Warehouse Http Controllers PublicApi PublicCatalogController facets'
-      operationId: get_api_v1_public_facets
-      parameters: []
+      summary: 'Storefront — bộ lọc động kèm số lượng'
+      operationId: listPublicFacets
+      parameters:
+        -
+          name: q
+          in: query
+          schema:
+            type: string
+        -
+          name: domain
+          in: query
+          schema:
+            type: string
+        -
+          name: category
+          in: query
+          schema:
+            type: string
+        -
+          name: power_source
+          in: query
+          schema:
+            type: string
+        -
+          name: feature
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
       responses:
         200:
-          description: 'Thành công'
+          description: 'category / power_source / feature / spec facets'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
         400:
-          description: 'Yêu cầu không đúng định dạng'
+          description: INVALID_QUERY
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
           content:
             application/json:
               schema:
@@ -21389,16 +23393,22 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/public/health/version - Modules Warehouse Http Controllers PublicApi PublicAppController healthVersion'
-      operationId: get_api_v1_public_health_version
+      summary: 'Storefront — version hợp đồng và cờ bảo trì'
+      operationId: getPublicHealthVersion
       parameters: []
       responses:
         200:
-          description: 'Thành công'
+          description: 'Trạng thái dịch vụ'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -21458,16 +23468,22 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/public/home - Modules Warehouse Http Controllers PublicApi PublicAppController home'
-      operationId: get_api_v1_public_home
+      summary: 'Storefront — 3 domain và các section Home có dữ liệu'
+      operationId: getPublicHome
       parameters: []
       responses:
         200:
-          description: 'Thành công'
+          description: 'data.domains + data.sections'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -21527,18 +23543,80 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/public/products - Modules Warehouse Http Controllers PublicApi PublicCatalogController products'
-      operationId: get_api_v1_public_products
-      parameters: []
+      summary: 'Storefront — danh sách sản phẩm đang bán (tìm kiếm/lọc/sắp xếp/cursor)'
+      operationId: listPublicProducts
+      parameters:
+        -
+          name: q
+          in: query
+          description: 'Từ khoá; không phân biệt hoa/thường và dấu.'
+          schema:
+            type: string
+        -
+          name: domain
+          in: query
+          schema:
+            type: string
+            enum:
+              - POWER_TOOLS
+              - HAND_TOOLS
+              - ACCESSORIES
+        -
+          name: category
+          in: query
+          schema:
+            type: string
+        -
+          name: power_source
+          in: query
+          schema:
+            type: string
+        -
+          name: feature
+          in: query
+          description: 'Lặp lại được; hoặc phân tách bằng dấu phẩy.'
+          schema:
+            type: array
+            items:
+              type: string
+        -
+          name: sort
+          in: query
+          schema:
+            type: string
+            default: featured
+            enum:
+              - featured
+              - updated_desc
+              - name_asc
+        -
+          name: cursor
+          in: query
+          description: 'Token đục do backend phát hành.'
+          schema:
+            type: string
+        -
+          name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
       responses:
         200:
-          description: 'Thành công'
+          description: 'data.items + data.page_info.next_cursor'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
         400:
-          description: 'Yêu cầu không đúng định dạng'
+          description: 'INVALID_QUERY / INVALID_SORT / INVALID_DOMAIN / INVALID_CURSOR'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
           content:
             application/json:
               schema:
@@ -21596,8 +23674,8 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/public/products/{slug} - Modules Warehouse Http Controllers PublicApi PublicCatalogController product'
-      operationId: get_api_v1_public_products_slug
+      summary: 'Storefront — chi tiết sản phẩm theo slug'
+      operationId: getPublicProduct
       parameters:
         -
           name: slug
@@ -21607,11 +23685,23 @@ paths:
             type: string
       responses:
         200:
-          description: 'Thành công'
+          description: 'Chi tiết sản phẩm'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        404:
+          description: 'PRODUCT_NOT_FOUND (kể cả khi sản phẩm tồn tại nhưng chưa publish hoặc hết hàng)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -21626,12 +23716,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
           description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
           content:
             application/json:
               schema:
@@ -21671,8 +23755,8 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/public/products/{slug}/related - Modules Warehouse Http Controllers PublicApi PublicCatalogController related'
-      operationId: get_api_v1_public_products_slug_related
+      summary: 'Storefront — sản phẩm liên quan (cursor pagination)'
+      operationId: listPublicRelatedProducts
       parameters:
         -
           name: slug
@@ -21680,13 +23764,37 @@ paths:
           required: true
           schema:
             type: string
+        -
+          name: cursor
+          in: query
+          schema:
+            type: string
+        -
+          name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 50
       responses:
         200:
-          description: 'Thành công'
+          description: 'data.items + data.page_info.next_cursor'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        404:
+          description: PRODUCT_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -21701,12 +23809,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
           description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
           content:
             application/json:
               schema:
@@ -21746,24 +23848,131 @@ paths:
     post:
       tags:
         - '00. Platform'
-      summary: 'POST /api/v1/public/quote-requests - Modules Warehouse Http Controllers PublicApi PublicQuoteRequestController store'
-      operationId: post_api_v1_public_quote__requests
-      parameters: []
+      summary: 'Storefront — gửi yêu cầu tư vấn (ẩn danh, idempotent, nhiều sản phẩm)'
+      operationId: createPublicQuoteRequest
+      parameters:
+        -
+          name: Idempotency-Key
+          in: header
+          description: 'Chuỗi 16-128 ký tự do client sinh; gửi lại cùng khoá sẽ trả về đúng kết quả cũ.'
+          required: true
+          schema:
+            type: string
+            maxLength: 128
+            minLength: 16
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
+              required:
+                - full_name
+                - phone
+                - consent
+                - privacy_version
+              properties:
+                items:
+                  description: 'Danh sách sản phẩm khách chọn (1..max_items). Bắt buộc, TRỪ khi dùng hình cũ `product_id` ở gốc body.'
+                  type: array
+                  items:
+                    required:
+                      - product_id
+                    properties:
+                      product_id:
+                        type: string
+                        format: uuid
+                      variant_id:
+                        type: string
+                        format: uuid
+                        nullable: true
+                      quantity:
+                        description: 'Số lượng khách nêu. Bỏ trống nếu khách không nói — null KHÁC 1.'
+                        type: integer
+                        nullable: true
+                        minimum: 1
+                    type: object
+                product_id:
+                  description: 'HÌNH CŨ, một sản phẩm. Vẫn được nhận; gửi kèm items[] thì phải trùng items[0].product_id.'
+                  type: string
+                  format: uuid
+                  nullable: true
+                variant_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                full_name:
+                  type: string
+                  example: 'Nguyễn Văn A'
+                  maxLength: 120
+                phone:
+                  type: string
+                  example: '0912345678'
+                province_code:
+                  type: string
+                  nullable: true
+                  maxLength: 16
+                note:
+                  type: string
+                  nullable: true
+                  maxLength: 1000
+                consent:
+                  description: 'Phải là true.'
+                  type: boolean
+                  example: true
+                privacy_version:
+                  description: 'Lấy từ GET /api/v1/public/config.'
+                  type: string
+                  example: 1.0.0
               type: object
-              example: []
-              additionalProperties: true
       responses:
-        200:
-          description: 'Thành công'
+        201:
+          description: '{request_id, status: RECEIVED}'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        200:
+          description: 'Đã nhận trước đó với cùng Idempotency-Key'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        404:
+          description: 'PRODUCT_NOT_FOUND — `errors` chỉ đúng dòng items hỏng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'IDEMPOTENCY_CONFLICT — cùng khoá nhưng khác nội dung'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'VALIDATION_FAILED / CONSENT_REQUIRED / PRIVACY_VERSION_MISMATCH'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: IDEMPOTENCY_KEY_REQUIRED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: RATE_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        503:
+          description: 'SERVICE_UNAVAILABLE / FEATURE_DISABLED'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -21782,32 +23991,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        409:
-          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
         412:
           description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        428:
-          description: 'Thiếu điều kiện If-Match bắt buộc'
           content:
             application/json:
               schema:
@@ -22805,6 +24990,85 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/pv-admin/product-images:
+    post:
+      tags:
+        - '21. Public Catalog'
+      summary: 'POST /api/v1/pv-admin/product-images - Modules Warehouse Http Controllers PvProductImageController store'
+      operationId: post_api_v1_pv__admin_product__images
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/pv-admin/resources/{resourceType}':
     get:
       tags:
@@ -23276,6 +25540,81 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         429:
           description: RATE_LIMIT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security: []
+  '/api/v1/pv/product-images/{key}':
+    get:
+      tags:
+        - '21. Public Catalog'
+      summary: 'GET /api/v1/pv/product-images/{key} - Modules Warehouse Http Controllers PvProductImageController show'
+      operationId: get_api_v1_pv_product__images_key
+      parameters:
+        -
+          name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
           content:
             application/json:
               schema:
@@ -30906,6 +33245,112 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/skus/lookup:
+    get:
+      tags:
+        - '05. Product'
+      summary: 'Bảng tra SKU gọn (mã, tên, loại, đơn vị, định mức) — toàn bộ danh mục, một request'
+      description: "Bảng tra SKU GỌN cho các màn báo cáo — MỘT request thay cho 9 request phân trang.\n\nVÌ SAO CÓ: 6 màn báo cáo cần biết mỗi mã SKU là Sản phẩm hay Linh kiện và\nđịnh mức min/max — cho TOÀN BỘ danh mục, vì dòng báo cáo nào cũng có thể\nchạm bất kỳ SKU nào. Trước đây FE phải cuốn `GET /products` theo trang\n(trần 100/trang ⇒ 818 SKU = 9 request JSON đầy đủ trường) ở lần mở màn báo\ncáo đầu tiên của phiên. Với 3.000 người, riêng việc cuốn trang này đã là\n~45 req/s dội vào backend.\n\nỞ đây: một truy vấn, 9 cột, không phân trang; cache theo chính sách `master`\n(30 phút) và khoá theo `master:version` — đúng namespace mà mọi đường ghi SKU\n(`store`/`update`/`publishPvProduct`, `PvAdminResourceController`) đã bump,\nnên sửa SKU là bảng tra mới ngay ở request kế tiếp.\n\nGlobal scope: danh mục SKU không phân theo kho, mọi người dùng chung một\nentry — đúng loại \"cache mạnh\" cho dữ liệu tham chiếu."
+      operationId: sku_lookup
+      parameters:
+        -
+          name: status
+          in: query
+          description: 'Bỏ trống: mọi trạng thái. ACTIVE: chỉ SKU đang hoạt động.'
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - INACTIVE
+        -
+          name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
+        -
+          name: keyword
+          in: query
+          schema:
+            type: string
+        -
+          name: sku_type
+          in: query
+          schema:
+            type: string
+            enum:
+              - PRODUCT
+              - COMPONENT
+      responses:
+        200:
+          description: 'data: mảng {sku_id, sku_code, sku_name, sku_type, unit, category_id, min_stock, max_stock, status}'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền sku.view'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/skus/{id}':
     get:
       tags:
@@ -32096,6 +34541,112 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/telemetry/vitals:
+    post:
+      tags:
+        - '00. Platform'
+      summary: 'Nhận Core Web Vitals đo trên trình duyệt người dùng thật (RUM)'
+      description: 'Chỉ ghi bộ đếm cộng dồn trong cache (không bảng, không dữ liệu cá nhân). Không yêu cầu đăng nhập vì beacon được bắn lúc tab bị ẩn/đóng; chặn lạm dụng bằng throttle. Trả 202 với thân rỗng để beacon kết thúc nhanh nhất có thể.'
+      operationId: telemetry_vitals
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - build_id
+                - route
+                - metrics
+              properties:
+                build_id:
+                  description: 'Định danh bản build của FE (__APP_BUILD_ID__)'
+                  type: string
+                  maxLength: 64
+                route:
+                  description: 'Mẫu route, ĐÃ bỏ tham số động (vd /reports/traceability)'
+                  type: string
+                  maxLength: 120
+                metrics:
+                  description: 'Map tên chỉ số -> giá trị'
+                  type: object
+                  additionalProperties:
+                    type: number
+              type: object
+      responses:
+        202:
+          description: 'Đã ghi nhận'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        422:
+          description: 'BUSINESS_RULE_ERROR — payload không hợp lệ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        429:
+          description: 'Vượt hạn mức throttle'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security: []
   /api/v1/users:
     get:
       tags:
@@ -33185,7 +35736,7 @@ paths:
     patch:
       tags:
         - '06. Warehouse'
-      summary: 'Sửa tên/địa chỉ/thông tin liên hệ kho trong data scope'
+      summary: 'Sửa tên/địa chỉ/liên hệ kho; đổi status chỉ Super Admin'
       operationId: warehouse_update
       parameters:
         -
@@ -33219,6 +35770,13 @@ paths:
                   example: '0912345678'
                   nullable: true
                   maxLength: 30
+                status:
+                  description: 'Chỉ Super Admin được đổi. INACTIVE đóng băng mọi thao tác ghi của toàn hệ thống.'
+                  type: string
+                  example: ACTIVE
+                  enum:
+                    - ACTIVE
+                    - INACTIVE
               type: object
       responses:
         200:
@@ -33234,13 +35792,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
-          description: 'Không có quyền hoặc kho ngoài data scope'
+          description: 'Không có quyền, kho ngoài data scope, hoặc đổi status mà không phải Super Admin'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         404:
           description: 'Không tìm thấy kho'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Đã có kho ACTIVE khác (REQ-SRS-001)'
           content:
             application/json:
               schema:
@@ -33253,12 +35817,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        409:
-          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
           content:
             application/json:
               schema:
@@ -33450,8 +36008,10 @@ paths:
         -
           name: status
           in: query
+          description: 'Một trạng thái, hoặc nhiều trạng thái phân tách bằng dấu phẩy — ví dụ `CHECKING,REPAIRING` cho màn xuất linh kiện.'
           schema:
             type: string
+            example: 'CHECKING,REPAIRING'
         -
           name: identification_status
           in: query
@@ -33469,7 +36029,7 @@ paths:
         -
           name: keyword
           in: query
-          description: 'Khớp customer_name/customer_phone/customer_address (mask nếu thiếu quyền warranty.pii.view) hoặc serial/mã vật lý của item gắn case'
+          description: 'Khớp mã hồ sơ / mã tạm, serial + mã vật lý của item gắn case, mã hoặc tên SKU sản phẩm, mô tả sản phẩm nhập tay (TEMP_ONLY), và customer_name/customer_phone qua blind index — chỉ khi có quyền warranty.pii.view (tên khớp trọn từ không dấu, SĐT khớp chính xác; địa chỉ không tìm được sau WWHN-SEC-06)'
           schema:
             type: string
         -
@@ -33484,6 +36044,16 @@ paths:
           schema:
             type: integer
             default: 15
+        -
+          name: sort_order
+          in: query
+          description: 'Sắp xếp theo thời điểm tạo/sửa gần nhất (COALESCE(updated_at, created_at)): desc = Mới nhất trước, asc = Cũ nhất trước. Không gửi = giữ thứ tự mặc định cũ (created_at desc). Giá trị khác trả 422.'
+          required: false
+          schema:
+            type: string
+            enum:
+              - desc
+              - asc
       responses:
         200:
           description: 'Trang danh sách warranty_case; mỗi item kèm cờ pii_masked (§13.8)'
@@ -34738,6 +37308,173 @@ paths:
       security:
         -
           bearerAuth: []
+  /api/v1/warranty-component-issues/record:
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'Xác nhận xuất linh kiện từ danh sách đã quét (Annex C)'
+      operationId: post_api_v1_warranty__component__issues_record
+      parameters:
+        -
+          name: Idempotency-Key
+          in: header
+          description: 'Bắt buộc. Chuỗi 8-100 ký tự do client sinh. Gửi lại cùng key trả về kết quả lần đầu (replay); dùng lại key cho payload khác trả 409.'
+          required: true
+          schema:
+            type: string
+            maxLength: 100
+            minLength: 8
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  /api/v1/warranty-component-issues/resolve-code:
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'Tiền kiểm mã linh kiện vừa quét cho màn xuất linh kiện bảo hành (Annex C)'
+      operationId: post_api_v1_warranty__component__issues_resolve__code
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
   '/api/v1/warranty-component-issues/{id}':
     get:
       tags:
@@ -34825,6 +37562,288 @@ paths:
       parameters:
         -
           name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/warranty-component-issues/{id}/lines':
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'Thêm dòng linh kiện vào phiếu xuất bảo hành (Annex C)'
+      operationId: post_api_v1_warranty__component__issues_id_lines
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/warranty-component-issues/{id}/lines/{lineId}':
+    delete:
+      tags:
+        - '14. Component Issue'
+      summary: 'Xoá dòng linh kiện chưa quét khỏi phiếu xuất bảo hành (Annex C)'
+      operationId: delete_api_v1_warranty__component__issues_id_lines_lineid
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: lineId
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+    patch:
+      tags:
+        - '14. Component Issue'
+      summary: 'Sửa số lượng cần xuất của dòng linh kiện (Annex C)'
+      operationId: patch_api_v1_warranty__component__issues_id_lines_lineid
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: lineId
           in: path
           required: true
           schema:
@@ -35017,6 +38036,99 @@ paths:
         - '14. Component Issue'
       summary: 'Quét linh kiện cho phiếu xuất bảo hành (Annex C)'
       operationId: post_api_v1_warranty__component__issues_id_scans
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        -
+          name: If-Match
+          in: header
+          description: 'Bắt buộc. Optimistic locking theo cột version của resource. Thiếu header: 428 PRECONDITION_REQUIRED. Sai version: 412 STALE_VERSION.'
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              example: []
+              additionalProperties: true
+      responses:
+        200:
+          description: 'Thành công'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        400:
+          description: 'Yêu cầu không đúng định dạng'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        401:
+          description: 'Chưa xác thực'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        403:
+          description: 'Không có quyền truy cập'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        404:
+          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        409:
+          description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        412:
+          description: 'Điều kiện If-Match không đạt'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        428:
+          description: 'Thiếu điều kiện If-Match bắt buộc'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        500:
+          description: 'Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+      security:
+        -
+          bearerAuth: []
+  '/api/v1/warranty-component-issues/{id}/unscan':
+    post:
+      tags:
+        - '14. Component Issue'
+      summary: 'Gỡ dòng linh kiện đã quét khỏi phiếu xuất bảo hành (Annex C)'
+      operationId: post_api_v1_warranty__component__issues_id_unscan
       parameters:
         -
           name: id
@@ -35439,7 +38551,7 @@ components:
               description: 'Kho `KHO-TONG-HN` ACTIVE.'
               type: boolean
             baseline_product:
-              description: 'SKU `HN-PV-BASE-001` ACTIVE.'
+              description: 'SKU nền của bộ seed (`D070106` — Kìm điện đa năng 6 inch, danh mục thật DongCheng) ở trạng thái ACTIVE.'
               type: boolean
           type: object
       type: object

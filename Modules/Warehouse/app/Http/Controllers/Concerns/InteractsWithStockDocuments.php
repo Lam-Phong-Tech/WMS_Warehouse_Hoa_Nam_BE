@@ -6,6 +6,7 @@ use App\Support\ApiError;
 use Illuminate\Http\Request;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\StockDocumentService;
+use Modules\Warehouse\Support\ListSortOrder;
 use Modules\Warehouse\Support\SkuInboundInfoRule;
 
 /**
@@ -28,6 +29,23 @@ trait InteractsWithStockDocuments
             ->with('lines')
             ->where('doc_type', $this->docType());
 
+        // WWHN-SEC-09 (BOLA): danh sách phải theo warehouse data-scope như các
+        // route chi tiết. Middleware Enforce{Inbound,Outbound}WarehouseScope chỉ
+        // bắt theo route {id}/warehouse_id input nên không đụng tới danh sách —
+        // actor bị giới hạn kho A vẫn đọc được phiếu của kho B qua index. Kênh
+        // Mini App đã lọc đúng (MiniAppInboundController::buildIndexQuery);
+        // đồng bộ lại kênh web. scope null = không giới hạn (mặc định hiện tại).
+        $user = $request->user();
+        if ($user !== null && method_exists($user, 'warehouseScopeIds')) {
+            $warehouseScopeIds = $user->warehouseScopeIds();
+            if (is_array($warehouseScopeIds)) {
+                $scopeColumn = $this->docType() === StockDocument::TYPE_RECEIPT
+                    ? 'dst_warehouse_id'
+                    : 'src_warehouse_id';
+                $query->whereIn($scopeColumn, $warehouseScopeIds);
+            }
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
@@ -44,7 +62,16 @@ trait InteractsWithStockDocuments
             $this->applyPendingProductInfoFilter($query, $pendingInfoOnly);
         }
 
-        $page = $query->orderByDesc('created_at')->paginate($this->perPage($request));
+        // "Sắp xếp theo" của IN-01: có sort_order thì xếp theo tạo/sửa gần nhất,
+        // vắng mặt thì giữ nguyên thứ tự cũ cho client không gửi tham số.
+        $sortOrder = ListSortOrder::fromRequest($request);
+        if ($sortOrder === null) {
+            $query->orderByDesc('created_at');
+        } else {
+            ListSortOrder::applyRecency($query, $sortOrder);
+        }
+
+        $page = $query->paginate($this->perPage($request));
 
         $this->decoratePendingProductInfo($page->getCollection());
 

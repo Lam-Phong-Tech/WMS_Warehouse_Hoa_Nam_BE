@@ -253,6 +253,18 @@ class OutboundDocumentController extends Controller
             ->with('lines')
             ->where('doc_type', $this->docType());
 
+        // WWHN-SEC-09 (BOLA): cùng lý do với InteractsWithStockDocuments::index —
+        // danh sách phải lọc theo warehouse data-scope (phiếu xuất đi theo kho
+        // nguồn). Khoá cache đã mang scope qua readCacheScopeIds() nên chỉ cần
+        // sửa SQL, không lo hai actor khác scope dùng chung một entry.
+        $user = $request->user();
+        if ($user !== null && method_exists($user, 'warehouseScopeIds')) {
+            $warehouseScopeIds = $user->warehouseScopeIds();
+            if (is_array($warehouseScopeIds)) {
+                $query->whereIn('src_warehouse_id', $warehouseScopeIds);
+            }
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
