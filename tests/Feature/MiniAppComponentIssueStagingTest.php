@@ -213,6 +213,10 @@ class MiniAppComponentIssueStagingTest extends TestCase
     {
         $fixture = $this->boxFixture(3);
 
+        // `BOX-KHONG-CO-THAT-9999` có ĐÚNG dạng mã hộp, nên lý do rõ ràng ở đây là
+        // "SKU [KHONG-CO-THAT] không có trong danh mục" chứ không phải câu chung
+        // "Barcode/QR/RFID không tồn tại" — xem test_ma_dang_hop_khong_ra_hop_bao_dung_ly_do.
+        // Mã KHÔNG có dạng hộp mới giữ PHYSICAL_CODE_NOT_FOUND.
         $this->postJson(self::RESOLVE, [
             'warehouse_id' => $fixture['warehouse_id'],
             'raw_code' => 'BOX-KHONG-CO-THAT-9999',
@@ -220,7 +224,69 @@ class MiniAppComponentIssueStagingTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.resolved', false)
             ->assertJsonPath('data.eligible_for_component_issue', false)
+            ->assertJsonPath('data.eligibility_code', 'BOX_SKU_NOT_FOUND');
+    }
+
+    /**
+     * Mã CÓ DẠNG mã hộp nhưng không ra hộp phải nói rõ hỏng ở đâu.
+     *
+     * Câu "Barcode/QR/RFID không tồn tại" đã tốn hai vòng trao đổi với đội Mini
+     * App: họ lần lượt kết luận BE thiếu tính năng tạo container, rồi BE chặn
+     * nhầm hộp hợp lệ — trong khi mã thử nghiệm chỉ đơn giản là chưa nhập kho.
+     */
+    public function test_ma_dang_hop_khong_ra_hop_bao_dung_ly_do(): void
+    {
+        $fixture = $this->boxFixture(3);
+        $headers = $fixture['headers'];
+        $wh = $fixture['warehouse_id'];
+
+        $resolve = fn (string $code) => $this->postJson(self::RESOLVE, [
+            'warehouse_id' => $wh, 'raw_code' => $code,
+        ], $headers)->assertOk();
+
+        // SKU trong mã hộp chưa có trong danh mục.
+        $resolve('BOX-SKU-KHONG-CO-THAT-0001')
+            ->assertJsonPath('data.eligible_for_issue', false)
+            ->assertJsonPath('data.eligibility_code', 'BOX_SKU_NOT_FOUND');
+
+        // SKU có thật nhưng là PRODUCT — mã hộp chỉ dành cho linh kiện.
+        $product = Sku::query()->where('sku_type', 'PRODUCT')->where('status', 'ACTIVE')->first();
+        if ($product !== null) {
+            $resolve('BOX-'.$product->sku_code.'-0001')
+                ->assertJsonPath('data.eligibility_code', 'BOX_SKU_NOT_COMPONENT');
+        }
+
+        // SKU linh kiện đúng, nhưng hộp chưa từng đi qua Post Receipt.
+        $resolve('BOX-'.$fixture['sku_code'].'-9999')
+            ->assertJsonPath('data.eligible_for_issue', false)
+            ->assertJsonPath('data.eligibility_code', 'BOX_NOT_RECEIVED');
+
+        // Mã không phải dạng hộp thì giữ nguyên mã lỗi cũ.
+        $resolve('KHONG-PHAI-MA-HOP')
             ->assertJsonPath('data.eligibility_code', 'PHYSICAL_CODE_NOT_FOUND');
+
+        // Toàn bộ vẫn thuần đọc.
+        $this->assertSame(0, DB::table('component_issue_documents')->count());
+    }
+
+    /** Hộp hợp lệ phải ELIGIBLE, không phụ thuộc hồ sơ (đó là cờ case_allows_issue riêng). */
+    public function test_hop_hop_le_luon_eligible_ke_ca_khi_khong_gui_case(): void
+    {
+        $fixture = $this->boxFixture(5);
+
+        foreach ([null, $fixture['case_id']] as $caseId) {
+            $body = ['warehouse_id' => $fixture['warehouse_id'], 'raw_code' => $fixture['box_code']];
+            if ($caseId !== null) {
+                $body['warranty_case_id'] = $caseId;
+            }
+
+            $this->postJson(self::RESOLVE, $body, $fixture['headers'])
+                ->assertOk()
+                ->assertJsonPath('data.eligible_for_issue', true)
+                ->assertJsonPath('data.eligibility_code', 'ELIGIBLE')
+                ->assertJsonPath('data.sku_type', 'COMPONENT')
+                ->assertJsonPath('data.available_qty', 5);
+        }
     }
 
     // ------------------------------------------------------------------

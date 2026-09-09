@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\BoxCodeParser;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
@@ -569,7 +570,49 @@ class MiniAppComponentIssueStagingController extends Controller
             return $this->containerPayload((string) $container->container_id, $lookup);
         }
 
-        return $this->notResolved($lookup, 'PHYSICAL_CODE_NOT_FOUND', 'Barcode/QR/RFID không tồn tại hoặc không ACTIVE.');
+        return $this->unresolvedBoxReason($lookup)
+            ?? $this->notResolved($lookup, 'PHYSICAL_CODE_NOT_FOUND', 'Barcode/QR/RFID không tồn tại hoặc không ACTIVE.');
+    }
+
+    /**
+     * Mã có DẠNG mã hộp `BOX-<SKU>-<số hộp>` nhưng không tra ra hộp nào: nói rõ
+     * hỏng ở đâu thay vì trả "Barcode/QR/RFID không tồn tại".
+     *
+     * Câu chung chung đã tốn hai vòng trao đổi với đội Mini App (họ lần lượt kết
+     * luận "BE thiếu tính năng tạo container" rồi "BE chặn nhầm hộp hợp lệ", trong
+     * khi thực tế chỉ là mã thử nghiệm chưa từng nhập kho). Người đứng quét cũng
+     * cần đúng thông tin này: thiếu SKU, nhầm loại SKU, hay hộp chưa nhập kho là
+     * ba việc phải xử lý khác nhau.
+     *
+     * @return array<string, mixed>|null null nếu mã không phải dạng mã hộp
+     */
+    private function unresolvedBoxReason(string $lookup): ?array
+    {
+        $box = app(BoxCodeParser::class)->parse($lookup);
+        if ($box === null) {
+            return null;
+        }
+
+        $skuCode = (string) $box['sku_code'];
+        $sku = DB::table('sku')->whereRaw('UPPER(sku_code) = ?', [strtoupper($skuCode)])->first();
+
+        if ($sku === null) {
+            return $this->notResolved($lookup, 'BOX_SKU_NOT_FOUND',
+                "Mã hộp trỏ tới SKU [{$skuCode}] chưa có trong danh mục. Kiểm tra lại mã in trên hộp.");
+        }
+        if (strtoupper((string) $sku->sku_type) !== 'COMPONENT') {
+            return $this->notResolved($lookup, 'BOX_SKU_NOT_COMPONENT',
+                "SKU [{$skuCode}] là ".strtoupper((string) $sku->sku_type).', không phải linh kiện — mã hộp linh kiện chỉ dùng cho SKU COMPONENT.');
+        }
+        if (strtoupper((string) $sku->status) !== 'ACTIVE') {
+            return $this->notResolved($lookup, 'BOX_SKU_INACTIVE',
+                "SKU linh kiện [{$skuCode}] đang không ACTIVE.");
+        }
+
+        // SKU đúng nhưng chưa có container: hộp chưa từng đi qua Post Receipt.
+        // Xuất kho KHÔNG tự tạo hộp — tồn chỉ tăng ở nhập kho.
+        return $this->notResolved($lookup, 'BOX_NOT_RECEIVED',
+            "Hộp [{$lookup}] chưa được nhập kho nên không có tồn để xuất. Nhập hộp qua phiếu nhập trước.");
     }
 
     /** @return array<string, mixed> */
