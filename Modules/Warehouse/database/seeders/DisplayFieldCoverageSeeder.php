@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\Warehouse\Services\ImportErrorFileService;
 
 /**
  * Lấp các CỘT HIỂN THỊ còn trống 100% sau khi chạy toàn bộ chuỗi seeder
@@ -211,7 +212,7 @@ class DisplayFieldCoverageSeeder extends Seeder
         // sinh file nào — nút "Tải tệp lỗi" sáng nhưng bấm là RESOURCE_NOT_FOUND.
         // Sinh file THẬT qua đúng service (đúng disk, đúng schema cột §13.12);
         // hạn dùng lấy từ chính service để ba nơi không nói khác nhau.
-        $service = app(ModulesWarehouseServicesImportErrorFileService::class);
+        $service = app(ImportErrorFileService::class);
         $reports = DB::table('import_reports')
             ->where('error_rows', '>', 0)
             ->whereNull('error_file_path')
