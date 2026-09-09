@@ -273,6 +273,10 @@ jobs:
             echo "Full suite green — consider removing continue-on-error to re-tighten the gate."
           fi
 
+      # Cổng CỨNG: seed thật xong mới bật server rồi chờ health có giới hạn —
+      # bản một dòng cũ để `sleep 5 && health` chạy đua với seed 10 phút nên
+      # đỏ "Connection refused" ngay lần đầu pipeline sống tới đây (run
+      # 34337763564). Logic nằm ở docker/ci/local-smoke.sh.
       - name: Run local smoke
         run: |
           docker run --rm --network host \
@@ -284,7 +288,7 @@ jobs:
             -e CI_APP_URL="$CI_APP_URL" \
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
-            -lc 'php artisan migrate:fresh --seed --force && php artisan serve --host="$CI_SERVER_HOST" --port="$CI_SERVER_PORT" > /tmp/laravel.log 2>&1 & sleep 5 && php -r '\''$body = file_get_contents(getenv("CI_APP_URL")."/api/v1/health"); if ($body === false || strpos($body, "\"success\":true") === false) { fwrite(STDERR, $body ?: "health failed"); exit(1); } echo $body.PHP_EOL;'\'''
+            -lc 'sh docker/ci/local-smoke.sh'
 
       - name: Build immutable Docker artifact
         run: |
