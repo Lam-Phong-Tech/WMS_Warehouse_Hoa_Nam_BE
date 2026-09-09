@@ -40,6 +40,12 @@ on:
       - m1
       - main
 
+# WWHN-SEC-09: workflow chạy cả trên pull_request nên GITHUB_TOKEN phải ở mức
+# tối thiểu — job nào cũng chỉ cần đọc code (deploy dùng secrets riêng, không
+# dùng GITHUB_TOKEN).
+permissions:
+  contents: read
+
 env:
   IMAGE_NAME: hoa-nam-backend-backend
   IMAGE_TAR: hoa-nam-backend-backend.tar
@@ -113,6 +119,11 @@ jobs:
             echo "DB_DATABASE=$CI_DB_DATABASE"
             echo "DB_USERNAME=$CI_DB_USERNAME"
             echo "DB_PASSWORD=$CI_DB_PASSWORD"
+            # SEC-05 để .env.example ghim DB_SSLMODE=require (an toàn cho môi
+            # trường thật); postgres service của CI không bật TLS nên phải nói
+            # rõ disable — nếu không libpq fail-closed đúng thiết kế và mọi
+            # bước artisan chết từ migrate trở đi.
+            echo "DB_SSLMODE=disable"
             echo "CACHE_STORE=redis"
             echo "QUEUE_CONNECTION=redis"
             echo "SESSION_DRIVER=redis"
@@ -145,6 +156,20 @@ jobs:
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'composer install --no-interaction --prefer-dist --optimize-autoloader'
+
+      # WWHN-SEC-09: quét advisory cho dependency PHP theo composer.lock (trước
+      # đây chỉ có npm audit offline, PHP không có lớp quét nào). Bước này FAIL
+      # khi còn advisory chưa xử lý — đúng vai trò cổng chặn, không chỉ báo cáo.
+      - name: Composer security audit
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -e COMPOSER_HOME=/tmp/composer \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'composer audit --locked --no-interaction'
 
       - name: Install Node dependencies
         run: |

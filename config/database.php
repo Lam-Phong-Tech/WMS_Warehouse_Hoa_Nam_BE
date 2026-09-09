@@ -36,7 +36,11 @@ use Pdo\Mysql;
 $appEnvForDbTls = strtolower(trim((string) env('APP_ENV', 'production')));
 $dbTlsIsDevelopment = in_array($appEnvForDbTls, ['local', 'testing'], true);
 $dbSslMode = strtolower(trim((string) env('DB_SSLMODE', $dbTlsIsDevelopment ? 'prefer' : 'require')));
-$dbSslMode = $dbSslMode !== '' ? $dbSslMode : 'require';
+// DB_SSLMODE= (rỗng — đúng trạng thái .env.example) phải rơi về default THEO
+// MÔI TRƯỜNG, không phải cứng 'require': bản cũ ép require cả ở local/testing
+// nên CI (postgres service không TLS) chết "server does not support SSL" từ
+// migrate trở đi. Giá trị gõ sai khác rỗng vẫn fail-closed như cũ.
+$dbSslMode = $dbSslMode !== '' ? $dbSslMode : ($dbTlsIsDevelopment ? 'prefer' : 'require');
 
 /*
 |--------------------------------------------------------------------------
