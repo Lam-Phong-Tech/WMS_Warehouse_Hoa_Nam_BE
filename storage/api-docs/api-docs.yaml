@@ -27482,7 +27482,7 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'Trạng thái job export báo cáo nền'
-      description: 'Poll tới khi status=READY (có download_url) hoặc FAILED (có error_code/error_message). `filters` trả lại đúng bộ lọc đã gửi khi tạo job (BR-EXP-01: file luôn dùng đúng filter/scope của lần request đó). Chỉ actor đã tạo job mới đọc được — job của người khác trả 404 y hệt job không tồn tại (fail-closed).'
+      description: 'Poll tới khi status=READY (có download_url) hoặc FAILED (có error_code/error_message). `filters` trả lại đúng bộ lọc đã gửi khi tạo job (BR-EXP-01: file luôn dùng đúng filter/scope của lần request đó). Chỉ actor đã tạo job mới đọc được — job của người khác trả 404 y hệt job không tồn tại (fail-closed). WWHN-343: job KHÔNG BAO GIỜ đứng PENDING vô thời hạn — nếu worker hàng đợi không nhặt job sau `wms_export.pickup_grace_seconds` (mặc định 20s) thì chính lần poll này chạy export đồng bộ rồi trả READY, và nếu tiến trình đang chạy chết giữa chừng quá `processing_timeout_seconds` (mặc định 180s) thì job được chốt FAILED + error_code=REPORT_EXPORT_STALLED.'
       operationId: getReportExportStatus
       parameters:
         -
@@ -29077,13 +29077,22 @@ paths:
         -
           name: status
           in: query
-          description: 'Kết quả in'
+          description: 'Kết quả in — lọc nhãn CÓ ÍT NHẤT MỘT lần in mang kết quả này'
           schema:
             type: string
             enum:
               - PENDING_PRINT
               - PRINTED
               - PRINT_FAILED
+        -
+          name: action
+          in: query
+          description: 'Thao tác in — PRINT: nhãn đã in ít nhất một lần; REPRINT: nhãn có lần in thành công thứ hai trở đi'
+          schema:
+            type: string
+            enum:
+              - PRINT
+              - REPRINT
         -
           name: printer_id
           in: query
@@ -29184,7 +29193,7 @@ paths:
       tags:
         - '12. Dashboard / Report'
       summary: 'Xuất XLSX/PDF nhật ký nhãn'
-      description: 'BR-EXP-01..05 + NFR-SRS-015: dùng đúng bộ lọc màn hình, audit mọi lần xuất, tên file có timestamp, SĐT khách luôn ở dạng mask vì route chỉ gác report.export.'
+      description: 'BR-EXP-01..05 + NFR-SRS-015: dùng đúng bộ lọc màn hình, audit mọi lần xuất, tên file có timestamp, SĐT khách luôn ở dạng mask vì route chỉ gác report.export. GRANULARITY: file là bảng TỔNG HỢP THEO NHÃN (§13.10 RPT-LABEL-01), không phải từng lần in như bảng của màn RPT-05 — số dòng hai bên khác nhau có chủ ý; bộ lọc thì khớp, mọi bộ lọc theo lần in được dịch thành nhãn có ít nhất một lần in khớp.'
       operationId: report_label_log_export
       parameters:
         -
@@ -29217,6 +29226,14 @@ paths:
               - PENDING_PRINT
               - PRINTED
               - PRINT_FAILED
+        -
+          name: action
+          in: query
+          schema:
+            type: string
+            enum:
+              - PRINT
+              - REPRINT
         -
           name: printer_id
           in: query
@@ -36073,6 +36090,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'sort_order lạ, hoặc bộ lọc đã gửi không dùng được trên schema hiện tại (FILTER_NOT_SUPPORTED) — KHÔNG bao giờ trả danh sách chưa lọc dưới vỏ 200'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -36093,12 +36116,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         412:
           description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
           content:
             application/json:
               schema:

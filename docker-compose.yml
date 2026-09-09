@@ -81,7 +81,23 @@ services:
     # WWHN-295: worker timeout và queue retry_after phải đọc CÙNG một biến.
     # config/queue.php suy ra retry_after = QUEUE_WORKER_TIMEOUT + 30 nên job
     # chạy sát ngưỡng không bị queue phát lại cho worker thứ hai.
-    command: ["sh", "-lc", "php artisan queue:work --tries=3 --timeout=${QUEUE_WORKER_TIMEOUT:-90}"]
+    #
+    # WWHN-345 — `--memory`: `queue:work` mặc định `--memory=128`, và sau MỖI job nó tự
+    # thoát (mã 12, Worker::EXIT_MEMORY_LIMIT) nếu `memory_get_usage(true)` đã vượt ngưỡng
+    # đó. Một lần xuất báo cáo cỡ thật vượt 128 MB là chuyện bình thường — RPT-05 "Nhãn
+    # đóng gói" chỉ 166 dòng đã dùng ~114 MB, XLSX 10.000 dòng cần ~211 MB — nên worker
+    # LÀM XONG VIỆC rồi tự chết. Dựng lại được 09/09/2026: job export PDF chạy 1 giây DONE,
+    # 9 giây sau container `Exited (12)`. Từ lúc đó mọi export sau nằm PENDING vĩnh viễn với
+    # download_url/error_code = null — đúng triệu chứng WWHN-345.
+    # Ngưỡng phải LỚN HƠN `wms_export.memory_limit` (512M) cộng biên, nếu không hàng rào
+    # bộ nhớ của WWHN-347 chỉ đổi một kiểu chết này lấy một kiểu chết khác.
+    command: ["sh", "-lc", "php artisan queue:work --tries=3 --timeout=${QUEUE_WORKER_TIMEOUT:-90} --memory=${QUEUE_WORKER_MEMORY_MB:-768}"]
+    # WWHN-345 — thoát mã 12 là hành vi THIẾT KẾ của Laravel: nó trông cậy một process
+    # supervisor dựng worker dậy. Trong compose, supervisor đó chính là restart policy;
+    # thiếu nó thì mọi lần worker dừng (hết bộ nhớ, timeout, `queue:restart`, PHP fatal)
+    # đều là dừng VĨNH VIỄN. Các service hạ tầng khác trong file này đều đã có policy —
+    # riêng queue/scheduler bị bỏ sót, mà đây lại là hai tiến trình dễ tự thoát nhất.
+    restart: unless-stopped
     volumes:
       - .:/var/www/html:delegated
       - wms_vendor:/var/www/html/vendor
@@ -160,6 +176,9 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
     command: ["php", "artisan", "schedule:work"]
+    # WWHN-345: cùng lý do với service `queue` — `schedule:work` dừng vì bất kỳ lẽ gì thì
+    # mọi cron (dọn file export hết hạn, purge PII, reap job treo) im lặng ngừng chạy.
+    restart: unless-stopped
     volumes:
       - .:/var/www/html:delegated
       - wms_vendor:/var/www/html/vendor

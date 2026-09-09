@@ -5,6 +5,8 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\ReportExportFileName;
+use App\Support\ReportExportMemory;
+use App\Support\ReportPdfRowLimit;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Dompdf\Dompdf;
@@ -72,7 +74,7 @@ class AlignedImportMatchReportController extends Controller
      *
      * @return array{bytes: string, fileName: string, rowCount: int, contentType: string}
      */
-    public function exportPayload(Request $request): array
+    public function exportPayload(Request $request, ?string $format = null): array
     {
         $report = $this->build($request);
         $rows = collect($report['rows'])->map(fn (array $row): array => [
@@ -92,7 +94,12 @@ class AlignedImportMatchReportController extends Controller
             'Import', 'Source file', 'Trạng thái import',
             'Uploaded at', 'Uploaded by', 'Validated at', 'Consumed at', 'Consumed by',
         ];
-        $format = strtolower((string) $request->query('format', 'xlsx'));
+        // WWHN-345 (TC_FUNC_06): request của JOB NỀN không mang `format` — `exportFilters()`
+        // CỐ Ý loại nó khỏi filters (format thuộc về lần request, không thuộc bộ lọc báo cáo).
+        // Đọc mỗi `$request->query()` ở đây thì mọi lần "Xuất PDF" đi qua job đều âm thầm dựng
+        // XLSX: job vẫn READY nên không lỗi nào lộ ra, người dùng bấm PDF và tải về file XLSX.
+        // Vì vậy tham số truyền vào THẮNG; query string chỉ còn phục vụ đường HTTP trực tiếp.
+        $format = strtolower($format ?? (string) $request->query('format', 'xlsx'));
         $this->assertExportLimit($rows);
         $this->auditExport($request, 'import-match', count($rows), $format);
 
@@ -544,6 +551,11 @@ class AlignedImportMatchReportController extends Controller
     /** Phần dựng bytes dùng chung giữa response HTTP (exportXlsx()) và job nền (exportPayload()). */
     private function exportXlsxBytes(string $sheetTitle, array $headers, array $rows): string
     {
+        // WWHN-344: nhánh XLSX của màn này cũng chạy ở `memory_limit` 128M của base image
+        // — bảng 22 cột chạm trần từ vài nghìn dòng, tức là TRƯỚC hợp đồng 10.000 dòng mà
+        // API công bố. Cùng lý do và cùng ngân sách với nhánh PDF ngay bên dưới.
+        ReportExportMemory::raise();
+
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(mb_substr($sheetTitle, 0, 31));
@@ -554,19 +566,50 @@ class AlignedImportMatchReportController extends Controller
         $writer = new Xlsx($spreadsheet);
         ob_start();
         $writer->save('php://output');
+        $bytes = (string) ob_get_clean();
+        // PhpSpreadsheet giữ tham chiếu vòng Spreadsheet ↔ Worksheet ↔ Cell nên GC không
+        // thu hồi được khi biến ra khỏi phạm vi; job còn phải ghi file lên đĩa sau đó.
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet, $writer);
 
-        return (string) ob_get_clean();
+        return $bytes;
     }
 
-    /** Phần dựng bytes dùng chung giữa response HTTP (exportPdf()) và job nền (exportPayload()). */
+    /**
+     * Phần dựng bytes dùng chung giữa response HTTP (exportPdf()) và job nền (exportPayload()).
+     *
+     * WWHN-344 (TC_FUNC_04). Bản chép tay trước đây ở đây — `border-collapse` + viền 4
+     * cạnh trên MỌI ô, không nâng trần bộ nhớ, không có trần dòng riêng cho PDF — làm
+     * "Xuất PDF" của màn "Nhập dữ liệu / đối chiếu & lỗi dữ liệu" không bao giờ hoàn tất:
+     * tiến trình dựng file chết vì PHP fatal hết bộ nhớ, mà fatal KHÔNG phải Throwable nên
+     * `catch (Throwable)` của ReportExportJobRunner không bắt được — bản ghi
+     * `report_export_jobs` nằm lại PROCESSING với error_code=null, FE poll tới hết giờ rồi
+     * thôi. Đo 09/09/2026 trên đúng bảng 22 cột này, trần 512M:
+     *
+     *     367 dòng, template cũ        → HẾT BỘ NHỚ (Frame.php:803)
+     *     367 dòng, template rút gọn   → 394 MB / 12,2 s, ra file PDF thật
+     *
+     * Hai hàng rào dưới đây là bản vá đã chốt của WWHN-345/347, nay áp cho cả màn này;
+     * `count($headers)` là phần bổ sung của WWHN-344 — trần phải tính theo Ô vì bảng này
+     * rộng hơn hai bảng đã hiệu chuẩn (xem ReportPdfRowLimit::limitFor()).
+     */
     private function exportPdfBytes(string $title, array $headers, array $rows): string
     {
+        ReportPdfRowLimit::assert($rows, count($headers));
+        ReportExportMemory::raise();
+
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isRemoteEnabled', false);
         $dompdf = new Dompdf($options);
         $escape = static fn ($value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans;font-size:9px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px}th{background:#eee}</style></head><body>';
-        $html .= '<h2>'.$escape($title).'</h2><table><thead><tr>';
+        // CSS rút gọn theo WWHN-347: mỗi thuộc tính viền/padding khai trên `td` là một
+        // style Dompdf phải resolve và giữ lại cho TỪNG ô, còn `border-collapse:collapse`
+        // bắt nó dựng thêm bản đồ viền của cả bảng.
+        $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans,sans-serif;font-size:9px}table{width:100%;margin-top:8px}th,td{border-bottom:0.5px solid #999;padding:2px 4px;text-align:left}th{background:#e0e0e0;font-weight:bold}h2{font-size:15px;margin:0 0 4px}p{margin:2px 0;font-size:8px;color:#666}</style></head><body>';
+        $html .= '<h2>'.$escape($title).'</h2>';
+        $html .= '<p>Xuất lúc: '.now()->format('j-n-Y H:i').' · Tổng dòng: '.count($rows).'</p>';
+        $html .= '<table><thead><tr>';
         foreach ($headers as $header) {
             $html .= '<th>'.$escape($header).'</th>';
         }
@@ -580,6 +623,9 @@ class AlignedImportMatchReportController extends Controller
         }
         $html .= '</tbody></table></body></html>';
         $dompdf->loadHtml($html, 'UTF-8');
+        // Dompdf đã parse xong; giữ thêm bản HTML gốc vài MB ngồi cạnh cây frame đang
+        // phình là lãng phí đúng lúc căng bộ nhớ nhất.
+        unset($html);
         $dompdf->setPaper('A4', 'landscape');
         $dompdf->render();
 

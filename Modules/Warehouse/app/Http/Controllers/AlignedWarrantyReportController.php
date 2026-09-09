@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\ReportExportFileName;
+use App\Support\ReportPdfRowLimit;
 use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
@@ -86,6 +87,17 @@ class AlignedWarrantyReportController extends Controller
 
         $this->assertLimit($rows);
         $format = strtolower((string) $request->query('format', 'xlsx'));
+        // WWHN-346: trần dòng RIÊNG cho nhánh PDF, thấp hơn hẳn EXPORT_ROW_LIMIT (10.000)
+        // của XLSX. Dompdf dựng một frame cho MỖI ô: đo trên chính báo cáo này (14 cột)
+        // ngày 09/09/2026 được 50 dòng → 82,5 MB · 181 dòng → 134,5 MB · 300 dòng → 186,5
+        // MB, tức ~0,42 MB/dòng trên nền ~60 MB. Không có trần riêng thì một kỳ báo cáo
+        // bình thường làm tiến trình dựng file chết vì fatal hết bộ nhớ — mà fatal KHÔNG
+        // phải Throwable nên không nhánh catch nào chốt được job sang FAILED.
+        // Luật đặt ở ReportPdfRowLimit (dùng chung với label-log/import-match) để cả ba
+        // báo cáo aligned cùng một trần, cùng một mã lỗi và cùng ngân sách ô.
+        if ($format === 'pdf') {
+            ReportPdfRowLimit::assert($rows, count($headers));
+        }
         $this->auditExport($request, count($rows), $includePii, $format, $reason);
 
         // BR-EXP-03: tên file phải có timestamp để không ghi đè lần export trước.
@@ -108,7 +120,7 @@ class AlignedWarrantyReportController extends Controller
      *
      * @return array{bytes: string, fileName: string, rowCount: int, contentType: string}
      */
-    public function exportPayload(Request $request): array
+    public function exportPayload(Request $request, ?string $format = null): array
     {
         $reason = trim((string) $request->query('reason', ''));
         $hasPiiPermission = (bool) $request->user()?->hasPermission('warranty.pii.export');
@@ -140,7 +152,23 @@ class AlignedWarrantyReportController extends Controller
         ], $report['rows']);
 
         $this->assertLimit($rows);
-        $format = strtolower((string) $request->query('format', 'xlsx'));
+        // WWHN-345 (TC_FUNC_06): request của JOB NỀN không mang `format` — `exportFilters()`
+        // CỐ Ý loại nó khỏi filters (format thuộc về lần request, không thuộc bộ lọc báo cáo).
+        // Đọc mỗi `$request->query()` ở đây thì mọi lần "Xuất PDF" đi qua job đều âm thầm dựng
+        // XLSX: job vẫn READY nên không lỗi nào lộ ra, người dùng bấm PDF và tải về file XLSX.
+        // Vì vậy tham số truyền vào THẮNG; query string chỉ còn phục vụ đường HTTP trực tiếp.
+        $format = strtolower($format ?? (string) $request->query('format', 'xlsx'));
+        // WWHN-346: trần dòng RIÊNG cho nhánh PDF, thấp hơn hẳn EXPORT_ROW_LIMIT (10.000)
+        // của XLSX. Dompdf dựng một frame cho MỖI ô: đo trên chính báo cáo này (14 cột)
+        // ngày 09/09/2026 được 50 dòng → 82,5 MB · 181 dòng → 134,5 MB · 300 dòng → 186,5
+        // MB, tức ~0,42 MB/dòng trên nền ~60 MB. Không có trần riêng thì một kỳ báo cáo
+        // bình thường làm tiến trình dựng file chết vì fatal hết bộ nhớ — mà fatal KHÔNG
+        // phải Throwable nên không nhánh catch nào chốt được job sang FAILED.
+        // Luật đặt ở ReportPdfRowLimit (dùng chung với label-log/import-match) để cả ba
+        // báo cáo aligned cùng một trần, cùng một mã lỗi và cùng ngân sách ô.
+        if ($format === 'pdf') {
+            ReportPdfRowLimit::assert($rows, count($headers));
+        }
         $this->auditExport($request, count($rows), $includePii, $format, $reason);
 
         $stem = sprintf('bao-cao-bao-hanh-%s-den-%s', $report['period']['from_date'], $report['period']['to_date']);

@@ -10,6 +10,8 @@ use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\ReportExportFileName;
+use App\Support\ReportExportMemory;
+use App\Support\ReportPdfRowLimit;
 use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
@@ -28,6 +30,7 @@ use Modules\Warehouse\Jobs\GenerateReportExportJob;
 use Modules\Warehouse\Models\ReportExportJob;
 use Modules\Warehouse\Services\LedgerReconciliationService;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\ReportExportJobRunner;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -302,13 +305,20 @@ class OperationalReportController extends Controller
         return response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false');
     }
 
-    #[OA\Get(path: '/api/v1/reports/export/{export_job_id}', operationId: 'getReportExportStatus', summary: 'Trạng thái job export báo cáo nền', description: 'Poll tới khi status=READY (có download_url) hoặc FAILED (có error_code/error_message). `filters` trả lại đúng bộ lọc đã gửi khi tạo job (BR-EXP-01: file luôn dùng đúng filter/scope của lần request đó). Chỉ actor đã tạo job mới đọc được — job của người khác trả 404 y hệt job không tồn tại (fail-closed).', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'export_job_id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Trạng thái job'), new OA\Response(response: 404, description: 'Không tìm thấy job (hoặc job của actor khác)')])]
+    #[OA\Get(path: '/api/v1/reports/export/{export_job_id}', operationId: 'getReportExportStatus', summary: 'Trạng thái job export báo cáo nền', description: 'Poll tới khi status=READY (có download_url) hoặc FAILED (có error_code/error_message). `filters` trả lại đúng bộ lọc đã gửi khi tạo job (BR-EXP-01: file luôn dùng đúng filter/scope của lần request đó). Chỉ actor đã tạo job mới đọc được — job của người khác trả 404 y hệt job không tồn tại (fail-closed). WWHN-343: job KHÔNG BAO GIỜ đứng PENDING vô thời hạn — nếu worker hàng đợi không nhặt job sau `wms_export.pickup_grace_seconds` (mặc định 20s) thì chính lần poll này chạy export đồng bộ rồi trả READY, và nếu tiến trình đang chạy chết giữa chừng quá `processing_timeout_seconds` (mặc định 180s) thì job được chốt FAILED + error_code=REPORT_EXPORT_STALLED.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'export_job_id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))], responses: [new OA\Response(response: 200, description: 'Trạng thái job'), new OA\Response(response: 404, description: 'Không tìm thấy job (hoặc job của actor khác)')])]
     public function exportStatus(string $exportJobId)
     {
         $job = $this->ownedExportJob($exportJobId);
         if ($job === null) {
             return $this->respondNotFound('Không tìm thấy export job.');
         }
+
+        // WWHN-343: endpoint này KHÔNG chỉ đọc. Nếu worker hàng đợi không nhặt job trong
+        // thời gian ân hạn (container `queue` chết/không được deploy), chính lần poll này
+        // chạy export rồi chốt READY hoặc FAILED. Không có bước đó thì câu trả lời mãi là
+        // `PENDING` + `download_url: null` + `error_code: null` — FE không tải được file
+        // mà cũng không có lý do nào để hiển thị.
+        $job = ReportExportJobRunner::ensureProgress($job);
 
         return $this->respondSuccess([
             'export_job_id' => $job->export_job_id,
@@ -327,6 +337,11 @@ class OperationalReportController extends Controller
     public function exportDownload(string $exportJobId)
     {
         $job = $this->ownedExportJob($exportJobId);
+        // WWHN-343: client bấm Tải về thẳng (không poll) trên một job mà worker bỏ quên
+        // vẫn phải nhận được file thay vì 404 vĩnh viễn.
+        if ($job !== null) {
+            $job = ReportExportJobRunner::ensureProgress($job);
+        }
         if ($job === null || $job->status !== 'READY' || $job->file_path === null) {
             return $this->respondNotFound('Không tìm thấy file export (job chưa sẵn sàng hoặc không tồn tại).');
         }
@@ -2699,6 +2714,10 @@ class OperationalReportController extends Controller
             );
         }
 
+        // WWHN-347: 128M của base image không đủ cho một file XLSX cỡ thật (4.243 dòng
+        // × 17 cột = 130 MB đo được 09/09/2026) — xem ReportExportMemory.
+        ReportExportMemory::raise();
+
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(mb_substr($sheetTitle, 0, 31));
@@ -2708,8 +2727,17 @@ class OperationalReportController extends Controller
             $sheet->fromArray(array_map([$this, 'excelSafe'], $row), null, "A{$rowIndex}");
             $rowIndex++;
         }
-        foreach (range('A', $sheet->getHighestColumn()) as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
+        // WWHN-347: setAutoSize() bắt PhpSpreadsheet đo BỀ RỘNG HIỂN THỊ của từng ô
+        // (mỗi ô một lần tra font metrics) — với 10.000 dòng × 17 cột là 170.000 phép đo
+        // chỉ để chọn con số bề rộng. Đo 09/09/2026: bỏ autosize rút thời gian dựng file
+        // 4.243 dòng từ 2.493 ms xuống 1.715 ms (-31%) mà file mở ra không khác gì.
+        // Bề rộng cố định dưới đây suy từ ĐỘ DÀI TIÊU ĐỀ CỘT, kẹp trong [12, 40] ký tự:
+        // đủ rộng cho tiêu đề tiếng Việt có dấu, không để cột "Ghi chú" kéo dài vô hạn.
+        $columnIndex = 1;
+        foreach ($headers as $header) {
+            $width = max(12, min(40, mb_strlen((string) $header) + 4));
+            $sheet->getColumnDimensionByColumn($columnIndex)->setWidth($width);
+            $columnIndex++;
         }
 
         AuditLogger::record(
@@ -2721,10 +2749,19 @@ class OperationalReportController extends Controller
             afterData: ['report' => $reportKey, 'row_count' => count($rows), 'filters' => $request->query()],
         );
         $writer = new Xlsx($spreadsheet);
+        // Không báo cáo nào ghi công thức vào ô (mọi giá trị đã tính sẵn ở builder), nên
+        // vòng tính lại công thức trước khi lưu chỉ tốn thời gian.
+        $writer->setPreCalculateFormulas(false);
         ob_start();
         $writer->save('php://output');
+        $bytes = (string) ob_get_clean();
+        // PhpSpreadsheet giữ tham chiếu vòng giữa Spreadsheet ↔ Worksheet ↔ Cell nên GC
+        // không thu hồi được khi biến ra khỏi phạm vi. Với 170.000 ô, giữ lại đống đó
+        // trong lúc job còn phải ghi file lên đĩa là chỗ dễ chạm trần bộ nhớ nhất.
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet, $writer);
 
-        return (string) ob_get_clean();
+        return $bytes;
     }
 
     /** Xem docblock buildXlsxBytes() — cùng vai trò, cho nhánh PDF. */
@@ -2733,6 +2770,33 @@ class OperationalReportController extends Controller
         if (count($rows) > self::EXPORT_ROW_LIMIT) {
             ApiError::abort(422, 'REPORT_EXPORT_ROW_LIMIT_EXCEEDED', 'Mỗi file export tối đa 10.000 dòng; hãy thu hẹp bộ lọc.', ['limit' => self::EXPORT_ROW_LIMIT, 'row_count' => count($rows)]);
         }
+
+        // WWHN-347: PDF phải có trần RIÊNG, thấp hơn EXPORT_ROW_LIMIT.
+        //
+        // Dompdf dựng một frame + một bộ style đã resolve cho MỖI Ô rồi reflow cả cây
+        // frame một lần, nên bộ nhớ tăng NHANH HƠN TUYẾN TÍNH theo số dòng. Đo
+        // 09/09/2026 (17 cột, đúng template rút gọn bên dưới), chạy `-d memory_limit=3G`:
+        //
+        //     500 dòng → 251 MB /  3,8 s
+        //   1.000 dòng → 443 MB / 10,2 s
+        //   2.000 dòng → KHÔNG XONG trong 3 GB
+        //
+        // Nghĩa là hợp đồng 10.000 dòng KHÔNG THỂ đạt được ở nhánh PDF với bất kỳ trần
+        // bộ nhớ hợp lý nào. Trước bản vá này PDF không có trần riêng, nên một kỳ báo cáo
+        // bình thường (4.243 dòng) làm tiến trình dựng file chết vì fatal hết bộ nhớ — mà
+        // fatal KHÔNG phải Throwable nên không chỗ nào chốt được job sang FAILED, và bản
+        // ghi nằm lại PENDING/PROCESSING vĩnh viễn: đúng triệu chứng WWHN-347.
+        //
+        // 422 do hàng rào dưới đây biến sự cố im lặng đó thành câu trả lời có mã lỗi, đến
+        // được người dùng ngay ở lần poll kế tiếp và chỉ đúng lối đi tiếp (XLSX).
+        //
+        // Luật đặt ở ReportPdfRowLimit chứ không viết lại tại chỗ: ba controller báo cáo
+        // "aligned" tự dựng bytes bằng đường riêng cũng phải chặn đúng ngưỡng đó với đúng
+        // mã lỗi đó (WWHN-345), và ngân sách theo SỐ Ô cho bảng nhiều cột (WWHN-344) chỉ
+        // đúng khi mọi nhánh PDF hỏi cùng một nơi.
+        ReportPdfRowLimit::assert($rows);
+
+        ReportExportMemory::raise();
 
         AuditLogger::record(
             action: 'REPORT_EXPORTED',
@@ -2743,7 +2807,11 @@ class OperationalReportController extends Controller
             afterData: ['report' => $reportKey, 'format' => 'pdf', 'row_count' => count($rows), 'filters' => $request->query()],
         );
 
-        $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans,sans-serif;font-size:10px}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #333;padding:4px 6px;text-align:left}th{background:#e0e0e0;font-weight:bold}h1{font-size:16px;margin:0 0 5px}p{margin:2px 0;font-size:9px;color:#666}</style></head><body>';
+        // WWHN-347: mỗi thuộc tính viền/padding khai trên `td` là một style phải resolve
+        // và lưu cho TỪNG ô. Bỏ `border-collapse` + viền 4 cạnh, chỉ giữ một đường kẻ
+        // ngang, rút bộ nhớ Dompdf ~44% (1.000 dòng: 1.083 MB → 443 MB) và thời gian
+        // ~51% (20,7 s → 10,2 s) mà bảng vẫn đọc được. Đo 09/09/2026.
+        $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans,sans-serif;font-size:9px}table{width:100%;margin-top:8px}th,td{border-bottom:0.5px solid #999;padding:2px 4px;text-align:left}th{background:#e0e0e0;font-weight:bold}h1{font-size:15px;margin:0 0 4px}p{margin:2px 0;font-size:8px;color:#666}</style></head><body>';
         $html .= '<h1>'.htmlspecialchars($title).'</h1>';
         $html .= '<p>Xuất lúc: '.now()->format('j-n-Y H:i').' · Tổng dòng: '.count($rows).'</p>';
         $html .= '<table><thead><tr>';
@@ -2762,6 +2830,10 @@ class OperationalReportController extends Controller
 
         $dompdf = new Dompdf(['isRemoteEnabled' => false, 'defaultFont' => 'DejaVu Sans']);
         $dompdf->loadHtml($html);
+        // Chuỗi HTML của một bảng nghìn dòng cỡ vài MB; Dompdf đã parse xong nên giữ
+        // thêm bản gốc chỉ để ngồi cạnh cây frame đang phình là lãng phí đúng lúc căng
+        // bộ nhớ nhất.
+        unset($html);
         $dompdf->setPaper('A4', count($headers) > 8 ? 'landscape' : 'portrait');
         $dompdf->render();
 
@@ -2779,7 +2851,36 @@ class OperationalReportController extends Controller
     public function exportBytesFor(string $reportCode, Request $request, string $format): array
     {
         if (isset(self::ALIGNED_REPORTS[$reportCode])) {
-            return app(self::ALIGNED_REPORTS[$reportCode])->exportPayload($request);
+            // WWHN-346: PHẢI chuyển tiếp $format, nếu không "Xuất PDF" trả về file XLSX.
+            //
+            // Ba controller aligned quyết định định dạng bằng `$request->query('format')`
+            // — đúng cho endpoint HTTP `…/export-excel?format=pdf` của chính chúng. Nhưng
+            // job nền mang định dạng ở CỘT `report_export_jobs.format`, KHÔNG nằm trong
+            // `filters` (exportFilters() cố ý loại `format` ra), nên $request do
+            // ReportExportJobRunner dựng lại KHÔNG hề có query đó. Nhánh này trước đây bỏ
+            // rơi tham số $format, để `exportPayload()` rơi về mặc định 'xlsx': người dùng
+            // bấm "Xuất PDF" ở màn Bảo hành & linh kiện (và cả Chất lượng nhập, Nhật ký
+            // tem) nhận về một file Excel mang đuôi .xlsx. Job vẫn READY nên không có lỗi
+            // nào lộ ra để lần theo — chỉ phát hiện được bằng cách mở file tải về.
+            //
+            // Bơm `format` vào một BẢN SAO của request (không đụng request của người gọi),
+            // chứ không truyền thêm tham số: cách này đúng với chữ ký `exportPayload()`
+            // hiện tại và vẫn đúng nếu sau này nó nhận thêm tham số format.
+            $alignedRequest = $request->duplicate(
+                array_merge($request->query->all(), ['format' => $format])
+            );
+
+            // WWHN-346: ba controller aligned có buildXlsxBytes/buildPdfBytes RIÊNG, nên
+            // chúng KHÔNG đi qua ReportExportMemory::raise() đặt trong hai builder dùng
+            // chung của controller này. Thiếu dòng dưới đây, nhánh aligned vẫn dựng file
+            // dưới trần 128M của base image: đo được ngày 09/09/2026 trên chính màn Bảo
+            // hành & linh kiện — 181 dòng × 14 cột đã ngốn 134,5 MB và chết fatal "Allowed
+            // memory size exhausted" ngay giữa Dompdf\Cellmap. Fatal không phải Throwable
+            // nên không nhánh catch nào chốt được job, bản ghi nằm lại PROCESSING —
+            // đúng triệu chứng "job treo, không có error_code" của ticket.
+            ReportExportMemory::raise();
+
+            return app(self::ALIGNED_REPORTS[$reportCode])->exportPayload($alignedRequest);
         }
 
         return match ($reportCode) {

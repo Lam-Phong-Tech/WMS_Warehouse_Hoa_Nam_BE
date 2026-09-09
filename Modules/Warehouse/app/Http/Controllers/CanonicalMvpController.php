@@ -360,6 +360,7 @@ class CanonicalMvpController extends Controller
             new OA\Response(response: 200, description: 'Trang danh sách warranty_case; mỗi item kèm cờ pii_masked (§13.8)'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền warranty.view hoặc warranty.manage'),
+            new OA\Response(response: 422, description: 'sort_order lạ, hoặc bộ lọc đã gửi không dùng được trên schema hiện tại (FILTER_NOT_SUPPORTED) — KHÔNG bao giờ trả danh sách chưa lọc dưới vỏ 200'),
         ]
     )]
     public function listWarrantyCases(Request $request)
@@ -600,10 +601,24 @@ class CanonicalMvpController extends Controller
         // hasRelationColumn chứ không hasColumn: `warranty_case` là VIEW trên
         // PostgreSQL và hasColumn() trả false cho mọi cột của view — bộ lọc sẽ
         // biến mất không một tiếng động. Xem SchemaCache::relationColumns().
+        //
+        // UAT TC_FUNC_02 (WWHN-340): khi client ĐÃ GỬI một bộ lọc mà quan hệ lại
+        // thiếu đúng cột đó thì KHÔNG được lặng lẽ bỏ qua. Bỏ qua nghĩa là trả về
+        // TOÀN BỘ danh sách chưa lọc dưới cái vỏ 200 OK — người dùng không có cách
+        // nào biết mình đang nhìn dữ liệu sai, và đó chính là cách lỗi này sống
+        // sót tới tận UAT. Thiếu cột ở đây luôn là lệch schema/deploy chứ không
+        // phải input sai, nên trả lỗi to hơn nhiều so với nói dối im lặng.
         foreach ($filterColumns as $column) {
-            if ($request->filled($column) && SchemaCache::hasRelationColumn($table, $column)) {
-                $query->where($column, $request->input($column));
+            if (! $request->filled($column)) {
+                continue;
             }
+            if (! SchemaCache::hasRelationColumn($table, $column)) {
+                ApiError::abort(422, 'FILTER_NOT_SUPPORTED', "Bộ lọc `{$column}` không dùng được trên dữ liệu hiện tại.", [
+                    'filter' => $column,
+                    'relation' => $table,
+                ]);
+            }
+            $query->where($column, $request->input($column));
         }
         if ($filterExtension !== null) {
             $filterExtension($query, $request);

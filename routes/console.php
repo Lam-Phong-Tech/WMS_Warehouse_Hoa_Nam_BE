@@ -60,6 +60,20 @@ Schedule::command('import:purge-error-files')
  * phình vô hạn theo số lần export. Chạy 01:00, lệch giờ khỏi import:purge-error-files
  * (dòng 50-55) và warranty:purge-pii để không cạnh tranh I/O.
  */
+/*
+ * WWHN-343 (TC_FUNC_03): `POST /reports/export` chỉ đẩy job vào Redis. Worker chết hoặc
+ * không được deploy thì bản ghi nằm ở PENDING vĩnh viễn — API vẫn 200 nhưng không bao giờ
+ * có download_url lẫn error_code. Lệnh này là bánh đà tự lành KHÔNG phụ thuộc việc có ai
+ * đang poll: chạy nốt job quá hạn ân hạn, và chốt FAILED job mà tiến trình chạy nó đã
+ * chết. Mỗi phút vì ân hạn tính bằng giây và FE chỉ chờ 60s trước khi báo timeout.
+ */
+Schedule::command('report-export:reap')
+    ->everyMinute()
+    ->timezone(config('app.timezone'))
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();
+
 Schedule::command('report-export:purge')
     ->dailyAt('01:00')
     ->timezone(config('app.timezone'))

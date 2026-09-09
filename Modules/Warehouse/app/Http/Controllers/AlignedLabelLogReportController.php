@@ -5,6 +5,8 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\ReportExportFileName;
+use App\Support\ReportExportMemory;
+use App\Support\ReportPdfRowLimit;
 use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
@@ -27,6 +29,18 @@ class AlignedLabelLogReportController extends Controller
     private const EXPORT_ROW_LIMIT = 10000;
 
     /**
+     * Kết quả một lần in được lưu bằng HAI bộ từ vựng: bộ nghiệp vụ mà API nhận
+     * (`PENDING_PRINT` / `PRINTED` / `PRINT_FAILED`) và bộ ERD mà trigger PostgreSQL
+     * chuẩn hoá `label_print_events.status` về (`PENDING` / `SENT` / `PRINTED` /
+     * `FAILED`). Lọc theo một bộ duy nhất là bỏ sót dữ liệu thật trên DB tham chiếu.
+     */
+    private const EVENT_STATUS_VOCABULARY = [
+        'PENDING_PRINT' => ['PENDING_PRINT', 'PENDING', 'SENT'],
+        'PRINTED' => ['PRINTED'],
+        'PRINT_FAILED' => ['PRINT_FAILED', 'FAILED'],
+    ];
+
+    /**
      * BR-EXP-01..05 "PII bị giới hạn" + NFR-SRS-015: file export chỉ hiện 3 số cuối
      * của SĐT khách; route export chỉ gác report.export nên không được xuất phone thô.
      */
@@ -35,7 +49,7 @@ class AlignedLabelLogReportController extends Controller
         return WarrantyPiiMasker::phone($phone);
     }
 
-    #[OA\Get(path: '/api/v1/reports/label-log', operationId: 'report_label_log', summary: 'RPT-LABEL-01 nhật ký nhãn Packing Label', description: '§13.10 RPT-LABEL-01: label/outbound/printer/result/reprint count + tóm tắt SKU/số lượng. Cardinality hiện hành là đúng 01 Packing Label cho mỗi phiếu/lô xuất; mọi action in đều stock-neutral.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', description: 'Kết quả in', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'actor_id', in: 'query', description: 'Người thực hiện lần in', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'Nhật ký nhãn')])]
+    #[OA\Get(path: '/api/v1/reports/label-log', operationId: 'report_label_log', summary: 'RPT-LABEL-01 nhật ký nhãn Packing Label', description: '§13.10 RPT-LABEL-01: label/outbound/printer/result/reprint count + tóm tắt SKU/số lượng. Cardinality hiện hành là đúng 01 Packing Label cho mỗi phiếu/lô xuất; mọi action in đều stock-neutral.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', description: 'Kết quả in — lọc nhãn CÓ ÍT NHẤT MỘT lần in mang kết quả này', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'action', in: 'query', description: 'Thao tác in — PRINT: nhãn đã in ít nhất một lần; REPRINT: nhãn có lần in thành công thứ hai trở đi', schema: new OA\Schema(type: 'string', enum: ['PRINT', 'REPRINT'])), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'actor_id', in: 'query', description: 'Người thực hiện lần in', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'Nhật ký nhãn')])]
     public function index(Request $request)
     {
         $report = $this->build($request);
@@ -43,7 +57,7 @@ class AlignedLabelLogReportController extends Controller
         return $this->respondSuccess($this->paginate($report, $request));
     }
 
-    #[OA\Get(path: '/api/v1/reports/label-log/export-excel', operationId: 'report_label_log_export', summary: 'Xuất XLSX/PDF nhật ký nhãn', description: 'BR-EXP-01..05 + NFR-SRS-015: dùng đúng bộ lọc màn hình, audit mọi lần xuất, tên file có timestamp, SĐT khách luôn ở dạng mask vì route chỉ gác report.export.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'actor_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
+    #[OA\Get(path: '/api/v1/reports/label-log/export-excel', operationId: 'report_label_log_export', summary: 'Xuất XLSX/PDF nhật ký nhãn', description: 'BR-EXP-01..05 + NFR-SRS-015: dùng đúng bộ lọc màn hình, audit mọi lần xuất, tên file có timestamp, SĐT khách luôn ở dạng mask vì route chỉ gác report.export. GRANULARITY: file là bảng TỔNG HỢP THEO NHÃN (§13.10 RPT-LABEL-01), không phải từng lần in như bảng của màn RPT-05 — số dòng hai bên khác nhau có chủ ý; bộ lọc thì khớp, mọi bộ lọc theo lần in được dịch thành nhãn có ít nhất một lần in khớp.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'action', in: 'query', schema: new OA\Schema(type: 'string', enum: ['PRINT', 'REPRINT'])), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'actor_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
     public function export(Request $request)
     {
         $report = $this->build($request);
@@ -70,7 +84,7 @@ class AlignedLabelLogReportController extends Controller
      *
      * @return array{bytes: string, fileName: string, rowCount: int, contentType: string}
      */
-    public function exportPayload(Request $request): array
+    public function exportPayload(Request $request, ?string $format = null): array
     {
         $report = $this->build($request);
         $rows = collect($report['rows'])->map(fn (array $row): array => [
@@ -80,7 +94,12 @@ class AlignedLabelLogReportController extends Controller
             $row['failed_count'], $row['reprint_count'], $row['last_attempt_at'], $row['created_at'],
         ])->all();
         $headers = ['Outbound', 'Packing Label', 'Label Snapshot', 'Date', 'Recipient', 'Phone', 'Label count', 'Item count', 'SKU count', 'SKU summary', 'Status', 'Applied', 'Printer code', 'Printer', 'Printed by', 'Attempts', 'Failed', 'Reprint', 'Last attempt', 'Created at'];
-        $format = strtolower((string) $request->query('format', 'xlsx'));
+        // WWHN-345 (TC_FUNC_06): request của JOB NỀN không mang `format` — `exportFilters()`
+        // CỐ Ý loại nó khỏi filters (format thuộc về lần request, không thuộc bộ lọc báo cáo).
+        // Đọc mỗi `$request->query()` ở đây thì mọi lần "Xuất PDF" đi qua job đều âm thầm dựng
+        // XLSX: job vẫn READY nên không lỗi nào lộ ra, người dùng bấm PDF và tải về file XLSX.
+        // Vì vậy tham số truyền vào THẮNG; query string chỉ còn phục vụ đường HTTP trực tiếp.
+        $format = strtolower($format ?? (string) $request->query('format', 'xlsx'));
         $this->assertLimit($rows);
         $this->audit($request, count($rows), $format);
 
@@ -92,6 +111,18 @@ class AlignedLabelLogReportController extends Controller
     /**
      * Nhật ký nhãn: join label_snapshots với label_print_events (lần in gần nhất
      * của từng nhãn) trên toàn kỳ. Cùng khuôn cache với các báo cáo khác.
+     *
+     * GRANULARITY — HỢP ĐỒNG, KHÔNG PHẢI LỖI. §13.10 RPT-LABEL-01 chốt báo cáo này ở
+     * mức NHÃN: mỗi dòng là một label_snapshot kèm số lần in / lỗi / in lại đã gộp.
+     * Màn RPT-05 lại vẽ MỘT DÒNG MỘT LẦN IN (đọc thêm `/label-print-events`), nên số
+     * dòng trên màn hình và trong file KHÁC NHAU một cách có chủ ý — màn hình nói rõ
+     * điều đó ngay cạnh nút Xuất (i18n `reports.packingLabel.exportGranularityNote`).
+     * Đừng "sửa" bằng cách đổi truy vấn này sang per-event: đó là đổi bộ 20 cột đã ký
+     * ở WWHN-310 và phải qua BA.
+     *
+     * Cái PHẢI khớp là BỘ LỌC (BR-EXP-01): bốn bộ lọc của màn hình đều lọc theo LẦN
+     * IN, nên ở đây chúng được dịch thành "nhãn có ít nhất một lần in khớp" — xem
+     * $hasAttempt trong buildUncached().
      *
      * Phân trang cắt TRONG BỘ NHỚ ở paginate() -> bỏ page/per_page khỏi key.
      */
@@ -108,9 +139,12 @@ class AlignedLabelLogReportController extends Controller
     private function buildUncached(Request $request): array
     {
         [$from, $to] = $this->period($request);
-        // §13.10 RPT-LABEL-01 filters: date / printer / result / actor.
+        // §13.10 RPT-LABEL-01 filters: date / printer / result / actor — cộng `action`
+        // (In / In lại) để cả BỐN bộ lọc của màn RPT-05 tới được file, đúng BR-EXP-01
+        // "export dùng đúng bộ lọc màn hình". Xem ghi chú hợp đồng ở đầu build().
         $validated = $request->validate([
             'status' => ['nullable', 'in:PENDING_PRINT,PRINTED,PRINT_FAILED'],
+            'action' => ['nullable', 'in:PRINT,REPRINT'],
             'printer_id' => ['nullable', 'uuid'],
             'actor_id' => ['nullable', 'uuid'],
             'keyword' => ['nullable', 'string', 'max:200'],
@@ -146,32 +180,74 @@ class AlignedLabelLogReportController extends Controller
                 'pa.total_attempts', 'pa.failed_count', 'pa.printed_count'
             );
 
+        // Ba bộ lọc dưới đây hỏi CÙNG một câu: "nhãn này có lần in nào khớp không?".
+        // Đó là cách duy nhất diễn đạt bộ lọc per-event của màn RPT-05 trên một báo
+        // cáo per-nhãn (§13.10 RPT-LABEL-01) — xem ghi chú hợp đồng ở đầu build().
+        $hasAttempt = function (callable $constrain) use ($query): void {
+            $query->whereExists(function ($sub) use ($constrain): void {
+                $sub->selectRaw('1')->from('label_print_events as lpe')
+                    ->whereColumn('lpe.label_snapshot_id', 'ls.id');
+                $constrain($sub);
+            });
+        };
+
         if (! empty($validated['status'])) {
-            $query->where('ls.status', $validated['status']);
+            // Trước đây lọc `ls.status` — vòng đời của NHÃN, không phải kết quả của
+            // LẦN IN mà màn hình đang lọc. Nhãn in lỗi rồi in lại thành công có
+            // ls.status = PRINTED nên biến mất khỏi file khi người dùng chọn "In lỗi",
+            // dù lần in lỗi đó vẫn nằm nguyên trên màn hình. Chấp cả hai bộ từ vựng vì
+            // trigger PostgreSQL chuẩn hoá status sự kiện in về bộ ERD — cùng lý do
+            // failed_count phải đếm cả 'PRINT_FAILED' lẫn 'FAILED'.
+            $statuses = self::EVENT_STATUS_VOCABULARY[$validated['status']];
+            $hasAttempt(fn ($sub) => $sub->whereIn('lpe.status', $statuses));
+        }
+        if (! empty($validated['action'])) {
+            // In lại = lần in THÀNH CÔNG thứ hai trở đi của cùng một nhãn (đúng định
+            // nghĩa reprint_count ở dưới, và đúng thứ FE suy ra cho cột "Thao tác").
+            // Lần in đầu của một nhãn luôn là Print ⇒ "chỉ In" ở mức nhãn nghĩa là
+            // nhãn đã có ít nhất một lần in.
+            $query->whereRaw($validated['action'] === 'REPRINT'
+                ? 'COALESCE(pa.printed_count, 0) >= 2'
+                : 'COALESCE(pa.total_attempts, 0) >= 1');
         }
         if (! empty($validated['printer_id'])) {
             $printerId = $validated['printer_id'];
-            $query->whereExists(function ($sub) use ($printerId): void {
-                $sub->selectRaw('1')->from('label_print_events as lpe')
-                    ->whereColumn('lpe.label_snapshot_id', 'ls.id')
-                    ->where('lpe.printer_config_id', $printerId);
-            });
+            $hasAttempt(fn ($sub) => $sub->where('lpe.printer_config_id', $printerId));
         }
         if (! empty($validated['actor_id'])) {
             $actorId = $validated['actor_id'];
-            $query->whereExists(function ($sub) use ($actorId): void {
-                $sub->selectRaw('1')->from('label_print_events as lpe')
-                    ->whereColumn('lpe.label_snapshot_id', 'ls.id')
-                    ->where('lpe.created_by', $actorId);
-            });
+            $hasAttempt(fn ($sub) => $sub->where('lpe.created_by', $actorId));
         }
         if (! empty($validated['keyword'])) {
             $keyword = '%'.trim((string) $validated['keyword']).'%';
-            $operator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
-            $query->where(function ($sub) use ($keyword, $operator): void {
+            $driver = DB::getDriverName();
+            $operator = $driver === 'pgsql' ? 'ilike' : 'like';
+            // Mã nhãn nằm trong `label_payload` (json) chứ không có cột riêng.
+            $labelCode = $driver === 'pgsql'
+                ? "ls.label_payload::jsonb ->> 'label_code'"
+                : "json_extract(ls.label_payload, '\$.label_code')";
+            $query->where(function ($sub) use ($keyword, $operator, $labelCode): void {
                 $sub->where('sd.doc_no', $operator, $keyword)
                     ->orWhere('sd.recipient_name', $operator, $keyword)
-                    ->orWhere('ag.agency_name', $operator, $keyword);
+                    ->orWhere('ag.agency_name', $operator, $keyword)
+                    ->orWhereRaw("{$labelCode} {$operator} ?", [$keyword])
+                    ->orWhereRaw("CAST(ls.id AS TEXT) {$operator} ?", [$keyword])
+                    // Ô tìm kiếm của màn hình soi cả mã nhãn, máy in, người in và mã
+                    // lỗi. Bốn thứ sau chỉ có ở bảng sự kiện / danh mục, nên trước bản
+                    // vá này gõ tên máy in rồi bấm Xuất ra file KHÔNG lọc gì cả.
+                    ->orWhereExists(function ($inner) use ($keyword, $operator): void {
+                        $inner->selectRaw('1')->from('label_print_events as lpe2')
+                            ->leftJoin('printer_configs as pc2', 'pc2.id', '=', 'lpe2.printer_config_id')
+                            ->leftJoin('app_user as au2', 'au2.user_id', '=', 'lpe2.created_by')
+                            ->whereColumn('lpe2.label_snapshot_id', 'ls.id')
+                            ->where(function ($match) use ($keyword, $operator): void {
+                                $match->where('pc2.printer_code', $operator, $keyword)
+                                    ->orWhere('pc2.printer_name', $operator, $keyword)
+                                    ->orWhere('au2.display_name', $operator, $keyword)
+                                    ->orWhere('au2.username', $operator, $keyword)
+                                    ->orWhere('lpe2.error_code', $operator, $keyword);
+                            });
+                    });
             });
         }
 
@@ -330,6 +406,11 @@ class AlignedLabelLogReportController extends Controller
     /** Phần dựng bytes dùng chung giữa response HTTP (exportXlsx()) và job nền (exportPayload()). */
     private function exportXlsxBytes(string $sheetTitle, array $headers, array $rows): string
     {
+        // WWHN-345: controller này dựng bytes bằng đường riêng nên KHÔNG đi qua hàng rào
+        // của OperationalReportController::exportRows(). 128M của base image không đủ cho
+        // một file XLSX cỡ hợp đồng (10.000 dòng ≈ 211 MB, đo 09/09/2026) — xem ReportExportMemory.
+        ReportExportMemory::raise();
+
         $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle(mb_substr($sheetTitle, 0, 31));
@@ -347,11 +428,23 @@ class AlignedLabelLogReportController extends Controller
     /** Phần dựng bytes dùng chung giữa response HTTP (exportPdf()) và job nền (exportPayload()). */
     private function exportPdfBytes(string $title, array $headers, array $rows): string
     {
+        // WWHN-345 (TC_FUNC_06). Hai hàng rào dưới đây là thứ ngăn "Xuất PDF" của RPT-05
+        // biến thành job treo im lặng — trước bản vá, 166 dòng đã đủ vượt memory_limit 128M
+        // và giết cả tiến trình đang dựng file (worker `queue` chết theo).
+        ReportPdfRowLimit::assert($rows, count($headers));
+        ReportExportMemory::raise();
+
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isRemoteEnabled', false);
         $dompdf = new Dompdf($options);
         $e = static fn ($v): string => htmlspecialchars((string) ($v ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans;font-size:9px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px}th{background:#eee}</style></head><body><h2>'.$e($title).'</h2><table><thead><tr>';
+        // CSS rút gọn theo WWHN-347: mỗi thuộc tính viền/padding khai trên `td` là một style
+        // Dompdf phải resolve cho TỪNG ô, và `border-collapse:collapse` bắt nó dựng thêm bản
+        // đồ viền của cả bảng. Với đúng bảng 20 cột này, đổi sang chỉ `border-bottom` cắt
+        // đỉnh bộ nhớ hơn một nửa ở cỡ trần (800 dòng: 1.188 MB → 460 MB, đo 09/09/2026) —
+        // chính là thứ làm trần 800 dòng của `wms_export.pdf_row_limit` trở nên đúng ở màn này.
+        $html = '<html><head><meta charset="UTF-8"><style>body{font-family:DejaVu Sans,sans-serif;font-size:9px}table{width:100%;margin-top:8px}th,td{border-bottom:0.5px solid #999;padding:2px 4px;text-align:left}th{background:#e0e0e0;font-weight:bold}</style></head><body><h2>'.$e($title).'</h2><table><thead><tr>';
         foreach ($headers as $header) {
             $html .= '<th>'.$e($header).'</th>';
         }
