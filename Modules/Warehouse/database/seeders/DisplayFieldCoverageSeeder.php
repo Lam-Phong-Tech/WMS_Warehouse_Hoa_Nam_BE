@@ -206,14 +206,43 @@ class DisplayFieldCoverageSeeder extends Seeder
      */
     private function backfillImportErrorFiles(): int
     {
-        return DB::update(<<<'SQL'
-            UPDATE import_reports
-               SET error_file_path = 'imports/errors/' || import_report_id || '.csv',
-                   error_file_expires_at = created_at + interval '30 days',
-                   updated_at = now()
-             WHERE error_rows > 0
-               AND error_file_path IS NULL
-        SQL);
+        // UAT TC_FUNC_05: bản trước chỉ UPDATE path "chay" ('imports/errors/…',
+        // sai cả thư mục so với ImportErrorFileService::STORAGE_SUBDIR) mà không
+        // sinh file nào — nút "Tải tệp lỗi" sáng nhưng bấm là RESOURCE_NOT_FOUND.
+        // Sinh file THẬT qua đúng service (đúng disk, đúng schema cột §13.12);
+        // hạn dùng lấy từ chính service để ba nơi không nói khác nhau.
+        $service = app(ModulesWarehouseServicesImportErrorFileService::class);
+        $reports = DB::table('import_reports')
+            ->where('error_rows', '>', 0)
+            ->whereNull('error_file_path')
+            ->get(['import_report_id', 'file_name', 'row_errors']);
+
+        $placed = 0;
+        foreach ($reports as $report) {
+            $rowErrors = json_decode((string) $report->row_errors, true);
+            if (! is_array($rowErrors) || $rowErrors === []) {
+                continue;
+            }
+            $generated = $service->generate(
+                (string) $report->import_report_id,
+                $rowErrors,
+                (string) $report->file_name,
+                null,
+            );
+            if ($generated === null) {
+                continue;
+            }
+            DB::table('import_reports')
+                ->where('import_report_id', $report->import_report_id)
+                ->update([
+                    'error_file_path' => $generated['path'],
+                    'error_file_expires_at' => $generated['expires_at'],
+                    'updated_at' => now(),
+                ]);
+            $placed++;
+        }
+
+        return $placed;
     }
 
     /*

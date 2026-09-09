@@ -290,7 +290,25 @@ class ImportReportController extends Controller
 
         $disk = Storage::disk(ImportErrorFileService::diskName());
         if (! $disk->exists($report->error_file_path)) {
-            return $this->respondNotFound('Không tìm thấy file lỗi (có thể đã bị dọn dẹp).');
+            // UAT TC_FUNC_05: path còn hạn nhưng file không có trên đĩa (seed
+            // backfill path "chay", đổi disk giữa hai môi trường, file bị dọn
+            // tay…). row_errors vẫn nằm nguyên trong DB (purge không bao giờ
+            // xoá cột này) nên tái tạo được file y nguyên thay vì 404.
+            $rowErrors = is_array($report->row_errors) ? $report->row_errors : [];
+            $generated = $rowErrors === []
+                ? null
+                : app(ImportErrorFileService::class)->generate(
+                    (string) $report->import_report_id,
+                    $rowErrors,
+                    (string) $report->file_name,
+                    null,
+                );
+            if ($generated === null) {
+                return $this->respondNotFound('Không tìm thấy file lỗi (có thể đã bị dọn dẹp).');
+            }
+            // Ghi lại path THẬT vừa sinh (path cũ có thể trỏ thư mục khác);
+            // giữ nguyên hạn dùng cũ — tái tạo không phải là gia hạn.
+            $report->forceFill(['error_file_path' => $generated['path']])->save();
         }
 
         return $disk->download(

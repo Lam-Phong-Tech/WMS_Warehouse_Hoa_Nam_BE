@@ -299,7 +299,12 @@ jobs:
             docker tag "${IMAGE_NAME}:${RELEASE_SHA}" "${IMAGE_NAME}:latest"
             cd "$UAT_APP_PATH"
             docker compose up -d postgres valkey minio mailpit minio-init nginx
-            docker compose up -d --no-build backend nginx
+            # queue + scheduler PHẢI được kéo lên cùng backend: export báo cáo
+            # (GenerateReportExportJob) đi qua Redis queue, không có worker thì
+            # job PENDING vĩnh viễn — đúng hiện tượng UAT TC_FUNC_03/04/06/07/08
+            # ("Xuất XLSX/PDF tạo job 200 nhưng download_url mãi null").
+            # scheduler chạy schedule:work cho purge export/error-file hằng ngày.
+            docker compose up -d --no-build backend queue scheduler nginx
             # Artisan phải chạy bằng `www-data` — đúng user mà php-fpm phục vụ
             # request. Chạy bằng root thì bootstrap/cache/*.php và
             # storage/logs/laravel.log vừa sinh ra là root:root, php-fpm mất
@@ -320,7 +325,9 @@ jobs:
             # build never reaches traffic -- the previous containers keep
             # serving until this is fixed and re-run.
             docker compose exec -T -u www-data backend php artisan optimize
-            docker compose restart backend nginx
+            # Restart cả queue/scheduler để worker nạp đúng code + config cache
+            # vừa build (worker giữ tiến trình PHP sống lâu, không tự thấy code mới).
+            docker compose restart backend queue scheduler nginx
             # Chốt acceptance quyền ghi runtime: storage/logs/laravel.log và
             # bootstrap/cache phải thuộc www-data sau khi container khởi động
             # lại. Nếu một lệnh root nào đó lỡ chiếm ownership thì deploy đỏ ở

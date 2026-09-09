@@ -367,7 +367,7 @@ class CanonicalMvpController extends Controller
             'warranty_case',
             'created_at',
             ['customer_name', 'customer_phone', 'customer_address'],
-            ['identification_status', 'defect_id'],
+            ['identification_status'],
             // Wireframe WAR-01 cho tìm cả "mã máy": serial của item gắn case và mọi
             // Physical_Code ACTIVE map vào item đó. Cả hai đều không phải cột của
             // warranty_case nên phải bơm thêm nhánh OR bằng subquery item_id.
@@ -454,6 +454,25 @@ class CanonicalMvpController extends Controller
                     $row->defects = $defects->all();
                     $row->defect_ids = $defects->pluck('defect_id')->values()->all();
                 }
+            },
+            // UAT TC_FUNC_02 — lọc "Bệnh/lỗi" phải khớp CẢ bệnh phụ: cột
+            // defect_id của view chỉ giữ bệnh CHÍNH, trong khi WAR-01 hiển thị
+            // đủ multi-defect (GĐ1-REQ-009). Lọc theo cột đơn bỏ sót hồ sơ có
+            // bệnh này ở vị trí phụ — người dùng đối chiếu với cột "Bệnh/lỗi"
+            // trên màn sẽ thấy "lọc không ăn".
+            function ($query, Request $request): void {
+                if (! $request->filled('defect_id')) {
+                    return;
+                }
+                $defectId = (string) $request->input('defect_id');
+                $query->where(function ($nested) use ($defectId): void {
+                    $nested->where('defect_id', $defectId)
+                        ->orWhereIn('warranty_case_id', function ($sub) use ($defectId): void {
+                            $sub->select('warranty_case_id')
+                                ->from('warranty_case_defects')
+                                ->where('defect_id', $defectId);
+                        });
+                });
             },
         );
     }
@@ -556,7 +575,7 @@ class CanonicalMvpController extends Controller
         return $this->insertAndReturn($table, $validated);
     }
 
-    private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [], array $filterColumns = [], ?callable $keywordExtension = null, ?callable $collectionEnricher = null)
+    private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [], array $filterColumns = [], ?callable $keywordExtension = null, ?callable $collectionEnricher = null, ?callable $filterExtension = null)
     {
         $query = DB::table($table);
         if ($request->filled('status')) {
@@ -583,6 +602,9 @@ class CanonicalMvpController extends Controller
             if ($request->filled($column) && SchemaCache::hasRelationColumn($table, $column)) {
                 $query->where($column, $request->input($column));
             }
+        }
+        if ($filterExtension !== null) {
+            $filterExtension($query, $request);
         }
         $keywordColumns = $this->keywordColumns($table);
         $piiHidden = $masked !== [] && ! $request->user()?->hasPermission('warranty.pii.view');
