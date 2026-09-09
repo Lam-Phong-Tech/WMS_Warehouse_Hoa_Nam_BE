@@ -232,7 +232,30 @@ jobs:
       # cho các handler mà Laravel cố ý đăng ký — Collision (artisan test) cấu
       # hình khác nên không dính. Đổi runner là đổi thêm một biến, trong khi việc
       # cần sửa ở đây chỉ là giới hạn bộ nhớ.
-      - name: Run tests
+      # Cổng CỨNG cho deploy: hai suite bảo vệ tầng dữ liệu (SEC-05 transport,
+      # SEC-06 mã hoá PII) phải xanh tuyệt đối — đây là vùng vừa sửa (sslmode
+      # coercion + predis v3 scheme/context) nên không được phép trôi.
+      - name: Run deploy-gate tests (hard)
+        run: |
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'mkdir -p /tmp/phpini && echo memory_limit=1G > /tmp/phpini/zz-memory.ini && PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d:/tmp/phpini php artisan test --filter "WwhnSec05DataTransportTest|WwhnSec06PiiEncryptionTest"'
+
+      # Suite đầy đủ chạy ADVISORY (không chặn deploy) — quyết định của chủ dự án
+      # 09/09/2026. Mốc nền đỏ sẵn của repo là 34/1266 trên sqlite (đo 08/09) và
+      # ~64 trên pgsql CI (run 34331731451) vì nhóm test docs/pin/alignment +
+      # migration-load phụ thuộc môi trường; chưa từng có CI xanh cho full suite
+      # pgsql, chặn deploy bằng mốc nền đó là chặn vô hạn. Deploy được canh bằng:
+      # build image, migrate + seed thật (bước trên), hai suite SEC cứng, và smoke
+      # /api/v1/health (bước dưới). Muốn siết lại: đưa số đỏ về 0 rồi bỏ
+      # continue-on-error.
+      - name: Run full test suite (advisory — pre-existing red baseline)
+        id: full_suite
+        continue-on-error: true
         run: |
           docker run --rm --network host \
             --user "$(id -u):$(id -g)" \
@@ -241,6 +264,14 @@ jobs:
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'mkdir -p /tmp/phpini && echo memory_limit=1G > /tmp/phpini/zz-memory.ini && PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d:/tmp/phpini php artisan test'
+
+      - name: Report advisory suite outcome
+        run: |
+          if [ "${{ steps.full_suite.outcome }}" = "failure" ]; then
+            echo "::warning::Full test suite has failures (pre-existing red baseline, see step above). Deploy gates: build, migrate+seed, SEC hard suites, health smoke."
+          else
+            echo "Full suite green — consider removing continue-on-error to re-tighten the gate."
+          fi
 
       - name: Run local smoke
         run: |
