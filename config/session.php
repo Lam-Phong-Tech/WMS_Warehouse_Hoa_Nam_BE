@@ -169,7 +169,14 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // WWHN-SEC-09: mặc định fail-safe — ngoài local/testing cookie session chỉ
+    // đi qua HTTPS trừ khi vận hành CHỦ ĐỘNG đặt SESSION_SECURE_COOKIE=false
+    // (cùng triết lý với refresh cookie ở config/refresh_token.php: môi trường
+    // production-like không được âm thầm hạ cấp credential trình duyệt).
+    'secure' => env(
+        'SESSION_SECURE_COOKIE',
+        ! in_array(env('APP_ENV', 'production'), ['local', 'testing'], true)
+    ),
 
     /*
     |--------------------------------------------------------------------------

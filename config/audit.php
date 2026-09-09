@@ -54,5 +54,20 @@ return [
         'recipient_name',
         'recipient_contact_phone',
         'recipient_address',
+
+        // WWHN-SEC-09: các khoá mang credential tồn tại thật trong luồng auth
+        // hiện tại nhưng chưa có trong danh sách trên — `mfa_token` là field
+        // request của bước hai đăng nhập, `otp`/`reset_token` là luồng quên mật
+        // khẩu, `token` trần xuất hiện trong payload refresh/logout cũ,
+        // `recovery_codes` là mã khôi phục MFA trả về đúng một lần.
+        'token',
+        'otp',
+        'otp_hash',
+        'reset_token',
+        'reset_token_hash',
+        'mfa_token',
+        'mfa_secret',
+        'secret_ciphertext',
+        'recovery_codes',
     ],
 ];

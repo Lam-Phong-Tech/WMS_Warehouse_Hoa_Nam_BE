@@ -206,6 +206,17 @@ class UserController extends Controller
             $this->refreshTokens->revokeAllForUser($id);
         }
 
+        // WWHN-SEC-09: vô hiệu hoá/khoá tài khoản phải giết luôn các phiên đang
+        // sống, không chỉ chặn ở middleware. EnforceActiveAccountStatus đã chặn
+        // access token theo từng request và rotate() từ chối user non-ACTIVE,
+        // nhưng các hàng refresh token vẫn "sống" trong DB cho tới khi bị đem ra
+        // dùng — thu hồi ngay tại đây để trạng thái DB phản ánh đúng quyết định
+        // của admin và không phụ thuộc vào việc kẻ giữ token có quay lại hay không.
+        $statusInPayload = $data['status'] ?? null;
+        if ($statusInPayload !== null && $statusInPayload !== 'ACTIVE' && $before->status === 'ACTIVE') {
+            $this->refreshTokens->revokeAllForUser($id);
+        }
+
         AuditLogger::record(
             action: 'UPDATE',
             objectType: 'user',

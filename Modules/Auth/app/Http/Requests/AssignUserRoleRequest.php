@@ -24,7 +24,11 @@ class AssignUserRoleRequest extends FormRequest
             'role_ids.*' => ['uuid', 'exists:role,role_id'],
             'roles' => ['required_without:role_ids', 'array', 'max:500'],
             'roles.*.role_id' => ['required_with:roles', 'uuid', 'exists:role,role_id'],
-            'roles.*.scope_ref' => ['nullable', 'uuid'],
+            // WWHN-SEC-09: scope_ref phải là kho CÓ THẬT. Trước đây nhận UUID bất
+            // kỳ — gõ nhầm sẽ khoá người dùng khỏi mọi kho (fail-closed) mà không
+            // ai phát hiện, còn bỏ trống thì âm thầm thành quyền toàn hệ thống;
+            // cả hai đều không phân biệt được với chủ đích trong audit.
+            'roles.*.scope_ref' => ['nullable', 'uuid', 'exists:warehouses,id'],
             // Cửa sổ hiệu lực được phép đặt trước cho tương lai nên dùng date()
             // chứ không phải pastDate(); ràng buộc to >= from giữ nguyên.
             'roles.*.effective_from' => array_merge(['nullable'], InputLimits::date()),

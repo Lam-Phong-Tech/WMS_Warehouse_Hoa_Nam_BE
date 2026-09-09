@@ -2,11 +2,11 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\CacheKey;
 use App\Support\Cache\CacheTtl;
+use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\ReportExportFileName;
@@ -2258,16 +2258,35 @@ class OperationalReportController extends Controller
      */
     private function buildOutboundByAgency(Request $request): array
     {
+        // WWHN-SEC-09: payload này MASK/không-mask SĐT người nhận theo quyền
+        // warranty.pii.view của actor (xem buildOutboundByAgencyUncached), nên
+        // quyết định mask phải nằm TRONG khoá cache — nếu không, hai người cùng
+        // scope nhưng khác quyền PII sẽ dùng chung một entry và người không có
+        // quyền đọc được SĐT thô do người có quyền vừa dựng (hoặc ngược lại,
+        // người có quyền chỉ thấy bản đã mask). Cùng bài học với
+        // StockMovementController::traceByPhysicalCode (readCacheActorId).
+        $piiVariant = $this->outboundByAgencyShowsContact($request) ? 'pii:full' : 'pii:masked';
+
         return $this->cachedReportPayload(
             'warehouse:report:outbound-by-agency',
             // Phân trang cắt TRONG BỘ NHỚ ở paginateReport() nên một entry phục vụ
             // được mọi trang -> bỏ page/per_page ra khỏi key.
-            $this->reportFiltersWithoutPaging($request),
+            array_merge($this->reportFiltersWithoutPaging($request), ['__pii_variant' => $piiVariant]),
             // Giải scope Ở ĐÂY, trước khi vào cache: đối số được tính ngay, nên 403
             // của warehouse_id ngoài scope vẫn bắn ra kể cả khi sau đó là cache hit.
             $this->reportWarehouseScope($request),
             fn (): array => $this->buildOutboundByAgencyUncached($request)
         );
+    }
+
+    /**
+     * WWHN-SEC-09: một nguồn duy nhất cho quyết định mask contact của báo cáo
+     * này — dùng ở cả khoá cache (buildOutboundByAgency) lẫn lúc dựng payload,
+     * để hai chỗ không bao giờ lệch nhau.
+     */
+    private function outboundByAgencyShowsContact(Request $request): bool
+    {
+        return (bool) $request->user()?->hasPermission('warranty.pii.view');
     }
 
     private function buildOutboundByAgencyUncached(Request $request): array
@@ -2311,7 +2330,7 @@ class OperationalReportController extends Controller
         }
         // BR-EXP-01..05 + Annex D: contact là PII, mặc định mask; chỉ actor có
         // warranty.pii.view mới thấy đầy đủ.
-        $showContact = (bool) $request->user()?->hasPermission('warranty.pii.view');
+        $showContact = $this->outboundByAgencyShowsContact($request);
         $rows = $query->orderByDesc('sd.doc_date')->get()->map(fn ($r): array => [
             'agency_code' => (string) ($r->agency_code ?? 'DIRECT'),
             'agency_name' => (string) ($r->agency_name ?? $r->recipient_name ?? 'Người nhận trực tiếp'),

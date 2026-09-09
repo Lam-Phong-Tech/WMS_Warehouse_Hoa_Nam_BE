@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Warehouse\Services\SkuAggregateService;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\PvPublishGuard;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineSkuController extends Controller
@@ -96,6 +97,7 @@ class CurrentBaselineSkuController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate($this->rules(true));
+        PvPublishGuard::assertPayload($validated, null);
 
         return $this->idempotent($request, 'sku_create', function () use ($validated): array {
             $data = DB::transaction(function () use ($validated): array {
@@ -173,6 +175,7 @@ class CurrentBaselineSkuController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate($this->rules(false));
+        PvPublishGuard::assertPayload($validated, $id);
         $expectedVersion = $this->expectedVersion($request);
 
         return $this->idempotent($request, "sku_update_{$id}", function () use ($id, $validated, $expectedVersion): array {

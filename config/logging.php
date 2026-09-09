@@ -1,5 +1,6 @@
 <?php
 
+use App\Logging\RedactSensitiveLogContext;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -60,6 +61,10 @@ return [
 
         'single' => [
             'driver' => 'single',
+            // WWHN-SEC-09: mọi channel ghi ra file/stream đều đi qua lớp che
+            // credential (app/Logging/RedactSensitiveLogContext) — audit log đã
+            // có sanitize riêng, còn Log:: thì trước đây không có gì.
+            'tap' => [RedactSensitiveLogContext::class],
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
@@ -67,6 +72,7 @@ return [
 
         'daily' => [
             'driver' => 'daily',
+            'tap' => [RedactSensitiveLogContext::class],
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => env('LOG_DAILY_DAYS', 14),
@@ -96,6 +102,7 @@ return [
 
         'stderr' => [
             'driver' => 'monolog',
+            'tap' => [RedactSensitiveLogContext::class],
             'level' => env('LOG_LEVEL', 'debug'),
             'handler' => StreamHandler::class,
             'handler_with' => [

@@ -59,6 +59,12 @@ final class ApiAuthContext
         'api/v1/health',
         'api/v1/public',
         'api/v1/public/*',
+        // RUM Web Vitals beacon (routes/api.php). Ẩn danh CÓ CHỦ Ý: beacon bắn
+        // cả trước đăng nhập/sau logout, không được làm phiên chết vì thiếu
+        // token. Không mất lớp chặn nào: route mang `throttle:120,1` riêng
+        // (ApiRateLimit vốn bỏ qua route có throttle tường minh), body chỉ là
+        // số liệu hiệu năng, không side-effect nghiệp vụ.
+        'api/v1/telemetry/vitals',
     ];
 
     private function __construct() {}

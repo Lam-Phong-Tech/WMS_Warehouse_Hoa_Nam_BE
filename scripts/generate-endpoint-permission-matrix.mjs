@@ -50,6 +50,10 @@ const PUBLIC_ALLOWLIST = new Set([
   // Thứ đứng thay: mã phiên chờ dùng-MỘT-lần (TTL 5 phút, huỷ ngay khi tiêu thụ),
   // throttle theo (IP + mfa_token), và trần theo TÀI KHOẢN trong MfaService.
   "POST /api/v1/auth/mfa/verify",
+  // RUM Web Vitals beacon — ẩn danh có chủ đích (bắn cả trước đăng nhập/sau
+  // logout), mang throttle riêng `throttle:120,1`, payload chỉ là số liệu
+  // hiệu năng, không side-effect nghiệp vụ.
+  "POST /api/v1/telemetry/vitals",
   // WWHN-249 (DEV249-P1-03): 4 operation PUBLIC_ANONYMOUS theo Annex C là
   // listPvProducts / getPvProduct / listPvIndustries / listPvRecommendations;
   // SRS §12 (bảng Security) khai đích danh chúng phải override security: [].

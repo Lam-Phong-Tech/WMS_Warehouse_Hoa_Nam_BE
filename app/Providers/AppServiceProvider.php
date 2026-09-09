@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use Tymon\JWTAuth\Http\Parser\AuthHeaders;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,6 +29,17 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(CacheService::class, static fn () => CacheService::make());
+
+        // WWHN-SEC-09: khoá kênh nhận JWT về đúng Authorization header. Dùng
+        // extend trên binding parser (thay vì setChain qua facade lúc boot) vì
+        // guard `api` và facade JWTAuth có thể giữ HAI instance Parser khác nhau
+        // — mutate qua facade thì chuỗi của guard vẫn còn QueryString/InputSource
+        // và `?token=` tiếp tục được chấp nhận (đã tái hiện bằng test).
+        $this->app->extend('tymon.jwt.parser', static function ($parser) {
+            $parser->setChain([new AuthHeaders]);
+
+            return $parser;
+        });
     }
 
     /**

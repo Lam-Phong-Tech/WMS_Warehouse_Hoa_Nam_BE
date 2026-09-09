@@ -13,6 +13,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreProductRequest;
 use Modules\Warehouse\Http\Requests\UpdateProductRequest;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Support\PvPublishGuard;
 use Modules\Warehouse\Support\PvRelations;
 use Modules\Warehouse\Support\SkuImageLookup;
 use Modules\Warehouse\Support\SkuMasterLinkResolver;
@@ -181,6 +182,7 @@ class ProductController extends Controller
     public function store(StoreProductRequest $request)
     {
         $validated = $this->withResolvedMasterLinks($request->validated());
+        PvPublishGuard::assertPayload($validated, null);
         $product = $this->products->create($validated + ['status' => 'ACTIVE', 'version' => 1]);
 
         AuditLogger::record(
@@ -268,6 +270,7 @@ class ProductController extends Controller
         }
 
         $validated = $this->withResolvedMasterLinks($request->validated());
+        PvPublishGuard::assertPayload($validated, $id);
         $this->assertImmutableAfterStock($id, $validated, $before);
         $validated = $this->assertPublishRequiresActive($validated, $before);
         $nextVersion = $this->assertVersionMatchesIfProvided($request, $before);

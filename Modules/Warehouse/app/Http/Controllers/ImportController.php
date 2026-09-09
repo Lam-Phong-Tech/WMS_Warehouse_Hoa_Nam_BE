@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\Cache\Concerns\CachesReadPayload;
+use App\Support\SpreadsheetUploadGuard;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -144,6 +145,9 @@ class ImportController extends Controller
         ]);
 
         $file = $request->file('file');
+        // WWHN-SEC-09: rule `mimes:` ở trên tin phần mở rộng client khai — sniff
+        // nội dung thật trước khi đưa file vào PhpSpreadsheet.
+        SpreadsheetUploadGuard::assertRealSpreadsheet($file);
         $path = $file->store('temp/imports', 'local');
         if (! is_string($path) || $path === '') {
             // Cùng lý do với ImportReportPersistenceException bên dưới: đây là sự cố

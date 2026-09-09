@@ -8,6 +8,7 @@ use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Support\ConflictCode;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
+use App\Support\SpreadsheetUploadGuard;
 use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
@@ -131,6 +132,12 @@ class CurrentBaselineOperationsController extends Controller
             'rows.*.required_qty' => ['required_with:rows', 'integer', 'min:1', 'max:'.InputLimits::QUANTITY_MAX],
             'rows.*.note' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        // WWHN-SEC-09: rule `mimes:` tin phần mở rộng client khai — sniff nội
+        // dung thật trước khi đưa file vào PhpSpreadsheet.
+        if (isset($validated['file'])) {
+            SpreadsheetUploadGuard::assertRealSpreadsheet($validated['file']);
+        }
 
         [$rows, $fileName, $checksum] = isset($validated['file'])
             ? $this->readOutboundWorkbook($validated['file']->getRealPath(), $validated['file']->getClientOriginalName())

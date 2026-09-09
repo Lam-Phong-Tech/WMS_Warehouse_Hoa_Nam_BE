@@ -99,6 +99,10 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
         // vì người gửi yêu cầu tư vấn chưa có tài khoản; bù lại nó có limiter
         // riêng chặt hơn và bắt buộc Idempotency-Key.
         'POST api/v1/public/quote-requests' => 'Storefront — gửi yêu cầu tư vấn (idempotent)',
+        // RUM Web Vitals beacon — đo hiệu năng người dùng thật. Ẩn danh có chủ
+        // đích: beacon bắn cả trước đăng nhập/sau logout; route mang throttle
+        // riêng `throttle:120,1` và payload chỉ là số liệu hiệu năng.
+        'POST api/v1/telemetry/vitals' => 'RUM Web Vitals — beacon hiệu năng (throttle riêng 120/phút)',
         // Trang tài liệu do l5-swagger đăng ký, không phải API nghiệp vụ.
         'GET api/documentation' => 'l5-swagger UI',
         'GET api/oauth2-callback' => 'l5-swagger UI',

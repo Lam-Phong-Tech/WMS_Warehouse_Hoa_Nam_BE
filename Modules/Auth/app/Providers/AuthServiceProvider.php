@@ -5,6 +5,7 @@ namespace Modules\Auth\Providers;
 use App\Support\Modules\HttpLeanModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Auth\Console\Commands\LockExpiredFirstLoginAccounts;
+use Modules\Auth\Console\Commands\PruneRefreshTokens;
 use Modules\Auth\Repositories\Contracts\PermissionRepositoryInterface;
 use Modules\Auth\Repositories\Contracts\RoleRepositoryInterface;
 use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
@@ -31,6 +32,7 @@ class AuthServiceProvider extends HttpLeanModuleServiceProvider
      */
     protected array $commands = [
         LockExpiredFirstLoginAccounts::class,
+        PruneRefreshTokens::class,
     ];
 
     /**
@@ -65,6 +67,14 @@ class AuthServiceProvider extends HttpLeanModuleServiceProvider
     {
         $schedule->command('auth:lock-expired-first-login')
             ->hourly()
+            ->withoutOverlapping()
+            ->onOneServer()
+            ->runInBackground();
+
+        // WWHN-SEC-09: dọn refresh token chết (hết hạn/bị thu hồi quá cửa sổ
+        // lưu vết) — bảng chỉ tăng theo mỗi lượt đăng nhập nếu không có job này.
+        $schedule->command('auth:prune-refresh-tokens')
+            ->daily()
             ->withoutOverlapping()
             ->onOneServer()
             ->runInBackground();

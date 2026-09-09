@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\AuditLog\Services\DenyAuditRecorder;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
@@ -47,6 +48,30 @@ class DocumentAttachmentController extends Controller
     private const MAX_FILE_BYTES = 15 * 1024 * 1024;
 
     private const MAX_UPLOAD_KB = 15360;
+
+    /**
+     * WWHN-SEC-09 (BFLA): hai route phẳng download/destroy gom quyền của cả 3
+     * luồng trong middleware (`inbound.*|outbound.*|inventory.*`) nên một actor
+     * chỉ có quyền outbound vẫn lọt qua middleware rồi thao tác lên attachment
+     * của phiếu NHẬP hay HOÀN TRẢ — nguy hiểm nhất là xoá attachment REVERSAL
+     * (reversal post bắt buộc còn >=1 evidence ACTIVE). Bảng này khớp lại quyền
+     * theo đúng document_type của attachment, dùng đúng bộ quyền các route lồng
+     * theo loại phiếu đã khai.
+     */
+    private const TYPE_OPERATION_PERMISSIONS = [
+        DocumentEvidenceGuard::TYPE_INBOUND => [
+            'download' => ['inbound.view', 'inbound.create', 'inbound.scan'],
+            'delete' => ['inbound.create', 'inbound.scan'],
+        ],
+        DocumentEvidenceGuard::TYPE_OUTBOUND => [
+            'download' => ['outbound.view', 'outbound.scan', 'outbound.post'],
+            'delete' => ['outbound.scan', 'outbound.post'],
+        ],
+        DocumentEvidenceGuard::TYPE_REVERSAL => [
+            'download' => ['inventory.view', 'inventory.reversal.post'],
+            'delete' => ['inventory.reversal.post'],
+        ],
+    ];
 
     // ------------------------------------------------------------------
     // INBOUND
@@ -314,6 +339,7 @@ class DocumentAttachmentController extends Controller
     public function download(Request $request, string $attachmentId)
     {
         $row = $this->requireAttachment($attachmentId);
+        $this->assertTypePermission($request, $row, 'download');
         $this->assertWarehouseScope($request, $row);
 
         $path = (string) $row->storage_key;
@@ -346,6 +372,7 @@ class DocumentAttachmentController extends Controller
     public function destroy(Request $request, string $attachmentId)
     {
         $row = $this->requireAttachment($attachmentId);
+        $this->assertTypePermission($request, $row, 'delete');
         $this->assertWarehouseScope($request, $row);
 
         DB::table('document_attachments')->where('id', $attachmentId)->update([
@@ -569,6 +596,31 @@ class DocumentAttachmentController extends Controller
         }
 
         return $row;
+    }
+
+    /**
+     * WWHN-SEC-09: khớp quyền của actor với đúng document_type của attachment.
+     * Middleware route chỉ bảo đảm "có MỘT quyền bất kỳ trong hợp của 3 luồng";
+     * tại đây mới biết attachment thuộc luồng nào để đòi đúng quyền luồng đó.
+     * document_type lạ → fail-closed.
+     */
+    private function assertTypePermission(Request $request, object $attachment, string $operation): void
+    {
+        $user = $request->user('api');
+        if (! is_object($user) || ! method_exists($user, 'hasPermission')) {
+            ApiError::abort(401, 'UNAUTHENTICATED', 'Chưa đăng nhập hoặc phiên đăng nhập đã hết hạn.');
+        }
+
+        $allowed = self::TYPE_OPERATION_PERMISSIONS[(string) $attachment->document_type][$operation] ?? [];
+
+        foreach ($allowed as $permission) {
+            if ($user->hasPermission($permission)) {
+                return;
+            }
+        }
+
+        DenyAuditRecorder::permissionDenied($request, implode('|', $allowed), $this->actorId());
+        ApiError::abort(403, 'ACCESS_DENIED', 'Bạn không có quyền thao tác trên chứng từ đính kèm của loại phiếu này.');
     }
 
     /**
