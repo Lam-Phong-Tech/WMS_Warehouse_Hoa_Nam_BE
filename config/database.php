@@ -73,6 +73,17 @@ $redisTlsContext = null;
 // chạy. null => isset() trả false => Laravel giữ nguyên host như trước.
 $redisSchemeForConnection = null;
 
+/*
+ * predis v3 (composer.lock ghim v3.5.1 cho CI, REDIS_CLIENT=predis) KHÁC
+ * phpredis lẫn predis v2 ở một điểm chết người: đặt KEY 'scheme' với giá trị
+ * null không còn được coalesce về 'tcp' — PredisConnectionFactory cast
+ * null thành '' và ném "Unknown connection scheme: ''" ngay ở cache:clear
+ * (đúng vết đỏ của job ci từ 25/08). Vì vậy hai khoá scheme/context chỉ được
+ * PHÉP TỒN TẠI trong mảng connection khi thật sự bật TLS — gom vào mảng
+ * spread dưới đây thay vì đặt key = null.
+ */
+$redisTlsConnection = [];
+
 if ($redisScheme === 'tls' || $redisScheme === 'ssl') {
     $redisSslOptions = [
         'verify_peer' => filter_var(env('REDIS_SSL_VERIFY_PEER', true), FILTER_VALIDATE_BOOL),
@@ -93,6 +104,10 @@ if ($redisScheme === 'tls' || $redisScheme === 'ssl') {
 
     $redisTlsContext = ['ssl' => $redisSslOptions];
     $redisSchemeForConnection = $redisScheme;
+    $redisTlsConnection = [
+        'scheme' => $redisSchemeForConnection,
+        'context' => $redisTlsContext,
+    ];
 }
 
 return [
@@ -255,8 +270,7 @@ return [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),
             // WWHN-SEC-05 — xem khối "TLS cho Valkey/Redis" ở đầu file.
-            'scheme' => $redisSchemeForConnection,
-            'context' => $redisTlsContext,
+            ...$redisTlsConnection,
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
@@ -280,8 +294,7 @@ return [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),
             // WWHN-SEC-05 — xem khối "TLS cho Valkey/Redis" ở đầu file.
-            'scheme' => $redisSchemeForConnection,
-            'context' => $redisTlsContext,
+            ...$redisTlsConnection,
             'username' => env('REDIS_USERNAME'),
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
