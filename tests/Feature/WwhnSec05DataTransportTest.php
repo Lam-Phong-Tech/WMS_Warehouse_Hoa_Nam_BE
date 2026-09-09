@@ -54,14 +54,22 @@ class WwhnSec05DataTransportTest extends TestCase
      * của test là chính LOGIC MẶC ĐỊNH nằm trong file đó. Set thẳng giá trị vào
      * container sẽ bỏ qua đúng thứ cần kiểm.
      *
+     * DB_SSLMODE cũng phải được cô lập như APP_ENV: đối tượng kiểm là nhánh
+     * MẶC ĐỊNH khi biến không đặt. CI (09/09) đặt DB_SSLMODE=disable trong .env
+     * để migrate chạy được với postgres service không TLS — không cô lập thì
+     * cả ba test default bên dưới đọc nhầm giá trị môi trường thay vì logic.
+     *
      * @return array<string, mixed>
      */
     private function databaseConfigForEnv(string $appEnv): array
     {
         $previous = getenv('APP_ENV');
+        $previousSslMode = getenv('DB_SSLMODE');
         putenv('APP_ENV='.$appEnv);
         $_ENV['APP_ENV'] = $appEnv;
         $_SERVER['APP_ENV'] = $appEnv;
+        putenv('DB_SSLMODE');
+        unset($_ENV['DB_SSLMODE'], $_SERVER['DB_SSLMODE']);
 
         try {
             return require base_path('config/database.php');
@@ -73,6 +81,14 @@ class WwhnSec05DataTransportTest extends TestCase
                 putenv('APP_ENV='.$previous);
                 $_ENV['APP_ENV'] = $previous;
                 $_SERVER['APP_ENV'] = $previous;
+            }
+            if ($previousSslMode === false) {
+                putenv('DB_SSLMODE');
+                unset($_ENV['DB_SSLMODE'], $_SERVER['DB_SSLMODE']);
+            } else {
+                putenv('DB_SSLMODE='.$previousSslMode);
+                $_ENV['DB_SSLMODE'] = $previousSslMode;
+                $_SERVER['DB_SSLMODE'] = $previousSslMode;
             }
         }
     }
@@ -105,19 +121,25 @@ class WwhnSec05DataTransportTest extends TestCase
     }
 
     /**
-     * `context` phải là NULL khi không chạy TLS. Đo ngày 08/09/2026: truyền mảng
-     * RỖNG vẫn khiến PhpRedisConnector đẩy tham số stream-context thứ 7 xuống
-     * Redis::connect() và phpredis cố bật TLS -> "Failed to enable crypto",
-     * Valkey đứt hoàn toàn. Test này khoá lại đúng cái bẫy đó.
+     * Khi không chạy TLS, hai khoá scheme/context phải VẮNG MẶT hẳn — không
+     * phải null. Hai lần đo thực tế chồng lên nhau:
+     *  - 08/09/2026 (phpredis): context là MẢNG RỖNG vẫn khiến
+     *    PhpRedisConnector đẩy stream-context xuống Redis::connect() và
+     *    phpredis cố bật TLS -> "Failed to enable crypto", Valkey đứt.
+     *  - 09/09/2026 (predis v3 trên CI): đặt KEY 'scheme' => null bị predis
+     *    cast thành '' và ném "Unknown connection scheme: ''" ngay ở
+     *    cache:clear. Vì vậy config chỉ spread scheme/context khi THẬT SỰ bật
+     *    TLS (xem $redisTlsConnection trong config/database.php).
+     * Ý định gốc của test không đổi: không TLS ngầm, không context rác.
      */
     public function test_redis_context_la_null_khi_chua_bat_tls(): void
     {
         $config = $this->databaseConfigForEnv('local');
 
-        $this->assertNull($config['redis']['default']['scheme']);
-        $this->assertNull($config['redis']['default']['context']);
-        $this->assertNull($config['redis']['cache']['scheme']);
-        $this->assertNull($config['redis']['cache']['context']);
+        $this->assertArrayNotHasKey('scheme', $config['redis']['default']);
+        $this->assertArrayNotHasKey('context', $config['redis']['default']);
+        $this->assertArrayNotHasKey('scheme', $config['redis']['cache']);
+        $this->assertArrayNotHasKey('context', $config['redis']['cache']);
     }
 
     public function test_bat_redis_tls_thi_co_scheme_va_xac_thuc_chung_chi(): void
