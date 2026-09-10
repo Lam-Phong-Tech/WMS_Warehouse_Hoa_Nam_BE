@@ -538,6 +538,22 @@
             "POST /api/v1/warranty-component-issues/{id}/lines",
             "POST /api/v1/warranty-component-issues/{id}/unscan"
           ]
+        },
+        {
+          "id": "AMD-API-027",
+          "introduced_in": "8c0137c",
+          "introduced_at": "2026-09-10",
+          "title": "API tự phục vụ tài khoản cho Mini App — sửa hồ sơ, thiết bị đăng nhập, chi tiết thông báo, lịch sử chip NFC",
+          "rationale": "Mini App cần tự sửa display_name/phone (If-Match), xem và thu hồi phiên đăng nhập của chính mình (access token mang claim sid), đọc chi tiết một thông báo mà không tự đánh dấu đã đọc, và xem lịch sử gán/thu hồi chip NFC. Bốn route tài khoản/thông báo lọc cứng theo người gọi (SELF_SERVICE); lịch sử chip dùng permission physical_code.assign_rfid|inventory.trace.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "DELETE /api/v1/auth/sessions/{id}",
+            "GET /api/v1/auth/sessions",
+            "GET /api/v1/mini-app/nfc-tags/{physicalCodeId}/events",
+            "GET /api/v1/notifications/{id}",
+            "PATCH /api/v1/auth/me"
+          ]
         }
       ]
     },
