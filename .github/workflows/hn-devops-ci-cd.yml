@@ -274,7 +274,17 @@ jobs:
             node:22-alpine \
             sh -lc 'npm run build'
 
-      - name: Offline npm audit
+      # Quét advisory THẬT cho npm (cần mạng tới registry). `npm audit --offline` cũ
+      # không có dữ liệu advisory nên luôn báo 0 lỗ hổng — một cổng giả (đo 10/09/2026:
+      # offline 0; online 8 high + 2 moderate). Hai ngưỡng, cả hai CỨNG:
+      #  - dependency runtime (--omit=dev), chặn từ high. Repo hiện không có dependency
+      #    runtime nào (newman đã về devDependencies), nên cổng này chặn việc thêm mới
+      #    một package runtime mang lỗ hổng;
+      #  - toàn bộ cây, gồm công cụ build/test chạy ngay trong CI, chặn critical. Chuỗi
+      #    newman / openapi-to-postmanv2 -> postman-collection -> @faker-js/faker còn
+      #    advisory high chưa có bản vá cùng major nên chưa chặn ở high được; thay hay
+      #    bỏ bộ công cụ Postman là quyết định của chủ dự án.
+      - name: npm dependency audit (online, hard)
         run: |
           docker run --rm \
             --user "$(id -u):$(id -g)" \
@@ -282,7 +292,7 @@ jobs:
             -v "$PWD:/workspace" \
             -w /workspace \
             node:22-alpine \
-            sh -lc 'npm audit --offline --json'
+            sh -lc 'npm audit --omit=dev --audit-level=high && npm audit --audit-level=critical'
 
       - name: Prepare Laravel runtime secrets
         run: |
