@@ -453,11 +453,16 @@ class PublicStorefrontApiTest extends TestCase
     }
 
     /**
-     * Hỏi ĐÍCH DANH không nới điều kiện hiển thị: chưa publish hoặc hết hàng vẫn
-     * nằm ở missing_ids, đúng như khi duyệt danh sách
-     * (test_listing_returns_only_published_and_in_stock_products).
+     * Điều kiện PUBLISH giữ nguyên khi hỏi đích danh: chưa publish vẫn nằm ở
+     * missing_ids. Nhưng HẾT TỒN thì KHÁC — vẫn trả về, mang PREORDER.
+     *
+     * Vì sao tách riêng: màn "đã lưu" là danh sách người dùng tự chọn. Nếu hàng
+     * tạm hết tồn rơi vào missing_ids thì app coi như đã bị gỡ và XOÁ VĨNH VIỄN
+     * khỏi danh sách — người dùng mất mục đã lưu chỉ vì kho hụt tồn vài ngày.
+     * Đường duyệt/tìm kiếm vẫn ẩn hàng hết tồn như cũ, xem
+     * test_listing_returns_only_published_and_in_stock_products.
      */
-    public function test_ids_lookup_khong_lo_hang_chua_publish_hay_het_ton(): void
+    public function test_ids_lookup_giu_hang_het_ton_voi_nhan_preorder_nhung_van_an_hang_chua_publish(): void
     {
         $warehouse = $this->warehouseFixture();
 
@@ -474,11 +479,30 @@ class PublicStorefrontApiTest extends TestCase
             ."/products?ids[]={$visible->sku_id}&ids[]={$outOfStock->sku_id}&ids[]={$unpublished->sku_id}")
             ->assertOk()->json('data');
 
-        $this->assertSame([(string) $visible->sku_id], array_column($data['items'], 'id'));
-        $this->assertEqualsCanonicalizing(
-            [(string) $outOfStock->sku_id, (string) $unpublished->sku_id],
-            $data['missing_ids']
+        $this->assertSame(
+            [(string) $visible->sku_id, (string) $outOfStock->sku_id],
+            array_column($data['items'], 'id')
         );
+        $this->assertSame(['IN_STOCK', 'PREORDER'], array_column($data['items'], 'availability'));
+
+        // Chưa publish là "không còn hiển thị công khai" -> vẫn missing.
+        $this->assertSame([(string) $unpublished->sku_id], $data['missing_ids']);
+    }
+
+    /** Đường duyệt vẫn chỉ có hàng còn tồn, nên availability ở đó luôn IN_STOCK. */
+    public function test_availability_o_duong_duyet_luon_la_in_stock(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $visible = $this->publishedSku('AVAIL-001', 'Máy còn hàng');
+        $this->seedAvailableBalance($warehouse->id, $visible->sku_id, 6);
+
+        $hidden = $this->publishedSku('AVAIL-002', 'Máy hết hàng');
+        $this->seedAvailableBalance($warehouse->id, $hidden->sku_id, 0);
+
+        $items = $this->getJson(self::BASE.'/products')->assertOk()->json('data.items');
+
+        $this->assertSame(['AVAIL-001'], array_column($items, 'primary_code'));
+        $this->assertSame(['IN_STOCK'], array_column($items, 'availability'));
     }
 
     /**

@@ -65,12 +65,14 @@ class PublicCatalogReadModel
      *    phải một dòng chảy vô hạn để cuộn.
      *  - Thứ tự trả về ĐÚNG THỨ TỰ id gửi lên, không theo sort của catalog —
      *    app dựng lại danh sách đã lưu theo thứ tự của người dùng.
-     *  - Trả kèm `missing_ids` cho id không còn hiển thị công khai (bị ẩn, gỡ
-     *    khỏi app, hoặc hết tồn). Client cần phân biệt "đã hỏi và không còn"
-     *    với "chưa tải xong"; im lặng bỏ bớt phần tử thì hai việc đó nhìn y hệt.
+     *  - Trả kèm `missing_ids` cho id không còn hiển thị công khai (bị ẩn hoặc
+     *    gỡ khỏi app). Client cần phân biệt "đã hỏi và không còn" với "chưa tải
+     *    xong"; im lặng bỏ bớt phần tử thì hai việc đó nhìn y hệt nhau.
      *
-     * Điều kiện hiển thị dùng CHUNG baseQuery() với danh sách: một sản phẩm
-     * không tự nhiên public hơn chỉ vì được hỏi đích danh.
+     * HẾT TỒN KHÔNG phải "không còn": hàng hết tồn vẫn trả về, mang
+     * availability=PREORDER. Đây là điểm DUY NHẤT khác luật hiển thị của danh
+     * sách, và là điểm cố ý — xem ghi chú ở baseQuery(). Điều kiện publish thì
+     * giữ nguyên: hỏi đích danh không làm một sản phẩm public hơn.
      *
      * @param  list<string>  $ids  đã chuẩn hoá, đã loại trùng, giữ nguyên thứ tự
      * @return array{items: array<int, array<string, mixed>>, missing_ids: list<string>}
@@ -81,7 +83,9 @@ class PublicCatalogReadModel
             return ['items' => [], 'missing_ids' => []];
         }
 
-        $rows = $this->baseQuery()->whereIn('s.sku_id', $ids)->get();
+        // requireStock=false: xem ghi chú ở baseQuery(). Hàng hết tồn vẫn trả về,
+        // mang availability=PREORDER, để app không xoá nhầm mục người dùng đã lưu.
+        $rows = $this->baseQuery(false)->whereIn('s.sku_id', $ids)->get();
         $items = $this->presentMany($rows);
 
         // Sắp lại theo thứ tự client gửi. presentMany() đi theo thứ tự của DB,
@@ -460,14 +464,26 @@ class PublicCatalogReadModel
     // Query building
     // ==================================================================
 
+    /** Tổng tồn khả dụng của kho tổng cho một SKU — chỉ dùng nội bộ query. */
+    private const AVAILABLE_QTY_SUBQUERY = '(SELECT COALESCE(SUM(b.available_qty), 0) FROM inventory_balances b'
+        ." WHERE b.product_id = s.sku_id AND b.stock_status = 'AVAILABLE')";
+
     /**
-     * Hai điều kiện hiển thị của hợp đồng mới, cả hai đều BẮT BUỘC:
-     *   PUBLISHED  -> s.status = ACTIVE và s.published_to_app = true
-     *   IN_STOCK   -> tổng available_qty kho tổng > 0
+     * Hai điều kiện hiển thị của hợp đồng mới:
+     *   PUBLISHED  -> s.status = ACTIVE và s.published_to_app = true  (LUÔN bắt buộc)
+     *   IN_STOCK   -> tổng available_qty kho tổng > 0                 (xem $requireStock)
      *
-     * Số tồn CHỈ dùng để lọc, không bao giờ đi vào SELECT của tầng trình bày.
+     * Số tồn CHỈ dùng để lọc hoặc quy về CỜ NHỊ PHÂN `has_stock`; con số tồn
+     * không bao giờ đi vào SELECT của tầng trình bày.
+     *
+     * $requireStock=false CHỈ dành cho tra-theo-id (màn "đã lưu" của App PV).
+     * Lý do tách: duyệt/tìm kiếm là nơi khách tìm hàng để mua, hàng hết thì
+     * không nên chào bán — giữ nguyên luật cũ. Còn màn "đã lưu" là danh sách
+     * NGƯỜI DÙNG TỰ CHỌN; ẩn nó đi khi kho tạm hụt tồn sẽ khiến app xoá vĩnh
+     * viễn mục đã lưu (nó coi id vắng mặt là đã bị gỡ). Trả về kèm
+     * availability=PREORDER giữ được mục đó mà vẫn nói thật là đang hết hàng.
      */
-    private function baseQuery(): Builder
+    private function baseQuery(bool $requireStock = true): Builder
     {
         SqliteUnaccentFunction::ensureRegistered(DB::connection());
 
@@ -478,25 +494,36 @@ class PublicCatalogReadModel
             ->leftJoin('power_sources as ps', 'ps.id', '=', 's.power_source_id')
             ->leftJoin('product_models as pm', 'pm.id', '=', 's.model_id')
             ->where('s.status', 'ACTIVE')
-            ->where('s.published_to_app', true)
-            ->whereRaw(
-                '(SELECT COALESCE(SUM(b.available_qty), 0) FROM inventory_balances b'
-                ." WHERE b.product_id = s.sku_id AND b.stock_status = 'AVAILABLE') > 0"
-            );
+            ->where('s.published_to_app', true);
+
+        if ($requireStock) {
+            $query->whereRaw(self::AVAILABLE_QTY_SUBQUERY.' > 0');
+        }
 
         if ($this->profileHasExtras()) {
             $query->leftJoin('pv_product_profiles as pp', 'pp.sku_id', '=', 's.sku_id');
         }
 
-        return $query->select($this->selectColumns());
+        return $query->select($this->selectColumns($requireStock));
     }
 
     /**
+     * @param  bool  $stockAlreadyFiltered  true thì mọi dòng chắc chắn còn tồn,
+     *                                      khỏi chạy lại truy vấn con cho cột cờ
      * @return array<int, mixed>
      */
-    private function selectColumns(): array
+    private function selectColumns(bool $stockAlreadyFiltered = true): array
     {
+        // has_stock là CỜ 0/1, không phải số tồn. Nhánh đã lọc tồn thì hằng 1 —
+        // vừa đúng vừa tránh chạy truy vấn con lần hai trên đường duyệt nóng.
+        // CASE ... THEN 1 ELSE 0 cho kết quả như nhau trên cả PostgreSQL lẫn
+        // SQLite (bộ test chạy sqlite), khác với so sánh boolean trần.
+        $hasStockExpression = $stockAlreadyFiltered
+            ? '1'
+            : 'CASE WHEN '.self::AVAILABLE_QTY_SUBQUERY.' > 0 THEN 1 ELSE 0 END';
+
         $columns = [
+            DB::raw($hasStockExpression.' as has_stock'),
             's.sku_id', 's.sku_code', 's.sku_name', 's.unit', 's.specification', 's.updated_at',
             's.family_name', 's.variant_label',
             'br.brand_code', 'br.brand_name',
@@ -889,6 +916,12 @@ class PublicCatalogReadModel
             'industries' => $profileId !== null ? ($industries[$profileId] ?? []) : [],
             'images' => $profileId !== null ? ($images[$profileId] ?? []) : [],
             'is_featured' => (int) ($row->sort_featured ?? 0) === 1,
+            // Trạng thái bán hàng ở dạng NHÃN, không phải số tồn: hợp đồng cấm
+            // lộ số lượng, nhưng client vẫn phải phân biệt được "mua ngay được"
+            // với "hết hàng, đặt trước". Ở đường duyệt/tìm kiếm giá trị này luôn
+            // là IN_STOCK vì baseQuery() đã lọc bỏ hàng hết tồn; chỉ chế độ
+            // tra-theo-id mới có thể trả PREORDER.
+            'availability' => (int) ($row->has_stock ?? 1) === 1 ? 'IN_STOCK' : 'PREORDER',
             'updated_at' => $this->epochToIso($row->sort_updated ?? null),
         ];
     }
