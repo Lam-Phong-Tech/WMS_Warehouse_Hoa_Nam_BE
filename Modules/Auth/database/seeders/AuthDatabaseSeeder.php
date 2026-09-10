@@ -489,7 +489,11 @@ class AuthDatabaseSeeder extends Seeder
         ['username' => 'inbound-tester01', 'display_name' => 'Test Chỉ nhập kho', 'email' => 'inbound-tester01@gmail.com', 'role' => 'INBOUND_ONLY_TEST'],
     ];
 
-    private const NON_PRODUCTION_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION', 'INBOUND_ONLY_TEST'];
+    /**
+     * Public để evidence:permission-catalog tách role fixture khỏi hợp đồng WWHN-150 và báo
+     * cáo chúng riêng, thay vì chép lại danh sách (chép lại là lệch ngay lần sửa kế tiếp).
+     */
+    public const NON_PRODUCTION_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION', 'INBOUND_ONLY_TEST'];
 
     /**
      * Vai trò của mô hình phân quyền CŨ, giữ lại cho dev/test và dữ liệu lịch sử

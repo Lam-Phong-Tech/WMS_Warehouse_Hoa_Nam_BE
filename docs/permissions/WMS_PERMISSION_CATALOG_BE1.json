@@ -1,19 +1,146 @@
 {
-    "schema_version": "1.2.0",
-    "generated_at_utc": "2026-09-07T09:40:10+00:00",
+    "schema_version": "1.3.0",
+    "generated_at_utc": "2026-09-10T09:36:18+00:00",
     "approval_status": "PENDING_FE_BA_REVIEW",
+    "changes_since_previous": {
+        "summary": {
+            "routes_added": 26,
+            "routes_removed": 0,
+            "route_permission_changed": 0,
+            "permissions_added": 0,
+            "permissions_removed": 0,
+            "permission_status_changed": 0,
+            "roles_with_permission_changes": 0
+        },
+        "previous_generated_at_utc": "2026-09-07T09:40:10+00:00",
+        "previous_schema_version": "1.2.0",
+        "routes_added": [
+            {
+                "route": "DELETE api/v1/component-issue-documents/{id}/lines/{lineId}",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "DELETE api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "DELETE api/v1/warranty-component-issues/{id}/lines/{lineId}",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "GET api/v1/auth/mfa/status",
+                "permission": null
+            },
+            {
+                "route": "PATCH api/v1/component-issue-documents/{id}/lines/{lineId}",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "PATCH api/v1/inbound-documents/{id}/lines/{lineId}/sku",
+                "permission": "inbound.scan"
+            },
+            {
+                "route": "PATCH api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "PATCH api/v1/warranty-component-issues/{id}/lines/{lineId}",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/auth/mfa/confirm",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/auth/mfa/disable",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/auth/mfa/enroll",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/auth/mfa/verify",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/component-issue-documents/record",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/component-issue-documents/resolve-code",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/component-issue-documents/{id}/lines",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/component-issue-documents/{id}/unscan",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/mini-app/component-issue-documents/record",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/mini-app/component-issue-documents/resolve-code",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/mini-app/warranty-component-issues/record",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/mini-app/warranty-component-issues/resolve-code",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/mini-app/warranty-component-issues/{id}/lines",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/mini-app/warranty-component-issues/{id}/unscan",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/warranty-component-issues/record",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/warranty-component-issues/resolve-code",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/warranty-component-issues/{id}/lines",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "POST api/v1/warranty-component-issues/{id}/unscan",
+                "permission": "warranty.component_issue"
+            }
+        ],
+        "routes_removed": [],
+        "route_permission_changed": [],
+        "permissions_added": [],
+        "permissions_removed": [],
+        "permission_status_changed": [],
+        "roles_added": [],
+        "roles_removed": [],
+        "role_permission_changes": []
+    },
     "source_hashes": {
         "permission_seed": {
             "path": "Modules/Auth/database/seeders/AuthDatabaseSeeder.php",
-            "sha256": "e576d6b5b505490b617f8b01816cc644251e062aae8531779436ed0fa467f148"
+            "sha256": "30ff7070318f32851e1f4c142513252aa99f081744da168058ba3cf49a7291c0"
         },
         "warehouse_routes": {
             "path": "Modules/Warehouse/routes/api.php",
-            "sha256": "98859a911a0164ab000840336eb303a558ae9721305ae569cbb25421e0cfa9ad"
+            "sha256": "ba89244b4be9b46f43f94aea28ba0a69f64919bc5bb52221a1a85422ced720b6"
         },
         "auth_routes": {
             "path": "Modules/Auth/routes/api.php",
-            "sha256": "2e560e662ced0149e1ef3b25570923bc7fab2df42734efbc7c21811dd097dc84"
+            "sha256": "e23a3d7127a5a5225ba97f982b323597af27dec770bf859de781e64ed80e5b6b"
         },
         "audit_routes": {
             "path": "Modules/AuditLog/routes/api.php",
@@ -25,7 +152,7 @@
         },
         "permission_exporter": {
             "path": "app/Console/Commands/ExportPermissionCatalog.php",
-            "sha256": "00858b1d32d3f4c34be6c99762407ce64d06cbef15cd6a7c144001d378f41da2"
+            "sha256": "b366a38756825a747af326b117a2e27e3e82c9eb6636e86415adc0f58ce0f15b"
         },
         "user_permission_model": {
             "path": "Modules/Auth/app/Models/User.php",
@@ -38,6 +165,12 @@
         "missing_route_permissions": [],
         "status": "PASS"
     },
+    "fixture_roles": [
+        "INBOUND_ONLY_TEST",
+        "MASTER_MANAGER",
+        "NO_PERMISSION",
+        "SKU_MANAGER"
+    ],
     "permissions": [
         {
             "permission_key": "agency.manage",
@@ -484,6 +617,7 @@
             "role_name": "Quản trị viên",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": [
                 "agency.manage",
                 "agency.view",
@@ -561,6 +695,7 @@
             "role_name": "Chỉ nhập kho (Test)",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": true,
             "permissions": [
                 "catalog.view",
                 "container.manage",
@@ -602,6 +737,7 @@
             "role_name": "Ban lãnh đạo",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": [
                 "agency.view",
                 "catalog.view",
@@ -631,6 +767,7 @@
             "role_name": "Quản lý dữ liệu gốc (Test)",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": true,
             "permissions": [
                 "catalog.manage",
                 "catalog.view"
@@ -641,6 +778,7 @@
             "role_name": "Không có quyền (Test)",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": true,
             "permissions": []
         },
         {
@@ -648,6 +786,7 @@
             "role_name": "Quản lý SKU (Test)",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": true,
             "permissions": [
                 "catalog.view",
                 "sku.manage",
@@ -659,6 +798,7 @@
             "role_name": "Quản trị hệ thống",
             "scope_type": "SYSTEM",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": []
         },
         {
@@ -666,6 +806,7 @@
             "role_name": "Người xem",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": [
                 "agency.view",
                 "catalog.view",
@@ -697,6 +838,7 @@
             "role_name": "Người duyệt kho (ngừng dùng)",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": [
                 "agency.view",
                 "catalog.view",
@@ -733,6 +875,7 @@
             "role_name": "Thủ kho (ngừng dùng)",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": [
                 "catalog.view",
                 "container.manage",
@@ -791,6 +934,7 @@
             "role_name": "Quản lý kho",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": [
                 "agency.view",
                 "audit_log.view",
@@ -825,6 +969,7 @@
             "role_name": "Nhân viên kho",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": [
                 "agency.view",
                 "catalog.view",
@@ -868,6 +1013,7 @@
             "role_name": "Nhân viên bảo hành",
             "scope_type": "FUNCTION",
             "status": "ACTIVE",
+            "fixture_only": false,
             "permissions": [
                 "catalog.view",
                 "inventory.trace",
@@ -1054,6 +1200,72 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/auth/mfa/confirm",
+            "action": "Modules\\Auth\\Http\\Controllers\\MfaController@confirm",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/mfa/disable",
+            "action": "Modules\\Auth\\Http\\Controllers\\MfaController@disable",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/mfa/enroll",
+            "action": "Modules\\Auth\\Http\\Controllers\\MfaController@enroll",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/mfa/status",
+            "action": "Modules\\Auth\\Http\\Controllers\\MfaController@status",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/mfa/verify",
+            "action": "Modules\\Auth\\Http\\Controllers\\MfaController@verify",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "throttle:auth-mfa-verify",
+                "Modules\\Auth\\Http\\Middleware\\PersistRefreshTokenCookie"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/auth/refresh",
             "action": "Modules\\Auth\\Http\\Controllers\\AuthController@refresh",
             "permission": null,
@@ -1214,8 +1426,93 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/component-issue-documents/record",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppComponentIssueStagingController@record",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/component-issue-documents/resolve-code",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppComponentIssueStagingController@resolveCode",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/component-issue-documents/{id}/cancel",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@cancel",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/component-issue-documents/{id}/lines/{lineId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@destroyLine",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/component-issue-documents/{id}/lines/{lineId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@updateLine",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/component-issue-documents/{id}/lines",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@storeLine",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -1250,6 +1547,23 @@
             ],
             "uri": "api/v1/component-issue-documents/{id}/scan",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@scan",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/component-issue-documents/{id}/unscan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@unscan",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -1839,6 +2153,23 @@
         },
         {
             "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/lines/{lineId}/sku",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\InboundSkuInfoController@complete",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.scan",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/inbound-documents/{id}/post-receipt",
@@ -2272,6 +2603,40 @@
                 "api",
                 "auth:api",
                 "permission:label.print"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/component-issue-documents/record",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppComponentIssueStagingController@record",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/component-issue-documents/resolve-code",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppComponentIssueStagingController@resolveCode",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
             ]
         },
         {
@@ -3219,8 +3584,93 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/mini-app/warranty-component-issues/record",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppComponentIssueStagingController@record",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/resolve-code",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppComponentIssueStagingController@resolveCode",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/mini-app/warranty-component-issues/{id}/cancel",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@cancel",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@destroyLine",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@updateLine",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/lines",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@storeLine",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -3255,6 +3705,23 @@
             ],
             "uri": "api/v1/mini-app/warranty-component-issues/{id}/scans",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@scan",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/unscan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@unscan",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -6398,8 +6865,93 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/warranty-component-issues/record",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppComponentIssueStagingController@record",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/warranty-component-issues/resolve-code",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppComponentIssueStagingController@resolveCode",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/warranty-component-issues/{id}/cancel",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@cancel",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/warranty-component-issues/{id}/lines/{lineId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@destroyLine",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/warranty-component-issues/{id}/lines/{lineId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@updateLine",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/warranty-component-issues/{id}/lines",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@storeLine",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -6434,6 +6986,23 @@
             ],
             "uri": "api/v1/warranty-component-issues/{id}/scans",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@scan",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/warranty-component-issues/{id}/unscan",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineComponentFlowController@unscan",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -6647,6 +7216,56 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/auth/mfa/confirm",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/mfa/disable",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/mfa/enroll",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/mfa/status",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/mfa/verify",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/auth/refresh",
             "permission": null,
             "accepted_permissions": [],
@@ -6811,7 +7430,92 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/component-issue-documents/record",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/component-issue-documents/resolve-code",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/component-issue-documents/{id}/cancel",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/component-issue-documents/{id}/lines/{lineId}",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/component-issue-documents/{id}/lines/{lineId}",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/component-issue-documents/{id}/lines",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -6846,6 +7550,23 @@
                 "POST"
             ],
             "uri": "api/v1/component-issue-documents/{id}/scan",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/component-issue-documents/{id}/unscan",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -7499,6 +8220,24 @@
         },
         {
             "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/lines/{lineId}/sku",
+            "permission": "inbound.scan",
+            "accepted_permissions": [
+                "inbound.scan"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/inbound-documents/{id}/post-receipt",
@@ -8006,6 +8745,40 @@
                 "INBOUND_ONLY_TEST",
                 "SUPER_ADMIN",
                 "WAREHOUSE_KEEPER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/component-issue-documents/record",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/component-issue-documents/resolve-code",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
             ],
             "backend_enforced": true
         },
@@ -9092,7 +9865,92 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/mini-app/warranty-component-issues/record",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/resolve-code",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/mini-app/warranty-component-issues/{id}/cancel",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/lines",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -9127,6 +9985,23 @@
                 "POST"
             ],
             "uri": "api/v1/mini-app/warranty-component-issues/{id}/scans",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/warranty-component-issues/{id}/unscan",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -12597,7 +13472,92 @@
             "methods": [
                 "POST"
             ],
+            "uri": "api/v1/warranty-component-issues/record",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/warranty-component-issues/resolve-code",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
             "uri": "api/v1/warranty-component-issues/{id}/cancel",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/warranty-component-issues/{id}/lines/{lineId}",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/warranty-component-issues/{id}/lines/{lineId}",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/warranty-component-issues/{id}/lines",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -12632,6 +13592,23 @@
                 "POST"
             ],
             "uri": "api/v1/warranty-component-issues/{id}/scans",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/warranty-component-issues/{id}/unscan",
             "permission": "warranty.component_issue",
             "accepted_permissions": [
                 "warranty.component_issue"
@@ -12697,8 +13674,9 @@
         }
     ],
     "permission_seed_diff": {
-        "schema_version": "1.1.0",
+        "schema_version": "1.2.0",
         "contract": "WWHN-150 + SRS v1.12 Annex C scan classify permission seed diff",
+        "evaluation_scope": "PRODUCTION_ROLES",
         "expected": {
             "permission_key": "scan.classify",
             "annex_c_alias_key": "scan.execute",
@@ -12717,7 +13695,6 @@
             "permission_status": "ACTIVE",
             "roles": [
                 "ADMIN",
-                "INBOUND_ONLY_TEST",
                 "SUPER_ADMIN",
                 "WAREHOUSE_KEEPER",
                 "WAREHOUSE_STAFF",
@@ -12730,10 +13707,27 @@
             ],
             "backend_enforced": true
         },
+        "fixture_roles": {
+            "source": "Modules\\Auth\\Database\\Seeders\\AuthDatabaseSeeder::NON_PRODUCTION_ROLES",
+            "declared": [
+                "SKU_MANAGER",
+                "MASTER_MANAGER",
+                "NO_PERMISSION",
+                "INBOUND_ONLY_TEST"
+            ],
+            "seeded": [
+                "INBOUND_ONLY_TEST",
+                "MASTER_MANAGER",
+                "NO_PERMISSION",
+                "SKU_MANAGER"
+            ],
+            "holding_scan_permission": [
+                "INBOUND_ONLY_TEST"
+            ],
+            "rule": "Role fixture không được seed ở production (SeedEnvironment) và wms:golive-check chặn chúng ngoài development; chúng được báo cáo ở đây và KHÔNG tính vào missing_roles/unexpected_roles của hợp đồng WWHN-150."
+        },
         "missing_roles": [],
-        "unexpected_roles": [
-            "INBOUND_ONLY_TEST"
-        ],
-        "status": "FAIL"
+        "unexpected_roles": [],
+        "status": "PASS"
     }
 }

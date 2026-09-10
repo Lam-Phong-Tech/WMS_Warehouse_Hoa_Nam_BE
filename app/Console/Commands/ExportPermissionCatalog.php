@@ -3,15 +3,18 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use RuntimeException;
 
 class ExportPermissionCatalog extends Command
 {
     protected $signature = 'evidence:permission-catalog
         {--output=build/evidence/api-data/permission-catalog.json}
-        {--seed-diff-output=build/evidence/api-data/permission-seed-diff.json}';
+        {--seed-diff-output=build/evidence/api-data/permission-seed-diff.json}
+        {--previous= : Catalog đã publish trước đó (JSON); có thì payload kèm danh sách thay đổi route/permission/role so với bản đó}';
 
     protected $description = 'Xuất permission catalog, role mapping, route-permission matrix và source hash làm evidence';
 
@@ -22,6 +25,14 @@ class ExportPermissionCatalog extends Command
         if (! is_dir($directory) && ! mkdir($directory, 0777, true) && ! is_dir($directory)) {
             throw new RuntimeException("Không thể tạo thư mục evidence: {$directory}");
         }
+
+        // Đọc bản trước TRƯỚC khi ghi: --previous được phép trỏ đúng file --output.
+        $previous = $this->readPreviousCatalog();
+
+        // Role fixture chỉ được seed ở local/testing/demo (SeedEnvironment). Chúng vẫn nằm
+        // trong catalog để QA thấy đúng DB đang kiểm, nhưng hợp đồng production WWHN-150 chỉ
+        // xét role production — nếu không, một role kiểm thử làm đỏ gate của production.
+        $fixtureRoleCodes = AuthDatabaseSeeder::NON_PRODUCTION_ROLES;
 
         $permissions = DB::table('permission')
             ->select('permission_key', 'permission_name', 'scope_type', 'status')
@@ -40,7 +51,7 @@ class ExportPermissionCatalog extends Command
 
         $roles = $roleRows
             ->groupBy('role_code')
-            ->map(function ($rows, $roleCode) {
+            ->map(function ($rows, $roleCode) use ($fixtureRoleCodes) {
                 $first = $rows->first();
 
                 return [
@@ -48,6 +59,7 @@ class ExportPermissionCatalog extends Command
                     'role_name' => $first->role_name,
                     'scope_type' => $first->scope_type,
                     'status' => $first->status,
+                    'fixture_only' => in_array($roleCode, $fixtureRoleCodes, true),
                     'permissions' => $rows->pluck('permission_key')->filter()->values()->all(),
                 ];
             })
@@ -155,12 +167,24 @@ class ExportPermissionCatalog extends Command
             'WAREHOUSE_STAFF',
             'WARRANTY_STAFF',
         ];
-        $actualScanRoles = collect($scanMatrix['roles'] ?? [])->sort()->values();
+        $scanRoles = collect($scanMatrix['roles'] ?? [])->sort()->values();
+        $actualScanRoles = $scanRoles
+            ->reject(fn (string $role): bool => in_array($role, $fixtureRoleCodes, true))
+            ->values();
+        $fixtureScanRoles = $scanRoles
+            ->filter(fn (string $role): bool => in_array($role, $fixtureRoleCodes, true))
+            ->values();
         $missingScanRoles = collect($expectedScanRoles)->diff($actualScanRoles)->values();
         $unexpectedScanRoles = $actualScanRoles->diff($expectedScanRoles)->values();
+        $seededFixtureRoles = $roles
+            ->where('fixture_only', true)
+            ->pluck('role_code')
+            ->values()
+            ->all();
         $permissionSeedDiff = [
-            'schema_version' => '1.1.0',
+            'schema_version' => '1.2.0',
             'contract' => 'WWHN-150 + SRS v1.12 Annex C scan classify permission seed diff',
+            'evaluation_scope' => 'PRODUCTION_ROLES',
             'expected' => [
                 'permission_key' => 'scan.classify',
                 'annex_c_alias_key' => 'scan.execute',
@@ -176,6 +200,13 @@ class ExportPermissionCatalog extends Command
                 'route_accepted_permissions' => $scanMatrix['accepted_permissions'] ?? [],
                 'backend_enforced' => $scanMatrix['backend_enforced'] ?? false,
             ],
+            'fixture_roles' => [
+                'source' => AuthDatabaseSeeder::class.'::NON_PRODUCTION_ROLES',
+                'declared' => array_values($fixtureRoleCodes),
+                'seeded' => $seededFixtureRoles,
+                'holding_scan_permission' => $fixtureScanRoles->all(),
+                'rule' => 'Role fixture không được seed ở production (SeedEnvironment) và wms:golive-check chặn chúng ngoài development; chúng được báo cáo ở đây và KHÔNG tính vào missing_roles/unexpected_roles của hợp đồng WWHN-150.',
+            ],
             'missing_roles' => $missingScanRoles->all(),
             'unexpected_roles' => $unexpectedScanRoles->all(),
             'status' => $missingScanRoles->isEmpty()
@@ -188,9 +219,14 @@ class ExportPermissionCatalog extends Command
         ];
 
         $payload = [
-            'schema_version' => '1.2.0',
+            'schema_version' => '1.3.0',
             'generated_at_utc' => now()->utc()->toIso8601String(),
             'approval_status' => 'PENDING_FE_BA_REVIEW',
+        ];
+        if ($previous !== null) {
+            $payload['changes_since_previous'] = $this->changesSince($previous, $permissions, $roles, $routes);
+        }
+        $payload += [
             'source_hashes' => $sourceHashes,
             'integrity' => [
                 'active_permission_count' => $activePermissionKeys->count(),
@@ -198,6 +234,7 @@ class ExportPermissionCatalog extends Command
                 'missing_route_permissions' => $missingRoutePermissions->all(),
                 'status' => $missingRoutePermissions->isEmpty() ? 'PASS' : 'FAIL',
             ],
+            'fixture_roles' => $seededFixtureRoles,
             'permissions' => $permissions,
             'roles' => $roles,
             'route_permissions' => $routes,
@@ -229,6 +266,104 @@ class ExportPermissionCatalog extends Command
         $this->info("Đã xuất permission catalog và role matrix: {$output}");
 
         return self::SUCCESS;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function readPreviousCatalog(): ?array
+    {
+        $path = (string) $this->option('previous');
+        if ($path === '') {
+            return null;
+        }
+
+        if (! is_file($path)) {
+            throw new RuntimeException("Không đọc được catalog trước đó: {$path}");
+        }
+
+        $decoded = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * Danh sách thay đổi so với catalog đã publish trước đó — thứ FE/BA phải review, thay vì
+     * đọc lại toàn bộ catalog để tự đoán cái gì đã đổi.
+     *
+     * @param  array<string, mixed>  $previous
+     * @return array<string, mixed>
+     */
+    private function changesSince(array $previous, Collection $permissions, Collection $roles, Collection $routes): array
+    {
+        $routeKey = static fn (array $route): string => implode('|', $route['methods'] ?? []).' '.($route['uri'] ?? '');
+
+        $routesBefore = collect($previous['route_permissions'] ?? [])
+            ->mapWithKeys(fn (array $route): array => [$routeKey($route) => $route['permission'] ?? null]);
+        $routesAfter = $routes
+            ->mapWithKeys(fn (array $route): array => [$routeKey($route) => $route['permission']]);
+
+        $routesAdded = $routesAfter->keys()->diff($routesBefore->keys())->sort()->values()
+            ->map(fn (string $key): array => ['route' => $key, 'permission' => $routesAfter[$key]])
+            ->all();
+        $routesRemoved = $routesBefore->keys()->diff($routesAfter->keys())->sort()->values()
+            ->map(fn (string $key): array => ['route' => $key, 'permission' => $routesBefore[$key]])
+            ->all();
+        $routePermissionChanged = $routesAfter->keys()->intersect($routesBefore->keys())->sort()->values()
+            ->filter(fn (string $key): bool => $routesAfter[$key] !== $routesBefore[$key])
+            ->map(fn (string $key): array => ['route' => $key, 'from' => $routesBefore[$key], 'to' => $routesAfter[$key]])
+            ->values()
+            ->all();
+
+        $permissionsBefore = collect($previous['permissions'] ?? [])
+            ->mapWithKeys(fn (array $permission): array => [$permission['permission_key'] => $permission['status'] ?? null]);
+        $permissionsAfter = $permissions
+            ->mapWithKeys(fn (array $permission): array => [$permission['permission_key'] => $permission['status']]);
+
+        $permissionStatusChanged = $permissionsAfter->keys()->intersect($permissionsBefore->keys())->sort()->values()
+            ->filter(fn (string $key): bool => $permissionsAfter[$key] !== $permissionsBefore[$key])
+            ->map(fn (string $key): array => ['permission_key' => $key, 'from' => $permissionsBefore[$key], 'to' => $permissionsAfter[$key]])
+            ->values()
+            ->all();
+
+        $rolesBefore = collect($previous['roles'] ?? [])
+            ->mapWithKeys(fn (array $role): array => [$role['role_code'] => $role['permissions'] ?? []]);
+        $rolesAfter = $roles
+            ->mapWithKeys(fn (array $role): array => [$role['role_code'] => $role['permissions']]);
+
+        $rolePermissionChanges = [];
+        foreach ($rolesAfter->keys()->intersect($rolesBefore->keys())->sort()->values() as $roleCode) {
+            $added = array_values(array_diff($rolesAfter[$roleCode], $rolesBefore[$roleCode]));
+            $removed = array_values(array_diff($rolesBefore[$roleCode], $rolesAfter[$roleCode]));
+            if ($added === [] && $removed === []) {
+                continue;
+            }
+            sort($added);
+            sort($removed);
+            $rolePermissionChanges[$roleCode] = ['added' => $added, 'removed' => $removed];
+        }
+
+        $changes = [
+            'previous_generated_at_utc' => $previous['generated_at_utc'] ?? null,
+            'previous_schema_version' => $previous['schema_version'] ?? null,
+            'routes_added' => $routesAdded,
+            'routes_removed' => $routesRemoved,
+            'route_permission_changed' => $routePermissionChanged,
+            'permissions_added' => $permissionsAfter->keys()->diff($permissionsBefore->keys())->sort()->values()->all(),
+            'permissions_removed' => $permissionsBefore->keys()->diff($permissionsAfter->keys())->sort()->values()->all(),
+            'permission_status_changed' => $permissionStatusChanged,
+            'roles_added' => $rolesAfter->keys()->diff($rolesBefore->keys())->sort()->values()->all(),
+            'roles_removed' => $rolesBefore->keys()->diff($rolesAfter->keys())->sort()->values()->all(),
+            'role_permission_changes' => $rolePermissionChanges,
+        ];
+
+        return ['summary' => [
+            'routes_added' => count($changes['routes_added']),
+            'routes_removed' => count($changes['routes_removed']),
+            'route_permission_changed' => count($changes['route_permission_changed']),
+            'permissions_added' => count($changes['permissions_added']),
+            'permissions_removed' => count($changes['permissions_removed']),
+            'permission_status_changed' => count($changes['permission_status_changed']),
+            'roles_with_permission_changes' => count($changes['role_permission_changes']),
+        ]] + $changes;
     }
 
     /**
