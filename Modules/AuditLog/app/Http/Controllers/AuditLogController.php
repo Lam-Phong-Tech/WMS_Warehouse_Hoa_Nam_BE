@@ -7,6 +7,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Modules\AuditLog\Repositories\Contracts\AuditLogRepositoryInterface;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\AuditLog\Services\AuditObjectReferenceResolver;
 use Modules\Auth\Models\User;
 use OpenApi\Attributes as OA;
 
@@ -30,7 +31,10 @@ class AuditLogController extends Controller
         'inventory.' => AuditLogger::MODULE_STOCKTAKE,
     ];
 
-    public function __construct(private readonly AuditLogRepositoryInterface $auditLogs) {}
+    public function __construct(
+        private readonly AuditLogRepositoryInterface $auditLogs,
+        private readonly AuditObjectReferenceResolver $objectReferences,
+    ) {}
 
     #[OA\Get(
         path: '/api/v1/audit-logs',
@@ -63,13 +67,16 @@ class AuditLogController extends Controller
 
         $allowedModules = $this->allowedModulesFor($request->user());
 
-        return $this->respondPaginated(
-            $this->auditLogs->paginate(
-                $filters,
-                (int) $request->input('per_page', 10),
-                $allowedModules === null ? null : fn ($query) => $query->whereIn('module', $allowedModules),
-            )
+        $page = $this->auditLogs->paginate(
+            $filters,
+            (int) $request->input('per_page', 10),
+            $allowedModules === null ? null : fn ($query) => $query->whereIn('module', $allowedModules),
         );
+        // `object_code`: số phiếu / mã hồ sơ / serial... để màn nhật ký không phải
+        // hiện UUID `object_id` cho người dùng — xem AuditObjectReferenceResolver.
+        $this->objectReferences->attach($page->getCollection());
+
+        return $this->respondPaginated($page);
     }
 
     #[OA\Get(
@@ -93,18 +100,19 @@ class AuditLogController extends Controller
         $filters = $request->all();
         $userId = (string) $request->user()->user_id;
 
-        return $this->respondPaginated(
-            $this->auditLogs->paginate(
-                $filters,
-                (int) $request->input('per_page', 10),
-                // Ép cứng object_type/object_id về chính user đang gọi bằng scope
-                // closure (không đi qua $filterable) — không cho client tự truyền
-                // giá trị khác để xem lịch sử người khác qua endpoint tự-xem, và
-                // tránh guard "cột *_id phải numeric" của BaseRepository (object_id
-                // ở đây là UUID string).
-                fn ($query) => $query->where('object_type', 'user')->where('object_id', $userId),
-            )
+        $page = $this->auditLogs->paginate(
+            $filters,
+            (int) $request->input('per_page', 10),
+            // Ép cứng object_type/object_id về chính user đang gọi bằng scope
+            // closure (không đi qua $filterable) — không cho client tự truyền
+            // giá trị khác để xem lịch sử người khác qua endpoint tự-xem, và
+            // tránh guard "cột *_id phải numeric" của BaseRepository (object_id
+            // ở đây là UUID string).
+            fn ($query) => $query->where('object_type', 'user')->where('object_id', $userId),
         );
+        $this->objectReferences->attach($page->getCollection());
+
+        return $this->respondPaginated($page);
     }
 
     /**
