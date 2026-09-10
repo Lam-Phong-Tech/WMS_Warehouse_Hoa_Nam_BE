@@ -103,6 +103,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # P0 bảo mật 10/09/2026 — cổng CỨNG chặn mật khẩu đã lộ và khoá bí mật quay lại
+      # repo (seeder, annotation OpenAPI, Postman, tài liệu bàn giao, script đo tải đều
+      # từng chứa). Chạy trên máy runner chứ không trong container: bộ quét đọc đúng
+      # danh sách `git ls-files` của bản checkout. --self-test chạy TRƯỚC để một bộ luật
+      # bị sửa hỏng (không còn bắt được gì) không thể trả về PASS rỗng. Đặt đầu job để
+      # đỏ sớm, trước khi tốn thời gian build image.
+      - name: Setup Node for host-side gates
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Known-credential and secret scan (hard)
+        run: |
+          node scripts/check-known-credentials.mjs --self-test
+          node scripts/check-known-credentials.mjs
+
       - name: Build PHP runtime image
         run: docker build -f docker/php/Dockerfile -t "$IMAGE_NAME:${GITHUB_SHA}" .
 
@@ -187,6 +203,56 @@ jobs:
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'composer audit --locked --no-interaction'
+
+      # Cổng style theo RATCHET: mọi tệp PHP mà sự kiện này THÊM/SỬA phải sạch
+      # `pint --test`. Toàn repo chưa từng sạch pint nên chạy toàn cục là chặn vô
+      # hạn; ratchet giữ code mới sạch mà không đòi viết lại lịch sử. Khoảng so sánh:
+      #  - pull_request: checkout là merge commit refs/pull/N/merge, cha thứ nhất là
+      #    đầu nhánh đích lúc merge -> HEAD^1..HEAD đúng bằng thay đổi của PR;
+      #  - push: github.event.before..github.sha (mọi commit của lần push);
+      #  - push tạo nhánh mới (before = 40 số 0) hoặc workflow_dispatch: sự kiện không
+      #    có khoảng thay đổi -> kiểm commit đầu (HEAD^1..HEAD; commit gốc thì so với
+      #    cây rỗng).
+      # Giới hạn đã biết: push/PR mang `[skip ci]` không chạy workflow nên thay đổi
+      # của nó không đi qua cổng này.
+      - name: PHP style gate on changed files (pint --test, ratchet)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          zero_sha=0000000000000000000000000000000000000000
+          if [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "$zero_sha" ]; then
+            if ! git fetch --no-tags --depth=1 origin "$PUSH_BEFORE"; then
+              echo "::error::Không tải được commit before=${PUSH_BEFORE} (force-push?). Cổng không tự thu hẹp khoảng kiểm; push thêm một commit để có khoảng mới."
+              exit 1
+            fi
+            base="$PUSH_BEFORE"
+          else
+            git fetch --no-tags --depth=2 origin "$GITHUB_SHA"
+            if git rev-parse --verify --quiet "${GITHUB_SHA}^1" > /dev/null; then
+              base="$(git rev-parse "${GITHUB_SHA}^1")"
+            else
+              base="$(git hash-object -t tree /dev/null)"
+            fi
+          fi
+          list="${RUNNER_TEMP}/pint-changed-php-files"
+          git diff --name-only -z --diff-filter=ACMR "$base" "$GITHUB_SHA" -- '*.php' > "$list"
+          count="$(tr -cd '\0' < "$list" | wc -c | tr -d ' ')"
+          echo "Khoảng kiểm (${EVENT_NAME}): ${base}..${GITHUB_SHA} — ${count} tệp PHP thêm/sửa."
+          if [ "$count" -eq 0 ]; then
+            echo "Không có tệp PHP nào được thêm/sửa — không có gì để kiểm."
+          else
+            tr '\0' '\n' < "$list"
+            docker run --rm \
+              --user "$(id -u):$(id -g)" \
+              -e HOME=/tmp \
+              -v "$PWD:/var/www/html" \
+              -v "$list:/tmp/pint-changed-php-files:ro" \
+              --entrypoint sh \
+              "$IMAGE_NAME:${GITHUB_SHA}" \
+              -lc 'xargs -0 vendor/bin/pint --test < /tmp/pint-changed-php-files'
+          fi
 
       - name: Install Node dependencies
         run: |
