@@ -71,12 +71,59 @@ class DocumentationBaselineContractTest extends TestCase
             );
         }
 
+        // Operation có mặt ở runtime sau khi contract đóng băng (81782ec): mỗi operation
+        // phải được liệt kê tường minh trong một nhóm có commit đưa vào, lý do, chủ sở hữu
+        // và trạng thái duyệt — số đếm không được tăng trần.
+        $explicit = array_flip(array_merge(
+            $this->contract['api']['annex_c_alignment']['operations'],
+            $this->contract['api']['erd_alignment']['operations'],
+        ));
+        $amended = [];
+        foreach ($this->contract['api']['post_baseline_amendments']['groups'] as $group) {
+            foreach (['id', 'introduced_in', 'introduced_at', 'title', 'rationale', 'owner', 'approval'] as $field) {
+                $this->assertNotEmpty(
+                    $group[$field] ?? null,
+                    'Amendment '.($group['id'] ?? '?')." thiếu [{$field}] — không chấp nhận tăng số đếm trần."
+                );
+            }
+            $this->assertMatchesRegularExpression(
+                '/^[0-9a-f]{7,40}$/',
+                (string) $group['introduced_in'],
+                "Amendment {$group['id']}: introduced_in phải là commit SHA."
+            );
+            $this->assertNotEmpty($group['operations'] ?? [], "Amendment {$group['id']} không liệt kê operation nào.");
+
+            foreach ($group['operations'] as $operation) {
+                $this->assertArrayHasKey($operation, $operations, "Amendment operation [{$operation}] chưa được đăng ký route.");
+                $this->assertArrayNotHasKey($operation, $explicit, "Operation [{$operation}] đã được đếm ở Annex C/ERD alignment — không khai hai lần.");
+                $this->assertArrayNotHasKey($operation, $amended, "Operation [{$operation}] khai hai lần trong post_baseline_amendments.");
+                $amended[$operation] = true;
+            }
+        }
+
+        // Operation đã gỡ có chủ ý phải VẮNG MẶT — một lần merge nhầm làm nó quay lại thì đỏ.
+        foreach ($this->contract['api']['retired_operations'] as $retired) {
+            $this->assertArrayNotHasKey($retired['operation'], $operations, "Operation đã gỡ [{$retired['operation']}] quay lại API surface.");
+            $this->assertNotEmpty($retired['removed_in'] ?? null, "Operation đã gỡ [{$retired['operation']}] thiếu removed_in.");
+            $this->assertNotEmpty($retired['decision'] ?? null, "Operation đã gỡ [{$retired['operation']}] thiếu decision.");
+        }
+
         $joined = strtolower(implode("\n", array_keys($operations)));
         foreach ($this->contract['api']['forbidden_path_fragments'] as $fragment) {
             $this->assertStringNotContainsString($fragment, $joined, "Forbidden API scope [{$fragment}] is exposed.");
         }
     }
 
+    /**
+     * Năm route dưới đây chạy handler BaM1* từ quyết định GĐ1 (25/08/2026):
+     * Flow06AlignmentServiceProvider đăng ký lại chúng lúc boot — nhập kho scan-driven chỉ
+     * tạo header rồi quét (BaM1InboundDocumentController), Post Issue là giao dịch kho độc
+     * lập với nhãn (BaM1OutboundFlowController, REQ-012), bảo hành multi-defect với
+     * estimated_completion_date canonical (BaM1WarrantyController, REQ-009/010). Commit:
+     * f93446b "activate M1 outbound and warranty handlers", 4a4fce8, 5c64d42. Repo chưa có
+     * decision record GĐ1: sign-off BA + Tech Lead còn PENDING (ghi ở contract,
+     * post_baseline_amendments và retired_operations).
+     */
     public function test_current_business_routes_use_final_baseline_handlers(): void
     {
         $expected = [
@@ -84,8 +131,8 @@ class DocumentationBaselineContractTest extends TestCase
             'PATCH api/v1/skus/{id}' => 'CurrentBaselineSkuController@update',
             'POST api/v1/skus/{id}/physical-codes' => 'CurrentBaselineItemIdentityController@assign',
             'DELETE api/v1/skus/{id}/physical-codes/{physicalCodeId}' => 'CurrentBaselineItemIdentityController@revoke',
-            'POST api/v1/inbound-documents' => 'CurrentBaselineDocumentController@storeInbound',
-            'PATCH api/v1/inbound-documents/{id}' => 'CurrentBaselineDocumentController@updateInbound',
+            'POST api/v1/inbound-documents' => 'BaM1InboundDocumentController@store',
+            'PATCH api/v1/inbound-documents/{id}' => 'BaM1InboundDocumentController@update',
             'POST api/v1/inbound-documents/{id}/cancel' => 'CurrentBaselineDocumentController@cancelInbound',
             'POST api/v1/inbound-documents/{id}/scan' => 'CurrentBaselineStockFlowController@inboundScan',
             'POST api/v1/inbound-documents/{id}/post-receipt' => 'CurrentBaselineStockFlowController@postReceipt',
@@ -95,7 +142,7 @@ class DocumentationBaselineContractTest extends TestCase
             // tiếp đã được gỡ khỏi API surface (xem test_removed_outbound_write_routes).
             'POST api/v1/outbound-documents/{id}/cancel' => 'CurrentBaselineDocumentController@cancelOutbound',
             'POST api/v1/outbound-documents/{id}/scan' => 'AlignedOutboundFlowController@outboundScan',
-            'POST api/v1/outbound-documents/{id}/post-issue' => 'AlignedOutboundFlowController@postIssue',
+            'POST api/v1/outbound-documents/{id}/post-issue' => 'BaM1OutboundFlowController@postIssue',
             'POST api/v1/outbound-documents/{id}/reverse' => 'CurrentBaselineStockFlowController@reverseOutbound',
             'POST api/v1/containers' => 'CurrentBaselineContainerFlowController@store',
             'PATCH api/v1/containers/{id}' => 'CurrentBaselineContainerFlowController@update',
@@ -109,10 +156,9 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/component-issue-documents/{id}/scan' => 'CurrentBaselineComponentFlowController@scan',
             'POST api/v1/component-issue-documents/{id}/cancel' => 'CurrentBaselineComponentFlowController@cancel',
             'POST api/v1/component-issue-documents/{id}/post' => 'CurrentBaselineComponentFlowController@post',
-            'POST api/v1/warranty-cases' => 'CurrentBaselineWarrantyController@storeWarrantyCase',
-            'PATCH api/v1/warranty-cases/{id}' => 'CurrentBaselineWarrantyController@updateWarrantyCase',
+            'POST api/v1/warranty-cases' => 'BaM1WarrantyController@storeWarrantyCase',
+            'PATCH api/v1/warranty-cases/{id}' => 'BaM1WarrantyController@updateWarrantyCase',
             'POST api/v1/label-snapshots' => 'AlignedOutboundFlowController@storePackingLabel',
-            'POST api/v1/label-snapshots/{id}/apply' => 'AlignedOutboundFlowController@applyPackingLabel',
             'POST api/v1/label-snapshots/{id}/print' => 'CurrentBaselineOperationsController@printLabelSnapshot',
             'POST api/v1/label-snapshots/{id}/reprint' => 'CurrentBaselineOperationsController@reprintLabelSnapshot',
             'GET api/v1/pv/catalog' => 'CurrentBaselineOperationsController@pvCatalog',
@@ -125,6 +171,11 @@ class DocumentationBaselineContractTest extends TestCase
             $this->assertNotNull($route, "Missing route [{$key}].");
             $this->assertStringEndsWith($actionSuffix, $route->getActionName(), "Route [{$key}] is not using final baseline handler.");
         }
+
+        $this->assertNull(
+            $this->findRoute('POST', 'api/v1/label-snapshots/{id}/apply'),
+            'GĐ1 đã gỡ trạng thái APPLY của Packing Label (contract retired_operations) — route không được quay lại.'
+        );
     }
 
     /**
@@ -159,7 +210,6 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/component-issue-documents/{id}/post' => 'permission:warranty.component_issue',
             'PATCH api/v1/warranty-cases/{id}' => 'permission:warranty.manage',
             'POST api/v1/label-snapshots' => 'permission:label.print',
-            'POST api/v1/label-snapshots/{id}/apply' => 'permission:label.print',
             'POST api/v1/label-snapshots/{id}/print' => 'permission:label.print',
             'POST api/v1/label-snapshots/{id}/reprint' => 'permission:label.reprint',
         ];
@@ -170,6 +220,11 @@ class DocumentationBaselineContractTest extends TestCase
             $this->assertNotNull($route, "Missing route [{$key}].");
             $this->assertContains($permission, $route->gatherMiddleware(), "Route [{$key}] must use [{$permission}].");
         }
+
+        $this->assertNull(
+            $this->findRoute('POST', 'api/v1/label-snapshots/{id}/apply'),
+            'GĐ1 đã gỡ trạng thái APPLY của Packing Label (contract retired_operations) — route không được quay lại.'
+        );
     }
 
     public function test_required_objects_columns_and_excluded_scope_match_manifest(): void
@@ -184,6 +239,12 @@ class DocumentationBaselineContractTest extends TestCase
         foreach ($this->contract['critical_columns'] as $object => $columns) {
             foreach ($columns as $column) {
                 $this->assertTrue(Schema::hasColumn($object, $column), "{$object} missing documented column [{$column}].");
+            }
+        }
+        // WWHN-SEC-06: cột PII plaintext đã bỏ không được quay lại dưới bất kỳ quan hệ nào.
+        foreach ($this->contract['forbidden_columns']['objects'] as $object => $columns) {
+            foreach ($columns as $column) {
+                $this->assertFalse(Schema::hasColumn($object, $column), "{$object} must not expose removed column [{$column}] (WWHN-SEC-06).");
             }
         }
         foreach (['completion_type', 'shortage_reason', 'remaining_qty', 'cancelled_remainder_qty'] as $column) {
@@ -244,10 +305,35 @@ class DocumentationBaselineContractTest extends TestCase
         foreach ($this->contract['required_roles'] as $role) {
             $this->assertContains($role, $roleCodes, "Missing required role [{$role}].");
         }
+
+        // Quyền đã thu hồi (2026_08_27_170000): không được nằm lại trong danh sách canonical,
+        // và nếu dòng còn trong DB thì phải INACTIVE — ACTIVE lại là cấp lại một quyền ma.
+        $retired = $this->contract['retired_permissions']['keys'];
+        $this->assertNotEmpty($retired);
+        $this->assertNotEmpty($this->contract['retired_permissions']['owner'] ?? null);
+        $this->assertSame(
+            [],
+            array_values(array_intersect($retired, $this->contract['permissions'])),
+            'Permission đã retire không được nằm trong danh sách permissions canonical.'
+        );
+        $statusByKey = DB::table('permissions')->whereIn('permission_key', $retired)->pluck('status', 'permission_key')->all();
+        foreach ($statusByKey as $key => $status) {
+            $this->assertSame('INACTIVE', strtoupper((string) $status), "Permission đã retire [{$key}] còn ACTIVE.");
+        }
     }
 
     public function test_generated_swagger_has_route_parity_and_baseline_error_responses(): void
     {
+        // Miễn trừ tường minh, có chủ sở hữu: operation được khai ĐÚNG tập status của nó
+        // (vd. health chỉ 200/503) — không phải bỏ qua kiểm tra.
+        $exemptions = [];
+        foreach ($this->contract['api']['http_error_status_exemptions'] as $exemption) {
+            $this->assertNotEmpty($exemption['owner'] ?? null, "Miễn trừ [{$exemption['operation']}] thiếu owner.");
+            $this->assertNotEmpty($exemption['decision'] ?? null, "Miễn trừ [{$exemption['operation']}] thiếu decision.");
+            $exemptions[$exemption['operation']] = array_map('strval', $exemption['documented_statuses']);
+        }
+        $usedExemptions = [];
+
         Artisan::call('l5-swagger:generate');
         $swagger = json_decode((string) file_get_contents(storage_path('api-docs/api-docs.json')), true, flags: JSON_THROW_ON_ERROR);
         $count = 0;
@@ -257,10 +343,24 @@ class DocumentationBaselineContractTest extends TestCase
                     continue;
                 }
                 $count++;
+                $key = strtoupper($method).' '.$path;
+                if (isset($exemptions[$key])) {
+                    $documented = array_map('strval', array_keys($pathItem[$method]['responses'] ?? []));
+                    $expected = $exemptions[$key];
+                    sort($documented);
+                    sort($expected);
+                    $this->assertSame($expected, $documented, "{$key}: miễn trừ chỉ áp cho đúng tập status đã khai trong contract.");
+                    $usedExemptions[$key] = true;
+
+                    continue;
+                }
                 foreach ($this->contract['api']['http_error_statuses'] as $status) {
                     $this->assertArrayHasKey((string) $status, $pathItem[$method]['responses'] ?? [], "{$method} {$path} missing HTTP {$status}.");
                 }
             }
+        }
+        foreach (array_keys($exemptions) as $key) {
+            $this->assertArrayHasKey($key, $usedExemptions, "Miễn trừ [{$key}] không còn operation tương ứng — gỡ khỏi contract.");
         }
         $this->assertSame($this->expectedOperationCount(), $count);
     }
@@ -291,15 +391,21 @@ class DocumentationBaselineContractTest extends TestCase
 
     private function expectedOperationCount(): int
     {
-        // Base manifest remains pinned to the approved source bundle. The project-owner
-        // Flow 06 alignment adds exactly one non-stock-changing action: confirm that the
-        // already printed document-level Packing Label has physically been applied.
-        // Annex C alignment adds the canonical §8.1/Annex C paths, each listed explicitly
-        // in the contract so any surface change stays reviewable.
+        // Base manifest remains pinned to the approved source bundle. Annex C alignment adds
+        // the canonical §8.1/Annex C paths and ERD alignment adds ERD-required paths, each
+        // listed explicitly. post_baseline_amendments lists every operation that reached the
+        // runtime after the manifest froze (81782ec), grouped with commit, rationale and owner.
+        // The former "+1 Flow 06 apply" is gone: GĐ1 removed POST label-snapshots/{id}/apply,
+        // which is now asserted absent through api.retired_operations.
+        $amended = 0;
+        foreach ($this->contract['api']['post_baseline_amendments']['groups'] as $group) {
+            $amended += count($group['operations']);
+        }
+
         return (int) $this->contract['api']['operation_count']
-            + 1
             + count($this->contract['api']['annex_c_alignment']['operations'])
-            + count($this->contract['api']['erd_alignment']['operations']);
+            + count($this->contract['api']['erd_alignment']['operations'])
+            + $amended;
     }
 
     private function findRoute(string $method, string $uri): mixed

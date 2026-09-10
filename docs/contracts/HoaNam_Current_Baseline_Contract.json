@@ -1,7 +1,8 @@
 {
-  "schema_version": "4.1.0",
+  "schema_version": "4.2.0",
   "baseline_date": "2026-08-04",
   "technical_alignment_date": "2026-08-14",
+  "governance_amendment_date": "2026-09-10",
   "sources": [
     {"path": "docs/HoaNam_ERD_Moi_Nhat.md", "document_id": "HN-WMS-ERD-DD-001", "version": "1.0"},
     {"path": "docs/HN_SRS_FRD_v1.12_FULL.md", "document_id": "HN-SRS-FRD-001", "version": "1.12"},
@@ -10,7 +11,7 @@
   "api": {
     "prefix": "/api/v1",
     "operation_count": 174,
-    "operation_count_note": "174 = 176 - 2. SRS v1.12 §8.1 (Outbound request / Excel intake) chốt 'Confirm creates exactly one outbound DRAFT; no direct POST /outbound-documents create operation' và Annex C không khai createOutboundDocument/updateOutboundDocument, nên POST /api/v1/outbound-documents và PATCH /api/v1/outbound-documents/{id} đã được gỡ khỏi API surface (DR_HN_20260817_OUTBOUND_FLOW03_ALIGNMENT).",
+    "operation_count_note": "Công thức đếm (10/09/2026): operation_count + annex_c_alignment + erd_alignment + post_baseline_amendments; label-snapshots/{id}/apply (+1 Flow 06 cũ) đã gỡ ở GĐ1 nên nằm trong retired_operations và phải vắng mặt. 174 = 176 - 2. SRS v1.12 §8.1 (Outbound request / Excel intake) chốt 'Confirm creates exactly one outbound DRAFT; no direct POST /outbound-documents create operation' và Annex C không khai createOutboundDocument/updateOutboundDocument, nên POST /api/v1/outbound-documents và PATCH /api/v1/outbound-documents/{id} đã được gỡ khỏi API surface (DR_HN_20260817_OUTBOUND_FLOW03_ALIGNMENT).",
     "http_error_statuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
     "forbidden_path_fragments": ["stocktake", "adjustment", "variance", "recount", "cycle-count", "physical-count", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"],
     "forbidden_path_fragments_note": "DISP-STK-236 (WWHN-236): truoc day chi chan manh stocktake, nen mot route sua ton dat ten khac - vi du POST /api/v1/inventory/apply-adjustment - van lot qua toan bo gate. REQ-SRS-037 cam moi action sua ton truc tiep chu khong rieng action mang chu stocktake, nen bo sung adjustment va variance. Fragment adjustment la substring bao trum ca apply-adjustment lan adjustments. Correction path duy nhat la Reversal append-only (BR-REV-01/02). DISP-STK-233 (WWHN-233) bo sung tiep recount / cycle-count / physical-count: nhanh WWHN-59/233 mang AC count-recount-partial-stale, va mot route dem lai ton kho khong nhat thiet chua chu stocktake hay adjustment. Khong dung fragment count tran vi no qua rong.",
@@ -85,16 +86,523 @@
         "POST /api/v1/catalog-masters/{masterType}",
         "PATCH /api/v1/catalog-masters/{masterType}/{id}"
       ]
-    }
+    },
+    "post_baseline_amendments": {
+      "note": "Operation có route runtime nhưng chưa từng được contract này đếm (contract đóng băng ở 81782ec, 23/08/2026). Liệt kê từng operation theo nhóm, mỗi nhóm có commit đưa vào, lý do và chủ sở hữu — không tăng số đếm trần. Commit là commit ĐẦU TIÊN mà route có mặt ở runtime, đo bằng `php artisan route:list` chụp ở 58 commit (thứ tự topo) từ 81782ec tới e5dbe0d; với commit merge, feature_commits là commit khai route ở nhánh con. Ghi bù ngày 10/09/2026; chưa có sign-off nào.",
+      "baseline_frozen_at_commit": "81782ec",
+      "measured_at_commit": "e5dbe0d",
+      "recorded_at": "2026-09-10",
+      "groups": [
+        {
+          "id": "AMD-API-001",
+          "introduced_in": "ec6605f",
+          "introduced_at": "2026-08-21",
+          "title": "Inbound Carton Scan v1.0 — mốc \"đã quét xong thùng\"",
+          "rationale": "Ghi nhận mốc quét xong một carton trong phiếu nhập (audit, stock-neutral) theo Inbound Carton Scan v1.0. Route landing 21/08 nhưng contract chốt ở 81782ec (23/08) không đếm vào — lệch có sẵn trước đợt drift này.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "POST /api/v1/inbound-documents/{id}/cartons/{containerId}/complete-scan"
+          ]
+        },
+        {
+          "id": "AMD-API-002",
+          "introduced_in": "d5004ea",
+          "introduced_at": "2026-08-23",
+          "feature_commits": [
+            "8a99189",
+            "d5004ea"
+          ],
+          "title": "Mini App — phiếu nhập kho",
+          "rationale": "App quét ngoài kho thao tác phiếu nhập qua bề mặt mini-app/inbound-documents*, dùng lại đúng permission web (inbound.view/create/scan/post/cancel) và middleware data-scope kho; Post Receipt vẫn đi handler canonical (104d11a).",
+          "owner": "BA (phạm vi Mini App) + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/mini-app/inbound-documents",
+            "GET /api/v1/mini-app/inbound-documents/{id}",
+            "GET /api/v1/mini-app/inbound-documents/{id}/scan-entries",
+            "POST /api/v1/mini-app/inbound-documents",
+            "POST /api/v1/mini-app/inbound-documents/{id}/boxes",
+            "POST /api/v1/mini-app/inbound-documents/{id}/cancel",
+            "POST /api/v1/mini-app/inbound-documents/{id}/cartons/{containerId}/complete-scan",
+            "POST /api/v1/mini-app/inbound-documents/{id}/post-receipt",
+            "POST /api/v1/mini-app/inbound-documents/{id}/scan",
+            "POST /api/v1/mini-app/inbound-documents/{id}/unscan"
+          ]
+        },
+        {
+          "id": "AMD-API-003",
+          "introduced_in": "ab0ae79",
+          "introduced_at": "2026-08-23",
+          "feature_commits": [
+            "17f05ae",
+            "c1d0753"
+          ],
+          "title": "Mini App — phiếu xuất kho, nhãn đóng gói, tra máy in",
+          "rationale": "App quét thao tác phiếu xuất (xem, quét/unmatch, vòng đời Packing Label, Post Issue, huỷ) và tra cấu hình máy in; cùng permission/handler với bề mặt web. Có route alias packing-labels/{labelId}/apply của Mini App (xem retired_operations: trạng thái APPLY đã bỏ ở web GĐ1).",
+          "owner": "BA (phạm vi Mini App) + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/mini-app/outbound-documents",
+            "GET /api/v1/mini-app/outbound-documents/{id}",
+            "GET /api/v1/mini-app/outbound-documents/{id}/packing-label",
+            "GET /api/v1/mini-app/outbound-documents/{id}/scan-entries",
+            "GET /api/v1/mini-app/printer-configs",
+            "POST /api/v1/mini-app/outbound-documents/{id}/cancel",
+            "POST /api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/apply",
+            "POST /api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/preview",
+            "POST /api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/print",
+            "POST /api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/ready",
+            "POST /api/v1/mini-app/outbound-documents/{id}/packing-labels/{labelId}/reprint",
+            "POST /api/v1/mini-app/outbound-documents/{id}/post-issue",
+            "POST /api/v1/mini-app/outbound-documents/{id}/scan",
+            "POST /api/v1/mini-app/outbound-documents/{id}/unmatch"
+          ]
+        },
+        {
+          "id": "AMD-API-004",
+          "introduced_in": "8d98a86",
+          "introduced_at": "2026-08-23",
+          "feature_commits": [
+            "a7171d4"
+          ],
+          "title": "Mini App — preflight resolve-code + ghi nhận nhập kho atomic",
+          "rationale": "resolve-code tra danh tính mã trước khi quét; record ghi cả phiếu nhập + các lần quét trong một transaction (permission inbound.create + inbound.scan).",
+          "owner": "BA (phạm vi Mini App) + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "POST /api/v1/mini-app/inbound/record",
+            "POST /api/v1/mini-app/inbound/resolve-code"
+          ]
+        },
+        {
+          "id": "AMD-API-005",
+          "introduced_in": "c246686",
+          "introduced_at": "2026-08-23",
+          "feature_commits": [
+            "cdd9783"
+          ],
+          "title": "Mini App — tạo phiếu xuất nháp",
+          "rationale": "Tạo phiếu xuất DRAFT từ app theo toa nhập tay/import (outbound.request.manual_create|outbound.import).",
+          "owner": "BA (phạm vi Mini App) + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "POST /api/v1/mini-app/outbound-documents"
+          ]
+        },
+        {
+          "id": "AMD-API-006",
+          "introduced_in": "b147f28",
+          "introduced_at": "2026-08-23",
+          "feature_commits": [
+            "324d76a"
+          ],
+          "title": "Mini App — staging phiếu xuất (resolve-code, record)",
+          "rationale": "Tra mã trước khi quét và ghi nhận phiếu xuất + quét atomic (outbound.request.manual_create|outbound.import + outbound.scan).",
+          "owner": "BA (phạm vi Mini App) + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "POST /api/v1/mini-app/outbound/record",
+            "POST /api/v1/mini-app/outbound/resolve-code"
+          ]
+        },
+        {
+          "id": "AMD-API-007",
+          "introduced_in": "8c4745c",
+          "introduced_at": "2026-08-24",
+          "title": "Mini App — bảo hành (hồ sơ, đính kèm, sự kiện, xuất linh kiện)",
+          "rationale": "Adapter Mini App cho luồng bảo hành: tiếp nhận/cập nhật hồ sơ, đính kèm, lịch sử sự kiện, tra mã, phiếu xuất linh kiện; cùng permission warranty.view/manage/component_issue với web.",
+          "owner": "BA (phạm vi Mini App) + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "DELETE /api/v1/mini-app/warranty-attachments/{attachmentId}",
+            "GET /api/v1/mini-app/warranty-attachments/{attachmentId}/download",
+            "GET /api/v1/mini-app/warranty-cases",
+            "GET /api/v1/mini-app/warranty-cases/{id}",
+            "GET /api/v1/mini-app/warranty-cases/{id}/attachments",
+            "GET /api/v1/mini-app/warranty-cases/{id}/events",
+            "GET /api/v1/mini-app/warranty-component-issues",
+            "GET /api/v1/mini-app/warranty-component-issues/{id}",
+            "PATCH /api/v1/mini-app/warranty-cases/{id}",
+            "POST /api/v1/mini-app/warranty-cases",
+            "POST /api/v1/mini-app/warranty-cases/{id}/attachments",
+            "POST /api/v1/mini-app/warranty-cases/{id}/status",
+            "POST /api/v1/mini-app/warranty-component-issues",
+            "POST /api/v1/mini-app/warranty-component-issues/{id}/cancel",
+            "POST /api/v1/mini-app/warranty-component-issues/{id}/post",
+            "POST /api/v1/mini-app/warranty-component-issues/{id}/scans",
+            "POST /api/v1/mini-app/warranty/resolve-code"
+          ]
+        },
+        {
+          "id": "AMD-API-008",
+          "introduced_in": "4a4fce8",
+          "introduced_at": "2026-08-25",
+          "feature_commits": [
+            "f93446b",
+            "5c64d42"
+          ],
+          "title": "GĐ1 — nơi nhận (recipients) và báo cáo theo nơi nhận/bệnh-SKU",
+          "rationale": "GĐ1-REQ-001: 4 loại nơi nhận dùng BaM1RecipientController (recipients là path chuẩn, agencies giữ tương thích); báo cáo outbound-by-recipient và warranty-defect-sku-breakdown (GĐ1-REQ-003/009). Snapshot runtime đầu tiên có route là 4a4fce8; khoảng trước đó (sau bf34ae0) có 4 commit không boot được (f93446b, 4a18c75, 652fc7d, 76e51fa).",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/recipients",
+            "GET /api/v1/recipients/{id}",
+            "GET /api/v1/reports/outbound-by-recipient",
+            "GET /api/v1/reports/warranty-defect-sku-breakdown",
+            "PATCH /api/v1/recipients/{id}",
+            "POST /api/v1/recipients"
+          ]
+        },
+        {
+          "id": "AMD-API-009",
+          "introduced_in": "9bdd8f4",
+          "introduced_at": "2026-08-25",
+          "title": "GĐ1 — danh mục phòng ban",
+          "rationale": "Danh mục phòng ban cho IAM (xem: iam.user.view; tạo/sửa: iam.user.manage).",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/departments",
+            "PATCH /api/v1/departments/{id}",
+            "POST /api/v1/departments"
+          ]
+        },
+        {
+          "id": "AMD-API-010",
+          "introduced_in": "cb85758",
+          "introduced_at": "2026-08-25",
+          "title": "GĐ1 scan-driven — dòng linh kiện theo Box",
+          "rationale": "Nhập kho scan-driven: materialize dòng linh kiện theo Box khi quét (BaM1InboundComponentController::ensureLine), stock-neutral cho tới Post Receipt.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "POST /api/v1/inbound-documents/{id}/component-lines"
+          ]
+        },
+        {
+          "id": "AMD-API-011",
+          "introduced_in": "3ec27f3",
+          "introduced_at": "2026-08-26",
+          "title": "Module Notification + xác thực kênh broadcast riêng",
+          "rationale": "Thông báo in-app của CHÍNH người dùng (SELF_SERVICE, truy vấn khoá cứng theo user_id) và xác thực kênh private user.{userId} cho Reverb.",
+          "owner": "Tech Lead",
+          "approval": "PENDING (Tech Lead + Security)",
+          "operations": [
+            "GET /api/v1/notifications",
+            "GET /api/v1/notifications/unread-count",
+            "PATCH /api/v1/notifications/{id}/read",
+            "POST /api/v1/broadcasting/auth",
+            "POST /api/v1/notifications/read-all"
+          ]
+        },
+        {
+          "id": "AMD-API-012",
+          "introduced_in": "368943c",
+          "introduced_at": "2026-08-27",
+          "title": "Chứng từ đính kèm phiếu nhập/xuất/hoàn trả",
+          "rationale": "Bảng document_attachments (ERD-AMD-009): đính kèm ảnh/scan/PDF cho phiếu nhập, xuất, hoàn trả; tải về/xoá logic kiểm permission theo loại chứng từ + data-scope kho (db2760b); danh sách phiếu thiếu chứng từ bắt buộc.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "DELETE /api/v1/document-attachments/{attachmentId}",
+            "DELETE /api/v1/mini-app/document-attachments/{attachmentId}",
+            "GET /api/v1/document-attachments/pending-evidence",
+            "GET /api/v1/document-attachments/{attachmentId}/download",
+            "GET /api/v1/inbound-documents/{id}/attachments",
+            "GET /api/v1/mini-app/document-attachments/pending-evidence",
+            "GET /api/v1/mini-app/document-attachments/{attachmentId}/download",
+            "GET /api/v1/mini-app/inbound-documents/{id}/attachments",
+            "GET /api/v1/mini-app/outbound-documents/{id}/attachments",
+            "GET /api/v1/outbound-documents/{id}/attachments",
+            "GET /api/v1/reversal-documents/{id}/attachments",
+            "POST /api/v1/inbound-documents/{id}/attachments",
+            "POST /api/v1/mini-app/inbound-documents/{id}/attachments",
+            "POST /api/v1/mini-app/outbound-documents/{id}/attachments",
+            "POST /api/v1/outbound-documents/{id}/attachments",
+            "POST /api/v1/reversal-documents/{id}/attachments"
+          ]
+        },
+        {
+          "id": "AMD-API-013",
+          "introduced_in": "368943c",
+          "introduced_at": "2026-08-27",
+          "title": "Quên mật khẩu bằng OTP",
+          "rationale": "Ba bước công khai (quên mật khẩu, xác thực OTP, đặt lại) — không thể đòi đăng nhập trước; mỗi bước có limiter riêng (BackendGoLiveCheck::PUBLIC_ROUTES, WWHN-SEC-04).",
+          "owner": "Tech Lead + Security",
+          "approval": "PENDING (Tech Lead + Security)",
+          "operations": [
+            "POST /api/v1/auth/forgot-password",
+            "POST /api/v1/auth/reset-password",
+            "POST /api/v1/auth/verify-otp"
+          ]
+        },
+        {
+          "id": "AMD-API-014",
+          "introduced_in": "368943c",
+          "introduced_at": "2026-08-27",
+          "title": "IAM — quyền lẻ theo người dùng (permission delegation)",
+          "rationale": "Cấp/thu hồi/xem quyền lẻ của một user (iam.user.view/manage); chỉ cấp được quyền mà người thao tác đang giữ, chặn tự cấp và chặn đích SUPER_ADMIN.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (Tech Lead + Security)",
+          "operations": [
+            "DELETE /api/v1/users/{id}/permissions/{permissionId}",
+            "GET /api/v1/users/{id}/permissions",
+            "POST /api/v1/users/{id}/permissions"
+          ]
+        },
+        {
+          "id": "AMD-API-015",
+          "introduced_in": "368943c",
+          "introduced_at": "2026-08-27",
+          "title": "Nhật ký thao tác của chính người dùng",
+          "rationale": "audit-logs/me: SELF_SERVICE, ép object_type=user và object_id = người gọi.",
+          "owner": "Tech Lead",
+          "approval": "PENDING (Tech Lead + Security)",
+          "operations": [
+            "GET /api/v1/audit-logs/me"
+          ]
+        },
+        {
+          "id": "AMD-API-016",
+          "introduced_in": "368943c",
+          "introduced_at": "2026-08-27",
+          "title": "Báo cáo — job xuất file nền, XNT theo ngày, linh kiện bảo hành",
+          "rationale": "Trạng thái/tải file của job export (report.export, chỉ chủ job); reports/inventory-xnt-daily cho Dashboard (report.view); reports/warranty-component-usage (nay gác report.warranty.view theo DELTA-07).",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/reports/export/{export_job_id}",
+            "GET /api/v1/reports/export/{export_job_id}/download",
+            "GET /api/v1/reports/inventory-xnt-daily",
+            "GET /api/v1/reports/warranty-component-usage"
+          ]
+        },
+        {
+          "id": "AMD-API-017",
+          "introduced_in": "368943c",
+          "introduced_at": "2026-08-27",
+          "title": "Mini App — tra cứu sản phẩm",
+          "rationale": "Danh sách/chi tiết SKU kèm tồn khả dụng ở Kho tổng cho app (sku.view).",
+          "owner": "BA (phạm vi Mini App) + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/mini-app/products",
+            "GET /api/v1/mini-app/products/{id}"
+          ]
+        },
+        {
+          "id": "AMD-API-018",
+          "introduced_in": "b6d9a34",
+          "introduced_at": "2026-08-30",
+          "title": "Storefront công khai (catalog, cấu hình, gửi yêu cầu báo giá)",
+          "rationale": "Mặt public/* chỉ đọc dữ liệu đã publish + gửi yêu cầu báo giá ẩn danh (throttle riêng, PII mã hoá); nằm trong BackendGoLiveCheck::PUBLIC_ROUTES (WWHN-SEC-04).",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (Tech Lead + Security)",
+          "operations": [
+            "GET /api/v1/public/categories",
+            "GET /api/v1/public/config",
+            "GET /api/v1/public/facets",
+            "GET /api/v1/public/health/version",
+            "GET /api/v1/public/home",
+            "GET /api/v1/public/products",
+            "GET /api/v1/public/products/{slug}",
+            "GET /api/v1/public/products/{slug}/related",
+            "POST /api/v1/public/quote-requests"
+          ]
+        },
+        {
+          "id": "AMD-API-019",
+          "introduced_in": "b6d9a34",
+          "introduced_at": "2026-08-30",
+          "title": "Dashboard tổng quan",
+          "rationale": "reports/dashboard-overview bổ sung cho dashboard-quick (không thay thế); gác report.view. Ghi nhận amendment WWHN-328 và câu hỏi BA về quyền theo màn ở docs/evidence/WWHN-328/AGGREGATE_ROUTE_AMENDMENTS.json.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/reports/dashboard-overview"
+          ]
+        },
+        {
+          "id": "AMD-API-020",
+          "introduced_in": "01d2884",
+          "introduced_at": "2026-08-31",
+          "title": "App PV — import catalogue",
+          "rationale": "Import SKU + hồ sơ PV atomic, có dry-run; đòi đồng thời pv.master.manage và sku.manage.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "POST /api/v1/pv-admin/catalog-import"
+          ]
+        },
+        {
+          "id": "AMD-API-021",
+          "introduced_in": "0fc4f64",
+          "introduced_at": "2026-09-04",
+          "title": "Mini App — gán và quét chip NFC",
+          "rationale": "Chuẩn bị/xác nhận/huỷ chip NFC cho hiện vật (physical_code.assign_rfid) và tra cứu theo chip (đọc).",
+          "owner": "BA (phạm vi Mini App) + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/mini-app/items",
+            "GET /api/v1/mini-app/nfc-tags",
+            "PATCH /api/v1/mini-app/items/{itemId}/nfc",
+            "POST /api/v1/mini-app/items/{itemId}/nfc/prepare",
+            "POST /api/v1/mini-app/nfc-tags/{physicalCodeId}/deactivate",
+            "POST /api/v1/mini-app/nfc/resolve-code",
+            "POST /api/v1/mini-app/nfc/resolve-tag"
+          ]
+        },
+        {
+          "id": "AMD-API-022",
+          "introduced_in": "d019d63",
+          "introduced_at": "2026-09-07",
+          "title": "Ảnh sản phẩm App PV + tra SKU nhanh",
+          "rationale": "pv/product-images/{key} công khai theo khoá UUID ngẫu nhiên (PUBLIC_ROUTES), tải ảnh lên cần pv.master.manage; skus/lookup đọc nhẹ cho ô chọn SKU (sku.view).",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/pv/product-images/{key}",
+            "GET /api/v1/skus/lookup",
+            "POST /api/v1/pv-admin/product-images"
+          ]
+        },
+        {
+          "id": "AMD-API-023",
+          "introduced_in": "d94ab90",
+          "introduced_at": "2026-09-07",
+          "title": "RUM Web Vitals",
+          "rationale": "Nhận chỉ số LCP/INP/CLS ẩn danh (whitelist metric, throttle 120/phút) để đo hiệu năng FE.",
+          "owner": "Tech Lead + DevOps",
+          "approval": "PENDING (Tech Lead + Security)",
+          "operations": [
+            "POST /api/v1/telemetry/vitals"
+          ]
+        },
+        {
+          "id": "AMD-API-024",
+          "introduced_in": "38b51a6",
+          "introduced_at": "2026-09-07",
+          "title": "Hoàn thiện thông tin SKU mới khi nhập kho",
+          "rationale": "Người nhập kho bổ sung tên + ĐVT cho SKU tạo từ quét trước khi Post Receipt (inbound.scan, endpoint hẹp thay cho sku.manage). Có CONCERN AppSec về phạm vi (docs/security/ROUTE_CONTRACT_DELTA_20260910.md, E3).",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "PATCH /api/v1/inbound-documents/{id}/lines/{lineId}/sku"
+          ]
+        },
+        {
+          "id": "AMD-API-025",
+          "introduced_in": "2d9864f",
+          "introduced_at": "2026-09-08",
+          "title": "Xác thực hai bước (WWHN-SEC-08)",
+          "rationale": "Quản lý MFA của chính tài khoản (SELF_SERVICE) và bước 2 đăng nhập mfa/verify (công khai theo thiết kế, khoá bằng mã phiên dùng-một-lần + throttle + khoá tài khoản).",
+          "owner": "Tech Lead + Security",
+          "approval": "PENDING (Tech Lead + Security)",
+          "operations": [
+            "GET /api/v1/auth/mfa/status",
+            "POST /api/v1/auth/mfa/confirm",
+            "POST /api/v1/auth/mfa/disable",
+            "POST /api/v1/auth/mfa/enroll",
+            "POST /api/v1/auth/mfa/verify"
+          ]
+        },
+        {
+          "id": "AMD-API-026",
+          "introduced_in": "2d9864f",
+          "introduced_at": "2026-09-08",
+          "title": "Phiếu xuất linh kiện bảo hành — sửa dòng, unscan, ghi nhận atomic (web + Mini App)",
+          "rationale": "Thêm/sửa/xoá dòng chưa quét, gỡ lần quét, tra mã và ghi nhận atomic cho phiếu xuất linh kiện; alias đủ ba path (component-issue-documents, warranty-component-issues, mini-app/*), cùng permission warranty.component_issue + data-scope kho.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "DELETE /api/v1/component-issue-documents/{id}/lines/{lineId}",
+            "DELETE /api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
+            "DELETE /api/v1/warranty-component-issues/{id}/lines/{lineId}",
+            "PATCH /api/v1/component-issue-documents/{id}/lines/{lineId}",
+            "PATCH /api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
+            "PATCH /api/v1/warranty-component-issues/{id}/lines/{lineId}",
+            "POST /api/v1/component-issue-documents/record",
+            "POST /api/v1/component-issue-documents/resolve-code",
+            "POST /api/v1/component-issue-documents/{id}/lines",
+            "POST /api/v1/component-issue-documents/{id}/unscan",
+            "POST /api/v1/mini-app/component-issue-documents/record",
+            "POST /api/v1/mini-app/component-issue-documents/resolve-code",
+            "POST /api/v1/mini-app/warranty-component-issues/record",
+            "POST /api/v1/mini-app/warranty-component-issues/resolve-code",
+            "POST /api/v1/mini-app/warranty-component-issues/{id}/lines",
+            "POST /api/v1/mini-app/warranty-component-issues/{id}/unscan",
+            "POST /api/v1/warranty-component-issues/record",
+            "POST /api/v1/warranty-component-issues/resolve-code",
+            "POST /api/v1/warranty-component-issues/{id}/lines",
+            "POST /api/v1/warranty-component-issues/{id}/unscan"
+          ]
+        }
+      ]
+    },
+    "retired_operations": [
+      {
+        "operation": "POST /api/v1/label-snapshots/{id}/apply",
+        "removed_in": "4a4fce8",
+        "removed_at": "2026-08-25",
+        "decision": "GĐ1 (25/08/2026): bỏ trạng thái nghiệp vụ APPLY/\"đã dán\" của Packing Label — Flow06AlignmentServiceProvider ghi \"No APPLY/\\\"đã dán\\\" business state in GĐ1\"; nhãn tách khỏi Post Issue (5c64d42, REQ-012). Đây là +1 \"Flow 06 alignment\" mà công thức đếm cũ cộng vào; nay phải VẮNG MẶT. Snapshot runtime đầu tiên thiếu route là 4a4fce8 (khoảng trước đó có commit không boot được).",
+        "owner": "BA + Tech Lead",
+        "approval": "PENDING (BA + Tech Lead)"
+      }
+    ],
+    "http_error_status_exemptions": [
+      {
+        "operation": "GET /api/v1/health",
+        "documented_statuses": [
+          200,
+          503
+        ],
+        "reason": "WWHN-295: readiness probe công khai cho hạ tầng chỉ có hai kết quả — 200 (mọi critical check ok) và 503 HEALTH_CHECK_DEGRADED; operation khai x-exhaustive-responses nên RouteSyncProcessor không chèn bộ lỗi nghiệp vụ 400..500. Không phải API nghiệp vụ của Annex C (HTTP_ERROR_CODE_PAIRING statusesOutsideSrs82: 503 ACCEPTED_OPERATIONAL_SURFACE).",
+        "evidence": "app/Http/Controllers/HealthController.php (OA\\Get responses 200/503, x-exhaustive-responses); app/Swagger/Processors/RouteSyncProcessor.php",
+        "decision": "WWHN-295",
+        "owner": "BE + DevOps"
+      }
+    ]
   },
   "permissions": [
     "iam.user.view", "iam.user.manage", "iam.role.view", "iam.role.manage", "iam.permission.view",
     "catalog.view", "catalog.manage", "sku.view", "sku.manage",
     "inbound.view", "inbound.create", "inbound.scan", "inbound.post", "inbound.cancel",
-    "outbound.view", "outbound.import", "outbound.create", "outbound.scan", "outbound.post", "outbound.cancel",
+    "outbound.view", "outbound.import", "outbound.scan", "outbound.post", "outbound.cancel",
     "inventory.view", "inventory.trace", "inventory.reversal.post", "physical_code.assign_rfid",
     "label.print", "label.reprint", "warranty.manage", "warranty.component_issue", "pv.publish", "report.view", "report.export"
   ],
+  "retired_permissions": {
+    "note": "Mã quyền đã thu hồi vì không cổng nào đọc tới (\"quyền ma\"). Không được nằm lại trong danh sách permissions canonical; dòng còn trong DB thì phải INACTIVE (migration giữ dòng để không vỡ FK và để audit cũ còn tham chiếu được).",
+    "retired_in": "368943c",
+    "retired_at": "2026-08-27",
+    "migration": "Modules/Auth/database/migrations/2026_08_27_170000_retire_unenforced_legacy_permissions.php",
+    "owner": "Tech Lead",
+    "keys": [
+      "user.view",
+      "user.manage",
+      "role.view",
+      "role.manage",
+      "permission.view",
+      "product.view",
+      "product.manage",
+      "product_master.view",
+      "product_master.manage",
+      "master.manage",
+      "defect_catalog.view",
+      "defect_catalog.manage",
+      "physical_code.view",
+      "physical_code.manage",
+      "stock_document.view",
+      "stock_document.create",
+      "stock_document.scan",
+      "stock_document.post",
+      "stock_document.cancel",
+      "stock_document.reverse",
+      "outbound.create"
+    ]
+  },
   "required_roles": ["ADMIN", "WAREHOUSE_MANAGER", "WAREHOUSE_STAFF", "WARRANTY_STAFF", "LEADERSHIP"],
   "document_statuses": ["DRAFT", "SCANNING", "POSTED", "CANCELLED"],
   "movement_types": ["OPENING", "RECEIPT", "ISSUE", "COMPONENT_ISSUE", "REVERSAL"],
@@ -137,11 +645,27 @@
     "component_issue_documents": ["id", "warehouse_id", "warranty_case_id", "purpose", "status", "cancelled_at", "cancel_reason", "note", "idempotency_key", "version"],
     "component_issue_lines": ["id", "component_issue_document_id", "sku_id", "required_qty", "scanned_qty", "note", "version"],
     "component_issue_items": ["id", "component_issue_line_id", "scan_event_id", "item_id", "container_id", "quantity", "status", "selected_at", "selected_by", "version"],
-    "warranty_case": ["warranty_case_id", "item_id", "customer_address", "purchase_date", "sales_trace_status", "status", "version"],
+    "warranty_case": ["warranty_case_id", "item_id", "customer_address_ciphertext", "purchase_date", "sales_trace_status", "status", "version"],
     "printer_configs": ["id", "printer_code", "agent_endpoint", "status"],
     "label_snapshots": ["id", "outbound_item_match_id", "sku_id", "item_id", "label_payload", "status", "version"],
     "outbound_request_imports": ["id", "source_checksum", "source_key", "status", "total_rows", "valid_rows", "error_rows", "version"],
     "outbound_request_import_rows": ["id", "import_id", "row_no", "normalized_payload", "validation_status", "validation_errors"]
+  },
+  "forbidden_columns": {
+    "note": "WWHN-SEC-06 Phase 6 (2d9864f, migration 2026_09_08_000400_drop_warranty_case_plaintext_pii): PII khách hàng của hồ sơ bảo hành chỉ còn dạng *_ciphertext + blind index; cột plaintext không được quay lại dưới bất kỳ tên quan hệ nào.",
+    "owner": "Tech Lead + Security",
+    "objects": {
+      "warranty_case": [
+        "customer_name",
+        "customer_phone",
+        "customer_address"
+      ],
+      "warranty_cases": [
+        "customer_name",
+        "customer_phone",
+        "customer_address"
+      ]
+    }
   },
   "reference_db_relationships": [
     ["product_models", "brand_id", "brands", "id"],
