@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Pin exact identity
-        run: echo "Exact commit: ${GITHUB_SHA}"
+        run: 'echo "Exact commit: ${GITHUB_SHA}"'
 
       - uses: actions/setup-node@v4
         with:
