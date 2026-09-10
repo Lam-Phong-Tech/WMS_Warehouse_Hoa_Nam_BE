@@ -1,0 +1,19 @@
+Route đo: 77 · vai trò: 13 · request: 1001
+
+ROLE                  req   allow  deny  FAIL  WARN
+ADMIN                 77    77     0     0     0
+INBOUND_ONLY_TEST     77    58     19    0     0
+LEADERSHIP            77    61     16    0     0
+MASTER_MANAGER        77    9      68    0     0
+NO_PERMISSION         77    3      74    0     0
+SKU_MANAGER           77    14     63    0     0
+SUPER_ADMIN           77    77     0     0     0
+VIEWER                77    61     16    0     0
+WAREHOUSE_APPROVER    77    63     14    0     0
+WAREHOUSE_KEEPER      77    67     10    0     0
+WAREHOUSE_MANAGER     77    64     13    0     0
+WAREHOUSE_STAFF       77    55     22    0     0
+WARRANTY_STAFF        77    48     29    0     0
+
+PASS — 0 FAIL, 0 WARN
+MATRIX_EXIT=0 seconds=41

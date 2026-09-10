@@ -1,0 +1,169 @@
+{
+    "probe": "sec-p1-refresh-runtime-probe",
+    "base_url": "http://127.0.0.1:8000",
+    "checked_at": "2026-09-10T08:45:50+00:00",
+    "result": "PASS",
+    "failed": 0,
+    "checks": [
+        {
+            "id": "api_headers.nosniff",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "api_headers.frame_options",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "api_headers.referrer_policy",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "api_headers.no_x_powered_by",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "login.browser.status_200",
+            "pass": true,
+            "detail": "HTTP 200"
+        },
+        {
+            "id": "login.browser.access_token_in_json",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "login.browser.no_refresh_token_in_json",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "login.browser.refresh_cookie_set",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "login.browser.cookie_httponly",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "login.browser.cookie_path",
+            "pass": true,
+            "detail": "path=/api/v1/auth"
+        },
+        {
+            "id": "login.browser.cookie_samesite",
+            "pass": true,
+            "detail": "samesite=lax"
+        },
+        {
+            "id": "login.untrusted_origin.denied",
+            "pass": true,
+            "detail": "HTTP 403"
+        },
+        {
+            "id": "login.no_origin.status_200",
+            "pass": true,
+            "detail": "HTTP 200"
+        },
+        {
+            "id": "login.no_origin.no_refresh_material",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "refresh.csrf.no_origin_denied",
+            "pass": true,
+            "detail": "HTTP 403"
+        },
+        {
+            "id": "refresh.csrf.untrusted_origin_denied",
+            "pass": true,
+            "detail": "HTTP 403"
+        },
+        {
+            "id": "refresh.body_token_from_browser_rejected",
+            "pass": true,
+            "detail": "HTTP 422 REFRESH_TOKEN_TRANSPORT_MISMATCH"
+        },
+        {
+            "id": "refresh.body_transport_disabled",
+            "pass": true,
+            "detail": "HTTP 403 TOKEN_TRANSPORT_NOT_ALLOWED"
+        },
+        {
+            "id": "refresh.invalid_transport_header",
+            "pass": true,
+            "detail": "HTTP 422 TOKEN_TRANSPORT_INVALID"
+        },
+        {
+            "id": "refresh.rotation.status_200",
+            "pass": true,
+            "detail": "HTTP 200 (phi\u00ean c\u00f2n s\u1ed1ng sau c\u00e1c l\u1ea7n CSRF b\u1ecb ch\u1eb7n)"
+        },
+        {
+            "id": "refresh.rotation.new_cookie",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "refresh.rotation.no_refresh_token_in_json",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "refresh.replay.old_cookie_401",
+            "pass": true,
+            "detail": "HTTP 401"
+        },
+        {
+            "id": "refresh.replay.family_revoked",
+            "pass": true,
+            "detail": "HTTP 401"
+        },
+        {
+            "id": "refresh.race.at_most_one_success",
+            "pass": true,
+            "detail": "statuses={\"200\":1,\"401\":7}"
+        },
+        {
+            "id": "refresh.race.reuse_revokes_family",
+            "pass": true,
+            "detail": "HTTP 401"
+        },
+        {
+            "id": "cors.preflight.allowed_origin",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "cors.preflight.untrusted_origin",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "logout.status_200",
+            "pass": true,
+            "detail": "HTTP 200"
+        },
+        {
+            "id": "logout.clears_cookie",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "logout.refresh_token_revoked",
+            "pass": true,
+            "detail": ""
+        },
+        {
+            "id": "logout.access_token_revoked",
+            "pass": true,
+            "detail": ""
+        }
+    ]
+}

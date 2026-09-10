@@ -1,0 +1,36 @@
+Cảnh báo: health trả HTTP 503 — tiếp tục đo hợp đồng auth.
+PASS  api_headers.nosniff
+PASS  api_headers.frame_options
+PASS  api_headers.referrer_policy
+PASS  api_headers.no_x_powered_by
+PASS  login.browser.status_200  — HTTP 200
+PASS  login.browser.access_token_in_json
+PASS  login.browser.no_refresh_token_in_json
+PASS  login.browser.refresh_cookie_set
+PASS  login.browser.cookie_httponly
+PASS  login.browser.cookie_path  — path=/api/v1/auth
+PASS  login.browser.cookie_samesite  — samesite=lax
+PASS  login.untrusted_origin.denied  — HTTP 403
+PASS  login.no_origin.status_200  — HTTP 200
+PASS  login.no_origin.no_refresh_material
+PASS  refresh.csrf.no_origin_denied  — HTTP 403
+PASS  refresh.csrf.untrusted_origin_denied  — HTTP 403
+PASS  refresh.body_token_from_browser_rejected  — HTTP 422 REFRESH_TOKEN_TRANSPORT_MISMATCH
+PASS  refresh.body_transport_disabled  — HTTP 403 TOKEN_TRANSPORT_NOT_ALLOWED
+PASS  refresh.invalid_transport_header  — HTTP 422 TOKEN_TRANSPORT_INVALID
+PASS  refresh.rotation.status_200  — HTTP 200 (phiên còn sống sau các lần CSRF bị chặn)
+PASS  refresh.rotation.new_cookie
+PASS  refresh.rotation.no_refresh_token_in_json
+PASS  refresh.replay.old_cookie_401  — HTTP 401
+PASS  refresh.replay.family_revoked  — HTTP 401
+PASS  refresh.race.at_most_one_success  — statuses={"200":1,"401":7}
+PASS  refresh.race.reuse_revokes_family  — HTTP 401
+PASS  cors.preflight.allowed_origin
+PASS  cors.preflight.untrusted_origin
+PASS  logout.status_200  — HTTP 200
+PASS  logout.clears_cookie
+PASS  logout.refresh_token_revoked
+PASS  logout.access_token_revoked
+
+PASS — 32 check, 0 FAIL
+PROBE_EXIT=0

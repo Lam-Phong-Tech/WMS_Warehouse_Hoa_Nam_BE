@@ -1,0 +1,117 @@
+{
+    "checked_at": "2026-09-10T08:59:29+00:00",
+    "base_url": "http://127.0.0.1:8000",
+    "routes": 77,
+    "roles": [
+        "ADMIN",
+        "INBOUND_ONLY_TEST",
+        "LEADERSHIP",
+        "MASTER_MANAGER",
+        "NO_PERMISSION",
+        "SKU_MANAGER",
+        "SUPER_ADMIN",
+        "VIEWER",
+        "WAREHOUSE_APPROVER",
+        "WAREHOUSE_KEEPER",
+        "WAREHOUSE_MANAGER",
+        "WAREHOUSE_STAFF",
+        "WARRANTY_STAFF"
+    ],
+    "summary": {
+        "ADMIN": {
+            "requests": 77,
+            "allow_ok": 77,
+            "deny_ok": 0,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "INBOUND_ONLY_TEST": {
+            "requests": 77,
+            "allow_ok": 58,
+            "deny_ok": 19,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "LEADERSHIP": {
+            "requests": 77,
+            "allow_ok": 61,
+            "deny_ok": 16,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "MASTER_MANAGER": {
+            "requests": 77,
+            "allow_ok": 9,
+            "deny_ok": 68,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "NO_PERMISSION": {
+            "requests": 77,
+            "allow_ok": 3,
+            "deny_ok": 74,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "SKU_MANAGER": {
+            "requests": 77,
+            "allow_ok": 14,
+            "deny_ok": 63,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "SUPER_ADMIN": {
+            "requests": 77,
+            "allow_ok": 77,
+            "deny_ok": 0,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "VIEWER": {
+            "requests": 77,
+            "allow_ok": 61,
+            "deny_ok": 16,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "WAREHOUSE_APPROVER": {
+            "requests": 77,
+            "allow_ok": 63,
+            "deny_ok": 14,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "WAREHOUSE_KEEPER": {
+            "requests": 77,
+            "allow_ok": 67,
+            "deny_ok": 10,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "WAREHOUSE_MANAGER": {
+            "requests": 77,
+            "allow_ok": 64,
+            "deny_ok": 13,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "WAREHOUSE_STAFF": {
+            "requests": 77,
+            "allow_ok": 55,
+            "deny_ok": 22,
+            "FAIL": 0,
+            "WARN": 0
+        },
+        "WARRANTY_STAFF": {
+            "requests": 77,
+            "allow_ok": 48,
+            "deny_ok": 29,
+            "FAIL": 0,
+            "WARN": 0
+        }
+    },
+    "findings": {
+        "FAIL": [],
+        "WARN": []
+    }
+}

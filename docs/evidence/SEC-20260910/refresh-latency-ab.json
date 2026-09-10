@@ -1,0 +1,120 @@
+{
+  "measured_at": "2026-09-10",
+  "setup": "php artisan serve, PHP_CLI_SERVER_WORKERS=8, PostgreSQL dev server, CACHE_STORE=file, rate limit auth tắt riêng cho phép đo; client curl_multi chạy trong cùng container; 24 phiên song song × 40 vòng refresh nối tiếp; chạy xen kẽ mới/cũ; máy đồng thời chạy 4 bộ PHPUnit khác nên nhiễu cao",
+  "runs": [
+    {
+      "run": "new-1",
+      "code": "e5dbe0d (cookie transport)",
+      "mode": "perf",
+      "transport": "cookie",
+      "sessions": 24,
+      "rounds": 40,
+      "requests": 960,
+      "statuses": {
+        "200": 960
+      },
+      "latency_ms": {
+        "p50": 596.9,
+        "p95": 1153.6,
+        "p99": 1288.7,
+        "max": 1540.7
+      },
+      "throughput_rps": 20.5
+    },
+    {
+      "run": "old-1",
+      "code": "7a99426 (body transport, trước bản sửa)",
+      "mode": "perf",
+      "transport": "body",
+      "sessions": 24,
+      "rounds": 40,
+      "requests": 960,
+      "statuses": {
+        "200": 960
+      },
+      "latency_ms": {
+        "p50": 717.3,
+        "p95": 1538.4,
+        "p99": 1944.8,
+        "max": 2221.7
+      },
+      "throughput_rps": 16.7
+    },
+    {
+      "run": "new-2",
+      "code": "e5dbe0d (cookie transport)",
+      "mode": "perf",
+      "transport": "cookie",
+      "sessions": 24,
+      "rounds": 40,
+      "requests": 960,
+      "statuses": {
+        "200": 960
+      },
+      "latency_ms": {
+        "p50": 728.9,
+        "p95": 1642.6,
+        "p99": 1958.2,
+        "max": 2463.2
+      },
+      "throughput_rps": 16.1
+    },
+    {
+      "run": "old-2",
+      "code": "7a99426 (body transport, trước bản sửa)",
+      "mode": "perf",
+      "transport": "body",
+      "sessions": 24,
+      "rounds": 40,
+      "requests": 960,
+      "statuses": {
+        "200": 960
+      },
+      "latency_ms": {
+        "p50": 813.6,
+        "p95": 2065.9,
+        "p99": 2692.5,
+        "max": 3224.5
+      },
+      "throughput_rps": 13.8
+    },
+    {
+      "run": "new-3",
+      "code": "e5dbe0d (cookie transport)",
+      "mode": "perf",
+      "transport": "cookie",
+      "sessions": 24,
+      "rounds": 40,
+      "requests": 960,
+      "statuses": {
+        "200": 960
+      },
+      "latency_ms": {
+        "p50": 1010.3,
+        "p95": 4423.1,
+        "p99": 5620,
+        "max": 6214
+      },
+      "throughput_rps": 9
+    },
+    {
+      "run": "old-3",
+      "code": "7a99426 (body transport, trước bản sửa)",
+      "mode": "perf",
+      "transport": "body",
+      "sessions": 24,
+      "rounds": 40,
+      "requests": 960,
+      "statuses": {
+        "200": 960
+      },
+      "latency_ms": {
+        "p50": 613.6,
+        "p95": 1178.8,
+        "p99": 1281.6,
+        "max": 1461.7
+      },
+      "throughput_rps": 20.1
+    }
+  ]
+}

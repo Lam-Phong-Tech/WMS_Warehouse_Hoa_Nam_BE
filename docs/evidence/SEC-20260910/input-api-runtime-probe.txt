@@ -1,0 +1,15 @@
+PASS  login.email_array_rejected  — HTTP 422 BUSINESS_RULE_ERROR
+PASS  login.password_object_rejected  — HTTP 422 BUSINESS_RULE_ERROR
+PASS  login.sqli_like_email_rejected  — HTTP 422 BUSINESS_RULE_ERROR
+PASS  login.oversized_password_not_5xx  — HTTP 422 BUSINESS_RULE_ERROR
+PASS  login.username_field_rejected  — HTTP 422 BUSINESS_RULE_ERROR
+PASS  login.malformed_json_not_5xx  — HTTP 400 MALFORMED_JSON
+PASS  auth.token_in_query_rejected  — HTTP 401 UNAUTHENTICATED
+PASS  auth.tampered_signature_rejected  — HTTP 401 UNAUTHENTICATED
+PASS  auth.alg_none_rejected  — HTTP 401 UNAUTHENTICATED
+PASS  api.sqli_like_filter_safe  — HTTP 200  bytes=351
+PASS  api.per_page_bounded  — HTTP 200  bytes=94715
+PASS  api.sort_order_injection_rejected  — HTTP 422 VALIDATION_ERROR
+PASS  api.invalid_user_payload_422  — HTTP 422 BUSINESS_RULE_ERROR
+
+PASS — 0 FAIL
