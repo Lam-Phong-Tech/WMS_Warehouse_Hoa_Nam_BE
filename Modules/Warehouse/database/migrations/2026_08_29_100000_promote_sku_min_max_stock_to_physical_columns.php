@@ -44,10 +44,336 @@ return new class extends Migration
         };
     }
 
+    /**
+     * Rollback thật (WWHN-300 `migrations.reversible`, 10/09/2026).
+     *
+     * pgsql, theo thứ tự ngược của up():
+     *   1. Trả định mức về `skus.specifications` (jsonb) — nơi 2026_08_27_110000 lưu nó —
+     *      rồi để trống hai cột vật lý, nên giá trị hợp lệ đang có không mất và chỉ còn
+     *      một nguồn sự thật như trước up().
+     *   2. View `sku`/`products` và `hn_legacy_sku_write()` về đúng bản 2026_08_27_110000;
+     *      `hn_legacy_products_write()` về bản 2026_08_17_100000. Trigger
+     *      `trg_hn_legacy_products_write` KHÔNG gắn lại: trạng thái ngay trước up() không có
+     *      nó (2026_08_27_110000 làm rơi; down() của chính migration đó mới gắn lại).
+     *   3. Bỏ index và CHECK `chk_skus_stock_thresholds`.
+     *
+     * Hai cột `skus.min_stock` / `skus.max_stock` được GIỮ: ERD bảng 16 khai chúng
+     * (ERD-AMD-010) và 2026_08_10_000760 materialize cột từ chính tài liệu ERD, nên trên
+     * mọi CSDL dựng mới chúng đã tồn tại TRƯỚC migration này — up() chỉ `ADD COLUMN IF NOT
+     * EXISTS`. Bỏ cột ở đây sẽ làm lệch lược đồ so với ERD trên CSDL dựng mới; trên CSDL
+     * migrate dần từ trước 30/08 thì hai cột trống còn lại vô hại (view bản cũ không đọc
+     * chúng, và up() chạy lại vẫn idempotent).
+     *
+     * Giới hạn đã biết: định mức sai rule mà up() hạ về NULL (normalizeLegacyThresholds)
+     * không khôi phục được — up() đã xoá thông tin đó.
+     *
+     * sqlite: view `skus` về bản 2026_08_10_000610, view `products` + 3 trigger về bản
+     * 2026_08_17_100000, rồi bỏ hai cột trên bảng `sku`. sqlite chưa từng lưu định mức ở chỗ
+     * nào khác (2026_08_27_110000 chỉ chạy trên pgsql) nên giá trị mất theo cột.
+     */
     public function down(): void
     {
-        // Fail-forward: cột định mức là dữ liệu nghiệp vụ người dùng đã nhập,
-        // rollback sẽ mất trắng. Xem docs/HoaNam_ERD_Moi_Nhat.md bảng 16.
+        match (DB::getDriverName()) {
+            'pgsql' => $this->downPostgres(),
+            'sqlite' => $this->downSqlite(),
+            default => null,
+        };
+    }
+
+    private function downPostgres(): void
+    {
+        if (! Schema::hasColumn('skus', 'min_stock')) {
+            return;
+        }
+
+        // Mọi biểu thức SET đọc giá trị CŨ của dòng, nên jsonb nhận đúng định mức trước khi
+        // hai cột được để trống.
+        DB::statement(<<<'SQL'
+            UPDATE skus
+               SET specifications = COALESCE(specifications, '{}'::jsonb)
+                   || jsonb_strip_nulls(jsonb_build_object('min_stock', min_stock, 'max_stock', max_stock)),
+                   min_stock = NULL,
+                   max_stock = NULL
+             WHERE min_stock IS NOT NULL
+                OR max_stock IS NOT NULL
+        SQL);
+
+        DB::statement('DROP VIEW IF EXISTS sku CASCADE');
+        DB::statement(<<<'SQL'
+            CREATE VIEW sku AS
+            SELECT s.id AS sku_id, s.sku_code, s.sku_name, s.sku_type, s.unit_code AS unit,
+                   s.tracking_mode = 'SERIAL' AS is_serial_tracked,
+                   s.brand_id, s.category_id, s.model_id, s.power_source_id, s.package_variant_id,
+                   (s.specifications->>'power_or_voltage')::varchar(50) AS power_or_voltage,
+                   (s.specifications->>'package_variant')::varchar(50) AS package_variant,
+                   COALESCE(s.specifications->>'version_code', 'V1')::varchar(30) AS version_code,
+                   COALESCE((s.specifications->>'warranty_applicable')::boolean, false) AS warranty_applicable,
+                   (s.specifications->>'min_stock')::numeric(18,3) AS min_stock,
+                   (s.specifications->>'max_stock')::numeric(18,3) AS max_stock,
+                   (s.specifications - 'power_or_voltage' - 'package_variant' - 'version_code' - 'warranty_applicable' - 'min_stock' - 'max_stock') AS specification,
+                   COALESCE((SELECT p.published FROM pv_product_profiles p WHERE p.sku_id = s.id), false) AS published_to_app,
+                   s.status, s.created_at, s.updated_at, s.version
+              FROM skus s
+        SQL);
+        DB::statement('DROP VIEW IF EXISTS products CASCADE');
+        DB::statement(<<<'SQL'
+            CREATE VIEW products AS
+            SELECT s.id, s.sku_code AS code, s.sku_name AS name, s.sku_type, s.unit_code AS unit,
+                   s.tracking_mode = 'SERIAL' AS is_serial_tracked,
+                   s.brand_id, s.category_id, s.model_id,
+                   (s.specifications->>'power_or_voltage')::varchar(50) AS power_or_voltage,
+                   (s.specifications->>'package_variant')::varchar(50) AS package_variant,
+                   COALESCE(s.specifications->>'version_code', 'V1')::varchar(30) AS version_code,
+                   COALESCE((s.specifications->>'warranty_applicable')::boolean, false) AS warranty_applicable,
+                   (s.specifications->>'min_stock')::numeric(18,3) AS min_stock,
+                   (s.specifications->>'max_stock')::numeric(18,3) AS max_stock,
+                   (s.specifications - 'power_or_voltage' - 'package_variant' - 'version_code' - 'warranty_applicable' - 'min_stock' - 'max_stock') AS specification,
+                   COALESCE((SELECT p.published FROM pv_product_profiles p WHERE p.sku_id = s.id), false) AS published_to_app,
+                   s.status, s.created_at, s.updated_at
+              FROM skus s
+        SQL);
+
+        DB::statement(<<<'SQL'
+            CREATE OR REPLACE FUNCTION hn_legacy_sku_write() RETURNS trigger AS $$
+            DECLARE
+                v_sku_id uuid;
+                v_specs jsonb;
+            BEGIN
+                IF TG_OP = 'DELETE' THEN DELETE FROM skus WHERE id=OLD.sku_id; RETURN OLD; END IF;
+                v_sku_id := COALESCE(NEW.sku_id, gen_random_uuid());
+                -- ERD bảng 16: thuộc tính legacy sống trong specifications jsonb.
+                v_specs := COALESCE(NEW.specification::jsonb, '{}'::jsonb)
+                    || jsonb_strip_nulls(jsonb_build_object(
+                           'power_or_voltage', NEW.power_or_voltage,
+                           'package_variant', NEW.package_variant,
+                           'version_code', NEW.version_code,
+                           'warranty_applicable', NEW.warranty_applicable,
+                           'min_stock', NEW.min_stock,
+                           'max_stock', NEW.max_stock
+                       ));
+                INSERT INTO skus (
+                    id, sku_code, sku_name, sku_type, tracking_mode, unit_code,
+                    brand_id, category_id, model_id, power_source_id, package_variant_id,
+                    specifications, status, created_at, updated_at, version
+                )
+                VALUES (
+                    v_sku_id, NEW.sku_code, NEW.sku_name, COALESCE(NEW.sku_type, 'PRODUCT'),
+                    CASE WHEN COALESCE(NEW.is_serial_tracked, false) THEN 'SERIAL' ELSE 'QUANTITY' END,
+                    COALESCE(NEW.unit, 'cai'), NEW.brand_id, NEW.category_id, NEW.model_id,
+                    NEW.power_source_id, NEW.package_variant_id, v_specs,
+                    COALESCE(NEW.status, 'ACTIVE'), COALESCE(NEW.created_at, CURRENT_TIMESTAMP),
+                    COALESCE(NEW.updated_at, CURRENT_TIMESTAMP), COALESCE(NEW.version, 1)
+                )
+                ON CONFLICT (id) DO UPDATE SET
+                    sku_code=EXCLUDED.sku_code, sku_name=EXCLUDED.sku_name, sku_type=EXCLUDED.sku_type,
+                    tracking_mode=EXCLUDED.tracking_mode, unit_code=EXCLUDED.unit_code,
+                    brand_id=EXCLUDED.brand_id, category_id=EXCLUDED.category_id, model_id=EXCLUDED.model_id,
+                    power_source_id=EXCLUDED.power_source_id, package_variant_id=EXCLUDED.package_variant_id,
+                    specifications=EXCLUDED.specifications, status=EXCLUDED.status,
+                    updated_at=EXCLUDED.updated_at, version=EXCLUDED.version;
+
+                -- REQ-SRS-020: persist publish state vào pv_product_profiles.published (ERD 51).
+                IF NEW.published_to_app IS NOT NULL THEN
+                    INSERT INTO pv_product_profiles (id, sku_id, display_name, published, published_at, sort_order, version, created_at, updated_at)
+                    VALUES (gen_random_uuid(), v_sku_id, NEW.sku_name, NEW.published_to_app,
+                            CASE WHEN NEW.published_to_app THEN CURRENT_TIMESTAMP END,
+                            0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (sku_id) DO UPDATE SET
+                        published = EXCLUDED.published,
+                        published_at = CASE WHEN EXCLUDED.published THEN COALESCE(pv_product_profiles.published_at, CURRENT_TIMESTAMP) END,
+                        updated_at = CURRENT_TIMESTAMP;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+        SQL);
+        DB::statement('CREATE TRIGGER trg_hn_legacy_sku_write INSTEAD OF INSERT OR UPDATE OR DELETE ON sku FOR EACH ROW EXECUTE FUNCTION hn_legacy_sku_write()');
+
+        DB::statement(<<<'SQL'
+            CREATE OR REPLACE FUNCTION hn_legacy_products_write() RETURNS trigger AS $$
+            DECLARE
+                v_sku_id uuid;
+                v_specs jsonb;
+            BEGIN
+                IF TG_OP = 'DELETE' THEN DELETE FROM skus WHERE id=OLD.id; RETURN OLD; END IF;
+                v_sku_id := COALESCE(NEW.id, gen_random_uuid());
+                -- ERD bảng 16: thuộc tính legacy sống trong specifications jsonb.
+                v_specs := COALESCE(NEW.specification::jsonb, '{}'::jsonb)
+                    || jsonb_strip_nulls(jsonb_build_object(
+                           'power_or_voltage', NEW.power_or_voltage,
+                           'package_variant', NEW.package_variant,
+                           'version_code', NEW.version_code,
+                           'warranty_applicable', NEW.warranty_applicable
+                       ));
+                INSERT INTO skus (
+                    id, sku_code, sku_name, sku_type, tracking_mode, unit_code,
+                    brand_id, category_id, model_id, power_source_id, package_variant_id,
+                    specifications, status, created_at, updated_at, version
+                )
+                VALUES (
+                    v_sku_id, NEW.code, NEW.name, COALESCE(NEW.sku_type, 'PRODUCT'),
+                    CASE WHEN COALESCE(NEW.is_serial_tracked, false) THEN 'SERIAL' ELSE 'QUANTITY' END,
+                    COALESCE(NEW.unit, 'cai'), NEW.brand_id, NEW.category_id, NEW.model_id,
+                    NEW.power_source_id, NEW.package_variant_id,
+                    v_specs, COALESCE(NEW.status, 'ACTIVE'),
+                    COALESCE(NEW.created_at, CURRENT_TIMESTAMP), COALESCE(NEW.updated_at, CURRENT_TIMESTAMP),
+                    COALESCE(NEW.version, 1)
+                )
+                ON CONFLICT (id) DO UPDATE SET
+                    sku_code=EXCLUDED.sku_code, sku_name=EXCLUDED.sku_name, sku_type=EXCLUDED.sku_type,
+                    tracking_mode=EXCLUDED.tracking_mode, unit_code=EXCLUDED.unit_code,
+                    brand_id=EXCLUDED.brand_id, category_id=EXCLUDED.category_id, model_id=EXCLUDED.model_id,
+                    power_source_id=EXCLUDED.power_source_id, package_variant_id=EXCLUDED.package_variant_id,
+                    specifications=EXCLUDED.specifications, status=EXCLUDED.status,
+                    version=EXCLUDED.version,
+                    updated_at=EXCLUDED.updated_at;
+
+                -- REQ-SRS-020: publish qua compat view cũng phải persist thật.
+                IF NEW.published_to_app IS NOT NULL THEN
+                    INSERT INTO pv_product_profiles (id, sku_id, display_name, published, published_at, sort_order, version, created_at, updated_at)
+                    VALUES (gen_random_uuid(), v_sku_id, NEW.name, NEW.published_to_app,
+                            CASE WHEN NEW.published_to_app THEN CURRENT_TIMESTAMP END,
+                            0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT (sku_id) DO UPDATE SET
+                        published = EXCLUDED.published,
+                        published_at = CASE WHEN EXCLUDED.published THEN COALESCE(pv_product_profiles.published_at, CURRENT_TIMESTAMP) END,
+                        updated_at = CURRENT_TIMESTAMP;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+        SQL);
+
+        DB::statement('DROP INDEX IF EXISTS idx_skus_stock_thresholds');
+        DB::statement('ALTER TABLE skus DROP CONSTRAINT IF EXISTS chk_skus_stock_thresholds');
+    }
+
+    private function downSqlite(): void
+    {
+        if (! Schema::hasTable('sku') || ! Schema::hasColumn('sku', 'min_stock')) {
+            return;
+        }
+
+        DB::statement('DROP VIEW IF EXISTS skus');
+        DB::statement(<<<'SQL'
+            CREATE VIEW skus AS
+            SELECT sku_id AS id,
+                   sku_code,
+                   sku_name,
+                   sku_type,
+                   CASE WHEN is_serial_tracked THEN 'SERIAL' ELSE 'QUANTITY' END AS tracking_mode,
+                   unit AS unit_code,
+                   brand_id,
+                   category_id,
+                   model_id,
+                   power_source_id,
+                   package_variant_id,
+                   specification AS specifications,
+                   status,
+                   created_at,
+                   NULL AS created_by,
+                   updated_at,
+                   NULL AS updated_by,
+                   version
+            FROM sku
+        SQL);
+
+        DB::statement('DROP VIEW IF EXISTS products');
+        DB::statement(<<<'SQL'
+            CREATE VIEW products AS
+            SELECT
+                sku_id AS id,
+                sku_code AS code,
+                sku_name AS name,
+                sku_type,
+                unit,
+                is_serial_tracked,
+                brand_id,
+                category_id,
+                model_id,
+                power_source_id,
+                package_variant_id,
+                power_or_voltage,
+                package_variant,
+                version_code,
+                warranty_applicable,
+                specification,
+                published_to_app,
+                status,
+                version,
+                created_at,
+                updated_at
+            FROM sku
+        SQL);
+
+        DB::unprepared(<<<'SQL'
+            DROP TRIGGER IF EXISTS products_compat_insert;
+            CREATE TRIGGER products_compat_insert
+            INSTEAD OF INSERT ON products
+            BEGIN
+                INSERT INTO sku (
+                    sku_id, sku_code, sku_name, sku_type, unit, is_serial_tracked,
+                    brand_id, category_id, model_id, power_source_id, package_variant_id,
+                    power_or_voltage, package_variant,
+                    version_code, warranty_applicable, specification, published_to_app,
+                    status, version, created_at, updated_at
+                ) VALUES (
+                    NEW.id, NEW.code, NEW.name,
+                    COALESCE(NEW.sku_type, 'PRODUCT'),
+                    COALESCE(NEW.unit, 'cái'),
+                    COALESCE(NEW.is_serial_tracked, 0),
+                    NEW.brand_id, NEW.category_id, NEW.model_id,
+                    NEW.power_source_id, NEW.package_variant_id,
+                    NEW.power_or_voltage, NEW.package_variant,
+                    COALESCE(NEW.version_code, 'V1'),
+                    COALESCE(NEW.warranty_applicable, 0),
+                    NEW.specification,
+                    COALESCE(NEW.published_to_app, 0),
+                    COALESCE(NEW.status, 'ACTIVE'),
+                    COALESCE(NEW.version, 1),
+                    COALESCE(NEW.created_at, CURRENT_TIMESTAMP),
+                    COALESCE(NEW.updated_at, CURRENT_TIMESTAMP)
+                );
+            END;
+
+            DROP TRIGGER IF EXISTS products_compat_update;
+            CREATE TRIGGER products_compat_update
+            INSTEAD OF UPDATE ON products
+            BEGIN
+                UPDATE sku SET
+                    sku_code = NEW.code,
+                    sku_name = NEW.name,
+                    sku_type = NEW.sku_type,
+                    unit = NEW.unit,
+                    is_serial_tracked = NEW.is_serial_tracked,
+                    brand_id = NEW.brand_id,
+                    category_id = NEW.category_id,
+                    model_id = NEW.model_id,
+                    power_source_id = NEW.power_source_id,
+                    package_variant_id = NEW.package_variant_id,
+                    power_or_voltage = NEW.power_or_voltage,
+                    package_variant = NEW.package_variant,
+                    version_code = NEW.version_code,
+                    warranty_applicable = NEW.warranty_applicable,
+                    specification = NEW.specification,
+                    published_to_app = NEW.published_to_app,
+                    status = NEW.status,
+                    version = COALESCE(NEW.version, 1),
+                    updated_at = COALESCE(NEW.updated_at, CURRENT_TIMESTAMP)
+                WHERE sku_id = OLD.id;
+            END;
+
+            DROP TRIGGER IF EXISTS products_compat_delete;
+            CREATE TRIGGER products_compat_delete
+            INSTEAD OF DELETE ON products
+            BEGIN
+                DELETE FROM sku WHERE sku_id = OLD.id;
+            END;
+        SQL);
+
+        Schema::table('sku', function (Blueprint $table): void {
+            $table->dropColumn(['min_stock', 'max_stock']);
+        });
     }
 
     private function upPostgres(): void

@@ -173,4 +173,29 @@ return [
     // không expose và trigger write-through không ghi qua được — cùng lớp quyết
     // định với 2 mục phía trên (view/trigger thiếu cột so với bảng canonical).
     '2026_08_26_100000_fix_warranty_case_updated_by_missing' => 'down() rỗng có chủ ý — fail-forward vá gap updated_by trên view warranty_case (PG), chờ Tech Lead phê duyệt nguồn gốc',
+    // ------------------------------------------------------------------
+    // Rà soát 10/09/2026 (gate `migrations.reversible` đỏ vì 9 migration fail-forward
+    // chưa disposition). Bảy migration đã được viết down() thật và chứng minh bằng
+    // migrate → rollback → so sánh lược đồ (pg_dump --schema-only trên PostgreSQL 16 và
+    // sqlite_master/PRAGMA trên SQLite) nên không nằm ở đây. Hai migration dưới đây
+    // KHÔNG hoàn tác đúng nghĩa được — mỗi mục cần Tech Lead duyệt.
+    // ------------------------------------------------------------------
+    // GĐ1 scan-driven: nới CHECK `> 0` của stock_document_lines/inbound_lines về `>= 0`
+    // và dời nửa "> 0" của luồng xuất sang trigger. Hoàn tác = ADD CONSTRAINT `qty > 0`:
+    // PostgreSQL validate toàn bảng ngay nên thất bại trên mọi CSDL đang giữ dòng phiếu
+    // nhập GĐ1 hợp lệ có qty_planned = 0 (vừa materialize theo Box, hoặc sau unscan).
+    // Muốn chạy được phải sửa/xoá chứng từ nghiệp vụ hợp lệ, hoặc thêm NOT VALID — tức
+    // âm thầm tái lập một rule BA đã bỏ trong khi dữ liệu vi phạm vẫn nằm đó.
+    // TRẠNG THÁI: approved_by: PENDING (Tech Lead).
+    '2026_08_27_130000_align_stock_document_line_quantity_checks_with_gd1' => 'down() rỗng có chủ ý — hoàn tác = tái lập CHECK qty > 0 mà dữ liệu GĐ1 hợp lệ (qty_planned = 0) vi phạm; approved_by: PENDING (Tech Lead)',
+    // audit_logs là kho bằng chứng append-only (`trg_audit_logs_append_only` chặn
+    // UPDATE/DELETE — xem 2026_08_19_150000). up() thêm `module` + `ip_address` rồi dựng
+    // lại view/trigger `audit_log`. Hoàn tác đúng nghĩa phải DROP hai cột, tức xoá vĩnh
+    // viễn module + IP đã ghi trên mọi dòng audit từ 27/08 (gồm bằng chứng đăng nhập/bảo
+    // mật) — trái bất biến append-only mà chính trigger đó cưỡng chế. Hai cột additive không
+    // phá bản build cũ, nên đường lùi hợp lệ là giữ lược đồ và rollback code, hoặc restore
+    // backup (DevOps). Nếu Tech Lead bác disposition này, down() thật = dựng lại view/trigger
+    // bản 2026_08_19_150000 rồi DROP hai cột.
+    // TRẠNG THÁI: approved_by: PENDING (Tech Lead).
+    '2026_08_27_130000_add_module_and_ip_address_to_audit_log' => 'down() rỗng có chủ ý — hoàn tác = DROP cột module/ip_address của audit_logs append-only, xoá bằng chứng audit đã ghi; approved_by: PENDING (Tech Lead)',
 ];

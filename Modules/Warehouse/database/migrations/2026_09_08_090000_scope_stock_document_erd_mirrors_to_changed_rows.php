@@ -86,11 +86,102 @@ return new class extends Migration
         $this->scopeDocumentMirror();
     }
 
+    /**
+     * Rollback thật (WWHN-300 `migrations.reversible`, 10/09/2026). up() chỉ chạy trên
+     * pgsql nên down() cũng vậy. Đưa ba mirror về đúng dạng ngay trước migration này:
+     *
+     *   - `inbound_documents`, `outbound_lines`: hàm upsert toàn projection do generator
+     *     2026_08_10_000765 sinh (không mệnh đề dọn), trigger FOR EACH STATEMENT;
+     *   - `inbound_lines`: thân hàm viết tay của 2026_08_19_130000 (dọn dòng rời projection
+     *     + upsert toàn projection), trigger FOR EACH STATEMENT.
+     *
+     * Hệ quả vận hành: dựng lại đúng nút thắt "mỗi lần ghi quét cả bảng mirror" mà up() gỡ
+     * (docblock đầu file). Không có dữ liệu nào phải hoàn tác: nội dung mirror là phép chiếu
+     * của bảng canonical; up() chỉ đổi phạm vi đồng bộ (và resync một lần).
+     */
     public function down(): void
     {
-        // Fail-forward: dựng lại mirror quét-cả-bảng là tái tạo đúng nút thắt
-        // hiệu năng vừa gỡ. Nội dung mirror không đổi nên không có dữ liệu nào
-        // để hoàn tác.
+        if (DB::getDriverName() !== 'pgsql'
+            || ! Schema::hasTable('stock_documents')
+            || ! Schema::hasTable('stock_document_lines')) {
+            return;
+        }
+
+        if ($this->mirrorIsInstalled('inbound_lines')) {
+            $this->restoreInboundLinesStatementMirror();
+            $this->installStatementTrigger('trg_erd_mirror_inbound_lines_from_stock_documents', 'stock_documents', 'hn_erd_mirror_inbound_lines');
+            $this->installStatementTrigger('trg_erd_mirror_inbound_lines_from_stock_document_lines', 'stock_document_lines', 'hn_erd_mirror_inbound_lines');
+        }
+
+        if ($this->mirrorIsInstalled('outbound_lines') && $this->restoreGeneratedStatementMirror('outbound_lines')) {
+            $this->installStatementTrigger('trg_erd_mirror_outbound_lines_from_stock_documents', 'stock_documents', 'hn_erd_mirror_outbound_lines');
+            $this->installStatementTrigger('trg_erd_mirror_outbound_lines_from_stock_document_lines', 'stock_document_lines', 'hn_erd_mirror_outbound_lines');
+        }
+
+        if ($this->mirrorIsInstalled('inbound_documents') && $this->restoreGeneratedStatementMirror('inbound_documents')) {
+            $this->installStatementTrigger('trg_erd_mirror_inbound_documents_from_stock_documents', 'stock_documents', 'hn_erd_mirror_inbound_documents');
+        }
+    }
+
+    private function mirrorIsInstalled(string $mirror): bool
+    {
+        return Schema::hasTable($mirror)
+            && HoaNamErdSchema::relationKind($mirror.'__legacy_projection') === 'v';
+    }
+
+    /**
+     * Dạng hàm của generator 2026_08_10_000765: một câu upsert toàn projection, cùng tập
+     * cột (projection ∩ bảng mirror, theo ordinal_position) mà up() dùng.
+     */
+    private function restoreGeneratedStatementMirror(string $mirror): bool
+    {
+        $columns = $this->projectionColumns($mirror);
+        if ($columns === [] || ! in_array('id', $columns, true)) {
+            return false;
+        }
+
+        $quoted = $this->quotedList($columns);
+
+        DB::statement('CREATE OR REPLACE FUNCTION '.HoaNamErdSchema::quote('hn_erd_mirror_'.$mirror).'() RETURNS trigger AS $$ BEGIN INSERT INTO '.HoaNamErdSchema::quote($mirror).' ('.$quoted.') SELECT '.$quoted.' FROM '.HoaNamErdSchema::quote($mirror.'__legacy_projection').' '.$this->upsertClause($columns).'; RETURN NULL; END; $$ LANGUAGE plpgsql');
+
+        return true;
+    }
+
+    /** Thân hàm nguyên văn của 2026_08_19_130000_sync_inbound_lines_mirror_deletes. */
+    private function restoreInboundLinesStatementMirror(): void
+    {
+        DB::statement('CREATE OR REPLACE FUNCTION hn_erd_mirror_inbound_lines() RETURNS trigger AS $$ BEGIN
+            DELETE FROM inbound_lines c
+             WHERE NOT EXISTS (
+                SELECT 1 FROM inbound_lines__legacy_projection p WHERE p.id = c.id
+             );
+            INSERT INTO "inbound_lines" ("id", "inbound_document_id", "line_no", "sku_id", "import_batch_id", "expected_qty", "scanned_qty", "note", "created_at", "created_by", "updated_at", "updated_by", "version")
+            SELECT "id", "inbound_document_id", "line_no", "sku_id", "import_batch_id", "expected_qty", "scanned_qty", "note", "created_at", "created_by", "updated_at", "updated_by", "version"
+              FROM "inbound_lines__legacy_projection"
+            ON CONFLICT ("id") DO UPDATE SET
+                "inbound_document_id" = EXCLUDED."inbound_document_id",
+                "line_no" = EXCLUDED."line_no",
+                "sku_id" = EXCLUDED."sku_id",
+                "import_batch_id" = EXCLUDED."import_batch_id",
+                "expected_qty" = EXCLUDED."expected_qty",
+                "scanned_qty" = EXCLUDED."scanned_qty",
+                "note" = EXCLUDED."note",
+                "created_at" = EXCLUDED."created_at",
+                "created_by" = EXCLUDED."created_by",
+                "updated_at" = EXCLUDED."updated_at",
+                "updated_by" = EXCLUDED."updated_by",
+                "version" = EXCLUDED."version";
+            RETURN NULL;
+        END; $$ LANGUAGE plpgsql');
+    }
+
+    private function installStatementTrigger(string $trigger, string $table, string $function): void
+    {
+        $quotedTrigger = HoaNamErdSchema::quote($trigger);
+        $quotedTable = HoaNamErdSchema::quote($table);
+
+        DB::statement("DROP TRIGGER IF EXISTS {$quotedTrigger} ON {$quotedTable}");
+        DB::statement('CREATE TRIGGER '.$quotedTrigger.' AFTER INSERT OR UPDATE OR DELETE ON '.$quotedTable.' FOR EACH STATEMENT EXECUTE FUNCTION '.HoaNamErdSchema::quote($function).'()');
     }
 
     /**

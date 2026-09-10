@@ -31,8 +31,29 @@ return new class extends Migration
         });
     }
 
+    /**
+     * Rollback thật (WWHN-300 `migrations.reversible`, 10/09/2026): trả
+     * `warranty_attachments` về đúng hình dạng trước WAR-02 bằng cách bỏ ba cột mà up()
+     * thêm. Metadata video (`media_kind`, `duration_seconds`, `storage_disk`) mất theo cột
+     * — đó là nghĩa của rollback một bước additive; tệp vật lý trên disk không bị đụng.
+     */
     public function down(): void
     {
-        // Fail-forward: cột mới additive, không rollback để tránh mất metadata video.
+        if (! Schema::hasTable('warranty_attachments')) {
+            return;
+        }
+
+        $columns = array_values(array_filter(
+            ['media_kind', 'duration_seconds', 'storage_disk'],
+            static fn (string $column): bool => Schema::hasColumn('warranty_attachments', $column),
+        ));
+
+        if ($columns === []) {
+            return;
+        }
+
+        Schema::table('warranty_attachments', function (Blueprint $table) use ($columns): void {
+            $table->dropColumn($columns);
+        });
     }
 };
