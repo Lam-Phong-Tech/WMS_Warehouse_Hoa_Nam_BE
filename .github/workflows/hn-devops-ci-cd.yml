@@ -505,36 +505,68 @@ jobs:
       - name: UAT smoke
         env:
           UAT_APP_URL: ${{ vars.UAT_APP_URL || secrets.UAT_APP_URL }}
-          UAT_SMOKE_USERNAME: ${{ secrets.UAT_SMOKE_USERNAME }}
+          # Đăng nhập chỉ nhận email từ 07/09/2026. UAT_SMOKE_USERNAME là tên secret
+          # cũ, chỉ còn là đường lùi khi chưa tạo UAT_SMOKE_EMAIL — giá trị của nó cũng
+          # phải là email.
+          UAT_SMOKE_EMAIL: ${{ secrets.UAT_SMOKE_EMAIL || secrets.UAT_SMOKE_USERNAME }}
           UAT_SMOKE_PASSWORD: ${{ secrets.UAT_SMOKE_PASSWORD }}
         run: |
           set -euo pipefail
           curl --fail "$UAT_APP_URL/api/v1/health"
 
+          case "$UAT_SMOKE_EMAIL" in
+            ?*@?*) ;;
+            *)
+              echo "::error::UAT_SMOKE_EMAIL (hoặc secret cũ UAT_SMOKE_USERNAME) phải là email: đăng nhập chỉ nhận email từ 07/09/2026."
+              exit 1
+              ;;
+          esac
+          if [ -z "$UAT_SMOKE_PASSWORD" ]; then
+            echo "::error::Thiếu secret UAT_SMOKE_PASSWORD."
+            exit 1
+          fi
+
+          # Body đăng nhập dựng bằng `jq -n --arg` (không nội suy chuỗi: dấu " hay \
+          # trong mật khẩu không phá được JSON) và đi vào curl qua stdin, không nằm
+          # trên dòng lệnh. Response (chứa access token) và header Authorization chỉ
+          # nằm trong thư mục tạm quyền 700 của runner, xoá khi bước kết thúc; không
+          # in body hay token ra log.
+          umask 077
+          work="$(mktemp -d "${RUNNER_TEMP:-/tmp}/uat-smoke.XXXXXX")"
+          trap 'rm -rf "$work"' EXIT
+
+          login_status() {
+            jq -n --arg email "$UAT_SMOKE_EMAIL" --arg password "$UAT_SMOKE_PASSWORD" \
+              '{email: $email, password: $password}' |
+              curl -sS -o "$work/login-body.json" -w '%{http_code}' \
+                -X POST "$UAT_APP_URL/api/v1/auth/login" \
+                -H 'Content-Type: application/json' \
+                -H 'Accept: application/json' \
+                --data-binary @-
+          }
+
           # Login smoke chạy HAI LẦN liên tiếp: lần đầu có thể là lần tạo
           # storage/logs/laravel.log, chỉ lần hai mới lộ ownership sai (file
           # root:root do lệnh artisan chạy bằng root -> Monolog
-          # UnexpectedValueException -> 500). Chỉ kiểm HTTP 200 + success=true;
-          # không in body hay token ra log CI.
-          login_status() {
-            curl -s -o /tmp/login-body.json -w '%{http_code}' -X POST "$UAT_APP_URL/api/v1/auth/login" \
-              -H 'Content-Type: application/json' \
-              -d "{\"username\":\"$UAT_SMOKE_USERNAME\",\"password\":\"$UAT_SMOKE_PASSWORD\"}"
-          }
-
+          # UnexpectedValueException -> 500). Chỉ kiểm HTTP 200 + success=true.
           for attempt in 1 2; do
             status="$(login_status)"
-            if [ "$status" != "200" ] || [ "$(jq -r '.success' /tmp/login-body.json)" != "true" ]; then
-              echo "::error::login smoke lan ${attempt} that bai: HTTP ${status} error_code=$(jq -r '.error_code // "?"' /tmp/login-body.json)"
+            if [ "$status" != "200" ] || [ "$(jq -r '.success' "$work/login-body.json")" != "true" ]; then
+              echo "::error::login smoke lan ${attempt} that bai: HTTP ${status} error_code=$(jq -r '.error.code // .error_code // "?"' "$work/login-body.json")"
               exit 1
             fi
           done
 
-          TOKEN="$(jq -r '.data.access_token' /tmp/login-body.json)"
-          rm -f /tmp/login-body.json
-          test -n "$TOKEN" && [ "$TOKEN" != "null" ]
+          token="$(jq -r '.data.access_token // empty' "$work/login-body.json")"
+          rm -f "$work/login-body.json"
+          if [ -z "$token" ]; then
+            echo "::error::login smoke: HTTP 200 nhưng response không có data.access_token."
+            exit 1
+          fi
+          echo "::add-mask::${token}"
+          printf 'Authorization: Bearer %s\n' "$token" > "$work/auth-header"
 
-          curl --fail -H "Authorization: Bearer $TOKEN" "$UAT_APP_URL/api/v1/warehouses?keyword=KHO-TONG-HN"
+          curl --fail -sS -o /dev/null -H @"$work/auth-header" "$UAT_APP_URL/api/v1/warehouses?keyword=KHO-TONG-HN"
 
       - name: Purge Cloudflare cache for staging
         env:
