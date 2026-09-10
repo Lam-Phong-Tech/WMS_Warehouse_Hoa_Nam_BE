@@ -250,7 +250,9 @@ class MiniAppComponentIssueStagingController extends Controller
                     foreach ($prepared['rows'] as $index => $row) {
                         $lineId = $lineIdBySku[$row['sku_id']] ?? null;
                         if ($lineId === null) {
-                            ApiError::abort(409, 'COMPONENT_LINE_NOT_FOUND', 'Không tìm thấy dòng phiếu tương ứng SKU vừa quét.', ['row_no' => $index + 1]);
+                            // WWHN-267: một mã một HTTP status — COMPONENT_LINE_NOT_FOUND là 404 như
+                            // CurrentBaselineComponentFlowController; transaction vẫn rollback toàn bộ.
+                            ApiError::abort(404, 'COMPONENT_LINE_NOT_FOUND', 'Không tìm thấy dòng phiếu tương ứng SKU vừa quét.', ['row_no' => $index + 1]);
                         }
 
                         $scanResponse = $this->flow->scan($this->childRequest($request, [

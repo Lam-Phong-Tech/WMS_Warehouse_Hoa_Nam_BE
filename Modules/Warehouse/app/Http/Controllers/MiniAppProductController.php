@@ -211,7 +211,8 @@ class MiniAppProductController extends Controller
             ->where('status', 'ACTIVE')
             ->value('id');
         if ($id === null) {
-            ApiError::abort(422, 'WAREHOUSE_NOT_FOUND', 'Không tìm thấy Kho tổng Hoa Nam ACTIVE.');
+            // WWHN-267: một mã một HTTP status — WAREHOUSE_NOT_FOUND là 404 ở mọi call site khác.
+            ApiError::abort(404, 'WAREHOUSE_NOT_FOUND', 'Không tìm thấy Kho tổng Hoa Nam ACTIVE.');
         }
 
         return (string) $id;

@@ -947,7 +947,9 @@ class MiniAppInboundStagingController extends Controller
             ApiError::abort(404, 'WAREHOUSE_NOT_FOUND', 'Không tìm thấy kho.');
         }
         if (strtoupper((string) $warehouse->status) !== 'ACTIVE') {
-            ApiError::abort(422, 'WAREHOUSE_INACTIVE', 'Kho đang không ACTIVE.');
+            // WWHN-267: một mã một HTTP status — WAREHOUSE_INACTIVE là xung đột trạng thái
+            // (409), cùng status với ScanController và middleware tạm dừng kho.
+            ApiError::abort(409, 'WAREHOUSE_INACTIVE', 'Kho đang không ACTIVE.');
         }
         if (strtoupper(trim((string) $warehouse->code)) !== self::CANONICAL_WAREHOUSE_CODE) {
             ApiError::abort(422, 'INBOUND_WAREHOUSE_NOT_CANONICAL', 'Luồng nhập kho MVP chỉ dùng Kho tổng Hoa Nam.', [

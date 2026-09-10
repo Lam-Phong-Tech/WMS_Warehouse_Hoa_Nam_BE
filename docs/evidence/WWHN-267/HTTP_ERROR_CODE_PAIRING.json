@@ -139,6 +139,26 @@
       "reason": "409 khi deactivate một code vốn đã không ACTIVE (xung đột trạng thái); 422 khi body tham chiếu code không ACTIVE (vi phạm rule nghiệp vụ).",
       "disposition": "ACCEPTED_LAYER_SPLIT",
       "constraint": "Không được mở rộng sang status thứ ba."
+    },
+    {
+      "code": "UNKNOWN_CODE",
+      "statuses": [404, 422],
+      "reason": "404 ở POST /scan-batches/classify (ScanController::classify) — tra cứu chỉ-đọc theo mã: QR hợp lệ nhưng không có ITEM đã đăng ký, tức chính đối tượng được tra cứu không tồn tại. 422 trong luồng quét của phiếu (CurrentBaselineStockService, nhánh documentType khác receipt) — code_value trong body phiếu xuất tham chiếu item chưa đăng ký, vi phạm AC-QR-05 'outbound chỉ nhận item đã tồn tại'.",
+      "evidence": "Modules/Warehouse/app/Http/Controllers/ScanController.php:205,215 (404); Modules/Warehouse/app/Services/CurrentBaselineStockService.php:325 (422)",
+      "disposition": "ACCEPTED_LAYER_SPLIT",
+      "constraint": "Không được mở rộng sang status thứ ba; tra cứu/resolve = 404, tham chiếu trong body lệnh ghi = 422.",
+      "owner": "BE + Tech Lead",
+      "recordedAt": "2026-09-10"
+    },
+    {
+      "code": "CARTON_NOT_FOUND",
+      "statuses": [404, 422],
+      "reason": "404 ở POST /inbound-documents/{id}/cartons/{containerId}/complete-scan (CurrentBaselineStockFlowController::completeInboundCartonScan) — carton là tài nguyên được trỏ trực tiếp bằng path. 422 khi container_id gửi trong body lệnh quét phiếu nhập không tồn tại (CurrentBaselineStockService::assertReceiptCartonUsable) — lỗi validation của payload.",
+      "evidence": "Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php:294 (404); Modules/Warehouse/app/Services/CurrentBaselineStockService.php:908 (422)",
+      "disposition": "ACCEPTED_LAYER_SPLIT",
+      "constraint": "Không được mở rộng sang status thứ ba; path = 404, body = 422.",
+      "owner": "BE + Tech Lead",
+      "recordedAt": "2026-09-10"
     }
   ],
   "measuredAt": {
