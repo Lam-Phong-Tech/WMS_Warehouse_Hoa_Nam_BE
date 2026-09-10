@@ -1,0 +1,13 @@
+PHPUnit 12.5.33 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.3.33
+Configuration: /app/phpunit.xml
+
+...............................................................  63 / 146 ( 43%)
+............................................................... 126 / 146 ( 86%)
+....................                                            146 / 146 (100%)
+
+Time: 00:12.105, Memory: 125.00 MB
+
+OK (146 tests, 1028 assertions)
+SQLITE_EXIT=0

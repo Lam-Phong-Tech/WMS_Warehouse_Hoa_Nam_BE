@@ -69,6 +69,11 @@ class BootstrapSuperAdmin extends Command
 
     protected $description = 'Tạo tài khoản SUPER_ADMIN đầu tiên — một lần, fail-closed, bắt buộc đổi mật khẩu ở lần đăng nhập đầu.';
 
+    private function relationExists(string $relation): bool
+    {
+        return Schema::hasTable($relation) || Schema::hasView($relation);
+    }
+
     public function handle(AuditLogger $audit): int
     {
         $isDevelopment = in_array(
@@ -102,7 +107,10 @@ class BootstrapSuperAdmin extends Command
             return self::FAILURE;
         }
 
-        if (! Schema::hasTable('app_user') || ! Schema::hasTable('user_role')) {
+        // Trên PostgreSQL `app_user` và `user_role` là VIEW của ERD, mà `Schema::hasTable()`
+        // chỉ thấy BASE TABLE — kiểm cả view, nếu không lệnh từ chối chạy trên mọi CSDL thật
+        // (SQLite của bộ test coi view như bảng nên không lộ lỗi này).
+        if (! $this->relationExists('app_user') || ! $this->relationExists('user_role')) {
             $this->error('Chưa có schema IAM. Chạy `php artisan migrate --force` trước.');
 
             return self::FAILURE;

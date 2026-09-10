@@ -356,6 +356,41 @@ jobs:
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'mkdir -p /tmp/phpini && echo memory_limit=1G > /tmp/phpini/zz-memory.ini && PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d:/tmp/phpini php artisan test --filter "\b(WwhnSec05DataTransportTest|WwhnSec06PiiEncryptionTest|WwhnSecSuperAdminBootstrapTest|WwhnSecRefreshTokenTransportTest|Wwhn300ProductionSafeSeedingTest|AuthLoginContractSecurityTest|AuthSessionPersistenceTest|SecurityRbacAuditNegativeTest|PrivilegeEscalationGuardTest|WwhnSec08MfaTest|WwhnSec09HardeningTest|AuthorizationTest|Wwhn289SecurityRegressionProofTest|RbacCacheInvalidationTest)::"'
 
+      # Cùng các suite bảo mật, chạy lại trên PostgreSQL 16 thật. Trên pgsql `app_user`,
+      # `user_role`, `role`… là VIEW của ERD, còn SQLite coi view như bảng: 10/09/2026 lỗi
+      # `Schema::hasTable()` mù view làm `wms:bootstrap-super-admin` từ chối chạy trên MỌI
+      # CSDL thật mà bước SQLite ở trên vẫn xanh. CSDL dùng một lần, mạng docker nội bộ,
+      # không publish cổng (trust auth chỉ trong mạng đó); phpunit.pgsql.xml ép host
+      # `postgres` và tên CSDL chứa "test" theo guard của TestCase.
+      - name: Run security suites on PostgreSQL (hard)
+        run: |
+          set -euo pipefail
+          net="wms-pg-sec-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker network create --internal "$net" > /dev/null
+          trap 'docker rm -f "wms-pg-sec-${GITHUB_RUN_ID}" > /dev/null 2>&1; docker network rm "$net" > /dev/null 2>&1' EXIT
+          docker run -d --name "wms-pg-sec-${GITHUB_RUN_ID}" --network "$net" --network-alias postgres \
+            -e POSTGRES_DB=wms_hoanam_testing -e POSTGRES_USER=postgres -e POSTGRES_HOST_AUTH_METHOD=trust \
+            postgres:16-alpine > /dev/null
+          ready=0
+          for _ in $(seq 1 60); do
+            if docker exec "wms-pg-sec-${GITHUB_RUN_ID}" pg_isready -U postgres -d wms_hoanam_testing > /dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::PostgreSQL dùng một lần không sẵn sàng sau 60s."
+            exit 1
+          fi
+          docker run --rm --network "$net" \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'mkdir -p /tmp/phpini && echo memory_limit=1G > /tmp/phpini/zz-memory.ini && PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d:/tmp/phpini php artisan test --configuration=phpunit.pgsql.xml --filter "\b(WwhnSec05DataTransportTest|WwhnSec06PiiEncryptionTest|WwhnSecSuperAdminBootstrapTest|WwhnSecRefreshTokenTransportTest|Wwhn300ProductionSafeSeedingTest|AuthLoginContractSecurityTest|AuthSessionPersistenceTest|SecurityRbacAuditNegativeTest|PrivilegeEscalationGuardTest|WwhnSec08MfaTest|WwhnSec09HardeningTest|AuthorizationTest|Wwhn289SecurityRegressionProofTest|RbacCacheInvalidationTest)::"'
+
       # Suite đầy đủ là cổng CỨNG (quyết định chủ dự án 10/09/2026: không còn chạy
       # advisory). Mốc nền đỏ đang được sửa trên các nhánh sec/be-red-*;
       # nhánh bật cổng này merge sau cùng. Chạy trên SQLite in-memory như bước trên

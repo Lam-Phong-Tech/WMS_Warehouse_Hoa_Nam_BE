@@ -740,7 +740,11 @@ class BackendGoLiveCheck extends Command
         $privilegedWithoutMfa = null;
         $privilegedTotal = null;
 
-        if ($requiredRoles !== [] && Schema::hasTable('user_mfa') && Schema::hasTable('user_role') && Schema::hasTable('role')) {
+        // `user_role` và `role` là VIEW trên PostgreSQL; `Schema::hasTable()` chỉ thấy BASE TABLE
+        // nên nếu chỉ hỏi bảng, phép đếm này bị bỏ qua im lặng đúng trên production.
+        $relationExists = static fn (string $relation): bool => Schema::hasTable($relation) || Schema::hasView($relation);
+
+        if ($requiredRoles !== [] && $relationExists('user_mfa') && $relationExists('user_role') && $relationExists('role')) {
             $privilegedIds = DB::table('user_role as ur')
                 ->join('role as r', 'r.role_id', '=', 'ur.role_id')
                 ->whereIn(DB::raw('UPPER(r.role_code)'), $requiredRoles)
