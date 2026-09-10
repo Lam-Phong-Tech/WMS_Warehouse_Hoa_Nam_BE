@@ -29,6 +29,28 @@ class BaM1ReportController extends Controller
 
     private const WARRANTY_STATUSES = ['RECEIVED', 'CHECKING', 'REPAIRING', 'COMPLETED', 'RETURNED', 'CANCELLED'];
 
+    #[OA\Get(
+        path: '/api/v1/reports/outbound-by-recipient',
+        operationId: 'report_outbound_by_recipient',
+        summary: 'GĐ1 — báo cáo xuất kho theo đối tượng nhận',
+        description: 'Chỉ tính phiếu xuất POSTED có doc_date trong kỳ; mặc định kỳ là 30 ngày gần nhất và 10 dòng/trang. `by_sku` và `by_recipient` gộp trên TOÀN BỘ tập đã lọc, không theo trang. SĐT nơi nhận chỉ trả dạng che (`contact_masked`).',
+        security: [['bearerAuth' => []]],
+        tags: ['12. Dashboard / Report'],
+        parameters: [
+            new OA\Parameter(name: 'from_date', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'to_date', in: 'query', required: false, description: 'Phải lớn hơn hoặc bằng from_date.', schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'recipient_type', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: self::RECIPIENT_TYPES)),
+            new OA\Parameter(name: 'recipient_id', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'agency_id', in: 'query', required: false, description: 'Bí danh tương thích của recipient_id.', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'market', in: 'query', required: false, schema: new OA\Schema(type: 'string', maxLength: 120)),
+            new OA\Parameter(name: 'region', in: 'query', required: false, schema: new OA\Schema(type: 'string', maxLength: 120)),
+            new OA\Parameter(name: 'sku_code', in: 'query', required: false, schema: new OA\Schema(type: 'string', maxLength: 100)),
+            new OA\Parameter(name: 'keyword', in: 'query', required: false, description: 'Tìm theo mã/tên nơi nhận, thị trường, khu vực, mã/tên SKU hoặc số phiếu.', schema: new OA\Schema(type: 'string', maxLength: 200)),
+            new OA\Parameter(name: 'page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 10)),
+        ],
+        responses: [new OA\Response(response: 200, description: 'period, rows, summary, pagination, recipient_types, by_sku, by_recipient')]
+    )]
     public function outboundByRecipient(Request $request)
     {
         return response()->json([
@@ -495,6 +517,23 @@ class BaM1ReportController extends Controller
         ];
     }
 
+    #[OA\Get(
+        path: '/api/v1/reports/warranty-defect-sku-breakdown',
+        operationId: 'report_warranty_defect_sku_breakdown',
+        summary: 'GĐ1 — phân rã bệnh/lỗi bảo hành theo SKU',
+        description: 'Đếm số hồ sơ bảo hành theo cặp (SKU, bệnh/lỗi), lọc theo COALESCE(received_at, created_at) trong kỳ; mặc định kỳ là 30 ngày gần nhất, không phân trang. GĐ1-REQ-022: lọc đa chọn qua sku_ids[]/defect_ids[]; sku_id/defect_id là bí danh tương thích.',
+        security: [['bearerAuth' => []]],
+        tags: ['12. Dashboard / Report'],
+        parameters: [
+            new OA\Parameter(name: 'from_date', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'to_date', in: 'query', required: false, description: 'Phải lớn hơn hoặc bằng from_date.', schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'sku_id', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'sku_ids[]', in: 'query', required: false, schema: new OA\Schema(type: 'array', maxItems: 500, items: new OA\Items(type: 'string', format: 'uuid'))),
+            new OA\Parameter(name: 'defect_id', in: 'query', required: false, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'defect_ids[]', in: 'query', required: false, schema: new OA\Schema(type: 'array', maxItems: 500, items: new OA\Items(type: 'string', format: 'uuid'))),
+        ],
+        responses: [new OA\Response(response: 200, description: 'period, rows[] gồm sku_id, sku_code, sku_name, defect_id, defect_code, defect_name, case_count')]
+    )]
     public function defectSkuBreakdown(Request $request)
     {
         return response()->json([

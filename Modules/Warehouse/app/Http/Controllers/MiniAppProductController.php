@@ -9,6 +9,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Support\PvRelations;
+use OpenApi\Attributes as OA;
 
 /**
  * Mini App read-only product lookup.
@@ -26,6 +27,25 @@ class MiniAppProductController extends Controller
 
     private const CANONICAL_WAREHOUSE_CODE = 'KHO-TONG-HN';
 
+    #[OA\Get(
+        path: '/api/v1/mini-app/products',
+        operationId: 'miniAppListProducts',
+        summary: 'Mini App — tra cứu SKU kèm tồn khả dụng tại Kho tổng Hoa Nam',
+        description: 'Chỉ đọc. Mặc định chỉ trả SKU ACTIVE, sắp theo tên. `available_qty` là tồn AVAILABLE tại kho canonical duy nhất mà Mini App vận hành; `meta.warehouse_id` cho biết kho đó. Không có kho ACTIVE thì trả 422 WAREHOUSE_NOT_FOUND.',
+        security: [['bearerAuth' => []]],
+        tags: ['22. Mini App'],
+        parameters: [
+            new OA\Parameter(name: 'keyword', in: 'query', required: false, description: 'Tìm theo mã hoặc tên SKU, không phân biệt hoa thường.', schema: new OA\Schema(type: 'string', maxLength: 200)),
+            new OA\Parameter(name: 'sku_type', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['PRODUCT', 'COMPONENT'])),
+            new OA\Parameter(name: 'status', in: 'query', required: false, schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE')),
+            new OA\Parameter(name: 'page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Danh sách SKU; `meta` gồm current_page, per_page, total, last_page, warehouse_id.'),
+            new OA\Response(response: 422, description: 'VALIDATION_ERROR hoặc WAREHOUSE_NOT_FOUND'),
+        ]
+    )]
     public function index(Request $request)
     {
         $validated = $request->validate([
@@ -112,6 +132,22 @@ class MiniAppProductController extends Controller
         ]);
     }
 
+    #[OA\Get(
+        path: '/api/v1/mini-app/products/{id}',
+        operationId: 'miniAppGetProduct',
+        summary: 'Mini App — chi tiết SKU kèm tồn khả dụng tại Kho tổng Hoa Nam',
+        description: 'Chỉ đọc. Trả thương hiệu, danh mục, model, nguồn điện, quy cách đóng gói, mô tả App PV và `available_qty` tại kho canonical.',
+        security: [['bearerAuth' => []]],
+        tags: ['22. Mini App'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, description: 'sku_id', schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Chi tiết SKU'),
+            new OA\Response(response: 404, description: 'Không tìm thấy sản phẩm'),
+            new OA\Response(response: 422, description: 'WAREHOUSE_NOT_FOUND'),
+        ]
+    )]
     public function show(string $id)
     {
         // Cùng lý do với index(): kho canonical phải giải TRƯỚC cache.

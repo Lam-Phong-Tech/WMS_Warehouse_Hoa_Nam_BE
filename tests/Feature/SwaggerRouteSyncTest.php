@@ -46,8 +46,8 @@ class SwaggerRouteSyncTest extends TestCase
         'POST /api/v1/recipients',
         'GET /api/v1/recipients/{id}',
         'PATCH /api/v1/recipients/{id}',
-        'GET /api/v1/reports/outbound-by-recipient',
-        'GET /api/v1/reports/warranty-defect-sku-breakdown',
+        // 2 route báo cáo GĐ1 (outbound-by-recipient, warranty-defect-sku-breakdown) ĐÃ RA
+        // KHỎI pin: BaM1ReportController nay khai #[OA\Get] kèm bộ lọc thật.
     ];
 
     public function test_generated_swagger_summaries_are_human_readable(): void

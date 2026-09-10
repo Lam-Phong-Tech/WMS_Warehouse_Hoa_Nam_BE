@@ -173,6 +173,16 @@ class RouteSyncProcessor
         'delete api/v1/mini-app/warranty-component-issues/{id}/lines/{lineid}' => 'Mini App — xoá dòng linh kiện chưa quét khỏi phiếu xuất bảo hành',
         'post api/v1/mini-app/warranty-component-issues/{id}/cancel' => 'Mini App — huỷ phiếu xuất linh kiện bảo hành',
         'post api/v1/mini-app/warranty-component-issues/{id}/post' => 'Mini App — ghi nhận phiếu xuất linh kiện bảo hành',
+        // DocumentAttachmentController phục vụ cả kênh Web lẫn Mini App (routes/mini_app.php).
+        // Annotation OA chỉ khai path Web; 7 bí danh mini-app dưới đây do processor này sinh
+        // nên phải có summary ở đây, cùng lý do với nhóm component-issue ở trên.
+        'get api/v1/mini-app/inbound-documents/{id}/attachments' => 'Mini App — danh sách chứng từ đính kèm của phiếu nhập',
+        'post api/v1/mini-app/inbound-documents/{id}/attachments' => 'Mini App — tải lên chứng từ đính kèm cho phiếu nhập (stock-neutral)',
+        'get api/v1/mini-app/outbound-documents/{id}/attachments' => 'Mini App — danh sách chứng từ đính kèm của phiếu xuất',
+        'post api/v1/mini-app/outbound-documents/{id}/attachments' => 'Mini App — tải lên chứng từ đính kèm cho phiếu xuất (stock-neutral)',
+        'get api/v1/mini-app/document-attachments/pending-evidence' => 'Mini App — danh sách phiếu đang thiếu chứng từ bắt buộc',
+        'get api/v1/mini-app/document-attachments/{attachmentid}/download' => 'Mini App — tải chứng từ đính kèm',
+        'delete api/v1/mini-app/document-attachments/{attachmentid}' => 'Mini App — xoá chứng từ đính kèm (xoá logic)',
         'post api/v1/outbound-request-imports/{id}/confirm' => 'Xác nhận import yêu cầu xuất (Annex C)',
         'post api/v1/outbound-request-imports/manual' => 'Tạo toa yêu cầu xuất nhập tay (Annex C)',
         'get api/v1/inventory' => 'Tồn kho hiện tại (Annex C)',

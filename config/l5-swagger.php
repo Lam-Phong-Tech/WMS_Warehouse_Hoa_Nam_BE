@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Middleware\EnsureApiDocsEnabled;
 use App\Swagger\Processors\RouteSyncProcessor;
 use L5Swagger\CustomGeneratorInterface;
 use L5Swagger\Generator;
+use OA\Post;
 use OpenApi\Processors\AugmentTags;
 use OpenApi\scan;
 
@@ -221,6 +223,14 @@ return [
                     base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentIssueQueryController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineImportReadController.php'),
                     base_path('Modules/Warehouse/app/Http/Controllers/ProductStatusCompatibilityController.php'),
+                    // Cùng lỗi lớp HN-BE-API-005: hai controller dưới có annotation #[OA\...]
+                    // thật nhưng chưa từng nằm trong danh sách scan, nên upload chứng từ đính
+                    // kèm bị publish thành "Tạo phiếu nhập mới"/"Tạo phiếu xuất mới" và
+                    // pending-evidence/download/delete + ảnh App PV ra summary máy sinh.
+                    base_path('Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/PvProductImageController.php'),
+                    // Tra cứu SKU của Mini App: annotation mới, mang bộ lọc thật của index().
+                    base_path('Modules/Warehouse/app/Http/Controllers/MiniAppProductController.php'),
                 ],
             ],
         ],
@@ -247,10 +257,10 @@ return [
              * vi hiện tại trên DEV/UAT/QA.
              */
             'middleware' => [
-                'api' => [\App\Http\Middleware\EnsureApiDocsEnabled::class],
-                'asset' => [\App\Http\Middleware\EnsureApiDocsEnabled::class],
-                'docs' => [\App\Http\Middleware\EnsureApiDocsEnabled::class],
-                'oauth2_callback' => [\App\Http\Middleware\EnsureApiDocsEnabled::class],
+                'api' => [EnsureApiDocsEnabled::class],
+                'asset' => [EnsureApiDocsEnabled::class],
+                'docs' => [EnsureApiDocsEnabled::class],
+                'oauth2_callback' => [EnsureApiDocsEnabled::class],
             ],
 
             /*
