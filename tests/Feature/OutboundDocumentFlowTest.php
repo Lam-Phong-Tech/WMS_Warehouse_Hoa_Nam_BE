@@ -3,24 +3,37 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
 /**
  * WWHN-195: drives the real outbound HTTP contract end-to-end — create-from-request,
- * scan bằng cả hai chế độ (item_id thủ công và code_value quét mã), label PRINTED
- * bắt buộc, Post Issue atomic, và Reverse — thay cho OutboundDocsAlignmentContractTest
- * vốn chỉ assert chuỗi nguồn tồn tại chứ không lái request thật qua HTTP.
+ * scan bằng cả hai chế độ (item_id thủ công và code_value quét mã), Post Issue atomic
+ * (độc lập với lifecycle nhãn từ GĐ1 25/08/2026), và Reverse — thay cho
+ * OutboundDocsAlignmentContractTest vốn chỉ assert chuỗi nguồn tồn tại chứ không lái
+ * request thật qua HTTP.
  */
 class OutboundDocumentFlowTest extends TestCase
 {
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
+    /**
+     * Hai quyết định đổi hai bước của luồng cũ:
+     *  - Post Issue tách khỏi lifecycle nhãn (a5383ed → 73c5792 → 5c64d42, 24–25/08/2026;
+     *    handler BaM1OutboundFlowController, ghim ở Wwhn198PackingLabelContractAlignmentTest):
+     *    nhãn DRAFT không còn chặn trừ tồn (bỏ ca 422 LABEL_NOT_PRINTED), response khai
+     *    packing_label_bypassed=true.
+     *  - Reversal luôn dừng ở DRAFT, stock-neutral, cho tới khi có chứng từ đính kèm và
+     *    POST /reversal-documents/{id}/post (368943c, "Chứng từ nhập/xuất/hoàn trả").
+     */
     public function test_full_outbound_flow_manual_and_scan_mode_then_post_issue_and_reverse(): void
     {
+        Storage::fake('local');
         $headers = $this->superAdminHeaders();
         $warehouse = $this->warehouseFixture();
         $sku = $this->productSkuFixture('PROD-FLOW-001');
@@ -70,15 +83,8 @@ class OutboundDocumentFlowTest extends TestCase
         $this->assertSame('DRAFT', (string) $label->status);
         $this->assertSame(1, DB::table('label_snapshots')->where('outbound_document_id', $documentId)->count());
 
-        // Post Issue vẫn bị chặn khi nhãn chưa PRINTED + chưa xác nhận đã dán.
-        $this->postJson("/api/v1/outbound-documents/{$documentId}/post-issue", [], $headers + [
-            'If-Match' => '3',
-            'Idempotency-Key' => 'post-issue-flow-001',
-        ])->assertStatus(422)->assertJsonPath('error.code', 'LABEL_NOT_PRINTED');
-
-        $this->markLabelsPrinted($documentId);
-
-        // 5. Post Issue thành công — stock effect DECREASE, item ISSUED, match POSTED.
+        // 5. Post Issue thành công ngay khi nhãn còn DRAFT (GĐ1: Post Issue là giao dịch tồn,
+        // in/dán nhãn là bước vận hành độc lập) — stock effect DECREASE, item ISSUED, match POSTED.
         $post = $this->postJson("/api/v1/outbound-documents/{$documentId}/post-issue", [], $headers + [
             'If-Match' => '3',
             'Idempotency-Key' => 'post-issue-flow-001',
@@ -86,7 +92,14 @@ class OutboundDocumentFlowTest extends TestCase
         $post->assertOk()
             ->assertJsonPath('data.status', 'POSTED')
             ->assertJsonPath('data.stock_effect', 'DECREASE')
+            ->assertJsonPath('data.packing_label_bypassed', true)
             ->assertHeader('Idempotent-Replay', 'false');
+
+        // Post Issue không tự đổi lifecycle nhãn.
+        $this->assertSame(
+            'DRAFT',
+            (string) DB::table('label_snapshots')->where('outbound_document_id', $documentId)->value('status')
+        );
 
         $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'status' => 'POSTED']);
         $this->assertDatabaseHas('item_instances', ['item_id' => $manualItemId, 'item_status' => 'ISSUED']);
@@ -104,7 +117,8 @@ class OutboundDocumentFlowTest extends TestCase
         $replay->assertOk()->assertHeader('Idempotent-Replay', 'true');
         $this->assertSame(0, (int) DB::table('inventory_balances')->where('sku_id', $sku->sku_id)->value('available_qty'));
 
-        // 6. Reverse — trả hàng SELLABLE, item quay lại IN_STOCK.
+        // 6. Reverse — tạo reversal DRAFT, đính kèm chứng từ rồi Post: hàng SELLABLE quay lại,
+        // item về IN_STOCK.
         $movementId = (string) DB::table('stock_movements')
             ->where('stock_document_id', $documentId)
             ->where('movement_type', 'ISSUE')
@@ -121,9 +135,26 @@ class OutboundDocumentFlowTest extends TestCase
             'If-Match' => '4',
             'Idempotency-Key' => 'reverse-flow-001',
         ]);
-        $reverse->assertOk()->assertJsonPath('data.original_document_status', 'POSTED');
+        $reverse->assertOk()
+            ->assertJsonPath('data.original_document_status', 'POSTED')
+            ->assertJsonPath('data.reversal_status', 'DRAFT')
+            ->assertJsonPath('data.stock_effect', 'NONE');
+        $reversalId = (string) $reverse->json('data.reversal_document_id');
+
+        // DRAFT là stock-neutral: chưa hoàn tồn, item vẫn ISSUED.
+        $this->assertSame(0, (int) DB::table('inventory_balances')->where('sku_id', $sku->sku_id)->value('available_qty'));
+        $this->assertDatabaseHas('item_instances', ['item_id' => $manualItemId, 'item_status' => 'ISSUED']);
+
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('outbound-flow-bien-ban-hoan-tra.jpg'),
+        ], $headers)->assertCreated();
+        $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => '1',
+            'Idempotency-Key' => 'reverse-flow-post-001',
+        ])->assertOk()->assertJsonPath('data.reversal_status', 'POSTED');
 
         $this->assertDatabaseHas('item_instances', ['item_id' => $manualItemId, 'item_status' => 'IN_STOCK']);
+        $this->assertDatabaseHas('item_instances', ['item_id' => $scanItemId, 'item_status' => 'IN_STOCK']);
         $balanceAfterReverse = (int) DB::table('inventory_balances')->where('sku_id', $sku->sku_id)->value('available_qty');
         $this->assertSame(2, $balanceAfterReverse);
     }

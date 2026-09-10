@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
@@ -361,8 +363,15 @@ class Flow05InventoryControlAlignmentTest extends TestCase
 
     // ── REQ-SRS-013 / BR-REV-05: contract của REV-01 ──────────────────────────
 
+    /**
+     * 368943c (27/08/2026, "Chứng từ nhập/xuất/hoàn trả"; CurrentBaselineReversalService::execute
+     * + DocumentEvidenceGuard): reversal LUÔN dừng ở DRAFT, stock-neutral, cho tới khi có chứng
+     * từ đính kèm và POST /reversal-documents/{id}/post. `reversed_qty` chỉ đếm reversal đã
+     * POSTED, nên hợp đồng số liệu của REV-01 được kiểm ở CẢ HAI phía của bước Post.
+     */
     public function test_reversal_lines_report_original_movement_qty_separately_from_reversed_qty(): void
     {
+        Storage::fake('local');
         $headers = $this->authHeaders();
         $fixture = $this->postedComponentReceipt($headers, 'COMP-F05-LINES-01', 5);
 
@@ -373,8 +382,27 @@ class Flow05InventoryControlAlignmentTest extends TestCase
             'If-Match' => '3',
             'Idempotency-Key' => 'f05-lines-'.Str::random(12),
         ]);
-        $reverse->assertOk();
+        $reverse->assertOk()
+            ->assertJsonPath('data.reversal_status', 'DRAFT')
+            ->assertJsonPath('data.stock_effect', 'NONE');
         $reversalId = (string) $reverse->json('data.reversal_document_id');
+
+        // DRAFT: số gốc và số xin đảo đã có, nhưng CHƯA có gì thực sự được đảo.
+        $this->getJson("/api/v1/reversal-documents/{$reversalId}/lines", $headers)
+            ->assertOk()
+            ->assertJsonPath('data.0.original_qty', 5)
+            ->assertJsonPath('data.0.reversal_qty', 2)
+            ->assertJsonPath('data.0.reversed_qty', 0)
+            ->assertJsonPath('data.0.remaining_qty', 5)
+            ->assertJsonPath('data.0.status', 'DRAFT');
+
+        $this->post("/api/v1/reversal-documents/{$reversalId}/attachments", [
+            'file' => UploadedFile::fake()->image('f05-bien-ban-'.Str::lower(Str::random(6)).'.jpg'),
+        ], $headers)->assertCreated();
+        $this->postJson("/api/v1/reversal-documents/{$reversalId}/post", [], $headers + [
+            'If-Match' => '1',
+            'Idempotency-Key' => 'f05-lines-post-'.Str::random(12),
+        ])->assertOk();
 
         $lines = $this->getJson("/api/v1/reversal-documents/{$reversalId}/lines", $headers);
         $lines->assertOk()

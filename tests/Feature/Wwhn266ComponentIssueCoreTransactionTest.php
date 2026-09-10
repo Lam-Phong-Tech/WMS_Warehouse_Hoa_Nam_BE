@@ -124,16 +124,22 @@ class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
         $this->postInboundReceipt($headers, $inboundId, $received['version'], 'w266-rcv-'.(string) Str::uuid())
             ->assertOk();
 
-        // Subledger nội dung BOX chỉ được ghi bởi route quản trị container;
-        // luồng inbound không tự sinh `container_items` (xem NOTE trong hồ sơ
-        // BE266-D02). Component Issue quantity-mode đọc chính bảng này.
-        $containerVersion = (int) DB::table('containers')->where('container_id', $containerId)->value('version');
-        $this->postJson("/api/v1/containers/{$containerId}/items", [
-            'sku_id' => $sku->sku_id,
-            'quantity' => $qty,
-            'source_type' => 'RECEIPT',
-            'source_id' => $inboundId,
-        ], $headers + ['If-Match' => (string) $containerVersion])->assertSuccessful();
+        // Subledger nội dung BOX: Component Issue quantity-mode đọc chính bảng
+        // `container_items`. Bản trước của fixture tự ghi thêm một dòng qua
+        // POST /containers/{id}/items vì hồi đó luồng inbound chưa sinh subledger (NOTE
+        // BE266-D02). Từ b99744f (31/08/2026, "materialize container/tray linkage cho
+        // subledger") Post Receipt TỰ ghi dòng đó cho BOX đếm theo số lượng — giữ bước ghi
+        // tay sẽ nhân đôi nội dung hộp so với ledger, và đối soát §7.5 báo MISMATCH dù
+        // ledger/balance đúng. Khẳng định dưới đây chính là hành vi mới, không phải giả định.
+        $this->assertSame(
+            $qty,
+            (int) DB::table('container_items')
+                ->where('container_id', $containerId)
+                ->where('sku_id', $sku->sku_id)
+                ->where('is_active', true)
+                ->sum('quantity'),
+            'Post Receipt phải tự ghi subledger BOX đúng số đếm (b99744f).'
+        );
 
         $case = $this->postJson('/api/v1/warranty-cases', [
             'customer_name' => 'Khách WWHN-266',

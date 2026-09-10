@@ -367,11 +367,30 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
             ->assertJsonPath('error.code', 'UNKNOWN_MASTER_TYPE');
     }
 
-    /** AC-SRS-001: tạo được kho, nhưng kho ACTIVE thứ hai bị chặn 409. */
+    /**
+     * AC-SRS-001: tạo được kho, nhưng kho ACTIVE thứ hai bị chặn 409.
+     *
+     * Nửa sau của kịch bản cũ ("tắt kho hiện có rồi tạo kho mới → 201") không còn đúng vì hai
+     * quyết định:
+     *  - REQ-SRS-001 + uk_warehouses_single_active (3ec27f3): Hoa Nam vận hành ĐÚNG 01 kho tổng
+     *    — WarehousePauseContractTest Q01.
+     *  - BA 07/09/2026 "kho tạm dừng = đóng băng GHI" (EnsureWarehouseOperational, 2d9864f —
+     *    WarehousePauseContractTest Q03): đã có kho mà không kho nào ACTIVE là TẠM DỪNG, nên
+     *    POST /warehouses cũng bị 409 WAREHOUSE_INACTIVE. Route này cố ý KHÔNG nằm trong danh
+     *    sách cho phép của middleware; đường tạo kho chỉ mở khi hệ thống chưa có kho nào.
+     */
     public function test_create_warehouse_is_available_but_second_active_warehouse_is_rejected(): void
     {
         $headers = $this->adminHeaders();
-        $this->ensureActiveWarehouse('KHO-TONG-HN', 'Kho tổng Hoa Nam');
+
+        // Hệ thống mới dựng, chưa có kho: tạo được kho tổng đầu tiên.
+        Warehouse::query()->delete();
+        $this->postJson('/api/v1/warehouses', [
+            'code' => 'KHO-TONG-HN',
+            'name' => 'Kho tổng Hoa Nam',
+        ], $headers)
+            ->assertCreated()
+            ->assertJsonPath('data.code', 'KHO-TONG-HN');
 
         $this->postJson('/api/v1/warehouses', [
             'code' => 'KHO-PHU',
@@ -379,14 +398,20 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
         ], $headers)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'STATE_CONFLICT');
+        $this->assertSame(1, Warehouse::query()->count());
 
         Warehouse::query()->where('status', 'ACTIVE')->update(['status' => 'INACTIVE']);
 
+        // Kho duy nhất đang tạm dừng: tạo kho mới là thao tác GHI nên bị đóng băng.
         $this->postJson('/api/v1/warehouses', [
             'code' => 'KHO-MOI',
             'name' => 'Kho tổng mới',
         ], $headers)
-            ->assertCreated()
-            ->assertJsonPath('data.code', 'KHO-MOI');
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'WAREHOUSE_INACTIVE');
+
+        $this->assertSame(1, Warehouse::query()->count(), 'Hoa Nam chỉ vận hành đúng 01 kho tổng.');
+        $this->assertFalse(Warehouse::query()->where('code', 'KHO-MOI')->exists());
+        $this->assertSame(0, Warehouse::query()->where('status', 'ACTIVE')->count());
     }
 }
