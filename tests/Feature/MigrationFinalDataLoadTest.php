@@ -4,16 +4,20 @@ namespace Tests\Feature;
 
 use App\Support\Migration\FinalDataLoadService;
 use App\Support\Migration\ImportPackage;
+use App\Support\Migration\MasterStateJournal;
+use App\Support\Security\PiiCrypto;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Agency;
 use Modules\Warehouse\Models\Sku;
 use ReflectionMethod;
+use RuntimeException;
 use Tests\TestCase;
 use Tests\TestCredentials;
 
@@ -565,6 +569,116 @@ class MigrationFinalDataLoadTest extends TestCase
         $this->assertGreaterThanOrEqual(2, $result['master_rollback']['restored_rows']);
     }
 
+    /**
+     * `agencies.phone` trùng `audit.sensitive_keys` (WWHN-222) nên trước đây MỌI COMMIT
+     * có AGENCY dừng ở MIGRATION_SNAPSHOT_REDACTED. Nay cột trùng khoá nhạy cảm được
+     * niêm phong trong snapshot: COMMIT chạy được, audit_log không chứa SĐT dạng rõ
+     * (cũng không chứa [REDACTED]), và ROLLBACK trả về ĐÚNG từng ô của bản ghi gốc,
+     * kể cả NULL.
+     */
+    public function test_commit_and_rollback_round_trip_agency_phone_without_plaintext_in_audit_log(): void
+    {
+        Agency::query()->create([
+            'agency_code' => 'AG-900',
+            'agency_name' => 'Đại lý cũ',
+            'phone' => '0900000000',
+            'address' => 'Địa chỉ cũ',
+            'status' => 'INACTIVE',
+        ]);
+        Agency::query()->create([
+            'agency_code' => 'AG-901',
+            'agency_name' => 'Đại lý chưa có số',
+            'phone' => null,
+            'status' => 'ACTIVE',
+        ]);
+        file_put_contents($this->packagePath.'/agency.csv',
+            "agency_code,agency_name,phone,address,status\n".
+            "AG-900,Đại lý 900,0909009900,Hà Nội,ACTIVE\n".
+            "AG-901,Đại lý 901,0911222333,Hải Phòng,ACTIVE\n");
+        $original = $this->agencyRows();
+
+        $this->dryRun('CUTOVER-PII');
+        $this->commit('CUTOVER-PII')->assertExitCode(0);
+
+        $this->assertSame('0909009900', Agency::query()->where('agency_code', 'AG-900')->value('phone'));
+        $this->assertSame('0911222333', Agency::query()->where('agency_code', 'AG-901')->value('phone'));
+
+        $snapshots = DB::table('audit_log')
+            ->where('action', MasterStateJournal::ACTION)
+            ->where('object_type', 'agencies')
+            ->get(['before_data', 'after_data']);
+        $this->assertCount(2, $snapshots);
+        foreach ($snapshots as $snapshot) {
+            $stored = $this->snapshotWithoutCiphertext($snapshot->before_data)
+                .$this->snapshotWithoutCiphertext($snapshot->after_data);
+            foreach (['0900000000', '0909009900', '0911222333', '[REDACTED]'] as $forbidden) {
+                $this->assertStringNotContainsString($forbidden, $stored);
+            }
+
+            foreach ([$snapshot->before_data, $snapshot->after_data] as $json) {
+                $payload = json_decode((string) $json, true);
+                $this->assertArrayNotHasKey('phone', $payload['state']);
+                $this->assertSame(['phone'], $payload[MasterStateJournal::SEALED_KEY]['columns']);
+                $this->assertTrue(PiiCrypto::looksEncrypted($payload[MasterStateJournal::SEALED_KEY]['ciphertext']));
+            }
+        }
+
+        $this->rollback('CUTOVER-PII')->assertExitCode(0);
+
+        $this->assertSame($original, $this->agencyRows());
+        $this->assertSame('0900000000', Agency::query()->where('agency_code', 'AG-900')->value('phone'));
+        $this->assertNull(Agency::query()->where('agency_code', 'AG-901')->value('phone'));
+    }
+
+    /**
+     * Niêm phong phải bảo vệ thật chứ không chỉ "mã hoá cho có": ciphertext mang AAD của
+     * đúng snapshot. Kẻ INSERT được vào audit_log (append-only vẫn cho INSERT) nhưng không
+     * có khoá chép phần niêm phong SĐT của đại lý A sang một snapshot giả của đại lý B —
+     * rollback phải DỪNG, không được ghi SĐT của A vào B.
+     */
+    public function test_rollback_refuses_a_sealed_value_transplanted_from_another_snapshot(): void
+    {
+        $actorId = (string) User::query()->where('username', 'cutover-operator')->value('user_id');
+        $source = Agency::query()->create(['agency_code' => 'AG-SRC', 'agency_name' => 'Đại lý nguồn', 'phone' => '0901111111', 'status' => 'ACTIVE']);
+        $target = Agency::query()->create(['agency_code' => 'AG-DST', 'agency_name' => 'Đại lý đích', 'phone' => '0902222222', 'status' => 'ACTIVE']);
+        $sourceState = Agency::query()->findOrFail($source->getKey())->getAttributes();
+        $targetState = Agency::query()->findOrFail($target->getKey())->getAttributes();
+        $runId = (string) Str::uuid();
+
+        (new MasterStateJournal($runId, $actorId))->record('agencies', 'agency_id', (string) $source->getKey(), $sourceState, $sourceState);
+        $genuine = json_decode((string) DB::table('audit_log')
+            ->where('action', MasterStateJournal::ACTION)
+            ->where('request_id', $runId)
+            ->value('before_data'), true);
+
+        unset($targetState['phone']);
+        AuditLogger::record(
+            action: MasterStateJournal::ACTION,
+            objectType: 'agencies',
+            objectId: (string) $target->getKey(),
+            actorId: $actorId,
+            requestId: $runId,
+            beforeData: [
+                'seq' => 2,
+                'operation' => 'UPDATE',
+                'table' => 'agencies',
+                'primary_key' => 'agency_id',
+                'state' => $targetState,
+                MasterStateJournal::SEALED_KEY => $genuine[MasterStateJournal::SEALED_KEY],
+            ],
+        );
+
+        try {
+            MasterStateJournal::restore($runId);
+            $this->fail('Rollback phải từ chối phần niêm phong bị chép từ snapshot khác.');
+        } catch (RuntimeException $error) {
+            $this->assertStringStartsWith('MIGRATION_SNAPSHOT_SEAL_INVALID', $error->getMessage());
+            $this->assertStringNotContainsString('0901111111', $error->getMessage());
+        }
+
+        $this->assertSame('0902222222', Agency::query()->whereKey($target->getKey())->value('phone'));
+    }
+
     public function test_unknown_operator_is_rejected_before_any_run_is_created(): void
     {
         $this->artisan('migration:final-load', [
@@ -594,6 +708,28 @@ class MigrationFinalDataLoadTest extends TestCase
 
         $this->assertSame(1, Sku::query()->where('sku_code', 'HN-MK-001-V1')->count());
         $this->assertSame('Máy khoan mẫu', Sku::query()->where('sku_code', 'HN-MK-001-V1')->value('sku_name'));
+    }
+
+    /** @return list<array<string, mixed>> toàn bộ cột của mọi agency, đúng như DB trả về */
+    private function agencyRows(): array
+    {
+        return DB::table('agencies')
+            ->orderBy('agency_code')
+            ->get()
+            ->map(fn (object $row): array => (array) $row)
+            ->all();
+    }
+
+    /**
+     * Snapshot đã lưu, bỏ riêng chuỗi ciphertext: base64 ngẫu nhiên có thể tình cờ chứa
+     * một dãy số, nên phép "không có SĐT dạng rõ" chỉ soi phần còn lại để không đỏ oan.
+     */
+    private function snapshotWithoutCiphertext(mixed $json): string
+    {
+        $payload = json_decode((string) $json, true) ?: [];
+        unset($payload[MasterStateJournal::SEALED_KEY]['ciphertext']);
+
+        return (string) json_encode($payload, JSON_UNESCAPED_UNICODE);
     }
 
     private function dryRun(string $runCode): void

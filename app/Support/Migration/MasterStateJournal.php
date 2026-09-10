@@ -2,6 +2,7 @@
 
 namespace App\Support\Migration;
 
+use App\Support\Security\PiiCrypto;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -36,10 +37,29 @@ use Throwable;
  *      Ghi audit hỏng ⇒ ném lỗi ⇒ transaction COMMIT rollback ⇒ không tồn tại
  *      master nào không có snapshot.
  *   2. **Chống redaction**: `AuditLogger::sanitize()` thay giá trị của các khoá
- *      nhạy cảm bằng `[REDACTED]`. Nếu một cột master trùng tên khoá nhạy cảm
- *      (hôm nay không, nhưng `config/audit.php` có thể đổi), phục hồi sẽ ghi
- *      `[REDACTED]` vào dữ liệu thật. Nên trước khi ghi phải khẳng định payload
- *      đi qua sanitize không đổi, sai thì dừng cutover.
+ *      nhạy cảm bằng `[REDACTED]`. Nếu một cột master trùng tên khoá nhạy cảm,
+ *      phục hồi sẽ ghi `[REDACTED]` vào dữ liệu thật. Nên trước khi ghi phải
+ *      khẳng định payload đi qua sanitize không đổi, sai thì dừng cutover.
+ *
+ * Cột trùng khoá nhạy cảm: niêm phong, không lộ và không mất
+ * ---------------------------------------------------------
+ * Lúc viết lớp này chưa cột master nào trùng. Một ngày sau, WWHN-222 thêm `phone`
+ * vào `audit.sensitive_keys` và `agencies.phone` biến MỌI COMMIT có AGENCY thành
+ * MIGRATION_SNAPSHOT_REDACTED (kể cả phone NULL, vì sanitize() redact theo KHOÁ).
+ * Hai cách "sửa nhanh" đều sai: bỏ `phone` khỏi danh sách là đưa SĐT dạng rõ vào
+ * audit_log; bỏ qua bảo vệ số 2 là để rollback ghi `[REDACTED]` vào dữ liệu thật.
+ *
+ * `seal()` chạy TRƯỚC bảo vệ số 2: mọi cột trùng `audit.sensitive_keys` (so khoá
+ * đúng như sanitize()) được tách khỏi `state` và mã hoá bằng lớp PII WWHN-SEC-06
+ * (`PiiCrypto`: keyring có phiên bản, AES-256-GCM) dưới khoá không nhạy cảm
+ * `sealed_state`. Hệ quả:
+ *   - audit_log chỉ chứa tên cột + ciphertext, không bao giờ chứa giá trị dạng rõ;
+ *   - bảo vệ số 2 giữ nguyên: payload đã niêm phong đi qua sanitize() không đổi;
+ *   - ciphertext gắn AAD = (run, bảng, bản ghi, seq, trước/sau). Chép nó sang
+ *     snapshot khác thì `restore()` dừng với MIGRATION_SNAPSHOT_SEAL_INVALID thay vì
+ *     ghi PII của bản ghi này vào bản ghi khác;
+ *   - rollback cần đúng key id đã niêm phong: KHÔNG gỡ khoá khỏi PII keyring khi còn
+ *     run COMMITTED có thể phải rollback.
  *
  * Giới hạn có thật của việc xoá
  * -----------------------------
@@ -54,6 +74,12 @@ use Throwable;
 class MasterStateJournal
 {
     public const ACTION = 'MIGRATION_MASTER_SNAPSHOT';
+
+    /**
+     * Khoá chứa phần niêm phong của snapshot. KHÔNG được trùng `audit.sensitive_keys`;
+     * nếu một ngày trùng thì assertNotRedacted() tự dừng cutover.
+     */
+    public const SEALED_KEY = 'sealed_state';
 
     /**
      * Trạng thái "đóng" hợp lệ theo CHECK constraint của từng bảng, dùng khi
@@ -101,14 +127,18 @@ class MasterStateJournal
      */
     public function record(string $table, string $primaryKey, string $id, ?array $before, array $after): void
     {
-        $envelope = [
-            'seq' => ++$this->seq,
+        $seq = ++$this->seq;
+        $envelope = self::seal([
+            'seq' => $seq,
             'operation' => $before === null ? 'CREATE' : 'UPDATE',
             'table' => $table,
             'primary_key' => $primaryKey,
             'state' => $before === null ? null : self::scalarize($before),
-        ];
-        $afterEnvelope = ['state' => self::scalarize($after)];
+        ], self::sealContext($this->runId, $table, $id, $seq, 'before'));
+        $afterEnvelope = self::seal(
+            ['state' => self::scalarize($after)],
+            self::sealContext($this->runId, $table, $id, $seq, 'after'),
+        );
 
         $this->assertNotRedacted($envelope, $table, $id);
         $this->assertNotRedacted($afterEnvelope, $table, $id);
@@ -155,7 +185,9 @@ class MasterStateJournal
             $id = (string) $entry['object_id'];
 
             if ($entry['operation'] === 'UPDATE') {
-                $state = (array) ($entry['state'] ?? []);
+                // Cột nhạy cảm nằm trong phần niêm phong chứ không nằm trong `state`.
+                // Giá trị niêm phong (đã xác thực) thắng nếu trùng khoá.
+                $state = self::unseal($entry, $runId) + (array) ($entry['state'] ?? []);
                 unset($state[$primaryKey]);
                 if ($state === []) {
                     continue;
@@ -249,7 +281,7 @@ class MasterStateJournal
     }
 
     /**
-     * @return list<array{seq:int, operation:string, table:string, primary_key:string, object_id:string, state:array<string, mixed>|null}>
+     * @return list<array{seq:int, operation:string, table:string, primary_key:string, object_id:string, state:array<string, mixed>|null, sealed:array<string, mixed>|null}>
      */
     public static function entries(string $runId): array
     {
@@ -274,6 +306,8 @@ class MasterStateJournal
                 'primary_key' => (string) $payload['primary_key'],
                 'object_id' => (string) $row->object_id,
                 'state' => is_array($payload['state'] ?? null) ? $payload['state'] : null,
+                // Chỉ giải mã khi thật sự phục hồi (restore): đếm tồn dư không cần PII.
+                'sealed' => is_array($payload[self::SEALED_KEY] ?? null) ? $payload[self::SEALED_KEY] : null,
             ];
         }
 
@@ -343,6 +377,117 @@ class MasterStateJournal
                 $id,
             ));
         }
+    }
+
+    /**
+     * Tách các cột trùng `audit.sensitive_keys` ra khỏi `state` rồi niêm phong chúng
+     * bằng PiiCrypto dưới SEALED_KEY. Không có cột trùng thì envelope giữ nguyên, nên
+     * snapshot của bảng không mang PII không phụ thuộc vào keyring.
+     *
+     * @param  array<string, mixed>  $envelope
+     * @return array<string, mixed>
+     */
+    private static function seal(array $envelope, string $context): array
+    {
+        $state = $envelope['state'] ?? null;
+        if (! is_array($state)) {
+            return $envelope;
+        }
+
+        $sensitiveKeys = self::sensitiveKeys();
+        $sealed = [];
+        foreach ($state as $column => $value) {
+            if (in_array(strtolower((string) $column), $sensitiveKeys, true)) {
+                $sealed[$column] = $value;
+                unset($state[$column]);
+            }
+        }
+
+        if ($sealed === []) {
+            return $envelope;
+        }
+
+        $envelope['state'] = $state;
+        $envelope[self::SEALED_KEY] = [
+            'columns' => array_keys($sealed),
+            'ciphertext' => PiiCrypto::encrypt(
+                json_encode($sealed, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                $context,
+            ),
+        ];
+
+        return $envelope;
+    }
+
+    /**
+     * Mở phần niêm phong của snapshot `before`. Fail-closed: ciphertext hỏng, sai khoá,
+     * bị chép từ snapshot khác hoặc danh sách cột bị sửa đều dừng rollback (transaction
+     * tổng huỷ mọi phục hồi đã làm) thay vì ghi dữ liệu sai vào bản ghi.
+     *
+     * @param  array{seq:int, table:string, object_id:string, sealed:array<string, mixed>|null}  $entry
+     * @return array<string, mixed>
+     */
+    private static function unseal(array $entry, string $runId): array
+    {
+        $sealed = $entry['sealed'] ?? null;
+        if ($sealed === null) {
+            return [];
+        }
+
+        // Thông điệp chỉ mang bảng + id, không bao giờ mang giá trị.
+        $message = sprintf(
+            'MIGRATION_SNAPSHOT_SEAL_INVALID: không mở được phần niêm phong của %s (%s); '
+            .'rollback dừng để không ghi dữ liệu sai vào bản ghi.',
+            $entry['table'],
+            $entry['object_id'],
+        );
+
+        $ciphertext = $sealed['ciphertext'] ?? null;
+        if (! is_string($ciphertext) || $ciphertext === '') {
+            throw new RuntimeException($message);
+        }
+
+        try {
+            $columns = json_decode(
+                (string) PiiCrypto::decrypt(
+                    $ciphertext,
+                    self::sealContext($runId, $entry['table'], $entry['object_id'], $entry['seq'], 'before'),
+                ),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            );
+        } catch (Throwable $error) {
+            throw new RuntimeException($message, 0, $error);
+        }
+
+        if (! is_array($columns) || array_keys($columns) !== ($sealed['columns'] ?? null)) {
+            throw new RuntimeException($message);
+        }
+
+        return $columns;
+    }
+
+    /**
+     * AAD của phần niêm phong: gắn ciphertext vào đúng snapshot (run, bảng, bản ghi,
+     * seq, trước/sau) để bản chép sang snapshot khác không giải mã được.
+     */
+    private static function sealContext(string $runId, string $table, string $id, int $seq, string $phase): string
+    {
+        return implode('|', ['audit_log', self::ACTION, $runId, $table, $id, (string) $seq, $phase]);
+    }
+
+    /**
+     * Cùng cách so khoá với AuditLogger::sanitize(): hạ chữ thường, khớp nguyên khoá.
+     *
+     * @return list<string>
+     */
+    private static function sensitiveKeys(): array
+    {
+        return array_values(array_map(
+            static fn (string $key): string => strtolower($key),
+            (array) config('audit.sensitive_keys', []),
+        ));
     }
 
     /**

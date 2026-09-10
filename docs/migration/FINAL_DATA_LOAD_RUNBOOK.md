@@ -109,6 +109,18 @@ Ledger là append-only (`stock_movements` chặn update/delete, `DEC-REV-001`), 
 > baseline, nên rollback báo `LEDGER_PINNED` thay vì im lặng để lại một SKU `ACTIVE`
 > do cutover sinh ra.
 
+> Cột master trùng khoá nhạy cảm của `config/audit.php` (hôm nay: `agencies.phone`) không
+> nằm dạng rõ trong snapshot `MIGRATION_MASTER_SNAPSHOT`: `MasterStateJournal` niêm phong
+> chúng bằng lớp mã hoá PII WWHN-SEC-06 vào khoá `sealed_state` và chỉ để lại tên cột.
+> Hệ quả vận hành:
+>
+> - COMMIT và ROLLBACK cần PII keyring (`PII_ENCRYPTION_KEYS`) như mọi môi trường ngoài dev.
+> - **Không gỡ key id** khỏi keyring khi còn run `COMMITTED` có thể phải rollback. Thiếu khoá,
+>   ciphertext hỏng hoặc bị chép sang snapshot khác đều làm rollback dừng fail-closed với
+>   `MIGRATION_SNAPSHOT_SEAL_INVALID`, không ghi gì vào master.
+> - Không "chữa" lỗi cutover bằng cách bỏ `phone` khỏi `audit.sensitive_keys` hay bỏ chốt
+>   `MIGRATION_SNAPSHOT_REDACTED`: làm vậy là đưa SĐT dạng rõ vào `audit_log`.
+
 ### 6.2 Bằng chứng "không còn tồn dư"
 
 `reconciliation_result` của run `#ROLLBACK` phải thoả **cả bốn**:
