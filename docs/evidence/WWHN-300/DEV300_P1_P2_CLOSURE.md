@@ -25,7 +25,7 @@ hợp đồng đã pin không tồn tại) là **FAIL**, không phải PASS.
 
 **Hiện trạng trước fix.** `seed.identity_markers` coi *"tồn tại một `admin` ACTIVE"* là dấu
 hiệu SẴN SÀNG. Trong khi đó `AuthDatabaseSeeder` tạo `admin` (role `SUPER_ADMIN`) bằng hằng
-số `Cntt@1234` nằm ngay trong source code, kèm 9 tài khoản mẫu dùng chung mật khẩu đó —
+số mật khẩu mặc định (nay nằm trong `golive.credential.compromised`) ngay trong source code, kèm 9 tài khoản mẫu dùng chung mật khẩu đó —
 trong đó có `test-super-admin`. Nghĩa là trạng thái *tệ nhất có thể* — tài khoản quyền cao
 nhất với credential ai đọc repo cũng biết — lại **thỏa mãn** gate readiness.
 

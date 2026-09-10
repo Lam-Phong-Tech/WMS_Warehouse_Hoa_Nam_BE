@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\CredentialPolicy;
 use Modules\Warehouse\Database\Seeders\DongChengAnchorSkus;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
@@ -447,7 +448,13 @@ class BackendGoLiveCheck extends Command
     private function seedMarkers(): array
     {
         $markers = [
-            'admin_user' => User::query()->where('username', 'admin')->where('status', 'ACTIVE')->exists(),
+            // P0 10/09/2026: dấu hiệu là "có một SUPER_ADMIN ACTIVE", không còn gắn với
+            // username `admin` mà seeder cũ tạo bằng mật khẩu hằng số. Môi trường mới
+            // nhận quản trị viên đầu tiên qua `wms:bootstrap-super-admin`.
+            'admin_user' => User::query()
+                ->where('status', 'ACTIVE')
+                ->whereHas('roles', fn ($query) => $query->where('role.role_code', 'SUPER_ADMIN'))
+                ->exists(),
             'baseline_warehouse' => Warehouse::query()->where('code', 'KHO-TONG-HN')->where('status', 'ACTIVE')->exists(),
             // Mã hàng nền = hàng THẬT DongCheng (xem DongChengAnchorSkus), không
             // còn mã demo HN-PV-BASE-001 của bộ seeder đời trước.
@@ -482,10 +489,10 @@ class BackendGoLiveCheck extends Command
     {
         $isDevelopment = $this->isDevelopment();
 
-        $defaults = array_values(array_filter(array_map(
-            static fn ($value): string => (string) $value,
-            (array) config('golive.credential.known_defaults', []),
-        )));
+        // Gồm cả mật khẩu ĐÃ LỘ của chính dự án (golive.credential.compromised). Trước
+        // 10/09/2026 giá trị đó bị cố ý loại khỏi deny-list, nên gate không bao giờ thấy
+        // tài khoản còn dùng nó.
+        $defaults = CredentialPolicy::knownDefaults();
 
         $limit = max(1, (int) config('golive.credential.probe_limit', 500));
 
@@ -1257,6 +1264,21 @@ class BackendGoLiveCheck extends Command
 
         if (! $isDevelopment && config('session.secure') !== true) {
             $warnings['session_secure_cookie'] = 'SESSION_SECURE_COOKIE chưa bật ngoài local/testing.';
+        }
+
+        // --- P1 10/09/2026: kênh refresh token qua JSON cho client không phải trình duyệt ---
+        $bodyTransportEnabled = (bool) config('refresh_token.body_transport.enabled', false);
+        $bodyTransportOrigins = array_values(array_map(
+            static fn ($origin): string => strtolower(rtrim(trim((string) $origin), '/')),
+            (array) config('refresh_token.body_transport.allowed_origins', []),
+        ));
+
+        if ($bodyTransportEnabled) {
+            $browserOrigins = array_map(static fn (string $origin): string => strtolower(rtrim($origin, '/')), $origins);
+            $overlap = array_values(array_intersect($bodyTransportOrigins, $browserOrigins));
+
+            $warnings['refresh_body_transport_enabled'] = 'Kênh refresh token qua JSON (REFRESH_TOKEN_BODY_TRANSPORT_ENABLED) đang bật — chỉ dành cho client không phải web FE.'
+                .($overlap === [] ? '' : ' Origin vừa được CORS cho phép vừa dùng kênh body: '.implode(', ', $overlap).' — JavaScript trên các origin này đọc được refresh token; đảm bảo đó không phải web FE WMS.');
         }
 
         return [

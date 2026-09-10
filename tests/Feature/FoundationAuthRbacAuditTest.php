@@ -12,11 +12,13 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class FoundationAuthRbacAuditTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -35,10 +37,9 @@ class FoundationAuthRbacAuditTest extends TestCase
 
         $user = $this->createUser('manager', 'WAREHOUSE_MANAGER');
 
-        $login = $this->postJson('/api/v1/auth/login', [
-            'email' => 'manager@wms-hoanam.test',
-            'password' => 'secret123',
-        ]);
+        // P1 10/09/2026: phiên TRÌNH DUYỆT — refresh token chỉ nằm trong cookie HttpOnly,
+        // không bao giờ trong JSON.
+        $login = $this->browserLogin('manager@wms-hoanam.test', 'secret123');
 
         $login->assertOk()
             ->assertHeader('X-Request-ID')
@@ -52,12 +53,13 @@ class FoundationAuthRbacAuditTest extends TestCase
             ->assertJsonStructure([
                 'data' => [
                     'access_token',
-                    'refresh_token',
                     'expires_in',
                     'user' => ['phone', 'status', 'created_at', 'updated_at', 'version', 'roles', 'permissions'],
                 ],
                 'meta' => ['request_id', 'timestamp'],
-            ]);
+            ])
+            ->assertJsonMissingPath('data.refresh_token');
+        $loginRefreshToken = $this->refreshTokenFromCookie($login);
         $this->assertContains('warehouse.view', $login->json('data.user.permissions'));
 
         $this->assertDatabaseHas('audit_log', [
@@ -77,18 +79,22 @@ class FoundationAuthRbacAuditTest extends TestCase
             ->assertJsonStructure(['data' => ['phone', 'created_at', 'updated_at', 'version']])
             ->assertJsonMissingPath('data.password_hash');
 
-        $refresh = $this->postJson('/api/v1/auth/refresh', [
-            'refresh_token' => $login->json('data.refresh_token'),
-        ]);
+        $refresh = $this->browserRefresh($loginRefreshToken);
         $refresh->assertOk()
             ->assertJsonPath('data.user.username', 'manager')
-            ->assertJsonStructure(['data' => ['access_token', 'refresh_token', 'user']]);
+            ->assertJsonStructure(['data' => ['access_token', 'user']])
+            ->assertJsonMissingPath('data.refresh_token');
+        $rotatedRefreshToken = $this->refreshTokenFromCookie($refresh);
+        $this->assertNotSame($loginRefreshToken, $rotatedRefreshToken, 'Refresh phải xoay vòng refresh token.');
 
-        $this->postJson('/api/v1/auth/logout', [
-            'refresh_token' => $refresh->json('data.refresh_token'),
-        ], ['Authorization' => 'Bearer '.$refresh->json('data.access_token')])
+        // Logout đọc refresh token từ cookie (body rỗng) và thu hồi nó.
+        $this->withCredentials()
+            ->withUnencryptedCookie((string) config('refresh_token.cookie.name'), $rotatedRefreshToken)
+            ->postJson('/api/v1/auth/logout', [], ['Authorization' => 'Bearer '.$refresh->json('data.access_token')])
             ->assertOk()
             ->assertJsonPath('success', true);
+
+        $this->browserRefresh($rotatedRefreshToken)->assertStatus(401);
 
         $this->assertDatabaseHas('audit_log', ['action' => 'TOKEN_REFRESH', 'object_id' => $user->user_id]);
         $this->assertDatabaseHas('audit_log', ['action' => 'LOGOUT', 'object_id' => $user->user_id]);

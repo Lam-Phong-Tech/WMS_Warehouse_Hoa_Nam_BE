@@ -33,6 +33,7 @@ require __DIR__.'/../vendor/autoload.php';
 
 $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
+require __DIR__.'/lib/assert-non-production.php';
 
 if (DB::connection()->getDriverName() !== 'pgsql') {
     fwrite(STDERR, "WWHN-190 concurrency evidence yêu cầu DB_CONNECTION=pgsql.\n");

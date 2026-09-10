@@ -16,7 +16,12 @@ import fs from 'node:fs';
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:8080';
 const EMAIL = process.env.BENCH_EMAIL ?? 'admin-01@gmail.com';
-const PASSWORD = process.env.BENCH_PASSWORD ?? 'Cntt@1234';
+// Không có mặc định (P0 bảo mật 10/09/2026): giá trị từng ghi cứng ở đây là credential đã lộ.
+const PASSWORD =
+  process.env.BENCH_PASSWORD ||
+  (() => {
+    throw new Error('BENCH_PASSWORD chưa được đặt: script đo không còn mật khẩu mặc định.');
+  })();
 const OUT_DIR = process.env.BENCH_OUT ?? 'build/perf';
 
 const sh = (cmd) => execSync(cmd, { maxBuffer: 64 * 1024 * 1024 }).toString();

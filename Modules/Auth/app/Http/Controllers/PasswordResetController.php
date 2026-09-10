@@ -162,8 +162,9 @@ class PasswordResetController extends Controller
             required: ['email', 'reset_token', 'new_password'], properties: [
                 new OA\Property(property: 'email', type: 'string', format: 'email', example: 'nguyenvana@gmail.com'),
                 new OA\Property(property: 'reset_token', type: 'string'),
-                new OA\Property(property: 'new_password', type: 'string', format: 'password', minLength: 8, example: 'NewCntt@2026'),
-                new OA\Property(property: 'new_password_confirmation', type: 'string', format: 'password', example: 'NewCntt@2026'),
+                // Không có `example` cho mật khẩu: giá trị mẫu trong tài liệu hay bị dùng lại làm mật khẩu thật.
+                new OA\Property(property: 'new_password', type: 'string', format: 'password', minLength: 8),
+                new OA\Property(property: 'new_password_confirmation', type: 'string', format: 'password'),
             ]
         )),
         responses: [

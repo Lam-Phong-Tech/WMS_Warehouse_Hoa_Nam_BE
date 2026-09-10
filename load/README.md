@@ -37,7 +37,7 @@ docker compose -f load/docker-compose.k6.yml run --rm k6 run -e PROFILE=smoke //
 | `P95_MS` | `800` | Ngưỡng đạt: 95% request phải nhanh hơn mức này |
 | `ERROR_RATE` | `0.01` | Ngưỡng đạt: tỉ lệ lỗi tối đa |
 | `LOAD_USERS` | `admin@gmail.com,manager01@gmail.com,...` | Danh sách EMAIL lấy JWT trong `setup()` (login chỉ nhận email) |
-| `LOAD_PASSWORD` | `Cntt@1234` | Mật khẩu của các tài khoản trên |
+| `LOAD_PASSWORD` | *(bắt buộc, không có mặc định)* | Mật khẩu của các tài khoản trên. Không ghi vào repo; truyền lúc chạy (`-e LOAD_PASSWORD=...`) |
 
 Tải mục tiêu suy ra từ hai tham số đầu:
 

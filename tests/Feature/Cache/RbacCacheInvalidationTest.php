@@ -13,6 +13,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
@@ -63,7 +64,7 @@ class RbacCacheInvalidationTest extends TestCase
             'username' => 'rbac-cache-subject-'.Str::lower(Str::random(8)),
             'display_name' => 'RBAC Cache Subject',
             'email' => Str::lower(Str::random(8)).'@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

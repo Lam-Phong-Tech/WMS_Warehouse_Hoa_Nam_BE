@@ -11,6 +11,7 @@ use Modules\Auth\Models\Department;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\SeedEnvironment;
 
 class AuthDatabaseSeeder extends Seeder
 {
@@ -502,12 +503,9 @@ class AuthDatabaseSeeder extends Seeder
      */
     private const DEPRECATED_ROLES = ['WAREHOUSE_APPROVER', 'WAREHOUSE_KEEPER'];
 
-    private const DEFAULT_PASSWORD = 'Cntt@1234';
-
     public function run(): void
     {
-        $withFixtures = $this->allowsNonProductionFixtures();
-        $adminPassword = $this->adminPassword();
+        $withFixtures = SeedEnvironment::allowsFixtureAccounts();
 
         $permissionsByKey = [];
         foreach (self::PERMISSIONS as [$key, $name]) {
@@ -517,23 +515,17 @@ class AuthDatabaseSeeder extends Seeder
             );
         }
 
+        // Vai trò SUPER_ADMIN là ĐỊNH NGHĨA vai trò nên seed ở mọi môi trường. Tài khoản
+        // giữ vai trò này thì KHÔNG: trước 10/09/2026 ngay dưới đây là một
+        // `updateOrCreate` tài khoản `admin` với mật khẩu hằng số trong source, chạy TRƯỚC
+        // nhánh chặn fixture — mỗi lần `db:seed` trên production là một lần reset mật
+        // khẩu, bật lại ACTIVE và gắn lại SUPER_ADMIN cho `admin`. Quản trị viên đầu tiên
+        // nay chỉ sinh ra qua `php artisan wms:bootstrap-super-admin`.
         $superAdminRole = Role::firstOrCreate(
             ['role_code' => 'SUPER_ADMIN'],
             ['role_name' => 'Quản trị hệ thống', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
         );
         $roleModels = ['SUPER_ADMIN' => $superAdminRole];
-
-        $adminUser = User::updateOrCreate(
-            ['username' => 'admin'],
-            [
-                'display_name' => 'Quản trị viên',
-                'email' => 'admin@gmail.com',
-                'password_hash' => Hash::make($adminPassword),
-                'status' => 'ACTIVE',
-                'version' => 1,
-            ]
-        );
-        $this->attachRole($adminUser, $superAdminRole);
 
         foreach (self::ROLES as $code => $def) {
             $fixtureOnly = array_merge(self::NON_PRODUCTION_ROLES, self::DEPRECATED_ROLES);
@@ -556,25 +548,51 @@ class AuthDatabaseSeeder extends Seeder
 
         $this->call(WmsPermissionCompatibilitySeeder::class);
         $this->call(DepartmentSeeder::class);
-        $departmentIdByCode = Department::query()->pluck('department_id', 'department_code')->all();
 
         if (! $withFixtures) {
             $this->command?->warn(
-                'AuthDatabaseSeeder: bỏ qua toàn bộ tài khoản/role fixture vì môi trường "'
-                .app()->environment().'" không nằm trong golive.development_environments. '
-                .'Tạo người dùng thật qua IAM (POST /api/v1/users).'
+                'AuthDatabaseSeeder: môi trường "'.app()->environment().'" chỉ nhận danh mục quyền, vai trò và mapping — '
+                .'KHÔNG tạo, sửa, kích hoạt lại hay gắn vai trò cho bất kỳ tài khoản nào. '
+                .'Quản trị viên đầu tiên: `php artisan wms:bootstrap-super-admin`; người dùng khác tạo qua IAM (POST /api/v1/users).'
             );
 
             return;
         }
 
+        $departmentIdByCode = Department::query()->pluck('department_id', 'department_code')->all();
+        // Băm MỘT lần cho cả bộ fixture: cùng một mật khẩu thì không cần mười lần bcrypt.
+        $fixturePasswordHash = Hash::make(SeedEnvironment::fixturePassword());
+        $allowSuperAdminFixtures = SeedEnvironment::allowsSuperAdminFixtures();
+
+        // `admin` ở đây là FIXTURE của local/testing — bộ test và E2E đăng nhập bằng nó
+        // với mật khẩu WMS_FIXTURE_PASSWORD. Môi trường demo/UAT không đi vào nhánh này:
+        // quản trị viên của họ là tài khoản thật cấp qua `wms:bootstrap-super-admin`.
+        $adminUser = null;
+        if ($allowSuperAdminFixtures) {
+            $adminUser = User::updateOrCreate(
+                ['username' => 'admin'],
+                [
+                    'display_name' => 'Quản trị viên',
+                    'email' => 'admin@gmail.com',
+                    'password_hash' => $fixturePasswordHash,
+                    'status' => 'ACTIVE',
+                    'version' => 1,
+                ]
+            );
+            $this->attachRole($adminUser, $superAdminRole);
+        }
+
         foreach (self::USERS as $u) {
+            if ($u['role'] === 'SUPER_ADMIN' && ! $allowSuperAdminFixtures) {
+                continue;
+            }
+
             $user = User::updateOrCreate(
                 ['username' => $u['username']],
                 [
                     'display_name' => $u['display_name'],
                     'email' => $u['email'],
-                    'password_hash' => Hash::make($this->fixturePassword()),
+                    'password_hash' => $fixturePasswordHash,
                     'status' => 'ACTIVE',
                     'version' => 1,
                     'department_id' => isset($u['department']) ? ($departmentIdByCode[$u['department']] ?? null) : null,
@@ -605,9 +623,11 @@ class AuthDatabaseSeeder extends Seeder
      * keeper01 (WAREHOUSE_KEEPER) vốn không có report.export qua role, cấp thêm
      * riêng để minh hoạ đúng ngữ nghĩa "cộng thêm, không thay thế quyền role".
      */
-    private function seedSampleUserPermissionGrant(array $permissionsByKey, User $adminUser): void
+    private function seedSampleUserPermissionGrant(array $permissionsByKey, ?User $grantedBy): void
     {
-        if (! Schema::hasTable('user_permission')) {
+        // Demo/UAT không có `admin` fixture để đứng tên người cấp — bỏ qua dữ liệu minh
+        // hoạ thay vì bịa ra một người cấp quyền.
+        if ($grantedBy === null || ! Schema::hasTable('user_permission')) {
             return;
         }
 
@@ -621,7 +641,7 @@ class AuthDatabaseSeeder extends Seeder
             ['user_id' => $keeper->user_id, 'permission_id' => $reportExport->permission_id],
             [
                 'user_permission_id' => (string) Str::uuid(),
-                'granted_by' => $adminUser->user_id,
+                'granted_by' => $grantedBy->user_id,
                 'granted_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -634,35 +654,5 @@ class AuthDatabaseSeeder extends Seeder
         if (! $user->roles()->where('role.role_id', $role->role_id)->exists()) {
             $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
         }
-    }
-
-    private function allowsNonProductionFixtures(): bool
-    {
-        if ($this->isDevelopmentEnvironment()) {
-            return true;
-        }
-
-        return (bool) config('golive.seed.demo_accounts', false);
-    }
-
-    private function isDevelopmentEnvironment(): bool
-    {
-        return in_array(
-            app()->environment(),
-            array_map('strval', (array) config('golive.development_environments', ['local', 'testing'])),
-            true,
-        );
-    }
-
-    private function adminPassword(): string
-    {
-        return self::DEFAULT_PASSWORD;
-    }
-
-    private function fixturePassword(): string
-    {
-        $ciPassword = env('CI_DEMO_PASSWORD');
-
-        return is_string($ciPassword) && $ciPassword !== '' ? $ciPassword : self::DEFAULT_PASSWORD;
     }
 }

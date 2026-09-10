@@ -252,7 +252,7 @@ Refresh token cũng được set vào cookie HttpOnly `wms_refresh_token` (path 
 
 TTL: access token `JWT_TTL=60` phút; refresh token thật (không phải TTL nội bộ của jwt-auth) là `REFRESH_TOKEN_TTL_MINUTES=20160` phút (14 ngày).
 
-**⚠️ Liên quan mục 10:** tài khoản test (`staff01/approver01/keeper01/viewer01/manager01/admin`, password `Cntt@1234`) **chỉ được seed** khi môi trường nằm trong `golive.development_environments` (mặc định `local, testing`) hoặc `WMS_SEED_DEMO_ACCOUNTS=true`. Nếu DEV thật có `APP_ENV=production` (đúng như QA nghi vấn ở mục 10), **các tài khoản test này sẽ KHÔNG được tạo** — đây có thể là lý do QA không login được, cần DevOps xác nhận.
+**⚠️ Liên quan mục 10:** tài khoản test (`staff01/approver01/keeper01/viewer01/manager01/admin`) **chỉ được seed** khi môi trường nằm trong `golive.development_environments` (mặc định `local, testing`), hoặc ở môi trường demo (`golive.demo_environments`: `uat, demo`) khi bật `WMS_SEED_DEMO_ACCOUNTS=true` — riêng `admin` (SUPER_ADMIN) chỉ có ở development. Mật khẩu lấy từ biến môi trường `WMS_FIXTURE_PASSWORD`, không ghi trong tài liệu (cập nhật P0 bảo mật 10/09/2026: mật khẩu chung cũ đã bị thu hồi). Nếu DEV thật có `APP_ENV=production` (đúng như QA nghi vấn ở mục 10), **các tài khoản test này sẽ KHÔNG được tạo** — đây có thể là lý do QA không login được, cần DevOps xác nhận.
 
 ---
 

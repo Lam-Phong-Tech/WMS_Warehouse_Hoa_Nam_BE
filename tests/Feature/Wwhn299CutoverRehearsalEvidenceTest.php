@@ -10,6 +10,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * WWHN-299 — diễn tập cutover sinh evidence chạy được (DEV299-P1-05, P1-06).
@@ -193,7 +194,7 @@ class Wwhn299CutoverRehearsalEvidenceTest extends TestCase
             'username' => $username,
             'display_name' => $displayName,
             'email' => $username.'@gmail.com',
-            'password_hash' => bcrypt('Cntt@1234'),
+            'password_hash' => bcrypt(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

@@ -18,6 +18,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use RuntimeException;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * WWHN-165 / WWHN-35 — proof cho hai root fix:
@@ -514,7 +515,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
         return User::create([
             'username' => $username,
             'display_name' => 'WWHN-165 authz fixture',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

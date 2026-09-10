@@ -995,19 +995,16 @@
                                 "properties": {
                                     "current_password": {
                                         "type": "string",
-                                        "format": "password",
-                                        "example": "Cntt@1234"
+                                        "format": "password"
                                     },
                                     "new_password": {
                                         "type": "string",
                                         "format": "password",
-                                        "example": "NewCntt@2026",
                                         "minLength": 8
                                     },
                                     "new_password_confirmation": {
                                         "type": "string",
-                                        "format": "password",
-                                        "example": "NewCntt@2026"
+                                        "format": "password"
                                     }
                                 },
                                 "type": "object"
@@ -1273,7 +1270,7 @@
                     "01. Authentication"
                 ],
                 "summary": "Đăng nhập bằng email và password",
-                "description": "Credential admin canonical dùng cho DEV/UAT: admin@gmail.com / Cntt@1234.",
+                "description": "Không có tài khoản hay mật khẩu mặc định trên môi trường triển khai: quản trị viên đầu tiên được cấp bằng `php artisan wms:bootstrap-super-admin`, người dùng khác tạo qua IAM.",
                 "operationId": "auth_login",
                 "parameters": [],
                 "requestBody": {
@@ -1289,13 +1286,12 @@
                                     "email": {
                                         "type": "string",
                                         "format": "email",
-                                        "example": "admin@gmail.com"
+                                        "example": "user@example.com"
                                     },
                                     "password": {
-                                        "description": "Mật khẩu canonical của tài khoản admin được AuthDatabaseSeeder tạo/cập nhật.",
+                                        "description": "Mật khẩu của tài khoản. Tài liệu API cố ý không công bố giá trị mẫu.",
                                         "type": "string",
-                                        "format": "password",
-                                        "example": "Cntt@1234"
+                                        "format": "password"
                                     }
                                 },
                                 "type": "object"
@@ -1424,17 +1420,31 @@
                     "01. Authentication"
                 ],
                 "summary": "Đăng xuất, thu hồi refresh token và huỷ access token hiện tại",
+                "description": "Trình duyệt: body rỗng; refresh token của phiên đọc từ cookie HttpOnly và response hết hạn cookie đó. Không có cookie thì thu hồi mọi refresh token của tài khoản. Kênh `X-WMS-Token-Transport: body` thu hồi refresh_token gửi trong body.",
                 "operationId": "auth_logout",
-                "parameters": [],
+                "parameters": [
+                    {
+                        "name": "X-WMS-Token-Transport",
+                        "in": "header",
+                        "description": "Kênh refresh token: `cookie` (mặc định, trình duyệt) hoặc `body` (client không phải trình duyệt, máy chủ phải bật).",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "cookie",
+                                "body"
+                            ]
+                        }
+                    }
+                ],
                 "requestBody": {
                     "content": {
                         "application/json": {
                             "schema": {
                                 "properties": {
                                     "refresh_token": {
-                                        "description": "Tuỳ chọn với browser có HttpOnly refresh cookie.",
+                                        "description": "CHỈ có tác dụng với `X-WMS-Token-Transport: body`; kênh cookie bỏ qua trường này.",
                                         "type": "string",
-                                        "example": "4f2b8a6d1c3e9f7a5b8d2e6c4a9f1b7d3e8c6a2f4b9d7e1c5a3f8b6d4e2c9a7f",
                                         "nullable": true
                                     }
                                 },
@@ -2226,11 +2236,21 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "access_token + refresh_token",
+                        "description": "access_token + user. Refresh token KHÔNG nằm trong JSON: trình duyệt nhận qua cookie HttpOnly, client không phải trình duyệt chỉ nhận qua kênh `X-WMS-Token-Transport: body` khi máy chủ bật.",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "ACCESS_DENIED (tài khoản bị khoá), ORIGIN_NOT_ALLOWED hoặc TOKEN_TRANSPORT_NOT_ALLOWED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
                                 }
                             }
                         }
@@ -2257,16 +2277,6 @@
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Không có quyền truy cập",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2344,10 +2354,24 @@
                 "tags": [
                     "01. Authentication"
                 ],
-                "summary": "Xoay vòng refresh token từ JSON hoặc HttpOnly browser cookie",
-                "description": "Browser có thể bỏ trống body sau F5; server dùng HttpOnly refresh cookie. Swagger/Postman/non-browser client vẫn có thể gửi refresh_token trong JSON body. Token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên.",
+                "summary": "Xoay vòng refresh token và cấp access token mới",
+                "description": "Trình duyệt: body RỖNG; refresh token đi trong cookie HttpOnly `wms_refresh_token` (Path=/api/v1/auth) và request phải mang Origin thuộc allowlist CORS. Response KHÔNG chứa refresh_token — token mới chỉ nằm trong Set-Cookie. Client không phải trình duyệt: gửi header `X-WMS-Token-Transport: body` kèm `refresh_token` trong body (chỉ khi máy chủ bật REFRESH_TOKEN_BODY_TRANSPORT_ENABLED); token mới trả trong JSON, không có cookie. Token cũ bị thu hồi; dùng lại token đã xoay vòng sẽ thu hồi toàn bộ phiên của tài khoản.",
                 "operationId": "auth_refresh",
-                "parameters": [],
+                "parameters": [
+                    {
+                        "name": "X-WMS-Token-Transport",
+                        "in": "header",
+                        "description": "Kênh refresh token: `cookie` (mặc định, trình duyệt) hoặc `body` (client không phải trình duyệt, máy chủ phải bật).",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "cookie",
+                                "body"
+                            ]
+                        }
+                    }
+                ],
                 "requestBody": {
                     "required": false,
                     "content": {
@@ -2355,9 +2379,8 @@
                             "schema": {
                                 "properties": {
                                     "refresh_token": {
-                                        "description": "Tuỳ chọn với browser có HttpOnly refresh cookie; bắt buộc nếu client không dùng cookie.",
+                                        "description": "CHỈ dùng với `X-WMS-Token-Transport: body`. Kênh cookie gửi kèm trường này nhận 422 REFRESH_TOKEN_TRANSPORT_MISMATCH.",
                                         "type": "string",
-                                        "example": "4f2b8a6d1c3e9f7a5b8d2e6c4a9f1b7d3e8c6a2f4b9d7e1c5a3f8b6d4e2c9a7f",
                                         "nullable": true
                                     }
                                 },
@@ -2387,8 +2410,18 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "ORIGIN_NOT_ALLOWED (refresh bằng cookie từ nguồn không tin cậy) hoặc TOKEN_TRANSPORT_NOT_ALLOWED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
                     "422": {
-                        "description": "Không có refresh token trong JSON body hoặc browser cookie",
+                        "description": "Không có refresh token ở đúng kênh, hoặc gửi refresh token trong body khi dùng kênh cookie",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2399,16 +2432,6 @@
                     },
                     "400": {
                         "description": "Yêu cầu không đúng định dạng",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Không có quyền truy cập",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -2501,13 +2524,11 @@
                                     "new_password": {
                                         "type": "string",
                                         "format": "password",
-                                        "example": "NewCntt@2026",
                                         "minLength": 8
                                     },
                                     "new_password_confirmation": {
                                         "type": "string",
-                                        "format": "password",
-                                        "example": "NewCntt@2026"
+                                        "format": "password"
                                     }
                                 },
                                 "type": "object"
@@ -36873,11 +36894,24 @@
                             "default": 20,
                             "maximum": 50
                         }
+                    },
+                    {
+                        "name": "ids[]",
+                        "in": "query",
+                        "description": "Chế độ TRA THEO ID (dùng cho màn \"đã lưu\" của App): trả đúng các sản phẩm có id gửi lên, theo ĐÚNG thứ tự gửi, kèm `data.missing_ids` cho id không còn hiển thị công khai. Tối đa 50 id, loại trùng tự động. KHÔNG dùng chung với q/domain/category/power_source/feature/spec.*/sort/cursor/limit — trộn vào sẽ trả 400 INVALID_QUERY. Chế độ này không phân trang nên không có page_info.",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "format": "uuid"
+                            },
+                            "maxItems": 50
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "data.items + data.page_info.next_cursor",
+                        "description": "data.items + data.page_info.next_cursor; riêng chế độ ids[] trả data.items + data.missing_ids",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -54167,8 +54201,9 @@
                                         "maxLength": 30
                                     },
                                     "password": {
+                                        "description": "Mật khẩu ban đầu do quản trị viên đặt; tài liệu API không công bố giá trị mẫu.",
                                         "type": "string",
-                                        "example": "Cntt@1234",
+                                        "format": "password",
                                         "minLength": 8
                                     },
                                     "status": {
@@ -54486,8 +54521,9 @@
                                         "maxLength": 30
                                     },
                                     "password": {
+                                        "description": "Mật khẩu ban đầu do quản trị viên đặt; tài liệu API không công bố giá trị mẫu.",
                                         "type": "string",
-                                        "example": "Cntt@1234",
+                                        "format": "password",
                                         "minLength": 8
                                     },
                                     "status": {
@@ -59964,7 +60000,7 @@
                         ],
                         "properties": {
                             "admin_user": {
-                                "description": "User `admin` ACTIVE.",
+                                "description": "Có ít nhất một tài khoản ACTIVE giữ vai trò SUPER_ADMIN (cấp bằng `wms:bootstrap-super-admin`).",
                                 "type": "boolean"
                             },
                             "baseline_warehouse": {

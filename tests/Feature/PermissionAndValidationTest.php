@@ -12,6 +12,7 @@ use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * Bổ sung 2 lớp phòng thủ chưa được cover ở StockDocumentIdempotencyTest (vốn luôn dùng
@@ -38,7 +39,7 @@ class PermissionAndValidationTest extends TestCase
         $user = User::create([
             'username' => $username,
             'display_name' => 'Limited user',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

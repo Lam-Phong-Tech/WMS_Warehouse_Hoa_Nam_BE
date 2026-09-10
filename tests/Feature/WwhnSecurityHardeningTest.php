@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * Hồi quy cho đợt hardening WWHN-SEC-01..04.
@@ -43,7 +44,7 @@ class WwhnSecurityHardeningTest extends TestCase
         }
     }
 
-    private function makeUser(string $password = 'Cntt@1234'): User
+    private function makeUser(string $password = TestCredentials::PASSWORD): User
     {
         $suffix = uniqid();
 
@@ -136,12 +137,12 @@ class WwhnSecurityHardeningTest extends TestCase
         // bộ đếm brute-force của AuthController chỉ tính lần THẤT BẠI, còn trần
         // theo IP ở đây sẽ khoá nhầm cả kho dùng chung một đường NAT.
         config(['rate_limit.api_unauthenticated_per_minute' => 1]);
-        $user = $this->makeUser('Cntt@1234');
+        $user = $this->makeUser(TestCredentials::PASSWORD);
 
         for ($i = 0; $i < 3; $i++) {
             $this->postJson('/api/v1/auth/login', [
                 'email' => $user->email,
-                'password' => 'Cntt@1234',
+                'password' => TestCredentials::PASSWORD,
             ])->assertStatus(200);
         }
     }
@@ -150,7 +151,7 @@ class WwhnSecurityHardeningTest extends TestCase
 
     public function test_access_token_issued_before_password_change_is_rejected(): void
     {
-        $user = $this->makeUser('Cntt@1234');
+        $user = $this->makeUser(TestCredentials::PASSWORD);
         $stolen = $this->bearer($user);
 
         $this->getJson('/api/v1/auth/me', $stolen)->assertStatus(200);
@@ -162,7 +163,7 @@ class WwhnSecurityHardeningTest extends TestCase
         $this->travel(5)->seconds();
 
         $this->postJson('/api/v1/auth/change-password', [
-            'current_password' => 'Cntt@1234',
+            'current_password' => TestCredentials::PASSWORD,
             'new_password' => 'NewCntt@2026',
             'new_password_confirmation' => 'NewCntt@2026',
         ], $stolen)->assertStatus(200);
@@ -186,7 +187,7 @@ class WwhnSecurityHardeningTest extends TestCase
      */
     public function test_token_within_the_same_second_is_the_documented_granularity_limit(): void
     {
-        $user = $this->makeUser('Cntt@1234');
+        $user = $this->makeUser(TestCredentials::PASSWORD);
         $sameSecondToken = $this->bearer($user);
 
         $user->markPasswordChangedNow();
@@ -202,10 +203,10 @@ class WwhnSecurityHardeningTest extends TestCase
      */
     public function test_token_issued_after_password_change_still_works(): void
     {
-        $user = $this->makeUser('Cntt@1234');
+        $user = $this->makeUser(TestCredentials::PASSWORD);
 
         $this->postJson('/api/v1/auth/change-password', [
-            'current_password' => 'Cntt@1234',
+            'current_password' => TestCredentials::PASSWORD,
             'new_password' => 'NewCntt@2026',
             'new_password_confirmation' => 'NewCntt@2026',
         ], $this->bearer($user))->assertStatus(200);
@@ -223,7 +224,7 @@ class WwhnSecurityHardeningTest extends TestCase
 
     public function test_password_change_marker_is_not_in_the_future(): void
     {
-        $user = $this->makeUser('Cntt@1234');
+        $user = $this->makeUser(TestCredentials::PASSWORD);
         $user->markPasswordChangedNow();
 
         $skew = $user->fresh()->passwordChangedAtEpoch() - now()->getTimestamp();

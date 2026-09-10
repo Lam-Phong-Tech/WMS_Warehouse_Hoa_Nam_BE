@@ -26,6 +26,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Môi trường demo/UAT được phép nhận tài khoản fixture (P0 bảo mật 10/09/2026)
+    |--------------------------------------------------------------------------
+    |
+    | WMS_SEED_DEMO_ACCOUNTS=true CHỈ có hiệu lực khi APP_ENV nằm trong danh sách
+    | này. Trước đây cờ đó mở toàn bộ fixture — kể cả `test-super-admin` — trên BẤT
+    | KỲ môi trường nào, production cũng vậy. Ngay cả ở demo, không tài khoản
+    | SUPER_ADMIN fixture nào được tạo (Modules\Auth\Support\SeedEnvironment).
+    |
+    */
+    'demo_environments' => ['uat', 'demo'],
+
+    /*
+    |--------------------------------------------------------------------------
     | Allowlist cho --allow-debug (DEV300-P1-02)
     |--------------------------------------------------------------------------
     |
@@ -43,14 +56,26 @@ return [
     | Vệ sinh tài khoản trước cutover (DEV300-P1-01)
     |--------------------------------------------------------------------------
     |
-    | `known_defaults` chỉ chứa các mật khẩu yếu/legacy KHÔNG thuộc contract của
-    | dự án. Tài khoản admin canonical của WMS Hoa Nam là
-    | `admin@gmail.com / Cntt@1234`; vì đây là credential được dự án yêu cầu dùng
-    | để DEV/UAT đăng nhập nên `Cntt@1234` tuyệt đối không được đưa vào deny-list
-    | này. Gate vẫn dùng Hash::check để phát hiện các giá trị yếu còn lại.
+    | `compromised` là mật khẩu ĐÃ LỘ của chính dự án: từng nằm trong seeder,
+    | OpenAPI, Postman và tài liệu bàn giao, và sẽ nằm mãi trong lịch sử git. Trước
+    | 10/09/2026 file này ghi rằng giá trị đó "tuyệt đối không được đưa vào
+    | deny-list" vì là credential DEV/UAT canonical — tức gate go-live được cấu hình
+    | để KHÔNG BAO GIỜ nhìn thấy đúng lỗ hổng nghiêm trọng nhất. Nay nó là mục đầu
+    | tiên của deny-list: tài khoản ACTIVE nào còn dùng nó ngoài local/testing là
+    | FAIL, và `wms:bootstrap-super-admin` / fixture demo từ chối nhận nó.
+    |
+    | Đây là nơi DUY NHẤT trong repo được phép chứa chuỗi này — Hash::check cần bản
+    | rõ để dò. `scripts/check-known-credentials.mjs` chặn mọi chỗ khác.
+    |
+    | `known_defaults` là mật khẩu yếu phổ biến. Gate dùng Hash::check trên cả hai
+    | danh sách (CredentialPolicy::knownDefaults()).
     |
     */
     'credential' => [
+
+        'compromised' => [
+            'Cntt@1234',
+        ],
 
         'known_defaults' => [
             'Cntt@123',
@@ -73,10 +98,11 @@ return [
     | Tài khoản / role chỉ dành cho môi trường phi production
     |--------------------------------------------------------------------------
     |
-    | AuthDatabaseSeeder tạo `test-sku-manage`, `test-no-permission`,
-    | `test-super-admin`… phục vụ test RBAC. Chúng là tài khoản thật, ACTIVE, có
-    | quyền thật — trên production đó là backdoor. Seeder không tạo chúng ngoài
-    | dev, và gate này chặn trường hợp chúng đã lọt vào DB từ trước.
+    | AuthDatabaseSeeder, IamCoverageSeeder, RoleAccountMatrixSeeder và
+    | UatScenarioSeeder tạo tài khoản fixture phục vụ test/UAT. Chúng là tài khoản
+    | thật, ACTIVE, có quyền thật — trên production đó là backdoor. Seeder không tạo
+    | chúng ngoài development/demo, và gate này chặn trường hợp chúng đã lọt vào DB
+    | từ trước.
     |
     */
     'non_production_usernames' => [
@@ -90,26 +116,51 @@ return [
         // "test-" nên phải khớp tường minh, nếu không WMS_SEED_DEMO_ACCOUNTS=true
         // trên production sẽ tạo ra chúng mà gate vẫn xanh.
         '/^(staff|approver|keeper|viewer|manager)\d{2}$/i',
+        '/^inbound-tester\d{2}$/i',
+        // RoleAccountMatrixSeeder: <mã vai trò viết thường, gạch nối>-01..03.
+        '/^(super-admin|admin|warehouse-manager|warehouse-staff|warranty-staff|leadership|viewer|sku-manager|master-manager|no-permission|inbound-only-test)-\d{2}$/i',
+        // IamCoverageSeeder: tên như người thật nên chỉ khớp đúng từng username đã seed.
+        '/^(giamdoc\.hoa|phogiamdoc\.tuan|truongvung\.nam|admin\.hethong|admin\.phanquyen|admin\.cu|kythuat\.baohanh|kythuat\.hientruong|ketoan\.kho)$/i',
+        '/^(baohanh|thukho|nhanvienkho|duyetkho|quanlykho|kinhdoanh|danhmuc|sku)\d{2}$/i',
+        // UatScenarioSeeder (wms:seed-uat).
+        '/^uat\./i',
     ],
 
     'non_production_roles' => [
         'SKU_MANAGER',
         'MASTER_MANAGER',
         'NO_PERMISSION',
+        'INBOUND_ONLY_TEST',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Seeding fixture phi admin
+    | Seeding tài khoản fixture (P0 bảo mật 10/09/2026)
     |--------------------------------------------------------------------------
     |
-    | Credential admin canonical được pin trực tiếp trong AuthDatabaseSeeder và
-    | không có config/env override. `seed` ở đây chỉ điều khiển việc có tạo thêm
-    | tài khoản demo/test ngoài development hay không.
+    | `db:seed` ngoài development/demo KHÔNG tạo tài khoản nào. `fixture_password`
+    | là mật khẩu chung của tài khoản fixture ở local/testing/demo và KHÔNG có giá
+    | trị mặc định trong source — thiếu thì seeder dừng. CI_DEMO_PASSWORD được nhận
+    | để các workflow CI hiện có không phải đổi tên biến.
     |
     */
     'seed' => [
         'demo_accounts' => (bool) env('WMS_SEED_DEMO_ACCOUNTS', false),
+        'fixture_password' => env('WMS_FIXTURE_PASSWORD') ?: env('CI_DEMO_PASSWORD'),
+        'min_demo_password_length' => 12,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Bootstrap quản trị viên đầu tiên (`wms:bootstrap-super-admin`)
+    |--------------------------------------------------------------------------
+    |
+    | Mật khẩu ban đầu không bao giờ nằm ở đây: lệnh đọc nó từ biến môi trường
+    | của chính tiến trình hoặc tự sinh ngẫu nhiên. Sàn cứng 12 ký tự trong lệnh.
+    |
+    */
+    'bootstrap' => [
+        'min_password_length' => (int) env('WMS_BOOTSTRAP_MIN_PASSWORD_LENGTH', 16),
     ],
 
     /*

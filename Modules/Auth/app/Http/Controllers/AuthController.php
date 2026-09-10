@@ -9,10 +9,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Auth\Events\SecurityAlertRaised;
 use Modules\Auth\Http\Requests\LoginRequest;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\AuthUserPayload;
+use Modules\Auth\Support\MfaService;
 use Modules\Auth\Support\RefreshTokenService;
+use Modules\Auth\Support\RefreshTokenTransport;
 use OpenApi\Attributes as OA;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -23,23 +28,23 @@ class AuthController extends Controller
     public function __construct(
         private readonly RefreshTokenService $refreshTokens,
         private readonly AuditLogger $auditLogger,
-        private readonly \Modules\Auth\Support\MfaService $mfa,
+        private readonly MfaService $mfa,
+        private readonly RefreshTokenTransport $tokenTransport,
     ) {}
 
     #[OA\Post(
         path: '/api/v1/auth/login', operationId: 'auth_login',
         summary: 'Đăng nhập bằng email và password',
-        description: 'Credential admin canonical dùng cho DEV/UAT: admin@gmail.com / Cntt@1234.',
+        description: 'Không có tài khoản hay mật khẩu mặc định trên môi trường triển khai: quản trị viên đầu tiên được cấp bằng `php artisan wms:bootstrap-super-admin`, người dùng khác tạo qua IAM.',
         tags: ['01. Authentication'], security: [],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
             required: ['email', 'password'], properties: [
-                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'admin@gmail.com'),
+                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'user@example.com'),
                 new OA\Property(
                     property: 'password',
                     type: 'string',
                     format: 'password',
-                    example: 'Cntt@1234',
-                    description: 'Mật khẩu canonical của tài khoản admin được AuthDatabaseSeeder tạo/cập nhật.'
+                    description: 'Mật khẩu của tài khoản. Tài liệu API cố ý không công bố giá trị mẫu.'
                 ),
             ]
         )),
@@ -73,7 +78,7 @@ class AuthController extends Controller
                 result: 'FAILED', errorCode: 'RATE_LIMIT_EXCEEDED',
             );
 
-            event(new \Modules\Auth\Events\SecurityAlertRaised(
+            event(new SecurityAlertRaised(
                 'LOGIN_THROTTLED',
                 null,
                 'Phát hiện nhiều lần đăng nhập sai liên tiếp; một định danh đã bị tạm khoá thử đăng nhập.',
@@ -163,7 +168,7 @@ class AuthController extends Controller
                 result: 'DENIED', errorCode: 'ACCESS_DENIED',
             );
 
-            event(new \Modules\Auth\Events\SecurityAlertRaised(
+            event(new SecurityAlertRaised(
                 'LOGIN_DENIED',
                 $user->user_id,
                 "Tài khoản {$user->username} bị từ chối đăng nhập vì đang ở trạng thái {$user->status}.",
@@ -211,42 +216,74 @@ class AuthController extends Controller
 
         $user->forceFill(['last_login_at' => now()])->save();
 
-        $refreshToken = $this->refreshTokens->issue($user, $request);
-        $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
-
-        return $this->respondSuccess([
+        $response = $this->respondSuccess([
             'access_token' => $accessToken,
-            'refresh_token' => $refreshToken,
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
-            'user' => $this->userPayload($user),
+            'user' => AuthUserPayload::full($user),
         ], 'Đăng nhập thành công');
+
+        // P1 10/09/2026: refresh token KHÔNG còn nằm trong JSON. Trình duyệt (Origin tin
+        // cậy) nhận nó trong cookie HttpOnly; client không phải trình duyệt chỉ nhận qua kênh
+        // body được bật tường minh; request không mang Origin nào (công cụ dòng lệnh) chỉ có
+        // access token ngắn hạn. Xem RefreshTokenTransport.
+        if ($this->tokenTransport->shouldIssueOnLogin($request)) {
+            $this->tokenTransport->deliver($request, $response, $this->refreshTokens->issue($user, $request));
+        }
+
+        $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
+
+        return $response;
     }
 
     #[OA\Post(
         path: '/api/v1/auth/refresh', operationId: 'auth_refresh',
-        summary: 'Xoay vòng refresh token từ JSON hoặc HttpOnly browser cookie',
-        description: 'Browser có thể bỏ trống body sau F5; server dùng HttpOnly refresh cookie. Swagger/Postman/non-browser client vẫn có thể gửi refresh_token trong JSON body. Token cũ bị thu hồi và replay sẽ khóa toàn bộ phiên.',
+        summary: 'Xoay vòng refresh token và cấp access token mới',
+        description: 'Trình duyệt: body RỖNG; refresh token đi trong cookie HttpOnly `wms_refresh_token` (Path=/api/v1/auth) và request phải mang Origin thuộc allowlist CORS. Response KHÔNG chứa refresh_token — token mới chỉ nằm trong Set-Cookie. Client không phải trình duyệt: gửi header `X-WMS-Token-Transport: body` kèm `refresh_token` trong body (chỉ khi máy chủ bật REFRESH_TOKEN_BODY_TRANSPORT_ENABLED); token mới trả trong JSON, không có cookie. Token cũ bị thu hồi; dùng lại token đã xoay vòng sẽ thu hồi toàn bộ phiên của tài khoản.',
         tags: ['01. Authentication'], security: [],
+        parameters: [
+            new OA\Parameter(
+                name: 'X-WMS-Token-Transport',
+                in: 'header',
+                required: false,
+                description: 'Kênh refresh token: `cookie` (mặc định, trình duyệt) hoặc `body` (client không phải trình duyệt, máy chủ phải bật).',
+                schema: new OA\Schema(type: 'string', enum: ['cookie', 'body'])
+            ),
+        ],
         requestBody: new OA\RequestBody(required: false, content: new OA\JsonContent(
             properties: [new OA\Property(
                 property: 'refresh_token',
                 type: 'string',
                 nullable: true,
-                description: 'Tuỳ chọn với browser có HttpOnly refresh cookie; bắt buộc nếu client không dùng cookie.',
-                example: '4f2b8a6d1c3e9f7a5b8d2e6c4a9f1b7d3e8c6a2f4b9d7e1c5a3f8b6d4e2c9a7f'
+                description: 'CHỈ dùng với `X-WMS-Token-Transport: body`. Kênh cookie gửi kèm trường này nhận 422 REFRESH_TOKEN_TRANSPORT_MISMATCH.'
             )]
         )),
         responses: [
             new OA\Response(response: 200, description: 'Làm mới token thành công'),
             new OA\Response(response: 401, description: 'Refresh token không hợp lệ, hết hạn hoặc bị replay'),
-            new OA\Response(response: 422, description: 'Không có refresh token trong JSON body hoặc browser cookie'),
+            new OA\Response(response: 403, description: 'ORIGIN_NOT_ALLOWED (refresh bằng cookie từ nguồn không tin cậy) hoặc TOKEN_TRANSPORT_NOT_ALLOWED'),
+            new OA\Response(response: 422, description: 'Không có refresh token ở đúng kênh, hoặc gửi refresh token trong body khi dùng kênh cookie'),
         ]
     )]
     public function refresh(Request $request)
     {
-        $request->validate(['refresh_token' => ['required', 'string', 'max:255']]);
-        $rawToken = (string) $request->input('refresh_token');
+        if ($this->tokenTransport->mode($request) === RefreshTokenTransport::COOKIE && $request->exists('refresh_token')) {
+            // FE cũ giữ refresh token trong bộ nhớ JS và gửi lại qua body — đúng con đường
+            // cho XSS lấy credential dài hạn. Kênh cookie không nhận token đến từ JavaScript.
+            return $this->respondError(
+                'Phiên trình duyệt được làm mới bằng cookie HttpOnly; không gửi refresh token trong body.',
+                [], 422, 'REFRESH_TOKEN_TRANSPORT_MISMATCH',
+            );
+        }
+
+        $rawToken = $this->tokenTransport->presentedToken($request);
+
+        if ($rawToken === null || strlen($rawToken) > 255) {
+            throw ValidationException::withMessages([
+                'refresh_token' => ['Không tìm thấy refresh token hợp lệ cho phiên này.'],
+            ]);
+        }
+
         $rotated = $this->refreshTokens->rotate($rawToken, $request);
 
         if ($rotated === null) {
@@ -264,26 +301,36 @@ class AuthController extends Controller
         $accessToken = JWTAuth::fromUser($user);
         $this->auditLogger->log('TOKEN_REFRESH', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
 
-        return $this->respondSuccess([
+        $response = $this->respondSuccess([
             'access_token' => $accessToken,
-            'refresh_token' => $rotated['raw'],
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
-            'user' => $this->userPayload($user),
+            'user' => AuthUserPayload::full($user),
         ], 'Làm mới token thành công');
+
+        return $this->tokenTransport->deliver($request, $response, $rotated['raw']);
     }
 
     #[OA\Post(
         path: '/api/v1/auth/logout', operationId: 'auth_logout',
         summary: 'Đăng xuất, thu hồi refresh token và huỷ access token hiện tại',
+        description: 'Trình duyệt: body rỗng; refresh token của phiên đọc từ cookie HttpOnly và response hết hạn cookie đó. Không có cookie thì thu hồi mọi refresh token của tài khoản. Kênh `X-WMS-Token-Transport: body` thu hồi refresh_token gửi trong body.',
         security: [['bearerAuth' => []]], tags: ['01. Authentication'],
+        parameters: [
+            new OA\Parameter(
+                name: 'X-WMS-Token-Transport',
+                in: 'header',
+                required: false,
+                description: 'Kênh refresh token: `cookie` (mặc định, trình duyệt) hoặc `body` (client không phải trình duyệt, máy chủ phải bật).',
+                schema: new OA\Schema(type: 'string', enum: ['cookie', 'body'])
+            ),
+        ],
         requestBody: new OA\RequestBody(content: new OA\JsonContent(properties: [
             new OA\Property(
                 property: 'refresh_token',
                 type: 'string',
                 nullable: true,
-                description: 'Tuỳ chọn với browser có HttpOnly refresh cookie.',
-                example: '4f2b8a6d1c3e9f7a5b8d2e6c4a9f1b7d3e8c6a2f4b9d7e1c5a3f8b6d4e2c9a7f'
+                description: 'CHỈ có tác dụng với `X-WMS-Token-Transport: body`; kênh cookie bỏ qua trường này.'
             ),
         ])),
         responses: [
@@ -298,8 +345,11 @@ class AuthController extends Controller
         /** @var User $user */
         $user = auth('api')->user();
 
-        if ($request->filled('refresh_token')) {
-            $this->refreshTokens->revoke((string) $request->input('refresh_token'));
+        // Đọc đúng kênh của request: trình duyệt → cookie HttpOnly; kênh body → trường body.
+        $rawToken = $this->tokenTransport->presentedToken($request);
+
+        if ($rawToken !== null) {
+            $this->refreshTokens->revoke($rawToken);
         } else {
             $this->refreshTokens->revokeAllForUser($user->user_id);
         }
@@ -337,9 +387,9 @@ class AuthController extends Controller
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
             required: ['current_password', 'new_password'],
             properties: [
-                new OA\Property(property: 'current_password', type: 'string', format: 'password', example: 'Cntt@1234'),
-                new OA\Property(property: 'new_password', type: 'string', format: 'password', minLength: 8, example: 'NewCntt@2026'),
-                new OA\Property(property: 'new_password_confirmation', type: 'string', format: 'password', example: 'NewCntt@2026'),
+                new OA\Property(property: 'current_password', type: 'string', format: 'password'),
+                new OA\Property(property: 'new_password', type: 'string', format: 'password', minLength: 8),
+                new OA\Property(property: 'new_password_confirmation', type: 'string', format: 'password'),
             ]
         )),
         responses: [
@@ -463,40 +513,16 @@ class AuthController extends Controller
 
     private function userPayload(User $user): array
     {
-        return [
-            ...$this->userProfilePayload($user),
-            ...$this->userAuthorizationPayload($user),
-        ];
+        return AuthUserPayload::full($user);
     }
 
     private function userProfilePayload(User $user): array
     {
-        return [
-            'user_id' => $user->user_id,
-            'username' => $user->username,
-            'display_name' => $user->display_name,
-            'email' => $user->email,
-            'phone' => $user->phone,
-            'status' => $user->status,
-            'created_at' => $user->created_at?->toIso8601String(),
-            'updated_at' => $user->updated_at?->toIso8601String(),
-            'version' => (int) $user->version,
-        ];
+        return AuthUserPayload::profile($user);
     }
 
     private function userAuthorizationPayload(User $user): array
     {
-        return [
-            'roles' => $user->activeRoles()->orderBy('role_code')
-                ->get(['role.role_id', 'role.role_code', 'role.role_name'])
-                ->map(fn ($role) => [
-                    'role_id' => $role->role_id,
-                    'role_code' => $role->role_code,
-                    'role_name' => $role->role_name,
-                    'scope_ref' => $role->pivot->scope_ref,
-                ])->values()->all(),
-            'permissions' => $user->permissionCodes(),
-            'warehouse_scope_ids' => $user->warehouseScopeIds(),
-        ];
+        return AuthUserPayload::authorization($user);
     }
 }

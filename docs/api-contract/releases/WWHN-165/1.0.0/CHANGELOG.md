@@ -18,3 +18,12 @@ WWHN-166). Đóng gói tại source commit `a452e4459fe20aaaf1c23981577b3e0570c1
   - Audit `result='DENIED'` cho mọi 403 permission/data-scope (ADR-AUDIT-002,
     best-effort — không bao giờ đổi response 403).
   - No-stack-trace fail-closed: debug payload chỉ tồn tại ở env local/development.
+
+## 1.0.0 — sửa đổi bảo mật (2026-09-10)
+
+- Gỡ giá trị `example` của trường `password` trong request body `POST /api/v1/auth/login`
+  (`openapi.json`, `openapi.yaml`). Giá trị đó là mật khẩu thật của tài khoản quản trị seed
+  sẵn, đã bị thu hồi (P0 bảo mật 10/09/2026). Hợp đồng HTTP KHÔNG đổi: schema, `required` và
+  `format` giữ nguyên, chỉ bỏ một giá trị ví dụ.
+- `SHA256SUMS` và `RELEASE_MANIFEST.json` được niêm phong lại theo nội dung mới. Bản gốc vẫn tra
+  được trong lịch sử git; mật khẩu trong đó bị hệ thống từ chối (`golive.credential.compromised`).

@@ -545,7 +545,6 @@ paths:
                 password:
                   type: string
                   format: password
-                  example: Cntt@1234
               type: object
       responses:
         200:

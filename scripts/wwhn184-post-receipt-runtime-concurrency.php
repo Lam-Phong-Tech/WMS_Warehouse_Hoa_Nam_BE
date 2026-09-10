@@ -46,6 +46,7 @@ require __DIR__.'/../vendor/autoload.php';
 
 $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
+require __DIR__.'/lib/assert-non-production.php';
 
 $evidenceDir = $argv[1] ?? (getenv('WWHN184_EVIDENCE_DIR') ?: 'storage/app/wwhn-184-evidence');
 $runtimeDir = $evidenceDir.'/runtime-concurrency';

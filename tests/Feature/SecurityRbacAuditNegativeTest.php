@@ -142,8 +142,14 @@ class SecurityRbacAuditNegativeTest extends TestCase
             'object_id' => $user->user_id,
         ]);
 
-        // 2. Successful login
-        $login = $this->postJson('/api/v1/auth/login', [
+        // 2. Successful login — phiên trình duyệt, refresh token chỉ nằm trong cookie HttpOnly
+        $origin = 'http://localhost:5173';
+        config()->set('cors.allowed_origins', [...(array) config('cors.allowed_origins', []), $origin]);
+        $cookieName = (string) config('refresh_token.cookie.name');
+        $refreshCookie = static fn ($response): string => (string) collect($response->headers->getCookies())
+            ->first(fn ($cookie) => $cookie->getName() === $cookieName)?->getValue();
+
+        $login = $this->withHeader('Origin', $origin)->postJson('/api/v1/auth/login', [
             'email' => 'audituser@wms-hoanam.test',
             'password' => 'secret123',
         ])->assertOk();
@@ -155,12 +161,15 @@ class SecurityRbacAuditNegativeTest extends TestCase
         ]);
 
         $token = $login->json('data.access_token');
-        $refreshToken = $login->json('data.refresh_token');
+        $this->assertNull($login->json('data.refresh_token'), 'Refresh token không được nằm trong JSON.');
+        $refreshToken = $refreshCookie($login);
+        $this->assertNotSame('', $refreshToken);
 
         // 3. Token refresh
-        $this->postJson('/api/v1/auth/refresh', [
-            'refresh_token' => $refreshToken,
-        ])->assertOk();
+        $refresh = $this->withCredentials()
+            ->withUnencryptedCookie($cookieName, $refreshToken)
+            ->postJson('/api/v1/auth/refresh')
+            ->assertOk();
 
         $this->assertDatabaseHas('audit_log', [
             'action' => 'TOKEN_REFRESH',
@@ -169,9 +178,9 @@ class SecurityRbacAuditNegativeTest extends TestCase
         ]);
 
         // 4. Logout
-        $this->postJson('/api/v1/auth/logout', [
-            'refresh_token' => $refreshToken,
-        ], ['Authorization' => "Bearer {$token}"])->assertOk();
+        $this->withUnencryptedCookie($cookieName, $refreshCookie($refresh))
+            ->postJson('/api/v1/auth/logout', [], ['Authorization' => "Bearer {$token}"])
+            ->assertOk();
 
         $this->assertDatabaseHas('audit_log', [
             'action' => 'LOGOUT',

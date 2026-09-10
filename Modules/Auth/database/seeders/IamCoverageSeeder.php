@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Department;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\SeedEnvironment;
 
 /**
  * Phủ kín màn "Danh sách người dùng & phân quyền" (IAM-01).
@@ -118,11 +119,16 @@ class IamCoverageSeeder extends Seeder
 
     public function run(): void
     {
+        // P0 bảo mật 10/09/2026: gọi thẳng `db:seed --class=IamCoverageSeeder` trên
+        // production từng tạo ~24 tài khoản ACTIVE với mật khẩu fixture. Cùng cổng môi
+        // trường với AuthDatabaseSeeder (SeedEnvironment).
+        SeedEnvironment::assertFixtureAccountsAllowed(static::class);
+
         $this->ensureDepartments();
 
         $departmentIds = Department::query()->pluck('department_id', 'department_code')->all();
         $roles = Role::query()->get()->keyBy('role_code');
-        $password = Hash::make($this->fixturePassword());
+        $password = Hash::make(SeedEnvironment::fixturePassword());
         $today = Carbon::today();
 
         $created = 0;
@@ -192,9 +198,18 @@ class IamCoverageSeeder extends Seeder
             'admin' => 'HANH_CHINH',
         ];
 
+        $allowSuperAdminFixtures = SeedEnvironment::allowsSuperAdminFixtures();
+
         foreach (self::BASE_USER_LAST_LOGIN as $username => $daysAgo) {
             $user = User::query()->where('username', $username)->first();
             if ($user === null) {
+                continue;
+            }
+
+            // Ngoài local/testing, tài khoản giữ SUPER_ADMIN là quản trị viên THẬT (cấp qua
+            // wms:bootstrap-super-admin) dù tình cờ trùng username `admin`: seeder không
+            // được bịa last_login_at/điện thoại/phòng ban cho họ.
+            if (! $allowSuperAdminFixtures && $user->roles()->where('role.role_code', 'SUPER_ADMIN')->exists()) {
                 continue;
             }
 
@@ -229,13 +244,5 @@ class IamCoverageSeeder extends Seeder
         }
 
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
-    }
-
-    /** Cùng mật khẩu fixture với AuthDatabaseSeeder để đăng nhập demo đồng nhất. */
-    private function fixturePassword(): string
-    {
-        $ciPassword = env('CI_DEMO_PASSWORD');
-
-        return is_string($ciPassword) && $ciPassword !== '' ? $ciPassword : 'Cntt@1234';
     }
 }

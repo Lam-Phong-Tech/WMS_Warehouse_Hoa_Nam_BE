@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "WMS_HoaNam API Scenario Testing - TEST",
-    "description": "Smoke test cho npm run api:smoke (Newman). Login bang tai khoan admin da seed (AuthDatabaseSeeder), sau do goi tuan tu cac endpoint moi (Agency, Defect Catalog, Role, User) va tu don du lieu demo o cuoi moi folder.",
+    "description": "Smoke test cho npm run api:smoke (Newman). Login bang tai khoan admin da seed (AuthDatabaseSeeder, chi co o moi truong development); collection KHONG chua mat khau, truyen luc chay: --env-var adminPassword=<WMS_FIXTURE_PASSWORD>. Sau do goi tuan tu cac endpoint moi (Agency, Defect Catalog, Role, User) va tu don du lieu demo o cuoi moi folder.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -36,7 +36,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\"username\":\"admin\",\"password\":\"Cntt@1234\"}",
+              "raw": "{\"email\":\"{{adminEmail}}\",\"password\":\"{{adminPassword}}\"}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
@@ -343,6 +343,18 @@
           "name": "Create User",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// One-time password for the smoke user: generated per run, never stored in the collection.",
+                  "const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';",
+                  "const random = Array.from({ length: 16 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');",
+                  "pm.variables.set('smokeUserPassword', 'Smoke#' + random + '9a');"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -360,7 +372,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\"username\":\"smoke_user_{{$timestamp}}\",\"display_name\":\"Smoke User\",\"password\":\"Cntt@1234\"}",
+              "raw": "{\"username\":\"smoke_user_{{$timestamp}}\",\"display_name\":\"Smoke User\",\"password\":\"{{smokeUserPassword}}\"}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] }

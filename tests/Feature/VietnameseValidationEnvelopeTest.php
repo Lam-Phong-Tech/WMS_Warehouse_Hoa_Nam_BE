@@ -9,6 +9,7 @@ use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class VietnameseValidationEnvelopeTest extends TestCase
@@ -52,7 +53,7 @@ class VietnameseValidationEnvelopeTest extends TestCase
             'username' => 'nguoidungcu',
             'display_name' => 'Nguoi Dung Cu',
             'email' => 'nguoidungcu@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
@@ -93,7 +94,7 @@ class VietnameseValidationEnvelopeTest extends TestCase
             'username' => 'admin-kiem-tra-message',
             'display_name' => 'Admin Kiem Tra',
             'email' => 'admin-kiem-tra@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

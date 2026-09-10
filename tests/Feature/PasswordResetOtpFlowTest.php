@@ -30,7 +30,7 @@ class PasswordResetOtpFlowTest extends TestCase
             'username' => 'nhanvien.test',
             'display_name' => 'Nhan Vien Test',
             'email' => $email,
-            'password_hash' => Hash::make('OldCntt@1234'),
+            'password_hash' => Hash::make('OldPassword#Test-2026'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
@@ -169,6 +169,6 @@ class PasswordResetOtpFlowTest extends TestCase
             'new_password_confirmation' => 'NewCntt@2026',
         ])->assertStatus(422);
 
-        $this->assertTrue(Hash::check('OldCntt@1234', $user->fresh()->password_hash));
+        $this->assertTrue(Hash::check('OldPassword#Test-2026', $user->fresh()->password_hash));
     }
 }

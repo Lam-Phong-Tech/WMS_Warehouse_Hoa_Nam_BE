@@ -10,6 +10,7 @@ use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
@@ -37,7 +38,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             [
                 'display_name' => 'Test Super Admin',
                 'email' => "{$username}@gmail.com",
-                'password_hash' => Hash::make('Cntt@1234'),
+                'password_hash' => Hash::make(TestCredentials::PASSWORD),
                 'status' => 'ACTIVE',
                 'version' => 1,
             ]
@@ -59,7 +60,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.moi',
             'display_name' => 'Nhan Vien Moi',
             'email' => 'nhanvien.moi@gmail.com',
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ], ['Authorization' => "Bearer {$token}"])->assertCreated();
 
         $created = User::query()->where('username', 'nhanvien.moi')->firstOrFail();
@@ -77,7 +78,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.login',
             'display_name' => 'Nhan Vien Login',
             'email' => 'nhanvien.login@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
             'must_change_password' => true,
@@ -88,7 +89,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
 
         $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ])->assertOk();
 
         $this->assertNotNull($user->fresh()->last_login_at);
@@ -100,7 +101,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.buoc',
             'display_name' => 'Nhan Vien Buoc Doi MK',
             'email' => 'nhanvien.buoc@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
             'must_change_password' => true,
@@ -114,7 +115,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             ->assertJsonPath('error_code', 'PASSWORD_CHANGE_REQUIRED');
 
         $this->postJson('/api/v1/auth/change-password', [
-            'current_password' => 'Cntt@1234',
+            'current_password' => TestCredentials::PASSWORD,
             'new_password' => 'NewCntt@2026',
             'new_password_confirmation' => 'NewCntt@2026',
         ], $headers)->assertOk();
@@ -132,7 +133,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.logout',
             'display_name' => 'Nhan Vien Logout',
             'email' => 'nhanvien.logout@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
             'must_change_password' => true,
@@ -150,7 +151,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.qua-han',
             'display_name' => 'Nhan Vien Qua Han',
             'email' => 'nhanvien.quahan@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'LOCKED',
             'version' => 1,
             'must_change_password' => true,
@@ -159,7 +160,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
 
         $this->postJson('/api/v1/auth/login', [
             'email' => $autoLocked->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ])->assertStatus(403)
             ->assertJsonFragment(['message' => 'Tài khoản đã bị khoá do không đăng nhập lần đầu trong vòng 7 ngày kể từ khi được cấp. Vui lòng liên hệ quản trị viên để được cấp lại mật khẩu.']);
 
@@ -167,7 +168,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.bi-khoa',
             'display_name' => 'Nhan Vien Bi Khoa',
             'email' => 'nhanvien.bikhoa@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'LOCKED',
             'version' => 1,
             'must_change_password' => false,
@@ -175,7 +176,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
 
         $this->postJson('/api/v1/auth/login', [
             'email' => $adminLocked->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ])->assertStatus(403)
             ->assertJsonFragment(['message' => 'Tài khoản đang bị khoá hoặc ngừng hoạt động.']);
     }
@@ -186,7 +187,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.se-bi-khoa',
             'display_name' => 'Se Bi Khoa',
             'email' => 'sebikhoa@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
             'must_change_password' => true,
@@ -196,7 +197,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.con-han',
             'display_name' => 'Con Han',
             'email' => 'conhan@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
             'must_change_password' => true,
@@ -206,7 +207,7 @@ class EmployeeFirstLoginPolicyTest extends TestCase
             'username' => 'nhanvien.da-dang-nhap',
             'display_name' => 'Da Dang Nhap',
             'email' => 'dadangnhap@gmail.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
             'must_change_password' => true,

@@ -8,8 +8,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\AuthUserPayload;
 use Modules\Auth\Support\MfaService;
 use Modules\Auth\Support\RefreshTokenService;
+use Modules\Auth\Support\RefreshTokenTransport;
 use OpenApi\Attributes as OA;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -29,6 +31,7 @@ class MfaController extends Controller
         private readonly MfaService $mfa,
         private readonly AuditLogger $auditLogger,
         private readonly RefreshTokenService $refreshTokens,
+        private readonly RefreshTokenTransport $tokenTransport,
     ) {}
 
     #[OA\Get(
@@ -198,7 +201,8 @@ class MfaController extends Controller
             ]
         )),
         responses: [
-            new OA\Response(response: 200, description: 'access_token + refresh_token'),
+            new OA\Response(response: 200, description: 'access_token + user. Refresh token KHÔNG nằm trong JSON: trình duyệt nhận qua cookie HttpOnly, client không phải trình duyệt chỉ nhận qua kênh `X-WMS-Token-Transport: body` khi máy chủ bật.'),
+            new OA\Response(response: 403, description: 'ACCESS_DENIED (tài khoản bị khoá), ORIGIN_NOT_ALLOWED hoặc TOKEN_TRANSPORT_NOT_ALLOWED'),
             new OA\Response(response: 401, description: 'MFA_CHALLENGE_INVALID hoặc MFA_CODE_INVALID'),
             new OA\Response(response: 423, description: 'MFA_LOCKED — quá số lần thử'),
         ]
@@ -260,7 +264,6 @@ class MfaController extends Controller
 
         // Chỉ tới đây mới phát token thật.
         $accessToken = JWTAuth::fromUser($user);
-        $refreshToken = $this->refreshTokens->issue($user, $request);
         $user->forceFill(['last_login_at' => now()])->save();
 
         $this->auditLogger->log(
@@ -278,13 +281,23 @@ class MfaController extends Controller
             );
         }
 
-        return $this->respondSuccess([
+        $response = $this->respondSuccess([
             'access_token' => $accessToken,
-            'refresh_token' => $refreshToken,
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
+            // Cùng hồ sơ với POST /auth/login: FE dựng phiên từ `user`, thiếu nó thì bước 2
+            // của đăng nhập ném AuthContractError trên web.
+            'user' => AuthUserPayload::full($user),
             'second_factor' => $method,
             'recovery_codes_remaining' => $this->mfa->remainingRecoveryCodes($user),
         ], 'Đăng nhập thành công');
+
+        // P1 10/09/2026: refresh token đi theo kênh của request — cookie HttpOnly với trình
+        // duyệt — và không bao giờ nằm trong JSON của trình duyệt.
+        if ($this->tokenTransport->shouldIssueOnLogin($request)) {
+            $this->tokenTransport->deliver($request, $response, $this->refreshTokens->issue($user, $request));
+        }
+
+        return $response;
     }
 }

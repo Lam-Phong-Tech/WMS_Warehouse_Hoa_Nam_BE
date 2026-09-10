@@ -153,8 +153,14 @@ class Wwhn300BackendGoLiveCheckTest extends TestCase
     {
         $this->pretendProductionEnvironment();
 
+        // Mật khẩu ĐÃ LỘ của dự án — đọc từ deny-list thay vì chép literal vào test
+        // (scripts/check-known-credentials.mjs chỉ cho phép nó nằm trong config/golive.php).
+        // Trước 10/09/2026 test này đỏ vì chính giá trị đó bị cố ý loại khỏi deny-list.
+        $compromised = (string) config('golive.credential.compromised.0');
+        $this->assertNotSame('', $compromised);
+
         User::query()->where('username', 'admin')->update([
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make($compromised),
         ]);
 
         $payload = $this->runCheck(expectFailure: true);
@@ -164,7 +170,7 @@ class Wwhn300BackendGoLiveCheckTest extends TestCase
         $this->assertContains('admin', $check['detail']['accounts_on_default_credential']);
         $this->assertArrayHasKey('default_credentials', $check['detail']['findings']);
         // Evidence không bao giờ được chứa giá trị mật khẩu.
-        $this->assertStringNotContainsString('Cntt@1234', (string) json_encode($check));
+        $this->assertStringNotContainsString($compromised, (string) json_encode($check));
     }
 
     /** DEV300-P1-01 — tài khoản/role fixture còn sống trên môi trường production. */

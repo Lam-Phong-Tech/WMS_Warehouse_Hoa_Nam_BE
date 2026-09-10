@@ -28,7 +28,10 @@ class BackendMigrationSeedHealthTest extends TestCase
         $this->assertDatabaseHas('warehouses', ['code' => 'KHO-TONG-HN', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('products', ['code' => DongChengAnchorSkus::BASELINE_PRODUCT, 'published_to_app' => true]);
         $this->assertDatabaseHas('role', ['role_code' => 'SUPER_ADMIN', 'status' => 'ACTIVE']);
-        $this->assertDatabaseHas('permission', ['permission_key' => 'stock_document.post', 'status' => 'ACTIVE']);
+        // `stock_document.*` là quyền ma đã thu hồi 27/08 (không route nào kiểm) —
+        // migration 2026_08_27_170000_retire_unenforced_legacy_permissions. Quyền ghi sổ thật là `inbound.post`.
+        $this->assertDatabaseHas('permission', ['permission_key' => 'inbound.post', 'status' => 'ACTIVE']);
+        $this->assertDatabaseMissing('permission', ['permission_key' => 'stock_document.post', 'status' => 'ACTIVE']);
         $this->assertDatabaseHas('permission', ['permission_key' => 'audit_log.view', 'status' => 'ACTIVE']);
     }
 

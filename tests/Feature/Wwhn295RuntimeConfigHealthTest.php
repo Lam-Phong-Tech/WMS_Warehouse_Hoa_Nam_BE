@@ -83,11 +83,14 @@ class Wwhn295RuntimeConfigHealthTest extends TestCase
             'version' => 1,
         ]);
 
+        // P1 10/09/2026: chỉ phiên trình duyệt (Origin FE tin cậy) mới nhận refresh token.
+        config()->set('cors.allowed_origins', [...(array) config('cors.allowed_origins', []), 'http://localhost:5173']);
+
         $this->withServerVariables(['REMOTE_ADDR' => '172.20.0.5'])
             ->postJson('/api/v1/auth/login', [
                 'email' => $user->email,
                 'password' => 'secret123',
-            ], ['X-Forwarded-For' => '203.0.113.9'])
+            ], ['X-Forwarded-For' => '203.0.113.9', 'Origin' => 'http://localhost:5173'])
             ->assertOk();
 
         $this->assertSame(

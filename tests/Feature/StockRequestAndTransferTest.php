@@ -11,6 +11,7 @@ use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * stock-requests dùng được ngay với 1 kho tổng (receipt/issue). transfer-orders và
@@ -28,7 +29,7 @@ class StockRequestAndTransferTest extends TestCase
         $user = User::create([
             'username' => 'tester-'.Str::random(6),
             'display_name' => 'Tester',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

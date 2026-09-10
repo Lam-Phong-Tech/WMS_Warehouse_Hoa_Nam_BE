@@ -6,125 +6,96 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 
+/**
+ * Phiên trình duyệt sống qua F5 bằng cookie HttpOnly — và CHỈ bằng cookie đó.
+ *
+ * Trước P1 (10/09/2026) lớp này khẳng định "login đặt cookie mà KHÔNG đổi JSON contract",
+ * tức refresh token vẫn nằm song song trong JSON, và "JSON body refresh vẫn được hỗ trợ".
+ * Hai mệnh đề đó chính là đường XSS lấy credential dài hạn; nay chúng bị đảo ngược.
+ */
 class AuthSessionPersistenceTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use RefreshDatabase;
 
-    public function test_login_sets_httponly_refresh_cookie_without_changing_json_contract(): void
+    public function test_browser_login_sets_httponly_refresh_cookie_and_keeps_the_token_out_of_json(): void
     {
         $user = $this->createUser('cookie_login');
-        $cookieName = (string) config('refresh_token.cookie.name');
 
-        $response = $this->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => 'secret123',
-        ])->assertOk();
+        $response = $this->browserLogin($user->email, 'secret123')->assertOk();
 
-        $refreshToken = (string) $response->json('data.refresh_token');
-        $this->assertNotSame('', $refreshToken);
-
-        $cookie = collect($response->headers->getCookies())
-            ->first(fn ($candidate) => $candidate->getName() === $cookieName);
-
+        $cookie = $this->refreshCookie($response);
         $this->assertNotNull($cookie, 'Login must set the refresh-token cookie.');
-        $this->assertSame($refreshToken, $cookie->getValue());
         $this->assertTrue($cookie->isHttpOnly());
         $this->assertSame('/api/v1/auth', $cookie->getPath());
         $this->assertSame('lax', strtolower((string) $cookie->getSameSite()));
 
-        // Backward compatibility for Swagger/Postman/non-browser clients.
-        $response->assertJsonStructure(['data' => [
-            'access_token', 'refresh_token', 'token_type', 'expires_in', 'user',
-        ]]);
+        $response->assertJsonStructure(['data' => ['access_token', 'token_type', 'expires_in', 'user']])
+            ->assertJsonMissingPath('data.refresh_token');
+        $this->assertStringNotContainsString((string) $cookie->getValue(), (string) $response->getContent());
     }
 
     public function test_refresh_works_with_cookie_only_and_rotates_cookie(): void
     {
         $user = $this->createUser('cookie_refresh');
-        $cookieName = (string) config('refresh_token.cookie.name');
+        $oldRefreshToken = $this->refreshTokenFromCookie($this->browserLogin($user->email, 'secret123')->assertOk());
 
-        $login = $this->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => 'secret123',
-        ])->assertOk();
-        $oldRefreshToken = (string) $login->json('data.refresh_token');
+        $response = $this->browserRefresh($oldRefreshToken)
+            ->assertOk()
+            ->assertJsonMissingPath('data.refresh_token');
 
-        // Laravel JSON requests omit cookies unless withCredentials() is enabled.
-        // This mirrors the FE axios/fetch credentials mode used by a real browser.
-        $response = $this->withCredentials()
-            ->withUnencryptedCookie($cookieName, $oldRefreshToken)
-            ->postJson('/api/v1/auth/refresh', [])
-            ->assertOk();
-
-        $newRefreshToken = (string) $response->json('data.refresh_token');
-        $this->assertNotSame('', $newRefreshToken);
+        $newRefreshToken = $this->refreshTokenFromCookie($response);
         $this->assertNotSame($oldRefreshToken, $newRefreshToken);
-
-        $rotatedCookie = collect($response->headers->getCookies())
-            ->first(fn ($candidate) => $candidate->getName() === $cookieName);
-        $this->assertNotNull($rotatedCookie);
-        $this->assertSame($newRefreshToken, $rotatedCookie->getValue());
-        $this->assertTrue($rotatedCookie->isHttpOnly());
+        $this->assertStringNotContainsString($newRefreshToken, (string) $response->getContent());
+        $this->assertSame(1, RefreshToken::where('user_id', $user->user_id)->active()->count());
     }
 
-    public function test_json_body_refresh_remains_supported(): void
+    public function test_browser_refresh_rejects_a_refresh_token_sent_in_the_json_body(): void
     {
         $user = $this->createUser('body_refresh');
-        $login = $this->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => 'secret123',
-        ])->assertOk();
+        $refreshToken = $this->refreshTokenFromCookie($this->browserLogin($user->email, 'secret123')->assertOk());
 
-        $this->postJson('/api/v1/auth/refresh', [
-            'refresh_token' => $login->json('data.refresh_token'),
-        ])->assertOk()
-            ->assertJsonStructure(['data' => ['access_token', 'refresh_token']]);
+        $this->withHeader('Origin', $this->browserOrigin())
+            ->postJson('/api/v1/auth/refresh', ['refresh_token' => $refreshToken])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'REFRESH_TOKEN_TRANSPORT_MISMATCH');
+
+        // Request bị từ chối không được tiêu hao phiên.
+        $this->assertTrue(RefreshToken::where('user_id', $user->user_id)->active()->exists());
     }
 
     public function test_invalid_cookie_refresh_expires_cookie_to_break_reload_loop(): void
     {
-        $cookieName = (string) config('refresh_token.cookie.name');
+        $response = $this->browserRefresh('invalid-refresh-token')->assertStatus(401);
 
-        $response = $this->withCredentials()
-            ->withUnencryptedCookie($cookieName, 'invalid-refresh-token')
-            ->postJson('/api/v1/auth/refresh', [])
-            ->assertStatus(401);
-
-        $expiredCookie = collect($response->headers->getCookies())
-            ->first(fn ($candidate) => $candidate->getName() === $cookieName);
-
+        $expiredCookie = $this->refreshCookie($response);
         $this->assertNotNull($expiredCookie);
         $this->assertTrue($expiredCookie->getExpiresTime() < time());
     }
 
-    public function test_logout_accepts_cookie_fallback_revokes_session_and_expires_cookie(): void
+    public function test_logout_revokes_the_cookie_session_and_expires_cookie(): void
     {
         $user = $this->createUser('cookie_logout');
-        $cookieName = (string) config('refresh_token.cookie.name');
-
-        $login = $this->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => 'secret123',
-        ])->assertOk();
+        $login = $this->browserLogin($user->email, 'secret123')->assertOk();
         $accessToken = (string) $login->json('data.access_token');
-        $refreshToken = (string) $login->json('data.refresh_token');
+        $refreshToken = $this->refreshTokenFromCookie($login);
 
         $response = $this->withCredentials()
-            ->withUnencryptedCookie($cookieName, $refreshToken)
+            ->withUnencryptedCookie((string) config('refresh_token.cookie.name'), $refreshToken)
             ->withHeader('Authorization', 'Bearer '.$accessToken)
-            ->postJson('/api/v1/auth/logout', [])
+            ->postJson('/api/v1/auth/logout')
             ->assertOk();
 
-        $this->assertFalse(
-            RefreshToken::where('user_id', $user->user_id)->active()->exists()
-        );
+        $this->assertFalse(RefreshToken::where('user_id', $user->user_id)->active()->exists());
 
-        $expiredCookie = collect($response->headers->getCookies())
-            ->first(fn ($candidate) => $candidate->getName() === $cookieName);
+        $expiredCookie = $this->refreshCookie($response);
         $this->assertNotNull($expiredCookie);
         $this->assertTrue($expiredCookie->getExpiresTime() < time());
+
+        $this->browserRefresh($refreshToken)->assertStatus(401);
     }
 
     private function createUser(string $username): User

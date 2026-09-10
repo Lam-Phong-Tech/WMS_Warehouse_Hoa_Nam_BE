@@ -11,6 +11,7 @@ use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\ApiAuthContext;
 use Tests\TestCase;
+use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
@@ -41,7 +42,7 @@ class AuthPublicEndpointMiddlewareBypassTest extends TestCase
             'username' => $username,
             'display_name' => $username,
             'email' => "{$username}@gmail.com",
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => $status,
             'version' => 1,
             'must_change_password' => $mustChangePassword,
@@ -57,7 +58,7 @@ class AuthPublicEndpointMiddlewareBypassTest extends TestCase
 
         $this->postJson('/api/v1/auth/login', [
             'email' => $active->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ], ['Authorization' => "Bearer {$staleToken}"])
             ->assertOk()
             ->assertJsonPath('data.user.username', 'nguoi.dang-hoat-dong');
@@ -71,7 +72,7 @@ class AuthPublicEndpointMiddlewareBypassTest extends TestCase
         // Chính chủ đăng nhập lại: phải vào được để tới màn đổi mật khẩu.
         $this->postJson('/api/v1/auth/login', [
             'email' => $mustChange->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ], ['Authorization' => "Bearer {$staleToken}"])
             ->assertOk()
             ->assertJsonPath('data.user.username', 'nguoi.phai-doi-mk');
@@ -83,7 +84,7 @@ class AuthPublicEndpointMiddlewareBypassTest extends TestCase
 
         $this->postJson('/api/v1/auth/login', [
             'email' => $active->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ], ['Authorization' => 'Bearer khong-phai-jwt.chi-la-rac'])
             ->assertOk();
     }
@@ -119,7 +120,7 @@ class AuthPublicEndpointMiddlewareBypassTest extends TestCase
 
         $this->postJson('/api/v1/auth/login', [
             'email' => $locked->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ])->assertStatus(403)
             ->assertJsonPath('error_code', 'ACCESS_DENIED');
     }

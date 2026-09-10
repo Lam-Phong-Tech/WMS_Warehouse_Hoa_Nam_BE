@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * WWHN-260 — đóng register P1 của gói migration (SRS §13.12, NFR-SRS-017,
@@ -289,7 +290,7 @@ class Wwhn260MigrationPackClosureTest extends TestCase
             'username' => $username,
             'display_name' => $username,
             'email' => $username.'@gmail.com',
-            'password_hash' => bcrypt('Cntt@1234'),
+            'password_hash' => bcrypt(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

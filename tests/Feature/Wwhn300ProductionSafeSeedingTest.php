@@ -2,209 +2,335 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\Seeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
+use Modules\Auth\Database\Seeders\IamCoverageSeeder;
+use Modules\Auth\Database\Seeders\RoleAccountMatrixSeeder;
+use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Database\Seeders\UatScenarioSeeder;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
- * WWHN-300 / DEV300-P1-01 — bằng chứng "production-safe seeding".
+ * WWHN-300 / DEV300-P1-01 + P0 bảo mật 10/09/2026 — bằng chứng "production-safe seeding".
  *
- * `AuthDatabaseSeeder` từng tạo tài khoản SUPER_ADMIN `admin` bằng một hằng số
- * nằm trong source code (`Cntt@1234`) và kèm theo 9 tài khoản mẫu — trong đó có
- * `test-super-admin` — trên MỌI môi trường, không cảnh báo gì. Chạy `db:seed`
- * một lần trên production là đủ để mở backdoor quyền cao nhất.
+ * Lịch sử: bản vá WWHN-300 đầu tiên buộc seeder đòi WMS_SEED_ADMIN_PASSWORD, rồi bị HỒI
+ * QUY về một hằng số mật khẩu trong source — `adminPassword()` trả thẳng
+ * DEFAULT_PASSWORD, và `admin` được updateOrCreate TRƯỚC nhánh chặn fixture. Mỗi lần
+ * `db:seed` trên production vì thế reset mật khẩu, bật lại ACTIVE và gắn lại SUPER_ADMIN.
+ * Bốn test của lớp này đỏ suốt thời gian đó mà không chặn được gì, vì full suite chạy
+ * advisory trong CI.
  *
- * Lớp test này chứng minh hai nửa của bản sửa: seeder TỪ CHỐI chạy khi thiếu
- * credential được cấp, và khi được cấp thì nó chỉ tạo admin + role nghiệp vụ,
- * không tạo bất kỳ fixture nào.
+ * Hợp đồng MỚI chặt hơn bản WWHN-300: ngoài local/testing seeder KHÔNG tạo, không sửa,
+ * không kích hoạt lại tài khoản nào — kể cả khi được "cấp" mật khẩu. Quản trị viên đầu
+ * tiên đi qua `wms:bootstrap-super-admin` (WwhnSecSuperAdminBootstrapTest).
  */
 class Wwhn300ProductionSafeSeedingTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const STRONG_PASSWORD = 'H0aNam#GoLive!2026';
+    private const REAL_ADMIN_PASSWORD = 'R3al#Admin-Rotated-2026!';
 
-    public function test_seeder_refuses_to_run_on_a_production_environment_without_a_supplied_admin_password(): void
+    private const STRONG_DEMO_PASSWORD = 'Demo#Uat-Fixture-2026';
+
+    private const BUSINESS_ROLES = ['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_STAFF', 'WARRANTY_STAFF', 'VIEWER', 'LEADERSHIP'];
+
+    /** Vai trò test + hai vai ngừng dùng (BA taikhoantheorole v2, nguyên tắc 6). */
+    private const FIXTURE_ONLY_ROLES = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION', 'INBOUND_ONLY_TEST', 'WAREHOUSE_KEEPER', 'WAREHOUSE_APPROVER'];
+
+    private const FIXTURE_USERNAMES = [
+        'admin', 'staff01', 'approver01', 'keeper01', 'viewer01', 'manager01',
+        'test-sku-manage', 'test-master-manage', 'test-no-permission', 'test-super-admin', 'inbound-tester01',
+    ];
+
+    public function test_production_seed_creates_no_account_and_only_seeds_permissions_roles_and_mappings(): void
     {
-        $this->pretendProductionEnvironment();
-        config()->set('golive.seed.admin_password', null);
+        $this->removeFixtureAccounts();
+        $this->removeFixtureRoles();
+        $usersBefore = User::withTrashed()->count();
+        $assignmentsBefore = DB::table('user_role')->count();
+        $this->pretendEnvironment('production');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/WMS_SEED_ADMIN_PASSWORD/');
+        $this->runSeeder(AuthDatabaseSeeder::class);
 
-        $this->runAuthSeeder();
+        $this->assertSame($usersBefore, User::withTrashed()->count(), 'db:seed ngoài local/testing không được tạo tài khoản nào.');
+        $this->assertSame($assignmentsBefore, DB::table('user_role')->count(), 'db:seed ngoài local/testing không được gắn vai trò cho tài khoản nào.');
+        $this->assertDatabaseMissing('app_user', ['username' => 'admin']);
+
+        $this->assertGreaterThan(0, Permission::query()->count());
+        foreach (self::BUSINESS_ROLES as $roleCode) {
+            $this->assertDatabaseHas('role', ['role_code' => $roleCode]);
+        }
+
+        // Mapping vai trò → quyền vẫn phải có, nếu không production không vận hành được.
+        $staffPermissions = Role::query()->where('role_code', 'WAREHOUSE_STAFF')->firstOrFail()
+            ->permissions()->pluck('permission_key')->all();
+        $this->assertContains('inbound.post', $staffPermissions);
+
+        foreach (self::FIXTURE_ONLY_ROLES as $roleCode) {
+            $this->assertDatabaseMissing('role', ['role_code' => $roleCode]);
+        }
     }
 
-    public function test_seeder_rejects_an_admin_password_that_is_a_known_default(): void
+    public function test_production_seed_never_resets_or_rewrites_an_existing_admin(): void
     {
-        $this->pretendProductionEnvironment();
-        config()->set('golive.seed.admin_password', 'Cntt@1234');
+        $this->removeFixtureAccounts();
+        $admin = $this->createRealAdmin('ACTIVE', withSuperAdminRole: true);
+        $before = DB::table('app_user')->where('user_id', $admin->user_id)->first();
+        $this->pretendEnvironment('production');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/mặc định đã biết/u');
+        // Chạy hai lần: lần chạy lại cũng không được đổi gì.
+        $this->runSeeder(AuthDatabaseSeeder::class);
+        $this->runSeeder(AuthDatabaseSeeder::class);
 
-        $this->runAuthSeeder();
+        $after = DB::table('app_user')->where('user_id', $admin->user_id)->first();
+        $this->assertSame($before->password_hash, $after->password_hash);
+        $this->assertSame((string) $before->email, (string) $after->email);
+        $this->assertSame((int) $before->version, (int) $after->version);
+        $this->assertTrue(Hash::check(self::REAL_ADMIN_PASSWORD, (string) $after->password_hash));
+        $this->assertFalse(Hash::check(TestCredentials::PASSWORD, (string) $after->password_hash));
+
+        foreach ((array) config('golive.credential.compromised', []) as $compromised) {
+            $this->assertFalse(Hash::check((string) $compromised, (string) $after->password_hash));
+        }
+
+        $this->assertSame(1, DB::table('user_role')->where('user_id', $admin->user_id)->count());
     }
 
-    public function test_seeder_rejects_an_admin_password_below_the_minimum_length(): void
+    /** @return array<string, array{0: string}> */
+    public static function disabledStatuses(): array
     {
-        $this->pretendProductionEnvironment();
-        config()->set('golive.seed.admin_password', 'Sh0rt!1');
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/tối thiểu/u');
-
-        $this->runAuthSeeder();
+        return ['LOCKED' => ['LOCKED'], 'INACTIVE' => ['INACTIVE']];
     }
 
-    /**
-     * Trạng thái đúng của production: admin dùng credential được cấp, và KHÔNG có
-     * tài khoản/role fixture nào được tạo ra.
-     */
-    public function test_production_seeding_creates_only_the_supplied_admin_and_no_fixtures(): void
+    #[DataProvider('disabledStatuses')]
+    public function test_production_seed_never_reactivates_or_regrants_a_disabled_admin(string $status): void
     {
-        $this->clearFixtures();
-        $this->pretendProductionEnvironment();
-        config()->set('golive.seed.admin_password', self::STRONG_PASSWORD);
+        $this->removeFixtureAccounts();
+        $admin = $this->createRealAdmin($status, withSuperAdminRole: false);
+        $this->pretendEnvironment('production');
 
-        $this->runAuthSeeder();
+        $this->runSeeder(AuthDatabaseSeeder::class);
 
-        $admin = User::query()->where('username', 'admin')->firstOrFail();
-        $this->assertTrue(Hash::check(self::STRONG_PASSWORD, (string) $admin->password_hash));
-        $this->assertFalse(Hash::check('Cntt@1234', (string) $admin->password_hash));
+        $fresh = $admin->fresh();
+        $this->assertSame($status, $fresh->status, 'Seeder không được kích hoạt lại tài khoản admin đang bị khoá/ngừng.');
+        $this->assertSame(
+            0,
+            DB::table('user_role')->where('user_id', $admin->user_id)->count(),
+            'Seeder không được gắn lại SUPER_ADMIN cho tài khoản đã bị gỡ quyền.'
+        );
+        $this->assertTrue(Hash::check(self::REAL_ADMIN_PASSWORD, (string) $fresh->password_hash));
+    }
 
-        foreach (['staff01', 'manager01', 'test-super-admin', 'test-no-permission'] as $username) {
+    public function test_production_seed_requires_no_credential_configuration_at_all(): void
+    {
+        $this->removeFixtureAccounts();
+        config()->set('golive.seed.fixture_password', null);
+        $this->pretendEnvironment('production');
+
+        $this->runSeeder(AuthDatabaseSeeder::class);
+
+        $this->assertDatabaseMissing('app_user', ['username' => 'admin']);
+    }
+
+    public function test_demo_flag_is_ignored_outside_declared_demo_environments(): void
+    {
+        $this->removeFixtureAccounts();
+
+        // Kể cả tên gõ sai/khác hoa thường: không nằm trong golive.demo_environments thì là
+        // production.
+        foreach (['production', 'staging', 'Production', 'prod', 'UAT'] as $environment) {
+            $this->pretendEnvironment($environment);
+            config()->set('golive.seed.demo_accounts', true);
+            config()->set('golive.seed.fixture_password', self::STRONG_DEMO_PASSWORD);
+
+            $this->runSeeder(AuthDatabaseSeeder::class);
+
+            foreach (['staff01', 'test-super-admin', 'warehouse-staff-01'] as $username) {
+                $this->assertDatabaseMissing('app_user', ['username' => $username]);
+            }
+        }
+    }
+
+    public function test_declared_demo_environment_gets_business_fixtures_but_never_a_super_admin_account(): void
+    {
+        $this->removeFixtureAccounts();
+        $this->pretendEnvironment('uat');
+        config()->set('golive.seed.demo_accounts', true);
+        config()->set('golive.seed.fixture_password', self::STRONG_DEMO_PASSWORD);
+
+        $this->runSeeder(AuthDatabaseSeeder::class);
+
+        $staff = User::query()->where('username', 'staff01')->firstOrFail();
+        $this->assertTrue(Hash::check(self::STRONG_DEMO_PASSWORD, (string) $staff->password_hash));
+        $this->assertDatabaseHas('app_user', ['username' => 'warehouse-staff-01']);
+
+        foreach (['admin', 'test-super-admin', 'super-admin-01', 'super-admin-02', 'super-admin-03'] as $username) {
             $this->assertDatabaseMissing('app_user', ['username' => $username]);
         }
 
-        foreach (['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION'] as $roleCode) {
-            $this->assertDatabaseMissing('role', ['role_code' => $roleCode]);
-        }
+        $this->assertSame(0, $this->superAdminAssignments(), 'Môi trường demo/UAT không được có tài khoản SUPER_ADMIN fixture.');
+    }
 
-        // Hai vai của mô hình phân quyền CŨ. Tài liệu BA taikhoantheorole v2 (nguyên
-        // tắc 6 + retest §7): "WAREHOUSE_KEEPER và WAREHOUSE_APPROVER không còn sử
-        // dụng trong mô hình phân quyền production; DEV cần loại khỏi seed/tài khoản
-        // production". Chúng sinh ra để tách "người quét" khỏi "người Post" —
-        // separation-of-duties bằng role trung gian mà nguyên tắc 5 đã bãi bỏ, nên để
-        // lại ở production là mời người ta gán nhầm rồi đứt luồng nhập/xuất giữa chừng.
-        // Hai vai vẫn còn trong AuthDatabaseSeeder::ROLES cho local/testing.
-        foreach (['WAREHOUSE_KEEPER', 'WAREHOUSE_APPROVER'] as $roleCode) {
-            $this->assertDatabaseMissing('role', ['role_code' => $roleCode]);
-        }
+    public function test_demo_environment_rejects_a_compromised_or_weak_fixture_password(): void
+    {
+        $this->removeFixtureAccounts();
 
-        // Role nghiệp vụ thật vẫn phải có, nếu không production không vận hành được.
-        foreach (['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_STAFF', 'WARRANTY_STAFF', 'VIEWER', 'LEADERSHIP'] as $roleCode) {
-            $this->assertDatabaseHas('role', ['role_code' => $roleCode]);
+        foreach ([(string) config('golive.credential.compromised.0'), 'short1', 'alllowercaseletters'] as $password) {
+            $this->pretendEnvironment('uat');
+            config()->set('golive.seed.demo_accounts', true);
+            config()->set('golive.seed.fixture_password', $password);
+
+            try {
+                $this->runSeeder(AuthDatabaseSeeder::class);
+                $this->fail('Seeder phải từ chối mật khẩu fixture yếu hoặc đã lộ trên môi trường demo/UAT.');
+            } catch (RuntimeException $exception) {
+                $this->assertStringContainsString('WMS_FIXTURE_PASSWORD', $exception->getMessage());
+                $this->assertStringNotContainsString($password, $exception->getMessage());
+            }
+
+            $this->assertDatabaseMissing('app_user', ['username' => 'staff01']);
         }
     }
 
-    /**
-     * Hai vai của mô hình phân quyền CŨ không được seed ở production.
-     *
-     * Tách khỏi test_production_seeding_creates_only_the_supplied_admin_and_no_fixtures
-     * có chủ ý: test đó khẳng định thêm mệnh đề "admin dùng đúng credential được cấp",
-     * và mệnh đề ấy hiện ĐỎ SẴN ở HEAD (AuthDatabaseSeeder::adminPassword() trả thẳng
-     * hằng DEFAULT_PASSWORD, không còn cổng chặn nào của WWHN-300). Một assertion đỏ
-     * nằm TRƯỚC sẽ ném ngoại lệ và phần kiểm role phía sau không bao giờ chạy — tức
-     * mệnh đề của BA (retest §7) sẽ không thực sự được canh. Test riêng này chỉ phụ
-     * thuộc vào nhánh môi trường nên xanh/đỏ độc lập với lỗ hổng password kia.
-     *
-     * Nguồn: tài liệu BA taikhoantheorole v2, nguyên tắc 6 + mục retest §7.
-     */
-    public function test_deprecated_warehouse_roles_are_not_seeded_on_production(): void
+    public function test_fixture_seeders_refuse_direct_invocation_outside_development_and_demo(): void
     {
-        $this->clearFixtures();
-        $this->pretendProductionEnvironment();
-        config()->set('golive.seed.admin_password', self::STRONG_PASSWORD);
+        $this->pretendEnvironment('production');
+        config()->set('golive.seed.fixture_password', self::STRONG_DEMO_PASSWORD);
+        config()->set('warehouse.uat_seed_password', self::STRONG_DEMO_PASSWORD);
+        $usersBefore = User::withTrashed()->count();
 
-        Role::query()->whereIn('role_code', ['WAREHOUSE_KEEPER', 'WAREHOUSE_APPROVER'])->delete();
-
-        $this->runAuthSeeder();
-
-        // Nếu đỏ: kiểm tra AuthDatabaseSeeder::DEPRECATED_ROLES và nhánh $fixtureOnly
-        // trong run(). Để hai vai này lại ở production là mời người ta gán nhầm rồi
-        // đứt luồng nhập-xuất giữa chừng.
-        $seeded = Role::query()->pluck('role_code')->all();
-
-        $this->assertEqualsCanonicalizing(
-            [],
-            array_values(array_intersect($seeded, ['WAREHOUSE_KEEPER', 'WAREHOUSE_APPROVER'])),
-            'Vai ngừng dùng vẫn được seed ở production.'
-        );
-
-        // Bảy vai của mô hình phân quyền mà BA nghiệm thu — thiếu vai nào thì
-        // production không vận hành được đúng nghiệp vụ đó.
-        foreach (['SUPER_ADMIN', 'ADMIN', 'WAREHOUSE_MANAGER', 'WAREHOUSE_STAFF', 'WARRANTY_STAFF', 'VIEWER', 'LEADERSHIP'] as $roleCode) {
-            $this->assertContains($roleCode, $seeded, "Thiếu vai {$roleCode} ở production.");
+        foreach ([IamCoverageSeeder::class, RoleAccountMatrixSeeder::class, UatScenarioSeeder::class] as $seeder) {
+            try {
+                $this->runSeeder($seeder);
+                $this->fail(class_basename($seeder).' phải từ chối chạy trên production.');
+            } catch (RuntimeException $exception) {
+                $this->assertStringContainsString(class_basename($seeder), $exception->getMessage());
+            }
         }
+
+        $this->assertSame($usersBefore, User::withTrashed()->count());
     }
 
-    /**
-     * Lối thoát tường minh cho UAT/demo vẫn tạo fixture — nhưng đó là lựa chọn
-     * được khai báo, và `security.account_hygiene` sẽ báo đỏ chúng.
-     */
-    public function test_demo_accounts_are_created_outside_development_only_when_explicitly_enabled(): void
+    public function test_wms_seed_uat_command_refuses_to_run_on_production(): void
     {
-        $this->clearFixtures();
-        $this->pretendProductionEnvironment();
-        config()->set('golive.seed.admin_password', self::STRONG_PASSWORD);
-        config()->set('golive.seed.demo_accounts', true);
+        $this->pretendEnvironment('production');
 
-        $this->runAuthSeeder();
+        $this->artisan('wms:seed-uat', ['--password' => self::STRONG_DEMO_PASSWORD])->assertExitCode(1);
 
-        $this->assertDatabaseHas('app_user', ['username' => 'test-super-admin']);
+        $this->assertDatabaseMissing('app_user', ['username' => 'uat.inbound']);
     }
 
-    /** Trên local/testing hành vi cũ giữ nguyên để fixture của bộ test không đổi. */
-    public function test_development_seeding_keeps_the_existing_fixture_behaviour(): void
+    public function test_development_seed_keeps_fixture_accounts_on_the_configured_password(): void
     {
-        $this->clearFixtures();
+        $this->removeFixtureAccounts();
 
-        $this->runAuthSeeder();
+        $this->runSeeder(AuthDatabaseSeeder::class);
 
         $admin = User::query()->where('username', 'admin')->firstOrFail();
-        $this->assertTrue(Hash::check('Cntt@1234', (string) $admin->password_hash));
+        $this->assertTrue(Hash::check(TestCredentials::PASSWORD, (string) $admin->password_hash));
+        $this->assertTrue($admin->roles()->where('role.role_code', 'SUPER_ADMIN')->exists());
         $this->assertDatabaseHas('app_user', ['username' => 'test-super-admin']);
+        $this->assertDatabaseHas('app_user', ['username' => 'super-admin-01']);
         $this->assertDatabaseHas('role', ['role_code' => 'NO_PERMISSION']);
     }
 
-    private function runAuthSeeder(): void
+    public function test_development_seed_fails_closed_without_a_fixture_password(): void
     {
-        $seeder = new AuthDatabaseSeeder;
+        $this->removeFixtureAccounts();
+        config()->set('golive.seed.fixture_password', null);
+
+        try {
+            $this->runSeeder(AuthDatabaseSeeder::class);
+            $this->fail('Thiếu WMS_FIXTURE_PASSWORD thì seeder phải dừng, không được rơi về mật khẩu mặc định.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('WMS_FIXTURE_PASSWORD', $exception->getMessage());
+        }
+
+        $this->assertDatabaseMissing('app_user', ['username' => 'admin']);
+    }
+
+    /**
+     * @param  class-string<Seeder>  $class
+     */
+    private function runSeeder(string $class): void
+    {
+        $seeder = new $class;
         $seeder->setContainer($this->app);
         $seeder->run();
     }
 
-    private function pretendProductionEnvironment(): void
+    private function pretendEnvironment(string $environment): void
     {
-        $this->app->detectEnvironment(fn (): string => 'production');
+        $this->app->detectEnvironment(fn (): string => $environment);
         config()->set('golive.development_environments', ['local', 'testing']);
+        config()->set('golive.demo_environments', ['uat', 'demo']);
         config()->set('golive.seed.demo_accounts', false);
     }
 
-    /**
-     * Bộ test khác trong cùng tiến trình có thể đã seed sẵn, nên xóa fixture trước
-     * để phép khẳng định "không được tạo ra" nói đúng điều nó định nói.
-     */
-    private function clearFixtures(): void
+    private function createRealAdmin(string $status, bool $withSuperAdminRole): User
     {
-        $usernames = ['staff01', 'approver01', 'keeper01', 'viewer01', 'manager01',
-            'test-sku-manage', 'test-master-manage', 'test-no-permission', 'test-super-admin'];
-        $roleCodes = ['SKU_MANAGER', 'MASTER_MANAGER', 'NO_PERMISSION'];
+        $user = User::query()->create([
+            'username' => 'admin',
+            'display_name' => 'Quản trị thật',
+            'email' => 'it-admin@hoanam.example',
+            'password_hash' => Hash::make(self::REAL_ADMIN_PASSWORD),
+            'status' => $status,
+            'version' => 7,
+        ]);
 
-        $userIds = User::query()->whereIn('username', $usernames)->pluck('user_id')->all();
-        $roleIds = Role::query()->whereIn('role_code', $roleCodes)->pluck('role_id')->all();
+        if ($withSuperAdminRole) {
+            $role = Role::query()->firstOrCreate(
+                ['role_code' => 'SUPER_ADMIN'],
+                ['role_name' => 'Quản trị hệ thống', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']
+            );
+            $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
+        }
+
+        return $user;
+    }
+
+    private function superAdminAssignments(): int
+    {
+        $roleId = Role::query()->where('role_code', 'SUPER_ADMIN')->value('role_id');
+
+        return $roleId === null ? 0 : DB::table('user_role')->where('role_id', $roleId)->count();
+    }
+
+    /**
+     * Bộ test khác trong cùng tiến trình có thể đã seed sẵn, nên xoá fixture trước để
+     * phép khẳng định "không được tạo ra" nói đúng điều nó định nói.
+     */
+    private function removeFixtureAccounts(): void
+    {
+        $userIds = User::withTrashed()->whereIn('username', self::FIXTURE_USERNAMES)->pluck('user_id')->all();
+
+        if ($userIds === []) {
+            return;
+        }
 
         DB::table('user_role')->whereIn('user_id', $userIds)->delete();
+        User::withTrashed()->whereIn('user_id', $userIds)->forceDelete();
+    }
+
+    private function removeFixtureRoles(): void
+    {
+        $roleIds = Role::query()->whereIn('role_code', self::FIXTURE_ONLY_ROLES)->pluck('role_id')->all();
+
+        if ($roleIds === []) {
+            return;
+        }
+
         DB::table('user_role')->whereIn('role_id', $roleIds)->delete();
         DB::table('role_permission')->whereIn('role_id', $roleIds)->delete();
-
-        User::query()->whereIn('user_id', $userIds)->forceDelete();
         Role::query()->whereIn('role_id', $roleIds)->delete();
     }
 }

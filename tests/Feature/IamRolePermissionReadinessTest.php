@@ -9,6 +9,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 class IamRolePermissionReadinessTest extends TestCase
 {
@@ -36,7 +37,7 @@ class IamRolePermissionReadinessTest extends TestCase
         $user = User::create([
             'username' => $username,
             'display_name' => 'IAM readiness user',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
@@ -186,7 +187,7 @@ class IamRolePermissionReadinessTest extends TestCase
         $user = User::create([
             'username' => 'assigned_role_user',
             'display_name' => 'Assigned role user',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

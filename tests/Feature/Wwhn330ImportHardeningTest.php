@@ -15,6 +15,7 @@ use Modules\Warehouse\Models\Sku;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
+use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
@@ -305,7 +306,7 @@ class Wwhn330ImportHardeningTest extends TestCase
         $user = User::create([
             'username' => 'sku_manager_330',
             'display_name' => 'Sku manager 330',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
@@ -328,7 +329,7 @@ class Wwhn330ImportHardeningTest extends TestCase
         $user = User::create([
             'username' => 'no_sku_manage_330',
             'display_name' => 'No sku manage',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

@@ -68,8 +68,11 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-KEEPER_TOKEN="$(login keeper01@gmail.com 'Cntt@1234' "$EVIDENCE_DIR/http/login-keeper.redacted.json")"
-STAFF_TOKEN="$(login staff01@gmail.com 'Cntt@1234' "$EVIDENCE_DIR/http/login-staff.redacted.json")"
+# No default password (security P0, 2026-09-10): the workflow must provide the same
+# ephemeral fixture password it used for seeding.
+: "${CI_DEMO_PASSWORD:?CI_DEMO_PASSWORD must be set to the fixture password used for seeding}"
+KEEPER_TOKEN="$(login keeper01@gmail.com "$CI_DEMO_PASSWORD" "$EVIDENCE_DIR/http/login-keeper.redacted.json")"
+STAFF_TOKEN="$(login staff01@gmail.com "$CI_DEMO_PASSWORD" "$EVIDENCE_DIR/http/login-staff.redacted.json")"
 
 php scripts/wwhn218-fixture.php prepare-post > "$EVIDENCE_DIR/post-fixture.json"
 DOC_ID="$(json_get "$EVIDENCE_DIR/post-fixture.json" '.document_id')"

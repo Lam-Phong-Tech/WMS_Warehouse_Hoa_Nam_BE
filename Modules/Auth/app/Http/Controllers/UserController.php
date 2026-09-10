@@ -2,14 +2,15 @@
 
 namespace Modules\Auth\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Database\SchemaCache;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Auth\Events\UserAccountChanged;
 use Modules\Auth\Http\Requests\AssignUserRoleRequest;
 use Modules\Auth\Http\Requests\GrantUserPermissionRequest;
 use Modules\Auth\Http\Requests\RevokeUserPermissionRequest;
@@ -75,7 +76,7 @@ class UserController extends Controller
                     new OA\Property(property: 'display_name', type: 'string', maxLength: 255, example: 'Nguyễn Văn A'),
                     new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true, example: 'nguyenvana@gmail.com'),
                     new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
-                    new OA\Property(property: 'password', type: 'string', minLength: 8, example: 'Cntt@1234'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password', minLength: 8, description: 'Mật khẩu ban đầu do quản trị viên đặt; tài liệu API không công bố giá trị mẫu.'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true, example: 'ACTIVE'),
                 ]
             )
@@ -112,7 +113,7 @@ class UserController extends Controller
             afterData: $user->makeHidden('password_hash')->toArray(),
         );
 
-        event(new \Modules\Auth\Events\UserAccountChanged($user->user_id, 'CREATE', $request->user()?->user_id));
+        event(new UserAccountChanged($user->user_id, 'CREATE', $request->user()?->user_id));
 
         return $this->respondCreated($user, 'Tạo người dùng thành công');
     }
@@ -153,7 +154,7 @@ class UserController extends Controller
                 new OA\Property(property: 'display_name', type: 'string', maxLength: 255, example: 'Nguyễn Văn A'),
                 new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true, example: 'nguyenvana@gmail.com'),
                 new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
-                new OA\Property(property: 'password', type: 'string', minLength: 8, example: 'Cntt@1234'),
+                new OA\Property(property: 'password', type: 'string', format: 'password', minLength: 8, description: 'Mật khẩu ban đầu do quản trị viên đặt; tài liệu API không công bố giá trị mẫu.'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true, example: 'ACTIVE'),
                 new OA\Property(property: 'version', type: 'integer', nullable: true, description: 'Optimistic locking legacy; ưu tiên header If-Match theo §8.1 IAM', example: 1),
             ])
@@ -227,7 +228,7 @@ class UserController extends Controller
             afterData: $user->makeHidden('password_hash')->toArray(),
         );
 
-        event(new \Modules\Auth\Events\UserAccountChanged($id, 'UPDATE', $request->user()?->user_id));
+        event(new UserAccountChanged($id, 'UPDATE', $request->user()?->user_id));
 
         return $this->respondSuccess($user, 'Cập nhật người dùng thành công');
     }

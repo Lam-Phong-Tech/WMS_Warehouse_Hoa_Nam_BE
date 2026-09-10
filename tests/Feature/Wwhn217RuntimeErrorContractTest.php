@@ -15,6 +15,7 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * WWHN-217 / FE217-P1-05 — bằng chứng RUNTIME cho "FE guard không được thay backend
@@ -548,7 +549,7 @@ class Wwhn217RuntimeErrorContractTest extends TestCase
         return User::create([
             'username' => $username,
             'display_name' => 'WWHN-217 runtime contract fixture',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

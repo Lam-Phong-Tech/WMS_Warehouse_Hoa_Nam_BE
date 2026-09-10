@@ -34,6 +34,7 @@ use Modules\Warehouse\Models\Warehouse;
 require __DIR__.'/../vendor/autoload.php';
 $app = require __DIR__.'/../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
+require __DIR__.'/lib/assert-non-production.php';
 
 const W199_PREFIX = 'W199R';
 

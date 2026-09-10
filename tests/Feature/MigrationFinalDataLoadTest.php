@@ -15,6 +15,7 @@ use Modules\Warehouse\Models\Agency;
 use Modules\Warehouse\Models\Sku;
 use ReflectionMethod;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * WWHN-299 — lần nạp dữ liệu cuối (REQ-SRS-021 / AC-SRS-021, SRS §13.12,
@@ -638,7 +639,7 @@ class MigrationFinalDataLoadTest extends TestCase
             'username' => $username,
             'display_name' => $displayName,
             'email' => $username.'@gmail.com',
-            'password_hash' => bcrypt('Cntt@1234'),
+            'password_hash' => bcrypt(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

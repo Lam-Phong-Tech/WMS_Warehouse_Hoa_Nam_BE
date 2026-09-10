@@ -98,6 +98,18 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --optimize-autoloader
 
+      - name: Generate ephemeral fixture password
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Seeders have no default password any more (security P0, 2026-09-10). Generate a
+          # per-run fixture password, mask it, and share it between seeding and the HTTP race.
+          # golive.seed.fixture_password falls back to CI_DEMO_PASSWORD; WMS_FIXTURE_PASSWORD is
+          # deliberately not exported so PHPUnit keeps the fixture password from phpunit.xml.
+          password="Ci#$(openssl rand -hex 16)"
+          echo "::add-mask::$password"
+          printf 'CI_DEMO_PASSWORD=%s\n' "$password" >> "$GITHUB_ENV"
+
       - name: Prepare application on PostgreSQL 16
         run: |
           cp .env.example .env

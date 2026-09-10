@@ -21,7 +21,12 @@
  * docs/perf/LOAD_TEST_10000_USERS.md.
  */
 const BASE = process.env.WMS_BASE_URL ?? "http://localhost:8080/api/v1";
-const PASSWORD = process.env.WMS_TEST_PASSWORD ?? "Cntt@1234";
+// Không có mặc định (P0 bảo mật 10/09/2026): giá trị từng ghi cứng ở đây là credential đã lộ.
+const PASSWORD =
+  process.env.WMS_TEST_PASSWORD ||
+  (() => {
+    throw new Error("WMS_TEST_PASSWORD chưa được đặt: bộ đo tải không còn mật khẩu mặc định.");
+  })();
 
 const ACCOUNTS = [
   "super-admin-01@gmail.com",

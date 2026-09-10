@@ -48,22 +48,33 @@ class AuthRbacAuditHardeningTest extends TestCase
     {
         $user = $this->createUser('refresh_replay');
 
-        $login = $this->postJson('/api/v1/auth/login', [
+        // P1 10/09/2026: phiên trình duyệt — refresh token chỉ đi trong cookie HttpOnly.
+        $origin = 'http://localhost:5173';
+        config()->set('cors.allowed_origins', [...(array) config('cors.allowed_origins', []), $origin]);
+        $cookieName = (string) config('refresh_token.cookie.name');
+        $refreshCookie = static fn ($response): string => (string) collect($response->headers->getCookies())
+            ->first(fn ($cookie) => $cookie->getName() === $cookieName)?->getValue();
+
+        $login = $this->withHeader('Origin', $origin)->postJson('/api/v1/auth/login', [
             'email' => $user->email,
             'password' => 'secret123',
         ])->assertOk();
 
-        $oldRefreshToken = $login->json('data.refresh_token');
-        $firstRotate = $this->postJson('/api/v1/auth/refresh', [
-            'refresh_token' => $oldRefreshToken,
-        ])->assertOk();
-        $newRefreshToken = $firstRotate->json('data.refresh_token');
+        $oldRefreshToken = $refreshCookie($login);
+        $this->assertNotSame('', $oldRefreshToken);
+        $firstRotate = $this->withCredentials()
+            ->withUnencryptedCookie($cookieName, $oldRefreshToken)
+            ->postJson('/api/v1/auth/refresh')
+            ->assertOk();
+        $newRefreshToken = $refreshCookie($firstRotate);
 
-        $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $oldRefreshToken])
+        $this->withUnencryptedCookie($cookieName, $oldRefreshToken)
+            ->postJson('/api/v1/auth/refresh')
             ->assertStatus(401)
             ->assertJsonPath('error.code', 'UNAUTHENTICATED');
 
-        $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $newRefreshToken])
+        $this->withUnencryptedCookie($cookieName, $newRefreshToken)
+            ->postJson('/api/v1/auth/refresh')
             ->assertStatus(401)
             ->assertJsonPath('error.code', 'UNAUTHENTICATED');
 
@@ -169,7 +180,9 @@ class AuthRbacAuditHardeningTest extends TestCase
         )->assertStatus(400)
             ->assertJsonPath('error.code', 'MALFORMED_JSON');
 
-        $this->postJson('/api/v1/auth/refresh', [])
+        // Phiên trình duyệt (Origin FE tin cậy) nhưng không có cookie refresh: vẫn là 422.
+        config()->set('cors.allowed_origins', [...(array) config('cors.allowed_origins', []), 'http://localhost:5173']);
+        $this->withHeader('Origin', 'http://localhost:5173')->postJson('/api/v1/auth/refresh', [])
             ->assertStatus(422)
             ->assertJsonPath('success', false)
             ->assertJsonStructure(['error' => ['code', 'details'], 'meta' => ['request_id', 'timestamp']]);

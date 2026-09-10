@@ -11,8 +11,10 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Database\Seeders\DongChengAnchorSkus;
+use Modules\Warehouse\Models\Product;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\TestCase;
+use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class FoundationMasterDataEpicTest extends TestCase
@@ -25,7 +27,7 @@ class FoundationMasterDataEpicTest extends TestCase
 
         $login = $this->postJson('/api/v1/auth/login', [
             'email' => 'admin@gmail.com',
-            'password' => env('CI_DEMO_PASSWORD', 'Cntt@1234'),
+            'password' => TestCredentials::PASSWORD,
         ]);
 
         $login->assertOk()
@@ -33,7 +35,7 @@ class FoundationMasterDataEpicTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.user.roles.0.role_code', 'SUPER_ADMIN')
             ->assertJsonStructure([
-                'data' => ['access_token', 'refresh_token', 'expires_in', 'user' => ['roles', 'permissions']],
+                'data' => ['access_token', 'expires_in', 'user' => ['roles', 'permissions']],
                 'meta' => ['request_id', 'timestamp'],
             ]);
 
@@ -114,15 +116,38 @@ class FoundationMasterDataEpicTest extends TestCase
             'request_id' => $requestId,
         ]);
 
-        $product = $this->postJson('/api/v1/products', [
+        // SEC-09 (PvPublishGuard): tạo SKU kèm `published_to_app=true` là đưa nó lên App PV,
+        // việc đó cần `pv.publish` — `sku.manage` thôi thì bị từ chối và không để lại SKU nào.
+        $productPayload = [
             'code' => 'HN-PL01-03-SKU',
             'name' => 'SKU PL01-03',
             'unit' => 'cai',
             'sku_type' => 'PRODUCT',
             'published_to_app' => true,
             'is_serial_tracked' => true,
-        ], [
+        ];
+
+        $this->postJson('/api/v1/products', $productPayload, [
             'Authorization' => "Bearer {$creatorToken}",
+            'X-Request-ID' => 'PL01-03-EVIDENCE-REQ-002-DENIED',
+        ])
+            ->assertStatus(403)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
+        $this->assertSame(0, Product::where('code', 'HN-PL01-03-SKU')->count());
+
+        $this->seedRoleWithPermissions('MASTER_DATA_PUBLISHER', [
+            'sku.view',
+            'sku.manage',
+            'pv.publish',
+        ]);
+        $publisher = $this->createUser('md-publisher', 'MASTER_DATA_PUBLISHER');
+
+        auth('api')->forgetUser();
+        $this->flushHeaders();
+
+        $product = $this->postJson('/api/v1/products', $productPayload, [
+            'Authorization' => 'Bearer '.JWTAuth::fromUser($publisher),
             'X-Request-ID' => 'PL01-03-EVIDENCE-REQ-002',
         ]);
 
@@ -132,7 +157,7 @@ class FoundationMasterDataEpicTest extends TestCase
             ->assertJsonPath('data.sku_code', 'HN-PL01-03-SKU');
 
         $this->assertDatabaseHas('audit_log', [
-            'actor_id' => $creator->user_id,
+            'actor_id' => $publisher->user_id,
             'action' => 'CREATE',
             'object_type' => 'sku',
             'object_id' => $product->json('data.id'),

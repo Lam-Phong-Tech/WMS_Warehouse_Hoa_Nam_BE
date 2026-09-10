@@ -8,6 +8,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 class UserManagementTest extends TestCase
 {
@@ -38,7 +39,7 @@ class UserManagementTest extends TestCase
             'username' => 'newstaff',
             'display_name' => 'Nhân viên mới',
             'email' => 'newstaff@wms-hoanam.local',
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ], $headers);
 
         $response->assertCreated()
@@ -61,7 +62,7 @@ class UserManagementTest extends TestCase
         $response = $this->postJson('/api/v1/users', [
             'username' => 'dupuser',
             'display_name' => 'Trung username',
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ], $headers);
 
         $response->assertStatus(422)->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR');
@@ -231,7 +232,7 @@ class UserManagementTest extends TestCase
         $response = $this->postJson('/api/v1/users', [
             'username' => '  MixedCase  ',
             'display_name' => 'Mixed case user',
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ], $headers);
 
         $response->assertCreated()->assertJsonPath('data.username', 'mixedcase');
@@ -271,7 +272,7 @@ class UserManagementTest extends TestCase
         $create = $this->postJson('/api/v1/users', [
             'username' => 'audited',
             'display_name' => 'Audited user',
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ], $headers);
         $id = $create->json('data.user_id');
 

@@ -93,7 +93,7 @@ const environmentSecrets = (environment.values ?? [])
 
 const serializedCollection = JSON.stringify(collection);
 const collectionSecrets =
-  serializedCollection.match(/Cntt@1234|Bearer\s+[A-Za-z0-9._-]{20,}|"password"\s*:\s*"(?!\{\{)[^"]+"/gi) ?? [];
+  serializedCollection.match(/Cntt@\d{3,}|Bearer\s+[A-Za-z0-9._-]{20,}|"password"\s*:\s*"(?!\{\{)[^"]+"/gi) ?? [];
 const repositorySecretReferences =
   workflowSource.match(/secrets\.WWHN180_(?:NO_PERMISSION_)?PASSWORD/g) ?? [];
 const literalPasswordAssignments =

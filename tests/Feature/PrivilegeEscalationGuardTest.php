@@ -10,6 +10,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * Hồi quy cho 3 đường leo thang đặc quyền phát hiện trong audit phân quyền 27/08.
@@ -297,7 +298,7 @@ class PrivilegeEscalationGuardTest extends TestCase
         return User::create([
             'username' => $username,
             'display_name' => $username,
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
             'must_change_password' => false,

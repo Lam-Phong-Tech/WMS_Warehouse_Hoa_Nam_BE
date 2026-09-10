@@ -864,8 +864,7 @@
                                     },
                                     "password": {
                                         "type": "string",
-                                        "format": "password",
-                                        "example": "Cntt@1234"
+                                        "format": "password"
                                     }
                                 },
                                 "type": "object"

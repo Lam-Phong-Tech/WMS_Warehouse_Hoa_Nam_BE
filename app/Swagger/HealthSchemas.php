@@ -79,7 +79,7 @@ use OpenApi\Attributes as OA;
             type: 'object',
             required: ['admin_user', 'baseline_warehouse', 'baseline_product'],
             properties: [
-                new OA\Property(property: 'admin_user', type: 'boolean', description: 'User `admin` ACTIVE.'),
+                new OA\Property(property: 'admin_user', type: 'boolean', description: 'Có ít nhất một tài khoản ACTIVE giữ vai trò SUPER_ADMIN (cấp bằng `wms:bootstrap-super-admin`).'),
                 new OA\Property(property: 'baseline_warehouse', type: 'boolean', description: 'Kho `KHO-TONG-HN` ACTIVE.'),
                 new OA\Property(property: 'baseline_product', type: 'boolean', description: 'SKU nền của bộ seed (`D070106` — Kìm điện đa năng 6 inch, danh mục thật DongCheng) ở trạng thái ACTIVE.'),
             ]

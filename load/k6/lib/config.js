@@ -40,7 +40,9 @@ export const CONFIG = {
 
   // Tài khoản dùng để lấy JWT trong setup(). Load test KHÔNG đăng nhập lại mỗi
   // vòng lặp vì người dùng thật cũng chỉ đăng nhập một lần rồi dùng token.
-  password: str('LOAD_PASSWORD', 'Cntt@1234'),
+  // KHÔNG có mặc định (P0 bảo mật 10/09/2026): giá trị từng ghi cứng ở đây là
+  // credential đã lộ. Truyền `k6 run -e LOAD_PASSWORD=...`.
+  password: str('LOAD_PASSWORD', ''),
   // /auth/login chỉ nhận EMAIL đầy đủ (không còn nhận username).
   emails: str('LOAD_USERS', 'admin@gmail.com,manager01@gmail.com,keeper01@gmail.com,staff01@gmail.com,approver01@gmail.com,viewer01@gmail.com')
     .split(',')

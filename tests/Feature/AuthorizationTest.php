@@ -11,6 +11,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Tests\TestCase;
+use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
@@ -205,7 +206,7 @@ class AuthorizationTest extends TestCase
             [
                 'display_name' => ucwords(str_replace('-', ' ', $username)),
                 'email' => "{$username}@gmail.com",
-                'password_hash' => Hash::make('Cntt@1234'),
+                'password_hash' => Hash::make(TestCredentials::PASSWORD),
                 'status' => 'ACTIVE',
                 'version' => 1,
             ]

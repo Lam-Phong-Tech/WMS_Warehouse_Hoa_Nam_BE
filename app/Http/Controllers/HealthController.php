@@ -150,9 +150,12 @@ class HealthController extends Controller
         // Use canonical Eloquent models. Compatibility VIEW availability must not
         // influence readiness, and mutable presentation flags are not seed identity.
         $markers = [
+            // P0 10/09/2026: dấu hiệu là "có SUPER_ADMIN ACTIVE", không phải username
+            // `admin` do seeder cũ tạo bằng mật khẩu hằng số. Môi trường mới nhận quản
+            // trị viên đầu tiên qua `wms:bootstrap-super-admin` với username tuỳ chọn.
             'admin_user' => $this->safeExists(fn (): bool => User::query()
-                ->where('username', 'admin')
                 ->where('status', 'ACTIVE')
+                ->whereHas('roles', fn ($query) => $query->where('role.role_code', 'SUPER_ADMIN'))
                 ->exists()),
             'baseline_warehouse' => $this->safeExists(fn (): bool => Warehouse::query()
                 ->where('code', 'KHO-TONG-HN')

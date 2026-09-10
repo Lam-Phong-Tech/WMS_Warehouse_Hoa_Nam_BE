@@ -11,7 +11,9 @@ tài khoản thật ở môi trường triển khai (§6 mục ③ — đã có 
 
 ## 1. Tài khoản đăng nhập theo vai trò
 
-Mật khẩu chung cho **tất cả** tài khoản dưới đây: `Cntt@1234`
+**Mật khẩu:** không ghi trong tài liệu. Tài khoản fixture dùng mật khẩu DevOps cấp riêng cho từng
+môi trường qua biến `WMS_FIXTURE_PASSWORD` (xem ghi chú dưới bảng). Mật khẩu chung từng ghi ở đây
+đã bị thu hồi ngày 10/09/2026 và bị hệ thống từ chối ở mọi môi trường.
 Đăng nhập bằng **email**. Tất cả đều `ACTIVE` và **không bị bắt đổi mật khẩu lần đầu**.
 
 Quy luật đặt tên: `<mã vai trò viết thường, gạch nối>-01 / -02 / -03`, email `<username>@gmail.com`.
@@ -30,14 +32,21 @@ Quy luật đặt tên: `<mã vai trò viết thường, gạch nối>-01 / -02 
 | 10 | INBOUND_ONLY_TEST *(chỉ dev/test)* | `inbound-only-test-01@gmail.com` · `-02` · `-03` | 3 |
 | 11 | NO_PERMISSION *(chỉ dev/test)* | `no-permission-01@gmail.com` · `-02` · `-03` | 3 |
 
-Cộng **33 tài khoản**, thêm `admin@gmail.com` (SUPER_ADMIN gốc, giữ nguyên như cũ) là **34**.
+Ở development (local/testing): cộng **33 tài khoản**, thêm `admin@gmail.com` (SUPER_ADMIN gốc) là **34**.
+Ở demo/UAT (`APP_ENV` thuộc `golive.demo_environments` và bật `WMS_SEED_DEMO_ACCOUNTS=true`): không có
+tài khoản SUPER_ADMIN fixture nào — `super-admin-01..03` và `admin@gmail.com` không được tạo — còn **30**.
 
 Bốn vai trò gắn nhãn *(chỉ dev/test)* **không bao giờ** được tạo ở môi trường production.
 
-> **Về mật khẩu:** con số `Cntt@1234` lấy đúng từ tài liệu BA. Nếu BA muốn đổi sang chuỗi khác
-> thì báo DEV — đây là một hằng số duy nhất trong seeder, đổi mất vài phút. Cả 34 tài khoản
-> này là **tài khoản môi trường thử/nghiệm thu**; tài khoản production được tạo qua màn IAM
-> với mật khẩu riêng, seeder không tự sinh.
+> **Về mật khẩu (cập nhật 10/09/2026 — P0 bảo mật):** mật khẩu chung trước đây nằm cứng trong seeder
+> và trong chính tài liệu này nên phải coi là đã lộ; nó nay thuộc `golive.credential.compromised` và
+> bị từ chối ở mọi môi trường. Seeder KHÔNG còn mật khẩu mặc định: development/test đọc
+> `WMS_FIXTURE_PASSWORD`; demo/UAT chỉ tạo tài khoản fixture khi bật tường minh
+> `WMS_SEED_DEMO_ACCOUNTS=true`, với mật khẩu dài tối thiểu 12 ký tự và không thuộc danh sách đã lộ.
+> DevOps trao mật khẩu qua kênh bảo mật, không ghi vào tài liệu hay ticket. Các tài khoản này là
+> **tài khoản môi trường thử/nghiệm thu**; production không có tài khoản seed nào — quản trị viên đầu
+> tiên tạo bằng `php artisan wms:bootstrap-super-admin` (bắt đổi mật khẩu ở lần đăng nhập đầu), người
+> dùng khác tạo qua màn IAM.
 
 ### Tài khoản cũ vẫn còn (không dùng để nghiệm thu ma trận mới)
 

@@ -79,8 +79,10 @@ class WwhnSec09HardeningTest extends TestCase
         $admin = $this->createUser('sec09_admin', $adminRole);
         $target = $this->createUser('sec09_target');
 
-        // Tạo phiên thật cho target (login phát refresh token).
-        $this->postJson('/api/v1/auth/login', [
+        // Tạo phiên TRÌNH DUYỆT thật cho target: login từ Origin FE tin cậy mới phát refresh
+        // token (P1 10/09/2026).
+        config()->set('cors.allowed_origins', [...(array) config('cors.allowed_origins', []), 'http://localhost:5173']);
+        $this->withHeader('Origin', 'http://localhost:5173')->postJson('/api/v1/auth/login', [
             'email' => $target->email,
             'password' => 'secret123',
         ])->assertOk();

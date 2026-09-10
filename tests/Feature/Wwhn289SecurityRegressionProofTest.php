@@ -17,6 +17,7 @@ use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * WWHN-289 / DEV289-P1-04 — "security finding → fix → retest trace".
@@ -225,18 +226,28 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
     public function test_replay_dimension_rotated_refresh_token_and_revoked_session_cannot_be_replayed(): void
     {
         $username = 'wwhn289-replay-'.Str::lower(Str::random(6));
-        $email = $this->createUserWithPassword($username, 'Cntt@1234')->email;
+        $email = $this->createUserWithPassword($username, TestCredentials::PASSWORD)->email;
 
-        $login = $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'Cntt@1234']);
+        // P1 10/09/2026: phiên trình duyệt — refresh token chỉ đi trong cookie HttpOnly.
+        $origin = 'http://localhost:5173';
+        config()->set('cors.allowed_origins', [...(array) config('cors.allowed_origins', []), $origin]);
+        $cookieName = (string) config('refresh_token.cookie.name');
+
+        $login = $this->withHeader('Origin', $origin)
+            ->postJson('/api/v1/auth/login', ['email' => $email, 'password' => TestCredentials::PASSWORD]);
         $login->assertOk();
-        $refreshToken = (string) $login->json('data.refresh_token');
+        $this->assertNull($login->json('data.refresh_token'), 'Refresh token không được nằm trong JSON.');
+        $refreshToken = (string) collect($login->headers->getCookies())
+            ->first(fn ($cookie) => $cookie->getName() === $cookieName)?->getValue();
         $this->assertNotSame('', $refreshToken);
 
-        $rotated = $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $refreshToken]);
+        $rotated = $this->withCredentials()
+            ->withUnencryptedCookie($cookieName, $refreshToken)
+            ->postJson('/api/v1/auth/refresh');
         $rotated->assertOk();
 
         // Replay đúng token đã bị xoay vòng.
-        $replayed = $this->postJson('/api/v1/auth/refresh', ['refresh_token' => $refreshToken]);
+        $replayed = $this->withUnencryptedCookie($cookieName, $refreshToken)->postJson('/api/v1/auth/refresh');
         $this->assertContains(
             $replayed->getStatusCode(),
             [401, 403, 422],
@@ -257,7 +268,7 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
     public function test_rate_limit_dimension_login_locks_out_after_configured_failed_attempts(): void
     {
         $username = 'wwhn289-brute-'.Str::lower(Str::random(6));
-        $email = $this->createUserWithPassword($username, 'Cntt@1234')->email;
+        $email = $this->createUserWithPassword($username, TestCredentials::PASSWORD)->email;
 
         config(['rate_limit.auth_login_per_minute' => 3]);
 
@@ -273,7 +284,7 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
 
         // Kể cả mật khẩu ĐÚNG cũng bị chặn trong cửa sổ khoá — nếu không, kẻ tấn
         // công chỉ cần thử tiếp là thoát khoá.
-        $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => 'Cntt@1234'])
+        $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => TestCredentials::PASSWORD])
             ->assertStatus(429);
 
         $this->assertDatabaseHas('audit_log', ['action' => 'LOGIN_THROTTLED']);
@@ -324,7 +335,7 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
     public function test_secret_dimension_no_credential_or_internal_detail_is_ever_exposed(): void
     {
         $username = 'wwhn289-secret-'.Str::lower(Str::random(6));
-        $password = 'Cntt@1234';
+        $password = TestCredentials::PASSWORD;
         $email = $this->createUserWithPassword($username, $password)->email;
 
         $login = $this->postJson('/api/v1/auth/login', ['email' => $email, 'password' => $password]);

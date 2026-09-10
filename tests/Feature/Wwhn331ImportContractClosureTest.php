@@ -16,6 +16,7 @@ use Modules\Warehouse\Support\SkuImportContract;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
+use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
@@ -271,7 +272,7 @@ class Wwhn331ImportContractClosureTest extends TestCase
         $user = User::create([
             'username' => 'no_sku_manage_331',
             'display_name' => 'No sku manage 331',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
@@ -305,7 +306,7 @@ class Wwhn331ImportContractClosureTest extends TestCase
         $user = User::create([
             'username' => $username,
             'display_name' => $username,
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);

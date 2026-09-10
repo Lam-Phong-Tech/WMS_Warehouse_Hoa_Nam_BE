@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\SeedEnvironment;
 use Modules\Warehouse\Models\ImportBatch;
 use Modules\Warehouse\Models\InventorySerial;
 use Modules\Warehouse\Models\ItemInstance;
@@ -44,6 +45,11 @@ class UatScenarioSeeder extends Seeder
 
     public function run(): void
     {
+        // P0 bảo mật 10/09/2026: gọi thẳng `db:seed --class=UatScenarioSeeder` phải qua
+        // cùng cổng môi trường với wms:seed-uat — tài khoản UAT ACTIVE mật khẩu dùng chung
+        // không bao giờ được sinh trên production.
+        SeedEnvironment::assertFixtureAccountsAllowed(static::class);
+
         $password = (string) config('warehouse.uat_seed_password');
         if ($password === '') {
             throw new \RuntimeException('UAT seed password is required. Set UAT_SEED_PASSWORD or pass --password.');

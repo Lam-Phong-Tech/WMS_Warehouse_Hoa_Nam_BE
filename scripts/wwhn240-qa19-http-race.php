@@ -124,7 +124,12 @@ if ($probe['status'] === 0 || $probe['status'] >= 500) {
     exit(2);
 }
 
-$password = getenv('CI_DEMO_PASSWORD') ?: 'Cntt@1234';
+// Không có mặc định (P0 bảo mật 10/09/2026): giá trị từng ghi cứng ở đây là credential đã lộ.
+$password = getenv('CI_DEMO_PASSWORD');
+if ($password === false || $password === '') {
+    fwrite(STDERR, "CI_DEMO_PASSWORD chưa được đặt: script không còn mật khẩu mặc định.\n");
+    exit(2);
+}
 // manager01 (WAREHOUSE_MANAGER) dựng fixture — keeper01 KHÔNG có inbound.create
 // theo seeder chuẩn; keeper01 (WAREHOUSE_KEEPER, có inventory.reversal.post +
 // inventory.trace + report.view) là actor chạy race + trace + XNT.
@@ -199,12 +204,12 @@ foreach ($itemIds as $offset => $itemId) {
         'line_id' => $lineId,
         'quantity' => 1,
         'item_id' => $itemId,
-    ], $fixtureAuth + ["If-Match" => (string) ($offset + 1)]);
+    ], $fixtureAuth + ['If-Match' => (string) ($offset + 1)]);
     check($checks, "fixture_scan_{$offset}_200", $scan['status'] === 200, 'status='.$scan['status']);
 }
 
 $post = httpJson($baseUrl, 'POST', "/api/v1/inbound-documents/{$documentId}/post-receipt", [], $fixtureAuth + [
-    "If-Match" => "3",
+    'If-Match' => '3',
     'Idempotency-Key' => 'wwhn240-qa19-receipt-'.$runTag,
 ]);
 check($checks, 'fixture_post_receipt_200', $post['status'] === 200, 'status='.$post['status'].' '.json_encode(errorCode($post['json'])));

@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Department;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\SeedEnvironment;
 
 /**
  * BA tài khoản ĐĂNG NHẬP ĐƯỢC cho MỖI vai trò — yêu cầu người dùng 05/09/2026.
@@ -25,15 +26,17 @@ use Modules\Auth\Models\User;
  * Seeder này KHÔNG đụng tới tài khoản cũ (E2E và tài liệu bàn giao đang tham
  * chiếu chúng) mà bổ sung một bộ MỚI, đặt tên theo đúng mã vai trò:
  *   <role_code viết thường, gạch nối>-01 / -02 / -03
- * ví dụ `warehouse-keeper-01`, `leadership-03`. Tất cả đều ACTIVE, cùng mật
+ * ví dụ `warehouse-staff-01`, `leadership-03`. Tất cả đều ACTIVE, cùng mật
  * khẩu fixture với các tài khoản demo còn lại.
  *
- * Tài khoản `admin` (SUPER_ADMIN gốc) được giữ nguyên theo yêu cầu — vai
- * SUPER_ADMIN vẫn nhận đủ bộ 3 tài khoản mới bên cạnh nó.
+ * Idempotent: updateOrCreate theo username; chạy lại không nhân bản (mật khẩu
+ * fixture được đặt lại theo WMS_FIXTURE_PASSWORD).
  *
- * Idempotent: updateOrCreate theo username; chạy lại không nhân bản, không đổi
- * mật khẩu đã có. Chỉ chạy trong nhánh fixture của AuthDatabaseSeeder (môi
- * trường dev/test) nên không bao giờ sinh tài khoản mặc định ở production.
+ * AN TOÀN MÔI TRƯỜNG (P0 bảo mật 10/09/2026): seeder TỰ chặn khi bị gọi thẳng bằng
+ * `db:seed --class=...` ngoài development/demo (SeedEnvironment), và bộ
+ * `super-admin-01..03` CHỈ sinh ở local/testing — môi trường demo/UAT không có tài
+ * khoản SUPER_ADMIN fixture nào. Mật khẩu không có giá trị mặc định trong source và
+ * không được in ra log.
  */
 class RoleAccountMatrixSeeder extends Seeder
 {
@@ -62,8 +65,10 @@ class RoleAccountMatrixSeeder extends Seeder
 
     public function run(): void
     {
+        SeedEnvironment::assertFixtureAccountsAllowed(static::class);
+
         $departmentIds = Department::query()->pluck('department_id', 'department_code')->all();
-        $password = Hash::make($this->fixturePassword());
+        $password = Hash::make(SeedEnvironment::fixturePassword());
         $today = Carbon::today();
 
         // Đi theo vai trò CÓ THẬT trong CSDL: production không seed 4 vai trò
@@ -75,9 +80,16 @@ class RoleAccountMatrixSeeder extends Seeder
         // thử đăng nhập vào đúng mô hình phân quyền vừa bị bãi bỏ. Tài khoản CŨ
         // (keeper01, approver01 từ AuthDatabaseSeeder::USERS) vẫn giữ nguyên cho bộ
         // E2E và tài liệu bàn giao cũ.
-        $deprecated = (array) (new \ReflectionClass(AuthDatabaseSeeder::class))->getConstant('DEPRECATED_ROLES');
+        $excludedRoles = (array) (new \ReflectionClass(AuthDatabaseSeeder::class))->getConstant('DEPRECATED_ROLES');
+
+        // SUPER_ADMIN fixture (`super-admin-01..03`) chỉ ở local/testing: trên môi trường
+        // demo/UAT quản trị viên đầu tiên đi qua `wms:bootstrap-super-admin`.
+        if (! SeedEnvironment::allowsSuperAdminFixtures()) {
+            $excludedRoles[] = 'SUPER_ADMIN';
+        }
+
         $roles = Role::query()
-            ->whereNotIn('role_code', $deprecated)
+            ->whereNotIn('role_code', $excludedRoles)
             ->orderBy('role_code')
             ->get();
         $created = 0;
@@ -122,7 +134,7 @@ class RoleAccountMatrixSeeder extends Seeder
 
         $this->command?->info(
             'RoleAccountMatrixSeeder: '.self::PER_ROLE.' tài khoản ACTIVE cho mỗi vai trò ('
-            .$roles->count().' vai trò, '.$created.' tài khoản mới). Mật khẩu: '.$this->fixturePassword()
+            .$roles->count().' vai trò, '.$created.' tài khoản mới). Mật khẩu: giá trị WMS_FIXTURE_PASSWORD (không in ra log).'
         );
         foreach ($rows as $row) {
             $this->command?->line('    '.$row);
@@ -134,12 +146,5 @@ class RoleAccountMatrixSeeder extends Seeder
         if (! $user->roles()->where('role.role_id', $role->role_id)->exists()) {
             $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
         }
-    }
-
-    private function fixturePassword(): string
-    {
-        $ciPassword = env('CI_DEMO_PASSWORD');
-
-        return is_string($ciPassword) && $ciPassword !== '' ? $ciPassword : 'Cntt@1234';
     }
 }

@@ -17,6 +17,7 @@ use Modules\Auth\Models\UserMfa;
 use Modules\Auth\Support\ApiAuthContext;
 use Modules\Auth\Support\MfaService;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /**
  * WWHN-SEC-08 — xác thực hai bước.
@@ -146,7 +147,7 @@ class WwhnSec08MfaTest extends TestCase
 
         $response = $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ]);
 
         $response->assertOk();
@@ -167,7 +168,7 @@ class WwhnSec08MfaTest extends TestCase
 
         $challenge = $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ])->json('data.mfa_token');
 
         $response = $this->postJson('/api/v1/auth/mfa/verify', [
@@ -178,6 +179,36 @@ class WwhnSec08MfaTest extends TestCase
         $response->assertOk();
         $this->assertNotEmpty($response->json('data.access_token'));
         $this->assertSame('totp', $response->json('data.second_factor'));
+        // Cùng hồ sơ với POST /auth/login: FE dựng phiên từ `data.user`, thiếu là bước 2 ném
+        // AuthContractError trên web.
+        $this->assertSame($user->email, $response->json('data.user.email'));
+        // P1 10/09/2026: không bao giờ có refresh token trong JSON. Request này không mang
+        // Origin trình duyệt nên cũng không nhận cookie.
+        $response->assertJsonMissingPath('data.refresh_token');
+    }
+
+    public function test_hoan_tat_dang_nhap_hai_buoc_tren_trinh_duyet_chi_nhan_refresh_token_qua_cookie(): void
+    {
+        $user = $this->makeUser();
+        $secret = $this->enableMfa($user);
+        $origin = 'http://localhost:5173';
+        config()->set('cors.allowed_origins', [...(array) config('cors.allowed_origins', []), $origin]);
+
+        $challenge = $this->withHeader('Origin', $origin)->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => TestCredentials::PASSWORD,
+        ])->json('data.mfa_token');
+
+        $response = $this->withHeader('Origin', $origin)->postJson('/api/v1/auth/mfa/verify', [
+            'mfa_token' => $challenge,
+            'code' => Totp::code($secret),
+        ])->assertOk()->assertJsonMissingPath('data.refresh_token');
+
+        $cookie = collect($response->headers->getCookies())
+            ->first(fn ($cookie) => $cookie->getName() === (string) config('refresh_token.cookie.name'));
+        $this->assertNotNull($cookie, 'Bước 2 thành công trên trình duyệt phải đặt cookie refresh token.');
+        $this->assertTrue($cookie->isHttpOnly());
+        $this->assertStringNotContainsString((string) $cookie->getValue(), (string) $response->getContent());
     }
 
     public function test_ma_phien_cho_chi_dung_duoc_mot_lan(): void
@@ -187,7 +218,7 @@ class WwhnSec08MfaTest extends TestCase
 
         $challenge = $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ])->json('data.mfa_token');
 
         $this->postJson('/api/v1/auth/mfa/verify', ['mfa_token' => $challenge, 'code' => Totp::code($secret)])->assertOk();
@@ -331,7 +362,7 @@ class WwhnSec08MfaTest extends TestCase
 
         $challenge = $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
-            'password' => 'Cntt@1234',
+            'password' => TestCredentials::PASSWORD,
         ])->json('data.mfa_token');
 
         $this->assertNotEmpty($challenge);
@@ -382,7 +413,7 @@ class WwhnSec08MfaTest extends TestCase
             'username' => 'mfa'.Str::lower(Str::random(8)),
             'display_name' => 'MFA Test',
             'email' => 'mfa'.Str::lower(Str::random(8)).'@example.com',
-            'password_hash' => Hash::make('Cntt@1234'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
