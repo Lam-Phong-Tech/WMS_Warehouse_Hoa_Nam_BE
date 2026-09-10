@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Support\Security\BlindIndex;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -17,6 +18,7 @@ use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -508,6 +510,88 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
             '/bao-cao-bao-hanh-\d{4}-\d{2}-\d{2}-den-\d{4}-\d{2}-\d{2}-\d{8}-\d{6}\.xlsx/',
             (string) $export->headers->get('content-disposition'),
         );
+    }
+
+    /**
+     * Carbon 3: `diffInDays()` trả float — 1 giây = 1/86400 ngày. Test phía trên chỉ đỏ khi
+     * mốc tiếp nhận và mốc trả khách tình cờ rơi vào hai giây khác nhau (ra
+     * 1.1574074074074073E-5 thay vì 0). Ở đây cố định đồng hồ: nhận lúc 09/09 10:00:00, trả
+     * khách lúc 10/09 10:00:01 — LUÔN vượt một ranh giới giây — và màn danh sách lẫn file
+     * export phải cùng ra đúng 1 ngày (số nguyên).
+     *
+     * Chọn 1 ngày chứ không phải 0: PhpSpreadsheet `fromArray()` so sánh lỏng với null nên bỏ
+     * trống ô có giá trị 0, và 0 ngày không đối chiếu được trên file export.
+     */
+    public function test_turnaround_days_stays_a_whole_number_when_receive_and_return_straddle_a_second(): void
+    {
+        $now = Carbon::parse('2026-09-10 10:00:00');
+        $this->travelTo($now);
+
+        $headers = $this->authHeaders('SUPER_ADMIN_W4T');
+        $sku = Sku::create([
+            'sku_code' => 'PROD-W4-SEC',
+            'sku_name' => 'May mai ranh gioi giay',
+            'sku_type' => 'PRODUCT',
+            'unit' => 'cai',
+            'is_serial_tracked' => true,
+            'status' => 'ACTIVE',
+        ]);
+        $item = ItemInstance::create([
+            'sku_id' => $sku->sku_id,
+            'serial_number' => 'SER-W4-SEC-001',
+            'item_status' => 'ISSUED',
+        ]);
+
+        $caseId = (string) $this->postJson('/api/v1/warranty-cases', [
+            'item_code' => $item->serial_number,
+            'customer_name' => 'Khach Ranh Gioi Giay',
+            'customer_phone' => '0900000023',
+            'purchase_date' => '2026-03-10',
+            'description' => 'Khong chay',
+        ], $headers)->assertCreated()->json('data.id');
+
+        $version = 1;
+        foreach ([
+            ['status' => 'CHECKING'],
+            ['status' => 'REPAIRING', 'confirmed_defect' => 'Chay cuon day motor'],
+            ['status' => 'COMPLETED', 'note' => 'Da thay cuon day, chay thu dat'],
+        ] as $payload) {
+            $this->patchJson("/api/v1/warranty-cases/{$caseId}", $payload,
+                $headers + ['If-Match' => (string) $version])->assertOk();
+            $version++;
+        }
+
+        // Hồ sơ tiếp nhận từ hôm trước: ghi thẳng mốc tiếp nhận (qua encode như mọi lệnh ghi
+        // warranty_case) thay vì tua đồng hồ qua ngày, để token JWT không hết hạn giữa chừng.
+        DB::table('warranty_case')->where('warranty_case_id', $caseId)
+            ->update(WarrantyCasePii::encode(['received_at' => '2026-09-09 10:00:00']));
+
+        // Trả khách lúc 10/09 10:00:01: một ngày và đúng MỘT giây sau lúc tiếp nhận.
+        $this->travelTo($now->copy()->addSecond());
+        $this->patchJson("/api/v1/warranty-cases/{$caseId}", ['status' => 'RETURNED', 'note' => 'Ban giao khach, ky nhan'],
+            $headers + ['If-Match' => (string) $version])->assertOk();
+
+        $row = collect($this->getJson('/api/v1/reports/warranty-defects', $headers)->assertOk()->json('data.rows'))
+            ->firstWhere('warranty_case_id', $caseId);
+        $this->assertNotNull($row);
+        $this->assertSame('2026-09-09 10:00:00', substr((string) $row['received_at'], 0, 19));
+        $this->assertSame('2026-09-10 10:00:01', substr((string) $row['returned_at'], 0, 19));
+        $this->assertSame(1, $row['turnaround_days']);
+
+        // File export (AlignedWarrantyReportController) phải ra CÙNG số ngày cho CÙNG hồ sơ.
+        $export = $this->get('/api/v1/reports/warranty-defects/export-excel', $headers)->assertOk();
+        $path = sys_get_temp_dir().'/w4-turnaround-'.Str::uuid().'.xlsx';
+        file_put_contents($path, $export->streamedContent());
+        try {
+            $cells = IOFactory::load($path)->getActiveSheet()->toArray(null, false, false, false);
+        } finally {
+            @unlink($path);
+        }
+        $column = array_search('Turnaround (ngày)', $cells[0], true);
+        $this->assertIsInt($column);
+        $exported = collect($cells)->first(fn (array $line): bool => ($line[0] ?? null) === $row['case_no']);
+        $this->assertNotNull($exported, 'Không thấy hồ sơ trong file export.');
+        $this->assertSame('1', (string) $exported[$column]);
     }
 
     // ── ⑱ document_date không phải field bắt buộc ─────────────────────────

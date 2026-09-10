@@ -185,7 +185,9 @@ class AlignedWarrantyReportController extends Controller
             return null;
         }
 
-        return Carbon::parse($receivedAt)->diffInDays(Carbon::parse((string) $closedAt));
+        // Carbon 3: diffInDays() trả float. Ép tường minh về số ngày tròn, cùng cách tính
+        // với màn danh sách (BaM1ReportController), thay vì để PHP tự cắt phần lẻ ở return.
+        return (int) Carbon::parse($receivedAt)->diffInDays(Carbon::parse((string) $closedAt));
     }
 
     /**

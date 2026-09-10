@@ -354,7 +354,9 @@ class BaM1ReportController extends Controller
                 ->implode('; ');
             $receivedAt = (string) ($case->received_at ?? $case->created_at);
             $closedAt = $case->returned_at ?? $case->completed_at;
-            $turnaround = $closedAt ? Carbon::parse($receivedAt)->diffInDays(Carbon::parse((string) $closedAt)) : null;
+            // Carbon 3: diffInDays() trả float (1 giây = 1/86400 ngày). Ép về số ngày tròn
+            // để turnaround_days luôn là int và khớp file export (AlignedWarrantyReportController).
+            $turnaround = $closedAt ? (int) Carbon::parse($receivedAt)->diffInDays(Carbon::parse((string) $closedAt)) : null;
             $model = $case->identification_status === 'TEMP_ONLY' && $case->sku_code === null
                 ? ($case->manual_product_description ?: 'UNKNOWN_MODEL')
                 : ($case->sku_code ?? 'UNKNOWN_MODEL');
