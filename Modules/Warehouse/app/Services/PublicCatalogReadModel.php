@@ -70,8 +70,7 @@ class PublicCatalogReadModel
      *    xong"; im lặng bỏ bớt phần tử thì hai việc đó nhìn y hệt nhau.
      *
      * HẾT TỒN KHÔNG phải "không còn": hàng hết tồn vẫn trả về, mang
-     * availability=PREORDER. Đây là điểm DUY NHẤT khác luật hiển thị của danh
-     * sách, và là điểm cố ý — xem ghi chú ở baseQuery(). Điều kiện publish thì
+     * availability=PREORDER như mọi mặt đọc public khác. Điều kiện publish thì
      * giữ nguyên: hỏi đích danh không làm một sản phẩm public hơn.
      *
      * @param  list<string>  $ids  đã chuẩn hoá, đã loại trùng, giữ nguyên thứ tự
@@ -83,8 +82,7 @@ class PublicCatalogReadModel
             return ['items' => [], 'missing_ids' => []];
         }
 
-        // requireStock=false: xem ghi chú ở baseQuery(). Hàng hết tồn vẫn trả về,
-        // mang availability=PREORDER, để app không xoá nhầm mục người dùng đã lưu.
+        // Hàng hết tồn vẫn là public và được trình bày với availability=PREORDER.
         $rows = $this->baseQuery(false)->whereIn('s.sku_id', $ids)->get();
         $items = $this->presentMany($rows);
 
@@ -469,21 +467,18 @@ class PublicCatalogReadModel
         ." WHERE b.product_id = s.sku_id AND b.stock_status = 'AVAILABLE')";
 
     /**
-     * Hai điều kiện hiển thị của hợp đồng mới:
+     * Điều kiện hiển thị của hợp đồng public:
      *   PUBLISHED  -> s.status = ACTIVE và s.published_to_app = true  (LUÔN bắt buộc)
-     *   IN_STOCK   -> tổng available_qty kho tổng > 0                 (xem $requireStock)
+     *   STOCK      -> chỉ quyết định nhãn IN_STOCK/PREORDER, không ẩn sản phẩm.
      *
      * Số tồn CHỈ dùng để lọc hoặc quy về CỜ NHỊ PHÂN `has_stock`; con số tồn
      * không bao giờ đi vào SELECT của tầng trình bày.
      *
-     * $requireStock=false CHỈ dành cho tra-theo-id (màn "đã lưu" của App PV).
-     * Lý do tách: duyệt/tìm kiếm là nơi khách tìm hàng để mua, hàng hết thì
-     * không nên chào bán — giữ nguyên luật cũ. Còn màn "đã lưu" là danh sách
-     * NGƯỜI DÙNG TỰ CHỌN; ẩn nó đi khi kho tạm hụt tồn sẽ khiến app xoá vĩnh
-     * viễn mục đã lưu (nó coi id vắng mặt là đã bị gỡ). Trả về kèm
-     * availability=PREORDER giữ được mục đó mà vẫn nói thật là đang hết hàng.
+     * Mọi đường đọc public mặc định giữ sản phẩm hết tồn để App có thể hiển thị
+     * PREORDER. $requireStock chỉ là chốt truy vấn nội bộ khi một luồng tương lai
+     * thực sự cần loại chúng; không endpoint public nào được dùng nó mặc định.
      */
-    private function baseQuery(bool $requireStock = true): Builder
+    private function baseQuery(bool $requireStock = false): Builder
     {
         SqliteUnaccentFunction::ensureRegistered(DB::connection());
 
@@ -918,9 +913,8 @@ class PublicCatalogReadModel
             'is_featured' => (int) ($row->sort_featured ?? 0) === 1,
             // Trạng thái bán hàng ở dạng NHÃN, không phải số tồn: hợp đồng cấm
             // lộ số lượng, nhưng client vẫn phải phân biệt được "mua ngay được"
-            // với "hết hàng, đặt trước". Ở đường duyệt/tìm kiếm giá trị này luôn
-            // là IN_STOCK vì baseQuery() đã lọc bỏ hàng hết tồn; chỉ chế độ
-            // tra-theo-id mới có thể trả PREORDER.
+            // với "hết hàng, đặt trước". Mọi mặt đọc public đều có thể trả
+            // PREORDER, nhưng không bao giờ trả số tồn.
             'availability' => (int) ($row->has_stock ?? 1) === 1 ? 'IN_STOCK' : 'PREORDER',
             'updated_at' => $this->epochToIso($row->sort_updated ?? null),
         ];
@@ -987,8 +981,8 @@ class PublicCatalogReadModel
      * hành vi cũ, để FE không phải xử lý hai hình dạng response khác nhau.
      *
      * dùng lại baseQuery() cho truy vấn sibling nên một variant KHÔNG published
-     * hoặc HẾT HÀNG sẽ tự động vắng mặt khỏi danh sách — đúng yêu cầu "variant
-     * không public/không còn hàng thì không được selectable".
+     * sẽ tự động vắng mặt; variant hết tồn vẫn public để App có thể hiển thị
+     * trạng thái PREORDER nhất quán với catalogue.
      *
      * @return Collection<int, object>
      */

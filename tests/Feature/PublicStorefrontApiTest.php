@@ -24,7 +24,7 @@ use Tests\TestCase;
  * mặt API cố ý khác nhau ở hai điểm mà bộ test kia đang khoá theo chiều ngược
  * lại, nên chính chúng là thứ phải được khoá ở đây:
  *
- *   1. Chỉ trả sản phẩm PUBLISHED **và còn hàng** — nhóm pv/* thì tồn 0 vẫn hiện.
+ *   1. Chỉ trả sản phẩm PUBLISHED; tồn 0 vẫn hiện với nhãn PREORDER.
  *   2. TUYỆT ĐỐI không lộ số tồn — nhóm pv/* thì trả available_qty.
  *
  * Ngoài ra khoá những hành vi mà kiểm thử tay bằng curl không chứng minh nổi:
@@ -127,18 +127,17 @@ class PublicStorefrontApiTest extends TestCase
     }
 
     // ==================================================================
-    // Hiển thị: PUBLISHED + IN_STOCK, và không lộ số tồn
+    // Hiển thị: PUBLISHED + IN_STOCK/PREORDER, và không lộ số tồn
     // ==================================================================
 
-    public function test_listing_returns_only_published_and_in_stock_products(): void
+    public function test_listing_returns_published_products_and_marks_out_of_stock_as_preorder(): void
     {
         $warehouse = $this->warehouseFixture();
 
         $visible = $this->publishedSku('PUB-001', 'Máy bơm hiển thị');
         $this->seedAvailableBalance($warehouse->id, $visible->sku_id, 5);
 
-        // Đã publish nhưng HẾT HÀNG -> phải biến mất. Đây là điểm khác biệt cốt
-        // lõi so với nhóm /api/v1/pv, nơi tồn 0 vẫn hiện kèm nhãn "Chưa có hàng".
+        // Đã publish nhưng HẾT HÀNG vẫn phải hiện để App cho phép đặt trước.
         $outOfStock = $this->publishedSku('PUB-002', 'Máy bơm hết hàng');
         $this->seedAvailableBalance($warehouse->id, $outOfStock->sku_id, 0);
 
@@ -146,10 +145,10 @@ class PublicStorefrontApiTest extends TestCase
         $unpublished = $this->sku('PUB-003', 'Máy bơm chưa publish');
         $this->seedAvailableBalance($warehouse->id, $unpublished->sku_id, 9);
 
-        $codes = collect($this->getJson(self::BASE.'/products')->assertOk()->json('data.items'))
-            ->pluck('primary_code')->all();
+        $items = $this->getJson(self::BASE.'/products')->assertOk()->json('data.items');
 
-        $this->assertSame(['PUB-001'], $codes);
+        $this->assertSame(['PUB-001', 'PUB-002'], array_column($items, 'primary_code'));
+        $this->assertSame(['IN_STOCK', 'PREORDER'], array_column($items, 'availability'));
     }
 
     /**
@@ -456,11 +455,8 @@ class PublicStorefrontApiTest extends TestCase
      * Điều kiện PUBLISH giữ nguyên khi hỏi đích danh: chưa publish vẫn nằm ở
      * missing_ids. Nhưng HẾT TỒN thì KHÁC — vẫn trả về, mang PREORDER.
      *
-     * Vì sao tách riêng: màn "đã lưu" là danh sách người dùng tự chọn. Nếu hàng
-     * tạm hết tồn rơi vào missing_ids thì app coi như đã bị gỡ và XOÁ VĨNH VIỄN
-     * khỏi danh sách — người dùng mất mục đã lưu chỉ vì kho hụt tồn vài ngày.
-     * Đường duyệt/tìm kiếm vẫn ẩn hàng hết tồn như cũ, xem
-     * test_listing_returns_only_published_and_in_stock_products.
+     * Màn "đã lưu" vẫn cần phân biệt rõ sản phẩm bị bỏ publish với hàng hết tồn:
+     * sản phẩm published hết tồn là PREORDER, còn chưa publish mới thuộc missing_ids.
      */
     public function test_ids_lookup_giu_hang_het_ton_voi_nhan_preorder_nhung_van_an_hang_chua_publish(): void
     {
@@ -489,20 +485,20 @@ class PublicStorefrontApiTest extends TestCase
         $this->assertSame([(string) $unpublished->sku_id], $data['missing_ids']);
     }
 
-    /** Đường duyệt vẫn chỉ có hàng còn tồn, nên availability ở đó luôn IN_STOCK. */
-    public function test_availability_o_duong_duyet_luon_la_in_stock(): void
+    /** Đường duyệt công khai giữ hàng hết tồn với nhãn PREORDER. */
+    public function test_availability_o_duong_duyet_phan_biet_in_stock_va_preorder(): void
     {
         $warehouse = $this->warehouseFixture();
         $visible = $this->publishedSku('AVAIL-001', 'Máy còn hàng');
         $this->seedAvailableBalance($warehouse->id, $visible->sku_id, 6);
 
-        $hidden = $this->publishedSku('AVAIL-002', 'Máy hết hàng');
-        $this->seedAvailableBalance($warehouse->id, $hidden->sku_id, 0);
+        $preorder = $this->publishedSku('AVAIL-002', 'Máy hết hàng');
+        $this->seedAvailableBalance($warehouse->id, $preorder->sku_id, 0);
 
         $items = $this->getJson(self::BASE.'/products')->assertOk()->json('data.items');
 
-        $this->assertSame(['AVAIL-001'], array_column($items, 'primary_code'));
-        $this->assertSame(['IN_STOCK'], array_column($items, 'availability'));
+        $this->assertSame(['AVAIL-001', 'AVAIL-002'], array_column($items, 'primary_code'));
+        $this->assertSame(['IN_STOCK', 'PREORDER'], array_column($items, 'availability'));
     }
 
     /**
@@ -674,18 +670,18 @@ class PublicStorefrontApiTest extends TestCase
         $visible = $this->publishedSku('CAT-001', 'May bom con hang', $category);
         $this->seedAvailableBalance($warehouse->id, $visible->sku_id, 3);
 
-        $hidden = $this->publishedSku('CAT-002', 'May bom het hang', $category);
-        $this->seedAvailableBalance($warehouse->id, $hidden->sku_id, 0);
+        $preorder = $this->publishedSku('CAT-002', 'May bom het hang', $category);
+        $this->seedAvailableBalance($warehouse->id, $preorder->sku_id, 0);
 
         $categories = collect($this->getJson(self::BASE.'/categories')->assertOk()->json('data.items'));
         $pump = $categories->firstWhere('code', 'PUMP');
 
         $this->assertNotNull($pump);
-        $this->assertSame(1, $pump['product_count'], 'Số đếm phải bỏ qua sản phẩm hết hàng.');
+        $this->assertSame(2, $pump['product_count'], 'Số đếm phải gồm sản phẩm PREORDER đã publish.');
         $this->assertSame('POWER_TOOLS', $pump['domain']);
 
         $facets = $this->getJson(self::BASE.'/facets')->assertOk()->json('data');
-        $this->assertSame(1, collect($facets['category'])->firstWhere('code', 'PUMP')['count']);
+        $this->assertSame(2, collect($facets['category'])->firstWhere('code', 'PUMP')['count']);
     }
 
     public function test_related_excludes_the_product_itself(): void
@@ -1241,7 +1237,7 @@ class PublicStorefrontApiTest extends TestCase
         return $sku;
     }
 
-    /** SKU đã publish VÀ còn hàng — điều kiện để xuất hiện trên mặt công khai. */
+    /** SKU đã publish và còn hàng — dùng khi test cần xác nhận nhãn IN_STOCK. */
     private function visibleSku(string $code, string $name): Sku
     {
         $warehouse = $this->warehouseFixture();
