@@ -201,6 +201,42 @@ class PrivilegeEscalationGuardTest extends TestCase
             ->assertJsonPath('error.code', 'PERMISSION_DELEGATION_DENIED');
     }
 
+    // ── SCR-IAM-01: tự gán cho chính mình bằng user_id viết khác hoa/thường ─────
+    //
+    // Rà soát AppSec 10/09/2026 (docs/security/ROUTE_CONTRACT_DELTA_20260910.md E6):
+    // PostgreSQL tìm uuid không phân biệt hoa/thường, nên nếu chốt tự gán so chuỗi thô thì
+    // /users/<ID-CỦA-CHÍNH-MÌNH-VIẾT-HOA>/... lọt qua mà vẫn trỏ đúng tài khoản người gọi.
+
+    public function test_khong_tu_gan_duoc_role_cho_minh_bang_user_id_viet_hoa(): void
+    {
+        $actor = $this->userWithPermissions('manager13', self::IAM_PERMISSIONS);
+        $target = $this->role('SELF_UPPERCASE_ROLE');
+
+        $this->postJson('/api/v1/users/'.strtoupper((string) $actor->user_id).'/roles', [
+            'role_ids' => [$target->role_id],
+            'reason' => 'Thử tự gán role qua user_id viết hoa',
+        ], $this->headersFor($actor))
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'SELF_ESCALATION_DENIED');
+
+        $this->assertFalse($actor->fresh()->roles()->where('role.role_id', $target->role_id)->exists());
+    }
+
+    public function test_khong_tu_cap_duoc_quyen_rieng_cho_minh_bang_user_id_viet_hoa(): void
+    {
+        $actor = $this->userWithPermissions('manager14', self::IAM_PERMISSIONS);
+        $trongTam = Permission::query()->where('permission_key', 'iam.user.view')->firstOrFail();
+
+        $this->postJson('/api/v1/users/'.strtoupper((string) $actor->user_id).'/permissions', [
+            'permission_id' => $trongTam->permission_id,
+            'reason' => 'Thử biến quyền theo role thành quyền cấp riêng cho chính mình',
+        ], $this->headersFor($actor))
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'SELF_ESCALATION_DENIED');
+
+        $this->assertSame(0, $actor->fresh()->grantedPermissions()->count());
+    }
+
     // ── Mã vai trò hệ thống ────────────────────────────────────────────────
 
     public function test_khong_tao_duoc_role_moi_mang_ma_super_admin(): void

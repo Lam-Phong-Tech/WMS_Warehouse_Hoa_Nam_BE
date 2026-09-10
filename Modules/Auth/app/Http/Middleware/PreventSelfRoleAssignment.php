@@ -19,10 +19,15 @@ class PreventSelfRoleAssignment
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $targetId = (string) $request->route('id');
         $actorId = $request->user()?->user_id;
 
-        if ($actorId !== null && $targetId === (string) $actorId) {
+        // So khớp KHÔNG phân biệt hoa/thường và khoảng trắng: `app_user.user_id` là uuid, và
+        // PostgreSQL tìm uuid không phân biệt chữ hoa — so chuỗi thô thì
+        // `/users/<ID-CỦA-CHÍNH-MÌNH-VIẾT-HOA>/...` lọt qua chốt này mà vẫn trỏ đúng tài khoản
+        // của người gọi (rà soát AppSec 10/09/2026, docs/security/ROUTE_CONTRACT_DELTA_20260910.md E6).
+        $targetId = strtolower(trim((string) $request->route('id')));
+
+        if ($actorId !== null && $targetId === strtolower((string) $actorId)) {
             ApiError::abort(
                 409,
                 'SELF_ESCALATION_DENIED',
