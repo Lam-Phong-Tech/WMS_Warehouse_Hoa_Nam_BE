@@ -108,6 +108,19 @@ jobs:
 
       - name: Prepare Laravel environment
         run: |
+          set -euo pipefail
+          # Seeder không còn mật khẩu mặc định (P0 bảo mật 10/09/2026): `db:seed` và
+          # `migrate:fresh --seed` ở APP_ENV=testing BẮT BUỘC có WMS_FIXTURE_PASSWORD.
+          # Sinh mới cho MỖI lần chạy, che trong log bằng ::add-mask:: trước mọi lần
+          # dùng, không bao giờ in giá trị. Chỉ gồm [A-Za-z0-9-]: `#` mở chú thích
+          # trong phpdotenv nên sẽ bị cắt cụt khi nằm trong .env.
+          fixture_password="Ci-$(openssl rand -hex 24)"
+          test "${#fixture_password}" -eq 51
+          echo "::add-mask::${fixture_password}"
+          # Bước smoke dùng lại đúng giá trị này cho probe hộp đen (truyền vào container
+          # bằng `-e WMS_FIXTURE_PASSWORD` — chỉ tên biến, giá trị không nằm trên dòng
+          # lệnh docker).
+          printf 'WMS_FIXTURE_PASSWORD=%s\n' "${fixture_password}" >> "$GITHUB_ENV"
           cp .env.example .env
           {
             echo "APP_ENV=testing"
@@ -144,6 +157,10 @@ jobs:
             echo "APP_BUILD_SHA=$GITHUB_SHA"
             echo "APP_BUILD_REF=$GITHUB_REF_NAME"
             echo "APP_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            # Mật khẩu fixture cho `db:seed` (bước dưới) và `migrate:fresh --seed`
+            # (smoke). PHPUnit không dùng giá trị này: phpunit.xml ép
+            # WMS_FIXTURE_PASSWORD bằng force="true".
+            printf 'WMS_FIXTURE_PASSWORD=%s\n' "${fixture_password}"
           } >> .env
 
       - name: Install PHP dependencies
@@ -211,6 +228,8 @@ jobs:
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'php artisan key:generate --force && php artisan jwt:secret --force'
 
+      # `db:seed` đọc WMS_FIXTURE_PASSWORD từ .env (bước "Prepare Laravel environment");
+      # thiếu mật khẩu thì seeder dừng chứ không rơi về mật khẩu mặc định.
       - name: Prepare Laravel database and OpenAPI
         run: |
           docker run --rm --network host \
@@ -276,7 +295,13 @@ jobs:
       # Cổng CỨNG: seed thật xong mới bật server rồi chờ health có giới hạn —
       # bản một dòng cũ để `sleep 5 && health` chạy đua với seed 10 phút nên
       # đỏ "Connection refused" ngay lần đầu pipeline sống tới đây (run
-      # 34337763564). Logic nằm ở docker/ci/local-smoke.sh.
+      # 34337763564). Sau health, probe hộp đen hợp đồng refresh token
+      # (scripts/sec-p1-refresh-runtime-probe.php) chạy qua HTTP thật trên pgsql
+      # thật với 4 worker PHP: cookie HttpOnly, chặn CSRF/login-CSRF, xoay vòng,
+      # replay thu hồi cả họ token, race refresh song song, CORS, logout thu hồi
+      # token, header bảo mật. Probe exit khác 0 làm đỏ bước. Logic nằm ở
+      # docker/ci/local-smoke.sh; mọi biến của probe được truyền tường minh, mật
+      # khẩu fixture chỉ đi bằng tên biến (`-e WMS_FIXTURE_PASSWORD`).
       - name: Run local smoke
         run: |
           docker run --rm --network host \
@@ -286,6 +311,9 @@ jobs:
             -e CI_SERVER_HOST="$CI_SERVER_HOST" \
             -e CI_SERVER_PORT="$CI_SERVER_PORT" \
             -e CI_APP_URL="$CI_APP_URL" \
+            -e SEC_PROBE_ORIGIN="http://localhost:5173" \
+            -e SEC_PROBE_EMAIL="warehouse-staff-01@gmail.com" \
+            -e WMS_FIXTURE_PASSWORD \
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'sh docker/ci/local-smoke.sh'
