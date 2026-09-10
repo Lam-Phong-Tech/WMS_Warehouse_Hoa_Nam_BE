@@ -240,29 +240,57 @@ class UserManagementTest extends TestCase
     }
 
     /**
-     * AuthController::login() chấp nhận cả username lẫn email
-     * (LoginRequest: email required_without:username và ngược lại) — không còn
-     * bắt buộc chỉ email-only. Username sai lệch (chưa trim/normalize khi tạo)
-     * không khớp bản ghi nên trả 401, không phải lỗi validate 422.
+     * 32147a3 (07/09/2026, "định danh đăng nhập duy nhất là email"; LoginRequest): email là
+     * định danh đăng nhập DUY NHẤT. Email đúng định dạng nhưng không khớp tài khoản nào trả 401
+     * UNAUTHENTICATED — không phải lỗi validate 422 — và không phát token.
+     *
+     * Trước đây tên test_login_with_unmatched_username_returns_unauthenticated và gửi
+     * `username`; trường đó nay bị cấm ở tầng validate (test kế tiếp).
      */
-    public function test_login_with_unmatched_username_returns_unauthenticated(): void
+    public function test_login_with_unmatched_email_returns_unauthenticated(): void
     {
         User::create([
             'username' => 'normalized',
             'email' => 'normalized@wms-hoanam.test',
             'display_name' => 'Normalized user',
-            'password_hash' => Hash::make('secret123'),
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
 
-        $response = $this->postJson('/api/v1/auth/login', [
-            'username' => '  Normalized  ',
-            'password' => 'secret123',
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'khong-khop@wms-hoanam.test',
+            'password' => TestCredentials::PASSWORD,
+        ])
+            ->assertStatus(401)
+            ->assertJsonPath('error.code', 'UNAUTHENTICATED')
+            ->assertJsonMissingPath('data');
+    }
+
+    /**
+     * 32147a3: `username` bị cấm ở /auth/login. Kể cả khi trỏ đúng một tài khoản có thật với
+     * đúng mật khẩu, request dừng ở validate (422) trước bước kiểm mật khẩu — username không
+     * còn là đường vào thứ hai của cùng một tài khoản.
+     */
+    public function test_login_with_username_is_rejected_before_credentials_are_checked(): void
+    {
+        User::create([
+            'username' => 'normalized',
+            'email' => 'normalized@wms-hoanam.test',
+            'display_name' => 'Normalized user',
+            'password_hash' => Hash::make(TestCredentials::PASSWORD),
+            'status' => 'ACTIVE',
+            'version' => 1,
         ]);
 
-        $response->assertStatus(401)
-            ->assertJsonPath('error.code', 'UNAUTHENTICATED');
+        $this->postJson('/api/v1/auth/login', [
+            'username' => 'normalized',
+            'password' => TestCredentials::PASSWORD,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'BUSINESS_RULE_ERROR')
+            ->assertJsonStructure(['errors' => ['username']])
+            ->assertJsonMissingPath('data');
     }
 
     public function test_user_create_and_update_write_audit_log(): void
