@@ -2,12 +2,12 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\CacheKey;
 use App\Support\Cache\CacheService;
 use App\Support\Cache\CacheTtl;
+use App\Support\Database\SchemaCache;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -633,7 +633,11 @@ class CurrentBaselineMasterController extends Controller
             'package_variants' => 'package_variant_id',
             default => null,
         };
-        if ($column === null || ! SchemaCache::hasColumn('skus', $column)) {
+        // `skus` là BẢNG trên PostgreSQL nhưng là VIEW trên sqlite. hasColumn() chỉ
+        // thấy bảng thật nên trên view nó trả false và guard bất biến mã master bị bỏ
+        // qua im lặng (PATCH đổi được mã dù SKU đang tham chiếu). hasRelationColumn()
+        // đúng trên cả hai driver.
+        if ($column === null || ! SchemaCache::hasRelationColumn('skus', $column)) {
             return false;
         }
 
@@ -788,5 +792,4 @@ class CurrentBaselineMasterController extends Controller
 
         return array_values(array_filter($candidates, fn (string $column): bool => SchemaCache::hasColumn($table, $column)));
     }
-
 }
