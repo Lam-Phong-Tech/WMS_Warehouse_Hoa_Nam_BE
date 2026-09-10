@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "WWHN-195 Outbound Document API Contract v2.0.0-R2",
-    "description": "Sinh tự động từ docs/api-contract/WWHN-195-outbound-openapi.json v2.0.0-R2 bởi scripts/wwhn-201-outbound-contract-lock.mjs. KHÔNG sửa tay: chạy lại script sau mỗi lần đổi OpenAPI, nếu không verify-wwhn-201-contract.mjs sẽ đỏ. Neo quyết định: DEC-OUT-STOCK-HTTP-001 (không đủ tồn = 422 INSUFFICIENT_STOCK).",
+    "name": "WWHN-195 Outbound Document API Contract v2.1.0",
+    "description": "Sinh tự động từ docs/api-contract/WWHN-195-outbound-openapi.json v2.1.0 bởi scripts/wwhn-201-outbound-contract-lock.mjs. KHÔNG sửa tay: chạy lại script sau mỗi lần đổi OpenAPI, nếu không verify-wwhn-201-contract.mjs sẽ đỏ. Neo quyết định: DEC-OUT-STOCK-HTTP-001 (không đủ tồn = 422 INSUFFICIENT_STOCK).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -58,7 +58,7 @@
             "outbound-documents"
           ]
         },
-        "description": "Danh sách phiếu xuất (kèm tiến độ match/label/RFID) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403."
+        "description": "Danh sách phiếu xuất (kèm tiến độ match/label/RFID) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403."
       },
       "event": [
         {
@@ -113,7 +113,7 @@
             "{{document_id}}"
           ]
         },
-        "description": "Chi tiết phiếu xuất — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404."
+        "description": "Chi tiết phiếu xuất — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404."
       },
       "event": [
         {
@@ -177,7 +177,7 @@
             "cancel"
           ]
         },
-        "description": "Huỷ phiếu xuất (chỉ DRAFT/SCANNING; CANCELLED là terminal) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+        "description": "Huỷ phiếu xuất (chỉ DRAFT/SCANNING; CANCELLED là terminal) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -241,7 +241,7 @@
             "scan"
           ]
         },
-        "description": "Quét/match item vào dòng phiếu xuất (stock_effect=NONE) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+        "description": "Quét/match item vào dòng phiếu xuất (stock_effect=NONE) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -305,7 +305,7 @@
             "scans"
           ]
         },
-        "description": "Alias Annex C của scanOutboundDocument (cùng handler) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+        "description": "Alias Annex C của scanOutboundDocument (cùng handler) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -369,7 +369,7 @@
             "unmatch"
           ]
         },
-        "description": "Gỡ item đã match trước Post (stock_effect=NONE) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+        "description": "Gỡ item đã match trước Post (stock_effect=NONE) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -437,7 +437,7 @@
             "post-issue"
           ]
         },
-        "description": "Hoàn tất xuất — SCANNING → POSTED, trừ tồn atomic đúng một lần — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
+        "description": "Hoàn tất xuất — SCANNING → POSTED, trừ tồn atomic đúng một lần — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 422, 428."
       },
       "event": [
         {
@@ -501,7 +501,7 @@
             "reverse"
           ]
         },
-        "description": "Hoàn đảo phiếu xuất đã POSTED (append-only) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422, 428."
+        "description": "Hoàn đảo phiếu xuất đã POSTED (append-only) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422, 428."
       },
       "event": [
         {
@@ -565,7 +565,7 @@
             "reversals"
           ]
         },
-        "description": "Alias Annex C của reverseOutboundDocument (cùng handler) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422, 428."
+        "description": "Alias Annex C của reverseOutboundDocument (cùng handler) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422, 428."
       },
       "event": [
         {
@@ -627,7 +627,7 @@
             "rfid"
           ]
         },
-        "description": "Gắn RFID/hardware_uid cho item đã match (tuỳ chọn, stock-neutral) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
+        "description": "Gắn RFID/hardware_uid cho item đã match (tuỳ chọn, stock-neutral) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
       },
       "event": [
         {
@@ -693,7 +693,7 @@
             "preview"
           ]
         },
-        "description": "Packing Label: DRAFT → PREVIEWED (stock-neutral) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 428."
+        "description": "Packing Label: DRAFT → PREVIEWED (stock-neutral) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 428."
       },
       "event": [
         {
@@ -763,7 +763,7 @@
             "ready"
           ]
         },
-        "description": "Packing Label: PREVIEWED → READY_TO_PRINT (đóng băng snapshot) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 428."
+        "description": "Packing Label: PREVIEWED → READY_TO_PRINT (đóng băng snapshot) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 412, 428."
       },
       "event": [
         {
@@ -825,7 +825,7 @@
             "print"
           ]
         },
-        "description": "Packing Label: READY_TO_PRINT → PRINTED (hoặc PRINT_FAILED) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
+        "description": "Packing Label: READY_TO_PRINT → PRINTED (hoặc PRINT_FAILED) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
       },
       "event": [
         {
@@ -887,7 +887,123 @@
             "reprint"
           ]
         },
-        "description": "In lại Packing Label từ đúng snapshot bất biến (stock-neutral) — sinh từ WWHN-195 v2.0.0-R2 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
+        "description": "In lại Packing Label từ đúng snapshot bất biến (stock-neutral) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"422\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/v1/outbound-documents/{id}/attachments",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/attachments",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "attachments"
+          ]
+        },
+        "description": "Danh sách chứng từ đính kèm của phiếu xuất — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const allowed = [\"200\",\"401\",\"403\",\"404\"].map(Number);",
+              "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
+              "  pm.expect(allowed).to.include(pm.response.code);",
+              "});",
+              "",
+              "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
+              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "if (pm.response.code >= 400) {",
+              "  const body = pm.response.json();",
+              "  const code = body.error_code || (body.error && body.error.code);",
+              "  const expected = contract[String(pm.response.code)];",
+              "  if (expected && code) {",
+              "    pm.test(\"business code khớp HTTP status theo §8.2\", function () {",
+              "      pm.expect(expected).to.include(code);",
+              "    });",
+              "  }",
+              "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
+              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "POST /api/v1/outbound-documents/{id}/attachments",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/attachments",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "outbound-documents",
+            "{{document_id}}",
+            "attachments"
+          ]
+        },
+        "description": "Tải lên chứng từ đính kèm cho phiếu xuất (stock-neutral) — sinh từ WWHN-195 v2.1.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
       },
       "event": [
         {
@@ -921,6 +1037,6 @@
       ]
     }
   ],
-  "x-source-contract-version": "2.0.0-R2",
+  "x-source-contract-version": "2.1.0",
   "x-decision": "DEC-OUT-STOCK-HTTP-001"
 }

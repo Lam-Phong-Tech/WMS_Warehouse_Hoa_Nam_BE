@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: WWHN-195 — Outbound Document API (HN-OUT-001)
-  version: 2.0.0-R2
+  version: 2.1.0
   description: >-
     Contract của luồng xuất kho, **sinh lại từ bảng route canonical** sau register R2
     (DEV195-P1-05R2). Nguồn sự thật: `Modules/Warehouse/routes/api.php` +
@@ -204,8 +204,8 @@ components:
           format: uuid
           nullable: true
           description: >-
-            Tùy chọn khi gửi code_value (Change Pack QR/SKU 20/08/2026): server tự match dòng
-            theo SKU parse từ composite QR. Bắt buộc cho scan không kèm code_value.
+            Tùy chọn khi gửi code_value (Change Pack QR/SKU 20/08/2026): server tự match dòng theo
+            SKU parse từ composite QR. Bắt buộc cho scan không kèm code_value.
         quantity:
           type: integer
           minimum: 1
@@ -1069,6 +1069,99 @@ paths:
                 $ref: '#/components/schemas/Error'
         '422':
           $ref: '#/components/responses/Validation'
+  /api/v1/outbound-documents/{id}/attachments:
+    get:
+      operationId: listOutboundDocumentAttachments
+      tags:
+        - Outbound Document
+      summary: Danh sách chứng từ đính kèm của phiếu xuất
+      description: >-
+        Handler DocumentAttachmentController::indexOutbound (route thêm ở 368943c, 27/08/2026). Chỉ
+        đọc, stock-neutral. Phiếu xuất không bắt buộc chứng từ trước Post Issue
+        (requires_evidence=false) vì chứng từ nguồn là outbound_request_imports.
+      x-permission: outbound.view
+      x-data-scope: EnforceOutboundWarehouseScope
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 15
+      responses:
+        '200':
+          description: Danh sách chứng từ đính kèm (DocumentAttachment) của phiếu xuất
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      operationId: uploadOutboundDocumentAttachment
+      tags:
+        - Outbound Document
+      summary: Tải lên chứng từ đính kèm cho phiếu xuất (stock-neutral)
+      description: >-
+        Handler DocumentAttachmentController::storeOutbound (route thêm ở 368943c, 27/08/2026).
+        Stock-neutral (stock_effect=NONE). Từ chối khi phiếu đã POSTED/CANCELLED (409
+        STATE_CONFLICT). Tệp jpg/jpeg/png/webp hoặc PDF, tối đa 15MB.
+      x-permission: outbound.scan|outbound.post
+      x-data-scope: EnforceOutboundWarehouseScope
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Ảnh jpg/jpeg/png/webp hoặc PDF, <=15MB.
+                attachment_type:
+                  type: string
+                  nullable: true
+                  enum:
+                    - SOURCE_DOCUMENT
+                    - INVOICE
+                    - DELIVERY_NOTE
+                    - PHOTO
+                    - OTHER
+                note:
+                  type: string
+                  maxLength: 500
+                  nullable: true
+      responses:
+        '200':
+          description: Chứng từ đã lưu; tồn kho không đổi (stock_effect=NONE)
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: STATE_CONFLICT — phiếu xuất đã POSTED/CANCELLED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/Validation'
 x-packing-label-contract:
   cardinality: ONE_PER_OUTBOUND_DOCUMENT
   created_at: FULL_MATCH
@@ -1101,7 +1194,7 @@ x-packing-label-contract:
     PENDING_PRINT) — không còn được route tới sau Flow06AlignmentServiceProvider.
   ticket: WWHN-198
   finding: DEV198-P1-06
-x-document-version: 2.0.0-R2
+x-document-version: 2.1.0
 x-contract-status: LOCKED_CANDIDATE
 x-approval-status: PENDING_BA_SIGN_OFF
 x-tickets:
@@ -1128,4 +1221,10 @@ x-note: >-
   INSUFFICIENT_STOCK, không phải 409. Tập path/method trong file này được sinh và kiểm tra lại từ
   `php artisan route:list` nên không thể mô tả endpoint không tồn tại. Postman
   WWHN-195-outbound.postman_collection.json bind cùng revision; hash cả ba artifact nằm trong
-  WWHN-201-outbound-contract-lock.json.
+  WWHN-201-outbound-contract-lock.json. v2.1.0 (10/09/2026, rà drift governance): bổ sung GET/POST
+  /outbound-documents/{id}/attachments — hai operation đã có route runtime từ 368943c (27/08/2026)
+  nhưng thiếu trong hợp đồng, làm Wwhn195OutboundContractAlignmentTest đỏ. Không đổi operation nào
+  có sẵn. Đồng thời port vào JSON 5 sửa đổi của Change Pack QR/SKU 20/08/2026 (33e3c71) trước đây
+  chỉ nằm ở YAML — OutboundScanRequest: line_id tuỳ chọn khi có code_value, code_value maxLength 512
+  — vì script khoá sinh YAML từ JSON. Lock WWHN-201 sinh lại cùng revision; x-approval-status vẫn
+  PENDING_BA_SIGN_OFF.

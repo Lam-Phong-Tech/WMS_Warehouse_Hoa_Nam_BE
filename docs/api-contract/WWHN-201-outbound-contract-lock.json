@@ -2,7 +2,7 @@
   "ticket": "WWHN-201",
   "finding": "DEV201-P1-04R",
   "decision": "DEC-OUT-STOCK-HTTP-001",
-  "contract_version": "2.0.0-R2",
+  "contract_version": "2.1.0",
   "contract_status": "LOCKED_CANDIDATE",
   "approval_status": "PENDING_BA_SIGN_OFF",
   "error_contract": {
@@ -26,6 +26,8 @@
   "operations": [
     "GET /api/v1/outbound-documents",
     "GET /api/v1/outbound-documents/{id}",
+    "GET /api/v1/outbound-documents/{id}/attachments",
+    "POST /api/v1/outbound-documents/{id}/attachments",
     "POST /api/v1/outbound-documents/{id}/cancel",
     "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/preview",
     "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/print",
@@ -41,8 +43,8 @@
   ],
   "removed_from_previous_version": [],
   "artifacts": {
-    "docs/api-contract/WWHN-195-outbound-openapi.json": "9f1e6213522cd074709a455f72fce91098abbbdfbf5593afd8181ccf8a93137e",
-    "docs/api-contract/WWHN-195-outbound-openapi.yaml": "4c4a0fbda1a9a6e9e14a52b66e5cee4792b30b30c86feb3d17c86ac49eb12777",
-    "docs/postman/WWHN-195-outbound.postman_collection.json": "2042c15459d47d4586fd7a62b491f5ce1bf1e9589da6766f808d49f95960fc47"
+    "docs/api-contract/WWHN-195-outbound-openapi.json": "e5f5ab91bde583edf9666ea8b6ef2ae1a3c4ed4a06f4a0c2a7a212e83fdcb22b",
+    "docs/api-contract/WWHN-195-outbound-openapi.yaml": "97c60c87eda7c60b91eb709b9ed85fea403272ea64cd63661f6433a0e1c77a4d",
+    "docs/postman/WWHN-195-outbound.postman_collection.json": "195b5fd1d6545455191c9e4a2d50ec1a6e2f7717d573f31b5a367c2af85b3cbc"
   }
 }
