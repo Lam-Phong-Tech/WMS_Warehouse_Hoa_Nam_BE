@@ -99,7 +99,13 @@ class Wwhn295HealthContractTest extends TestCase
     public function test_degraded_payload_lives_in_errors_and_error_details_not_in_data(): void
     {
         $this->seed(DatabaseSeeder::class);
-        User::query()->where('username', 'admin')->update(['status' => 'INACTIVE']);
+        // P0 bảo mật 10/09/2026: dấu hiệu seed là "có ít nhất một SUPER_ADMIN ACTIVE", không
+        // còn gắn với username `admin` (quản trị viên đầu tiên nay đến từ
+        // wms:bootstrap-super-admin với username tuỳ chọn). Nhánh degraded vì thế phải vô
+        // hiệu MỌI tài khoản giữ SUPER_ADMIN, kể cả fixture super-admin-01..03.
+        User::query()
+            ->whereHas('roles', fn ($query) => $query->where('role.role_code', 'SUPER_ADMIN'))
+            ->update(['status' => 'INACTIVE']);
 
         $response = $this->getJson('/api/v1/health')->assertStatus(503);
         $body = (array) $response->json();
