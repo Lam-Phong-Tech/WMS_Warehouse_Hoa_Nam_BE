@@ -2,17 +2,16 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
+use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Events\InboundSkuInfoPending;
@@ -68,6 +67,7 @@ class MiniAppInboundStagingController extends Controller
         'note',
         'items',
     ];
+
     // expected_total_qty giữ trong whitelist để không vỡ client cũ còn gửi field
     // này, nhưng không còn required/validate khớp — nhận đúng số lượng đã quét
     // thực tế, không cần khai trước ("quét đến đâu nhận đến đấy").
