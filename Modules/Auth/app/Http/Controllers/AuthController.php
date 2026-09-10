@@ -13,13 +13,13 @@ use Illuminate\Validation\ValidationException;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Events\SecurityAlertRaised;
 use Modules\Auth\Http\Requests\LoginRequest;
+use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\AuthUserPayload;
 use Modules\Auth\Support\MfaService;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
 use OpenApi\Attributes as OA;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
@@ -216,6 +216,21 @@ class AuthController extends Controller
 
         $user->forceFill(['last_login_at' => now()])->save();
 
+        // P1 10/09/2026: refresh token KHÔNG còn nằm trong JSON. Trình duyệt (Origin tin
+        // cậy) nhận nó trong cookie HttpOnly; client không phải trình duyệt chỉ nhận qua kênh
+        // body được bật tường minh; request không mang Origin nào (công cụ dòng lệnh) chỉ có
+        // access token ngắn hạn. Xem RefreshTokenTransport.
+        //
+        // Phiên refresh được tạo TRƯỚC khi dựng response, để access token trả về mang
+        // claim `sid` trỏ đúng phiên đó (API /auth/sessions dựa vào nó cho cờ is_current).
+        // Token mà attempt() vừa cấp ở trên chưa từng rời máy chủ, thay thế là an toàn.
+        $session = $this->tokenTransport->shouldIssueOnLogin($request)
+            ? $this->refreshTokens->issueSession($user, $request)
+            : null;
+        if ($session !== null) {
+            $accessToken = $this->refreshTokens->accessTokenFor($user, $session['id']);
+        }
+
         $response = $this->respondSuccess([
             'access_token' => $accessToken,
             'token_type' => 'bearer',
@@ -223,12 +238,8 @@ class AuthController extends Controller
             'user' => AuthUserPayload::full($user),
         ], 'Đăng nhập thành công');
 
-        // P1 10/09/2026: refresh token KHÔNG còn nằm trong JSON. Trình duyệt (Origin tin
-        // cậy) nhận nó trong cookie HttpOnly; client không phải trình duyệt chỉ nhận qua kênh
-        // body được bật tường minh; request không mang Origin nào (công cụ dòng lệnh) chỉ có
-        // access token ngắn hạn. Xem RefreshTokenTransport.
-        if ($this->tokenTransport->shouldIssueOnLogin($request)) {
-            $this->tokenTransport->deliver($request, $response, $this->refreshTokens->issue($user, $request));
+        if ($session !== null) {
+            $this->tokenTransport->deliver($request, $response, $session['raw']);
         }
 
         $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
@@ -298,7 +309,9 @@ class AuthController extends Controller
         }
 
         $user = $rotated['user'];
-        $accessToken = JWTAuth::fromUser($user);
+        // Token mới mang `sid` của phiên VỪA xoay vòng, để /auth/sessions vẫn nhận ra
+        // đúng phiên hiện tại sau mỗi lần làm mới.
+        $accessToken = $this->refreshTokens->accessTokenFor($user, $rotated['id']);
         $this->auditLogger->log('TOKEN_REFRESH', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
 
         $response = $this->respondSuccess([
@@ -378,6 +391,198 @@ class AuthController extends Controller
             ...$this->userProfilePayload($user),
             ...$this->userAuthorizationPayload($user),
         ]);
+    }
+
+    #[OA\Patch(
+        path: '/api/v1/auth/me', operationId: 'auth_update_me',
+        summary: 'Sửa hồ sơ của chính mình (tên hiển thị, số điện thoại)',
+        description: 'Chỉ nhận display_name và phone. Gửi bất kỳ trường nào khác (email, username, status, roles, permissions, department_id, password...) trả 422 PROFILE_FIELD_NOT_EDITABLE kèm danh sách trường vi phạm — vai trò và quyền không bao giờ tự sửa được. Email là định danh đăng nhập nên không sửa ở đây. Gửi kèm If-Match: <version> (lấy từ GET /auth/me) để chống ghi đè giữa hai thiết bị; lệch version trả 412 STALE_VERSION. Response cùng dạng GET /auth/me, kèm header ETag.',
+        security: [['bearerAuth' => []]], tags: ['01. Authentication'],
+        parameters: [
+            new OA\Parameter(name: 'If-Match', in: 'header', required: false, description: 'version hiện tại của hồ sơ.', schema: new OA\Schema(type: 'string', example: '3')),
+        ],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            properties: [
+                new OA\Property(property: 'display_name', type: 'string', maxLength: 255),
+                new OA\Property(property: 'phone', type: 'string', nullable: true, pattern: '^0\d{9}$', example: '0912345678'),
+            ]
+        )),
+        responses: [
+            new OA\Response(response: 200, description: 'Hồ sơ sau khi sửa'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — hồ sơ đã được sửa ở phiên khác'),
+            new OA\Response(response: 422, description: 'PROFILE_FIELD_NOT_EDITABLE / PROFILE_EMPTY_UPDATE / INVALID_VERSION / VALIDATION_ERROR'),
+        ]
+    )]
+    public function updateMe(Request $request)
+    {
+        /** @var User $user */
+        $user = auth('api')->user();
+
+        // Allowlist tường minh, và trường lạ là LỖI chứ không phải bị bỏ qua: client
+        // gửi `roles` mà nhận 200 sẽ tưởng đã đổi được vai trò. Đọc riêng body, không
+        // lẫn query string.
+        $body = $request->isJson() ? $request->json()->all() : $request->request->all();
+        $forbidden = array_values(array_diff(array_keys($body), ['display_name', 'phone']));
+        if ($forbidden !== []) {
+            return $this->respondError(
+                'Chỉ được sửa tên hiển thị và số điện thoại. Vai trò, quyền và email không tự sửa được.',
+                ['fields' => $forbidden], 422, 'PROFILE_FIELD_NOT_EDITABLE',
+            );
+        }
+
+        $data = $request->validate([
+            'display_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
+        ]);
+        if ($data === []) {
+            return $this->respondError('Không có trường nào để cập nhật.', [], 422, 'PROFILE_EMPTY_UPDATE');
+        }
+
+        // Cùng quy ước với AgencyController::assertVersionIfProvided(): chỉ ép khi
+        // client gửi header, để client cũ không vỡ.
+        $ifMatch = trim((string) $request->header('If-Match'));
+        if ($ifMatch !== '') {
+            $expected = trim(preg_replace('/^W\//', '', $ifMatch) ?? $ifMatch, '" ');
+            if (! ctype_digit($expected)) {
+                return $this->respondError('If-Match phải là version số nguyên.', [], 422, 'INVALID_VERSION');
+            }
+            if ((int) $expected !== (int) $user->version) {
+                return $this->respondError(
+                    'Hồ sơ đã được cập nhật ở phiên khác; tải lại trước khi lưu.',
+                    ['expected_version' => (int) $expected, 'current_version' => (int) $user->version],
+                    412, 'STALE_VERSION',
+                );
+            }
+        }
+
+        if (array_key_exists('display_name', $data)) {
+            $data['display_name'] = trim((string) $data['display_name']);
+        }
+        $before = array_intersect_key(['display_name' => $user->display_name, 'phone' => $user->phone], $data);
+
+        $user->forceFill([...$data, 'version' => ((int) $user->version) + 1])->save();
+
+        $this->auditLogger->log(
+            'UPDATE_PROFILE', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(),
+            $before, array_intersect_key(['display_name' => $user->display_name, 'phone' => $user->phone], $data),
+            result: 'SUCCESS',
+        );
+
+        $fresh = $user->fresh() ?? $user;
+
+        return $this->respondSuccess([
+            ...$this->userProfilePayload($fresh),
+            ...$this->userAuthorizationPayload($fresh),
+        ], 'Cập nhật hồ sơ thành công')->header('ETag', '"'.((int) $fresh->version).'"');
+    }
+
+    #[OA\Get(
+        path: '/api/v1/auth/sessions', operationId: 'auth_sessions',
+        summary: 'Các thiết bị đang đăng nhập của chính mình',
+        description: 'Mỗi dòng là một lần đăng nhập còn hiệu lực (refresh token chưa thu hồi, chưa hết hạn). KHÔNG bao giờ trả token. `is_current` đánh dấu phiên của chính request đang gọi — chỉ xác định được với access token cấp từ bản này trở đi (mang claim sid); token cũ hơn thì mọi dòng đều false cho tới lần đăng nhập/làm mới kế tiếp. `last_active_at` là lần đăng nhập hoặc làm mới token gần nhất, không phải từng request.',
+        security: [['bearerAuth' => []]], tags: ['01. Authentication'],
+        parameters: [
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'data[]: id, device_label, user_agent, ip_address, last_active_at, expires_at, is_current + meta phân trang'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+        ]
+    )]
+    public function sessions(Request $request)
+    {
+        /** @var User $user */
+        $user = auth('api')->user();
+        $currentId = $this->refreshTokens->currentSessionId();
+
+        $page = RefreshToken::query()
+            ->active()
+            ->where('user_id', $user->user_id)
+            ->orderByDesc('created_at')
+            ->paginate($this->perPage($request, 20));
+
+        $page->setCollection($page->getCollection()->map(fn ($session): array => [
+            'id' => (string) $session->id,
+            'device_label' => $this->deviceLabel($session->user_agent),
+            'user_agent' => $session->user_agent,
+            'ip_address' => $session->ip_address,
+            'last_active_at' => $session->created_at?->toIso8601String(),
+            'expires_at' => $session->expires_at?->toIso8601String(),
+            'is_current' => $currentId !== null && strcasecmp($currentId, (string) $session->id) === 0,
+        ]));
+
+        return $this->respondPaginated($page);
+    }
+
+    #[OA\Delete(
+        path: '/api/v1/auth/sessions/{id}', operationId: 'auth_session_revoke',
+        summary: 'Đăng xuất một thiết bị của chính mình',
+        description: 'Thu hồi refresh token của phiên đó: thiết bị ấy KHÔNG làm mới token được nữa và phải đăng nhập lại. Lưu ý: access token đang dùng của thiết bị đó vẫn gọi API được tới khi hết hạn tự nhiên (JWT stateless). Id phiên của người khác trả 404, không phải 403. Gọi lại trên phiên đã thu hồi vẫn 200 (already_revoked=true) nên bấm lại không sao. Đăng xuất chính máy đang dùng thì gọi POST /auth/logout.',
+        security: [['bearerAuth' => []]], tags: ['01. Authentication'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'id, revoked, already_revoked, was_current'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy phiên của bạn với id này'),
+        ]
+    )]
+    public function revokeSession(Request $request, string $id)
+    {
+        /** @var User $user */
+        $user = auth('api')->user();
+
+        // id không phải UUID thì PostgreSQL ném 22P02 khi so cột uuid -> 500. Trả 404.
+        if (! Str::isUuid($id)) {
+            return $this->respondNotFound('Không tìm thấy phiên đăng nhập.');
+        }
+
+        $session = RefreshToken::query()
+            ->where('user_id', $user->user_id)
+            ->where('id', $id)
+            ->first();
+        if ($session === null) {
+            return $this->respondNotFound('Không tìm thấy phiên đăng nhập.');
+        }
+
+        $currentId = $this->refreshTokens->currentSessionId();
+        $wasCurrent = $currentId !== null && strcasecmp($currentId, (string) $session->id) === 0;
+        $alreadyRevoked = $session->revoked_at !== null;
+
+        if (! $alreadyRevoked) {
+            $session->forceFill(['revoked_at' => now()])->save();
+            $this->auditLogger->log(
+                'REVOKE_SESSION', 'refresh_token', (string) $session->id, $user->user_id, $this->currentRequestId(),
+                [], ['was_current' => $wasCurrent], result: 'SUCCESS',
+            );
+        }
+
+        return $this->respondSuccess([
+            'id' => (string) $session->id,
+            'revoked' => true,
+            'already_revoked' => $alreadyRevoked,
+            'was_current' => $wasCurrent,
+        ], 'Đã đăng xuất thiết bị');
+    }
+
+    /** Nhãn thiết bị thô từ user-agent, đủ để người dùng nhận ra máy của mình. */
+    private function deviceLabel(?string $userAgent): string
+    {
+        $ua = strtolower((string) $userAgent);
+
+        return match (true) {
+            $ua === '' => 'Không xác định',
+            str_contains($ua, 'iphone') => 'iPhone',
+            str_contains($ua, 'ipad') => 'iPad',
+            str_contains($ua, 'android') => 'Android',
+            str_contains($ua, 'windows') => 'Windows',
+            str_contains($ua, 'macintosh') || str_contains($ua, 'mac os') => 'macOS',
+            str_contains($ua, 'linux') => 'Linux',
+            default => 'Thiết bị khác',
+        };
     }
 
     #[OA\Post(
@@ -466,7 +671,9 @@ class AuthController extends Controller
             return $this->respondError('Ngữ cảnh kho nằm ngoài phạm vi được gán.', [], 403, 'ACCESS_DENIED');
         }
 
-        $accessToken = JWTAuth::fromUser($user);
+        // Giữ nguyên `sid` của phiên đang dùng: chuyển ngữ cảnh không tạo phiên mới, và
+        // bỏ mất claim thì /auth/sessions sẽ không còn nhận ra phiên hiện tại.
+        $accessToken = $this->refreshTokens->accessTokenFor($user, $this->refreshTokens->currentSessionId());
         $this->auditLogger->log(
             'SWITCH_CONTEXT', 'app_user', $user->user_id, $user->user_id,
             $this->currentRequestId(), [], $request->only(['context_type', 'context_id', 'scope_ref']),

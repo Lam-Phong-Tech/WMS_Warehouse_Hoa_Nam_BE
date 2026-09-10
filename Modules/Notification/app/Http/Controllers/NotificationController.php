@@ -8,6 +8,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Modules\Notification\Models\NotificationRecipient;
 use OpenApi\Attributes as OA;
 
@@ -119,6 +120,43 @@ class NotificationController extends Controller
         );
 
         return $this->respondSuccess($payload);
+    }
+
+    #[OA\Get(
+        path: '/api/v1/notifications/{id}',
+        operationId: 'notification_show',
+        summary: 'Chi tiết 1 thông báo của tôi',
+        description: 'Chỉ ĐỌC, không tự đánh dấu đã đọc — muốn đánh dấu thì gọi PATCH /notifications/{id}/read. '
+            .'Thông báo của người khác trả 404 chứ không phải 403, để không lộ việc id đó có tồn tại. '
+            .'Trỏ tới đối tượng nghiệp vụ qua subject_type + subject_id.',
+        security: [['bearerAuth' => []]],
+        tags: ['16. Notifications'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Thông báo của user hiện tại'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 404, description: 'Không tìm thấy thông báo của bạn với id này'),
+        ]
+    )]
+    public function show(Request $request, string $id)
+    {
+        // id không phải UUID thì trên PostgreSQL câu so sánh cột uuid ném 22P02 và
+        // biến một lỗi "không tìm thấy" thành 500. Chặn trước, trả đúng 404.
+        if (! Str::isUuid($id) && ! ctype_digit($id)) {
+            return $this->respondNotFound('Không tìm thấy thông báo.');
+        }
+
+        $recipient = NotificationRecipient::query()
+            ->with('notification')
+            ->where('user_id', $request->user()->user_id)
+            ->where('id', $id)
+            ->first();
+
+        if ($recipient === null) {
+            return $this->respondNotFound('Không tìm thấy thông báo.');
+        }
+
+        return $this->respondSuccess($this->present($recipient));
     }
 
     #[OA\Patch(

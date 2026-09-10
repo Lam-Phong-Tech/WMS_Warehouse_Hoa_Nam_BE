@@ -38,9 +38,16 @@ Route::prefix('v1')->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout'])
             ->middleware(PersistRefreshTokenCookie::class);
         Route::get('auth/me', [AuthController::class, 'me']);
+        // Sửa hồ sơ của CHÍNH mình: chỉ display_name/phone, không bao giờ vai trò/quyền.
+        Route::patch('auth/me', [AuthController::class, 'updateMe']);
         Route::post('auth/change-password', [AuthController::class, 'changePassword'])
             ->middleware(PersistRefreshTokenCookie::class);
         Route::post('auth/switch-context', [AuthController::class, 'switchContext']);
+
+        // Thiết bị đang đăng nhập của CHÍNH mình — mỗi phiên là một refresh token còn
+        // hiệu lực. Lọc cứng theo user đang gọi; id phiên của người khác trả 404.
+        Route::get('auth/sessions', [AuthController::class, 'sessions']);
+        Route::delete('auth/sessions/{id}', [AuthController::class, 'revokeSession']);
 
         // WWHN-SEC-08 — quản lý MFA của CHÍNH tài khoản đang đăng nhập.
         // Không có `permission:` vì đây là self-service, cùng nhóm với

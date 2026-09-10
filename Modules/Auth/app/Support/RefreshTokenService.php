@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * Phát hành/xoay vòng refresh token. Không snapshot active-context claims (khác ERP-Backend
@@ -17,9 +18,22 @@ class RefreshTokenService
 {
     public function issue(User $user, Request $request): string
     {
+        return $this->issueSession($user, $request)['raw'];
+    }
+
+    /**
+     * Như issue() nhưng trả kèm id bản ghi phiên. Id này được gắn vào access token
+     * dưới claim `sid` (xem accessTokenFor()), để API "thiết bị đang đăng nhập" nhận
+     * ra phiên nào là của CHÍNH request đang gọi — cờ `is_current`. So user-agent thì
+     * sai: một máy có thể giữ nhiều phiên với cùng user-agent.
+     *
+     * @return array{raw: string, id: string}
+     */
+    public function issueSession(User $user, Request $request): array
+    {
         $raw = $this->generateRawToken();
 
-        RefreshToken::create([
+        $record = RefreshToken::create([
             'user_id' => $user->user_id,
             'token_hash' => $this->hash($raw),
             // refresh_tokens.user_agent là varchar(255): trình duyệt nào gửi UA
@@ -32,11 +46,44 @@ class RefreshTokenService
             'expires_at' => now()->addMinutes((int) config('refresh_token.ttl_minutes')),
         ]);
 
-        return $raw;
+        return ['raw' => $raw, 'id' => (string) $record->getKey()];
     }
 
     /**
-     * @return array{user: User, raw: string}|null
+     * Access token cho một user, gắn claim `sid` khi biết phiên refresh tương ứng.
+     * Không có phiên (request không nhận refresh token, vd công cụ dòng lệnh) thì cấp
+     * token trơn như trước.
+     *
+     * Luôn gọi claims(), kể cả với mảng rỗng: JWTAuth là singleton và fromUser()
+     * không xoá custom claim của lần gọi trước, nên token trơn cấp sau một token có
+     * sid trong cùng tiến trình sẽ mang nhầm sid cũ.
+     */
+    public function accessTokenFor(User $user, ?string $sessionId): string
+    {
+        return JWTAuth::claims($sessionId === null ? [] : ['sid' => $sessionId])->fromUser($user);
+    }
+
+    /**
+     * Id phiên refresh mà access token của request hiện tại thuộc về (claim `sid`).
+     * Null với token cấp trước khi có claim này, hoặc khi không đọc được payload.
+     *
+     * Parse lại token mà request đang trình ra thay vì auth('api')->payload(): guard
+     * JWT giữ token nó thấy đầu tiên trong vòng đời tiến trình (attempt() lúc login,
+     * hay request trước), nên trong tiến trình sống lâu nó trả sid của phiên khác.
+     */
+    public function currentSessionId(): ?string
+    {
+        try {
+            $sid = JWTAuth::parseToken()->getPayload()->get('sid');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return is_string($sid) && $sid !== '' ? $sid : null;
+    }
+
+    /**
+     * @return array{user: User, raw: string, id: string}|null
      */
     public function rotate(string $rawToken, Request $request): ?array
     {
@@ -66,9 +113,9 @@ class RefreshTokenService
                 return null;
             }
 
-            $newRaw = $this->issue($user, $request);
+            $session = $this->issueSession($user, $request);
 
-            return ['user' => $user, 'raw' => $newRaw];
+            return ['user' => $user, 'raw' => $session['raw'], 'id' => $session['id']];
         });
     }
 

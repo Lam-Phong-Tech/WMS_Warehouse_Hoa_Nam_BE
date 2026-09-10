@@ -151,6 +151,13 @@ class BackendGoLiveCheck extends Command
         'api/v1/notifications/unread-count',
         'api/v1/notifications/read-all',
         'api/v1/notifications/{id}/read',
+        'api/v1/notifications/{id}',
+
+        // Hồ sơ + thiết bị đang đăng nhập của CHÍNH mình. PATCH api/v1/auth/me dùng
+        // chung khoá 'api/v1/auth/me' ở đầu danh sách (sổ này khoá theo URI). Mọi truy
+        // vấn trong AuthController lọc cứng theo user đang gọi; phiên người khác trả 404.
+        'api/v1/auth/sessions',
+        'api/v1/auth/sessions/{id}',
 
         // Ép cứng object_type='user' + object_id = user_id người gọi bằng scope
         // closure, không đi qua danh sách filter nên client không override được.

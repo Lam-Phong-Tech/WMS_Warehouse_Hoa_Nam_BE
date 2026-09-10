@@ -2,20 +2,22 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
+use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Modules\AuditLog\Models\AuditLog;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
@@ -645,6 +647,70 @@ class MiniAppNfcController extends Controller
             'stock_effect' => 'NONE',
             'movement_created' => false,
         ], 'Đã thu hồi chip NFC; hiện vật có thể gán chip mới.');
+    }
+
+    /**
+     * Lịch sử gán/thu hồi của MỘT chip, đọc từ nhật ký kiểm toán. Không có bảng lịch
+     * sử NFC riêng: mỗi lần confirm/deactivate đã ghi audit với object_type =
+     * physical_code, nên đọc lại đúng nguồn đó thay vì nhân đôi dữ liệu.
+     */
+    public function tagEvents(Request $request, string $physicalCodeId): JsonResponse
+    {
+        $validated = $request->validate([
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        // id rác trên PostgreSQL ném 22P02 khi so cột uuid -> 500. Trả 404 như chip không có.
+        if (! Str::isUuid($physicalCodeId)) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy chip NFC.');
+        }
+        $tag = DB::table('physical_codes')->where('physical_code_id', $physicalCodeId)->first();
+        if ($tag === null || strtoupper((string) $tag->carrier_type) !== 'NFC') {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy chip NFC.');
+        }
+
+        // Đọc qua quan hệ mà AuditLogger GHI vào (model AuditLog), không đọc thẳng bảng
+        // audit_logs: trên PostgreSQL app ghi qua view `audit_log` với tên cột khác.
+        $auditTable = (new AuditLog)->getTable();
+
+        $page = DB::table($auditTable.' as a')
+            ->leftJoin('app_user as u', 'u.user_id', '=', 'a.actor_id')
+            ->where('a.object_type', 'physical_code')
+            ->where('a.object_id', $physicalCodeId)
+            ->orderByDesc('a.created_at')
+            ->select([
+                'a.id', 'a.action', 'a.result', 'a.reason', 'a.actor_id',
+                'u.display_name as actor_name', 'a.before_data', 'a.after_data', 'a.created_at',
+            ])
+            ->paginate((int) ($validated['per_page'] ?? 20));
+
+        $page->setCollection($page->getCollection()->map(fn (object $row): array => [
+            'id' => (string) $row->id,
+            'action' => (string) $row->action,
+            'result' => $row->result,
+            'reason' => $row->reason,
+            'actor_id' => $row->actor_id !== null ? (string) $row->actor_id : null,
+            'actor_name' => $row->actor_name,
+            'before_data' => $this->decodeAuditJson($row->before_data),
+            'after_data' => $this->decodeAuditJson($row->after_data),
+            'created_at' => $row->created_at !== null
+                ? Carbon::parse($row->created_at)->toIso8601String()
+                : null,
+        ]));
+
+        return $this->respondPaginated($page);
+    }
+
+    private function decodeAuditJson(mixed $value): mixed
+    {
+        if (! is_string($value) || $value === '') {
+            return $value;
+        }
+
+        $decoded = json_decode($value, true);
+
+        return json_last_error() === JSON_ERROR_NONE ? $decoded : $value;
     }
 
     // ── Reservation ──────────────────────────────────────────────────────

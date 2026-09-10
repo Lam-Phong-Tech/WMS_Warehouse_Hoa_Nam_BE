@@ -2,12 +2,12 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
+use App\Support\Database\SchemaCache;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use OpenApi\Attributes as OA;
 
@@ -325,11 +325,17 @@ class WmsContractController extends Controller
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'result_status', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'from', in: 'query', description: 'Từ ngày (Y-m-d), theo created_at.', schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'to', in: 'query', description: 'Đến ngày (Y-m-d), phải >= from.', schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'mine', in: 'query', description: '1 = chỉ lượt quét của CHÍNH người đang gọi. Không có tham số nào lọc theo user khác; user_id gửi lên bị bỏ qua.', schema: new OA\Schema(type: 'boolean')),
+            new OA\Parameter(name: 'entity_type', in: 'query', description: 'Lọc theo resolved_object_type.', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'scan_batch_id', in: 'query', description: 'Một lô/phiên quét cụ thể — dùng làm session_id của màn lịch sử quét.', schema: new OA\Schema(type: 'string', format: 'uuid')),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Paginated scan events'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
             new OA\Response(response: 403, description: 'Missing inventory.view permission'),
+            new OA\Response(response: 422, description: 'from/to/scan_batch_id/mine sai định dạng, hoặc to < from'),
         ]
     )]
     public function scanEvents(Request $request)
@@ -338,8 +344,25 @@ class WmsContractController extends Controller
         // `scan_record_events` (ScanRecordingService, gắn với scan_batches) và
         // `scan_events` canonical do luồng chứng từ ghi qua recordScanEvidence.
         // Truy vết phải nhìn được cả hai nên hợp nhất về một contract chung.
-        $resultStatus = $request->filled('result_status') ? (string) $request->input('result_status') : null;
+        $request->validate([
+            'result_status' => ['nullable', 'string', 'max:40'],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'entity_type' => ['nullable', 'string', 'max:60'],
+            'scan_batch_id' => ['nullable', 'uuid'],
+            'mine' => ['nullable', 'in:0,1,true,false'],
+        ]);
 
+        // `mine=1` là cách DUY NHẤT lọc theo người quét, và nó luôn là người đang gọi.
+        // Không nhận user_id từ client: đó chính là đường đọc lịch sử quét của người khác.
+        $filters = [
+            'result_status' => $request->filled('result_status') ? (string) $request->input('result_status') : null,
+            'from' => $request->filled('from') ? (string) $request->input('from') : null,
+            'to' => $request->filled('to') ? (string) $request->input('to') : null,
+            'entity_type' => $request->filled('entity_type') ? (string) $request->input('entity_type') : null,
+            'scan_batch_id' => $request->filled('scan_batch_id') ? (string) $request->input('scan_batch_id') : null,
+            'actor_id' => $request->boolean('mine') ? (string) $request->user()->user_id : null,
+        ];
         $recordEvents = DB::table('scan_record_events')
             ->select([
                 'scan_event_id as id',
@@ -352,9 +375,7 @@ class WmsContractController extends Controller
                 'resolved_object_id',
                 'created_at',
             ]);
-        if ($resultStatus !== null) {
-            $recordEvents->where('result_status', $resultStatus);
-        }
+        $this->applyScanEvidenceFilters($recordEvents, $filters, 'scan_batches', false);
 
         if (SchemaCache::hasTable('scan_events') || SchemaCache::hasView('scan_events')) {
             $canonical = DB::table('scan_events')
@@ -369,9 +390,14 @@ class WmsContractController extends Controller
                     'resolved_object_id',
                     'created_at',
                 ]);
-            if ($resultStatus !== null) {
-                $canonical->where('result_status', $resultStatus);
-            }
+            // PostgreSQL: scan_events là bảng thật, có actor_id riêng. SQLite (bộ test)
+            // chỉ có view không phơi cột này, nên ở đó lọc qua người tạo lô quét.
+            $this->applyScanEvidenceFilters(
+                $canonical,
+                $filters,
+                'scan_batch',
+                DB::getDriverName() === 'pgsql' && SchemaCache::hasColumn('scan_events', 'actor_id'),
+            );
             $recordEvents->unionAll($canonical);
         }
 
@@ -381,6 +407,46 @@ class WmsContractController extends Controller
             ->paginate($this->perPage($request));
 
         return $this->respondPaginated($page);
+    }
+
+    /**
+     * Áp CÙNG một bộ lọc lên cả hai kho evidence TRƯỚC khi UNION, để phân trang chạy
+     * trên tập đã lọc — lọc sau khi cắt trang sẽ trả trang thiếu dòng mà meta.total
+     * vẫn tính cả phần bị lọc.
+     *
+     * @param  array{result_status: ?string, from: ?string, to: ?string, entity_type: ?string, scan_batch_id: ?string, actor_id: ?string}  $filters
+     */
+    private function applyScanEvidenceFilters(Builder $query, array $filters, string $batchTable, bool $hasActorColumn): void
+    {
+        if ($filters['result_status'] !== null) {
+            $query->where('result_status', $filters['result_status']);
+        }
+        if ($filters['from'] !== null) {
+            $query->whereDate('created_at', '>=', $filters['from']);
+        }
+        if ($filters['to'] !== null) {
+            $query->whereDate('created_at', '<=', $filters['to']);
+        }
+        if ($filters['entity_type'] !== null) {
+            $query->where('resolved_object_type', $filters['entity_type']);
+        }
+        if ($filters['scan_batch_id'] !== null) {
+            $query->where('scan_batch_id', $filters['scan_batch_id']);
+        }
+        if ($filters['actor_id'] !== null) {
+            $actorId = $filters['actor_id'];
+            // Evidence canonical ghi actor_id trực tiếp; dòng cũ và kho song song chỉ
+            // nối được người quét qua lô quét (created_by). Nhận cả hai để không sót.
+            $query->where(function ($inner) use ($actorId, $batchTable, $hasActorColumn): void {
+                if ($hasActorColumn) {
+                    $inner->where('actor_id', $actorId);
+                }
+                $inner->orWhereIn(
+                    'scan_batch_id',
+                    DB::table($batchTable)->select('scan_batch_id')->where('created_by', $actorId),
+                );
+            });
+        }
     }
 
     #[OA\Post(

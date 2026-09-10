@@ -63,6 +63,12 @@ final class PermissionEnforcementMap
      */
     public const SELF_SCOPED_ROUTES = [
         'GET api/v1/auth/me',
+        // Sửa hồ sơ + quản lý thiết bị của CHÍNH mình. AuthController đọc/ghi theo
+        // `auth()->user()` và không nhận user_id từ client; phiên của người khác trả
+        // 404. Allowlist trường ở updateMe() chặn cứng việc tự nâng vai trò/quyền.
+        'PATCH api/v1/auth/me',
+        'GET api/v1/auth/sessions',
+        'DELETE api/v1/auth/sessions/{id}',
         'POST api/v1/auth/logout',
         'POST api/v1/auth/change-password',
         // Tự quản lý xác thực hai bước của CHÍNH mình. MfaService khoá mọi truy
@@ -78,6 +84,7 @@ final class PermissionEnforcementMap
         'GET api/v1/audit-logs/me',
         'GET api/v1/notifications',
         'GET api/v1/notifications/unread-count',
+        'GET api/v1/notifications/{id}',
         'PATCH api/v1/notifications/{id}/read',
         'POST api/v1/notifications/read-all',
         'POST api/v1/broadcasting/auth',

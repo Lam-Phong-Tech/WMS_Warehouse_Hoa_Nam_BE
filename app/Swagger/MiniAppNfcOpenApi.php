@@ -206,4 +206,25 @@ final class MiniAppNfcOpenApi
         ]
     )]
     public function deactivate(): void {}
+
+    #[OA\Get(
+        path: '/api/v1/mini-app/nfc-tags/{physicalCodeId}/events',
+        operationId: 'mini_app_nfc_tag_events',
+        x: ['permission' => 'physical_code.assign_rfid|inventory.trace'],
+        summary: 'Mini App - lịch sử thao tác của một chip NFC',
+        description: 'Read-only, đọc từ nhật ký kiểm toán: mỗi dòng là một lần gán (ASSIGN_ITEM_NFC) hoặc thu hồi (REVOKE_ITEM_NFC) chip, kèm thời điểm, người thao tác, lý do và trạng thái trước/sau. Mới nhất trước. Phân trang page/per_page + meta như mọi danh sách.',
+        security: [['bearerAuth' => []]],
+        tags: [self::TAG],
+        parameters: [
+            new OA\Parameter(name: 'physicalCodeId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Trang lịch sử thao tác của chip.'),
+            new OA\Response(response: 403, description: 'Thiếu quyền đọc.'),
+            new OA\Response(response: 404, description: 'Không tìm thấy chip NFC.'),
+        ]
+    )]
+    public function tagEvents(): void {}
 }

@@ -72,6 +72,11 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
     Route::get('nfc-tags', [MiniAppNfcController::class, 'listTags'])
         ->middleware('permission:physical_code.assign_rfid|inventory.trace');
 
+    // Lịch sử gán/thu hồi của MỘT chip, đọc từ nhật ký kiểm toán. Cùng quyền đọc với
+    // danh sách chip ở trên.
+    Route::get('nfc-tags/{physicalCodeId}/events', [MiniAppNfcController::class, 'tagEvents'])
+        ->middleware('permission:physical_code.assign_rfid|inventory.trace');
+
     Route::post('nfc-tags/{physicalCodeId}/deactivate', [MiniAppNfcController::class, 'deactivate'])
         ->middleware('permission:physical_code.assign_rfid');
 

@@ -13,7 +13,6 @@ use Modules\Auth\Support\MfaService;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
 use OpenApi\Attributes as OA;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * WWHN-SEC-08 — đăng ký / xác minh / gỡ bỏ MFA.
@@ -262,8 +261,12 @@ class MfaController extends Controller
             return $this->respondError('Mã xác thực không đúng.', [], 401, 'MFA_CODE_INVALID');
         }
 
-        // Chỉ tới đây mới phát token thật.
-        $accessToken = JWTAuth::fromUser($user);
+        // Chỉ tới đây mới phát token thật. Phiên refresh (nếu có) tạo TRƯỚC để access
+        // token mang claim `sid` trỏ đúng phiên đó — cùng lý do với AuthController::login().
+        $session = $this->tokenTransport->shouldIssueOnLogin($request)
+            ? $this->refreshTokens->issueSession($user, $request)
+            : null;
+        $accessToken = $this->refreshTokens->accessTokenFor($user, $session['id'] ?? null);
         $user->forceFill(['last_login_at' => now()])->save();
 
         $this->auditLogger->log(
@@ -293,9 +296,10 @@ class MfaController extends Controller
         ], 'Đăng nhập thành công');
 
         // P1 10/09/2026: refresh token đi theo kênh của request — cookie HttpOnly với trình
-        // duyệt — và không bao giờ nằm trong JSON của trình duyệt.
-        if ($this->tokenTransport->shouldIssueOnLogin($request)) {
-            $this->tokenTransport->deliver($request, $response, $this->refreshTokens->issue($user, $request));
+        // duyệt — và không bao giờ nằm trong JSON của trình duyệt. Phiên đã được tạo ở
+        // trên (trước khi cấp access token); ở đây chỉ giao nó đi, KHÔNG issue lần hai.
+        if ($session !== null) {
+            $this->tokenTransport->deliver($request, $response, $session['raw']);
         }
 
         return $response;
