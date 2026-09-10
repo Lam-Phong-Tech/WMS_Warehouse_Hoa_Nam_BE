@@ -25,7 +25,7 @@
   },
   "baselineDigests": {
     "docs/HN_SRS_FRD_v1.12_FULL.md": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
-    "docs/HoaNam_ERD_Moi_Nhat.md": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
+    "docs/HoaNam_ERD_Moi_Nhat.md": "219edddf2183fa41919304da9943ad2259db0525ac5e09df0767600e3837c139",
     "docs/decision-records/DISP-STK-230-scope-disposition.md": "91a51dd25c5bbfbe3f28503c53c6c85234da3ca4a372a02ae697f07eb1d7a746",
     "docs/decision-records/DISP-STK-230-APPROVAL.json": "61e82879abe409edb131049061225f18c0541476c3dea2ad8d02d916f350064b",
     "docs/traceability/TEMP_KEY_CANONICAL_REGISTER.json": "a63fa86286909f66d6da0e5000083bc540a1e2f0c247c5f3478dc6689cf0d38d"

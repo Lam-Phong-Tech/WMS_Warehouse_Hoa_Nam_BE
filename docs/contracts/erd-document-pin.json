@@ -3,8 +3,8 @@
   "path": "docs/HoaNam_ERD_Moi_Nhat.md",
   "released_version": "1.0",
   "released_at": "2026-08-04",
-  "effective_revision": "1.0+AMD008",
-  "effective_at": "2026-08-19",
+  "effective_revision": "1.0+AMD010",
+  "effective_at": "2026-09-10",
   "amendments": [
     "ERD-AMD-001",
     "ERD-AMD-002",
@@ -13,14 +13,34 @@
     "ERD-AMD-005",
     "ERD-AMD-006",
     "ERD-AMD-007",
-    "ERD-AMD-008"
+    "ERD-AMD-008",
+    "ERD-AMD-009",
+    "ERD-AMD-010"
   ],
-  "sha256": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
-  "bytes": 205227,
-  "table_count": 59,
+  "sha256": "219edddf2183fa41919304da9943ad2259db0525ac5e09df0767600e3837c139",
+  "bytes": 212432,
+  "table_count": 60,
   "decision_records": [
     "DEC-DATA-001-defect-catalogs-naming-and-erd-amendments"
   ],
+  "amendment_signoff": {
+    "ERD-AMD-009": {
+      "scope": "Bang 60 document_attachments (bang moi)",
+      "introduced_in_commit": "368943c",
+      "recorded_at": "2026-09-10",
+      "baseline_source": "CHUA CO trong repo - ghi bu theo hinh dang vat ly da migrate (2026_08_27_120000_create_document_attachments_table)",
+      "owners": ["BA", "Tech Lead"],
+      "sign_off": "PENDING"
+    },
+    "ERD-AMD-010": {
+      "scope": "Bang 16 skus: min_stock, max_stock, CHECK chk_skus_stock_thresholds",
+      "introduced_in_commit": "b6d9a34",
+      "recorded_at": "2026-09-10",
+      "baseline_source": "CHUA CO trong repo - ghi bu theo hinh dang vat ly da migrate (2026_08_29_100000_promote_sku_min_max_stock_to_physical_columns)",
+      "owners": ["BA", "Tech Lead"],
+      "sign_off": "PENDING"
+    }
+  },
   "repos": {
     "backend": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
     "frontend": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_FE"

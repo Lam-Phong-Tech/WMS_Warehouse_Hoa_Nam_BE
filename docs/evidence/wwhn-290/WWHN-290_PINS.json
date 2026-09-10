@@ -162,7 +162,7 @@
         },
         "baseline_doc_sha256_at_pin_time": {
             "docs/HN_SRS_FRD_v1.12_FULL.md": "02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2",
-            "docs/HoaNam_ERD_Moi_Nhat.md": "5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2",
+            "docs/HoaNam_ERD_Moi_Nhat.md": "219edddf2183fa41919304da9943ad2259db0525ac5e09df0767600e3837c139",
             "docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md": "232e4d313a0bd4ff6f70f42ab679bab63d559d07e2b33a994dfbfcfd27ac9b5b"
         },
         "baseline_hash_note": "Lineage only. These working copies are edited by other tickets (WWHN-310 was updating the ERD while this package was written), so identity is asserted through live markers (document id + version marker + the supersession row) instead of absolute hashes.",

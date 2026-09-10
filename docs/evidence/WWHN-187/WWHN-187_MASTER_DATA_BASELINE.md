@@ -25,7 +25,7 @@ Nguồn và hash (đóng băng tại thời điểm lập hồ sơ):
 |---|---|---|
 | SRS/FRD v1.12 | `docs/HN_SRS_FRD_v1.12_FULL.md` (repo FE) | `02cd010cdc40036b62ec23a0d3aa645e4cce813497edf8b0e851ba6fcb512ff2` |
 | Wireframe MVP v3.20 ↔ v1.12 | `docs/HN_WMS_Wireframe_MVP_ALIGNED_v3.20_v1.12_20260814.html` (repo FE) | `107a2b4de0f5763e39278ec130758d57e772e004e525416c088018cf9ddba658` |
-| ERD hiện hành | `docs/HoaNam_ERD_Moi_Nhat.md` (repo FE) | `5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2` |
+| ERD hiện hành | `docs/HoaNam_ERD_Moi_Nhat.md` (repo FE) | `219edddf2183fa41919304da9943ad2259db0525ac5e09df0767600e3837c139` |
 | Techstack / Architecture Dev Guide | `docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md` (repo FE) | `049818cae2d18af0d06d40f5d40098a8cf11279fde7d38cafb256a27cc0812ea` |
 
 Ngày hiệu lực của baseline thay thế: **2026-08-19**, hiệu lực **tới khi `HN-MC-001` có

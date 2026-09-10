@@ -27,8 +27,8 @@ ghi vào đây khi đã có nguồn baseline cao hơn (SRS/FRD v1.12, Decision R
 cũ là mô tả không khớp chính hình dạng vật lý mà chính tài liệu này quy định. Không sửa đổi nào
 được đổi business semantics đã chốt mà không có Change Request.
 
-**Bản hiệu lực (effective revision): `1.0+AMD008`** — bản phát hành `1.0` (04/08/2026) cộng các sửa
-đổi `ERD-AMD-001..008` trong bảng dưới. Hậu tố `+AMD<nnn>` luôn bằng mã ERD-AMD lớn nhất đã ghi:
+**Bản hiệu lực (effective revision): `1.0+AMD010`** — bản phát hành `1.0` (04/08/2026) cộng các sửa
+đổi `ERD-AMD-001..010` trong bảng dưới. Hậu tố `+AMD<nnn>` luôn bằng mã ERD-AMD lớn nhất đã ghi:
 thêm một amendment mà không nâng hậu tố là một lệch tài liệu, không phải một sửa đổi.
 
 Tài liệu này tồn tại **hai bản giống hệt nhau** ở repo BE và repo FE. Mỗi lần sửa phải:
@@ -81,6 +81,22 @@ cách chặn tái diễn lệch nội dung ERD giữa hai repo (lệch từng x�
                                                                        qua `docs/contracts/erd-document-pin.json`. Trước đó tài liệu đã amend  DEC-DATA-001 /
                                                                        7 lần mà trường Version vẫn là 1.0, nên không có cách nào chỉ đúng một  SRS §13.4
                                                                        bản ERD khi review. Không đổi entity/field/constraint/semantics.
+
+  ERD-AMD-009         27/08/2026     60. document_attachments (bảng    Ghi bù: bảng vật lý thứ 60 `document_attachments` (chứng từ đính kèm    `368943c`; nguồn
+                                     mới)                              phiếu nhập/xuất/hoàn trả; polymorphic `document_type` + `document_id`;  baseline: chưa
+                                                                       cùng khuôn `warranty_attachments` §47) đã được thêm vào tài liệu ở      có trong repo;
+                                                                       commit `368943c` mà không có dòng ERD-AMD. Hình dạng vật lý: migration  Sign-off BA +
+                                                                       `2026_08_27_120000_create_document_attachments_table`.                  Tech Lead:
+                                                                       `HoaNamErdSchema::TABLE_COUNT` 59 → 60. Không đổi                       PENDING
+                                                                       entity/field/constraint nào của 59 bảng cũ.
+
+  ERD-AMD-010         30/08/2026     16. skus                          Ghi bù: bổ sung `min_stock numeric(18,3) NULL` (CHECK >= 0), `max_stock `b6d9a34`; nguồn
+                                                                       numeric(18,3) NULL` (CHECK >= 1, > min_stock) và CHECK                  baseline: chưa
+                                                                       `chk_skus_stock_thresholds` — định mức tồn theo SKU, toàn hệ thống,     có trong repo;
+                                                                       NULL = chưa đặt — đã được thêm vào tài liệu ở commit `b6d9a34` mà không Sign-off BA +
+                                                                       có dòng ERD-AMD. Hình dạng vật lý: migration                            Tech Lead:
+                                                                       `2026_08_29_100000_promote_sku_min_max_stock_to_physical_columns`.      PENDING
+                                                                       Không đổi business semantics của các cột có sẵn.
   ------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Bản trong `WMS_Warehouse_Hoa_Nam_BE/docs/` và `WMS_Warehouse_Hoa_Nam_FE/docs/` phải giống hệt

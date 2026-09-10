@@ -5,16 +5,16 @@ Mục đích: đưa cho **Tech Lead** và **BA/BAS** đúng phạm vi phải duy
 
 - Jira: `WWHN-310` (data handover) · baseline kỹ thuật `WWHN-31` · Decision `DEC-DATA-001`
 - Tài liệu: `HN-WMS-ERD-DD-001` — `docs/HoaNam_ERD_Moi_Nhat.md`
-- Bản hiệu lực sau vòng này: **`1.0+AMD008`** (ERD-AMD-001..008)
+- Bản hiệu lực hiện hành: **`1.0+AMD010`** (ERD-AMD-001..010) — vòng 3, §6 (10/09/2026). Vòng 2 chốt `1.0+AMD008`.
 
 ## 1. Checksum chính xác (phải trùng nhau giữa hai repo)
 
 | Tài liệu | Repo | sha256 | Bytes |
 | --- | --- | --- | --- |
-| `docs/HoaNam_ERD_Moi_Nhat.md` | BE | `5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2` | 205227 |
-| `docs/HoaNam_ERD_Moi_Nhat.md` | FE | `5209358cb0e9d91ced71b3b2ebaeb6e50d7f4304c03618a81a6a6a0adabf12e2` | 205227 |
-| `docs/contracts/erd-document-pin.json` | BE | `5bcba2824c16a838425aa238d716763ee72470e925529870d5abe4ea6f87e8df` | — |
-| `docs/contracts/erd-document-pin.json` | FE | `5bcba2824c16a838425aa238d716763ee72470e925529870d5abe4ea6f87e8df` | — |
+| `docs/HoaNam_ERD_Moi_Nhat.md` | BE | `219edddf2183fa41919304da9943ad2259db0525ac5e09df0767600e3837c139` | 212432 |
+| `docs/HoaNam_ERD_Moi_Nhat.md` | FE | Chưa đồng bộ — FE còn bản vòng 2 (`5209358c…`, 205227 bytes); xem §6.4 | — |
+| `docs/contracts/erd-document-pin.json` | BE | `11255a46189fc04244255f2f1c4a17a26a7870aca7e8b5b0a1c3d9b68a3c5fc7` | — |
+| `docs/contracts/erd-document-pin.json` | FE | Chưa đồng bộ — xem §6.4 | — |
 
 Kiểm lại bằng một lệnh (chạy ở thư mục cha của hai repo):
 
@@ -94,3 +94,67 @@ Tám báo cáo còn lại của §13.10: không đổi cột, không đổi filt
 | --- | --- |
 | **Tech Lead** (`WWHN-31`) | §2.1 (6 dòng đổi), §2.2, bốn migration `2026_08_18_193000/193100/193200/193300`, FK canonical `warranty_cases.defect_id` và `reversal_lines.*_movement_id`, partial UNIQUE `inbound_scan_entries`, `timestamptz`, `version` DEFAULT 0, varchar(80)/(200), và pin checksum §1 |
 | **BA / BAS** | ERD-AMD-005/006/008 không đổi business semantics; §3 (không sửa baseline); §4 (công thức RPT-LABEL-01); `DEC-DATA-001` là quyết định chính thức |
+
+## 6. Vòng 3 (10/09/2026) — ghi bù ERD-AMD-009 / ERD-AMD-010
+
+### 6.1. Vì sao có vòng này
+
+Tài liệu ERD đã bị sửa hai lần ngoài quy trình §0.0. Cả hai commit đều `[skip ci]` nên cổng không
+chạy lúc landing:
+
+| Commit | Ngày | Thay đổi trong ERD | Thiếu |
+| --- | --- | --- | --- |
+| `368943c` | 27/08/2026 | Thêm `### 60. document_attachments` (+49 dòng) | dòng ERD-AMD, hậu tố bản hiệu lực, cập nhật pin |
+| `b6d9a34` | 30/08/2026 | Bảng 16 `skus`: thêm `min_stock`, `max_stock` và CHECK `chk_skus_stock_thresholds` (+5 / −1 dòng) | như trên |
+
+Hệ quả: `ErdCompilerSourcePinTest` (59 ≠ 60) và `Wwhn310ErdDocumentPinTest` (`table_count`, `sha256`)
+đỏ từ `368943c`.
+
+### 6.2. Phạm vi thay đổi của vòng này
+
+- ERD §0.0: thêm hai dòng ERD-AMD-009 và ERD-AMD-010; bản hiệu lực `1.0+AMD008` → `1.0+AMD010`.
+  **Không** sửa nội dung bảng 16 hay bảng 60 — chỉ ghi bù sổ đăng ký (18 dòng thêm, 2 dòng đổi là
+  hậu tố bản hiệu lực).
+- `docs/contracts/erd-document-pin.json`: `effective_revision`, `effective_at`, `amendments`, `sha256`,
+  `bytes`, `table_count` 59 → 60, và khối `amendment_signoff` (sign-off của cả hai amendment: PENDING).
+- `tests/Feature/ErdCompilerSourcePinTest.php`: khẳng định 59 → 60 (vẫn pin cứng một con số), đổi tên
+  test để không còn chữ "signed" khi sign-off chưa có.
+
+### 6.3. Register trỏ tới digest ERD — đã rebind
+
+Theo bước (3) của quy tắc pin và tiền lệ vòng 2 (`5e6fee2` rebind WWHN-230/233/236/237 trong cùng
+commit), các register mà `Wwhn310ErdDocumentPinTest::test_khong_register_nao_con_pin_checksum_erd_cu`
+báo pin digest cũ được đổi `5209358c…` → `219edddf…`. Mỗi register chỉ đổi đúng một dòng digest.
+Không register nào trong danh sách neo nội dung của bảng 60 hay hai cột mới của bảng 16 (đã quét
+`document_attachments|min_stock|max_stock|skus` trong từng file: không có).
+
+| Register | Ngữ nghĩa của digest trong register |
+| --- | --- |
+| `docs/evidence/WWHN-187/WWHN-187_MASTER_DATA_BASELINE.md` | dòng "ERD hiện hành" |
+| `docs/evidence/WWHN-230/CLOSURE_EVIDENCE.json` | `baselineDigests` |
+| `docs/evidence/WWHN-233/SOURCE_REGISTER.json` | nguồn CORROBORATING |
+| `docs/evidence/WWHN-236/SOURCE_REGISTER.json` | `"version": "latest"`, neo §0.1 + bảng 32 |
+| `docs/evidence/WWHN-237/SOURCE_REGISTER.json` | `baselines` |
+| `docs/evidence/wwhn-290/WWHN-290_PINS.json` | `baseline_doc_sha256_at_pin_time` — chính register tự khai "Lineage only", danh tính xác nhận bằng marker sống |
+| tài liệu này, §1 | checksum hiện hành |
+
+Không đổi (cổng không coi là binding sống, giữ nguyên làm lịch sử của lần chạy tương ứng):
+`docs/evidence/WWHN-236/logs/be-source-register.log`, `docs/evidence/WWHN-237/CONTRACT_NEGATIVE_LOCK.json`,
+`docs/evidence/WWHN-267/SCOPE_AND_SOURCE_MATRIX.json`, `docs/evidence/WWHN-310/WWHN-310_ROUND2_REGISTER.md`.
+
+### 6.4. Việc còn lại ở repo FE (ngoài phạm vi của commit BE này)
+
+1. Copy byte-for-byte `docs/HoaNam_ERD_Moi_Nhat.md` từ BE sang FE (sha256 phải là `219edddf…c139`,
+   212432 bytes).
+2. Copy `docs/contracts/erd-document-pin.json` từ BE sang FE (sha256 `11255a46…5fc7`).
+3. `src/test/wwhn-310-erd-document-pin.test.ts` đang khẳng định cứng `table_count` = 59: đổi thành 60
+   cùng lúc (giống thay đổi ở `ErdCompilerSourcePinTest` bên BE), rồi chạy lại gate FE; register nào
+   phía FE còn pin `5209358c…` thì rebind như §6.3.
+
+### 6.5. Cần duyệt gì (sign-off — CHƯA có, không được coi là đã duyệt)
+
+| Người duyệt | Mục | Trạng thái |
+| --- | --- | --- |
+| **BA / BAS** | ERD-AMD-009: bảng 60 `document_attachments` — nguồn baseline nghiệp vụ (hiện chưa có trong repo) và mệnh đề ở mục Constraint: REVERSAL bắt buộc ≥1 chứng từ ACTIVE trước Post, INBOUND bắt buộc khi thiếu `source_name`, OUTBOUND tuỳ chọn | PENDING |
+| **BA / BAS** | ERD-AMD-010: định mức tồn theo SKU, toàn hệ thống; rule `min_stock >= 0`, `max_stock >= 1`, `max_stock > min_stock`; NULL = chưa đặt | PENDING |
+| **Tech Lead** (`WWHN-31`) | Hình dạng vật lý của hai amendment (migration `2026_08_27_120000_create_document_attachments_table`, `2026_08_29_100000_promote_sku_min_max_stock_to_physical_columns`), pin checksum §1, việc rebind §6.3 | PENDING |
