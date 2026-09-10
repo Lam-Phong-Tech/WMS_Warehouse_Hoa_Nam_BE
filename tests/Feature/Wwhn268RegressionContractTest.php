@@ -53,7 +53,7 @@ class Wwhn268RegressionContractTest extends TestCase
 
     /**
      * Bề mặt đại diện của từng vùng regression, kèm permission mà route thật
-     * đang yêu cầu (Modules/Warehouse/routes/api.php).
+     * đang yêu cầu (Modules/Warehouse/routes/api.php, Modules/AuditLog/routes/api.php).
      *
      * @var array<string, array{path: string, permission: string}>
      */
@@ -61,10 +61,26 @@ class Wwhn268RegressionContractTest extends TestCase
         'stock.inbound' => ['path' => '/api/v1/inbound-documents', 'permission' => 'inbound.view'],
         'stock.outbound' => ['path' => '/api/v1/outbound-documents', 'permission' => 'outbound.view'],
         'stock.balance' => ['path' => '/api/v1/inventory/balances', 'permission' => 'inventory.view'],
-        'reversal' => ['path' => '/api/v1/reversal-documents', 'permission' => 'inventory.reversal.post'],
+        // Danh sách reversal-documents gác inventory.view; inventory.reversal.post chỉ gác các
+        // thao tác ghi của reversal (create/confirm/post/cancel).
+        'reversal' => ['path' => '/api/v1/reversal-documents', 'permission' => 'inventory.view'],
         'warranty' => ['path' => '/api/v1/warranty-cases', 'permission' => 'warranty.view'],
         'report' => ['path' => '/api/v1/reports/hub', 'permission' => 'report.view'],
+        // Hai bề mặt dưới đây là ca TỪ CHỐI bắt buộc cho LEADERSHIP — xem LEADERSHIP_MUST_BE_DENIED.
+        'audit' => ['path' => '/api/v1/audit-logs', 'permission' => 'audit_log.view'],
+        'pv.admin' => ['path' => '/api/v1/pv-admin/resources/industries', 'permission' => 'pv.master.manage'],
     ];
+
+    /**
+     * Bề mặt mà quyết định BA hiện hành bắt buộc LEADERSHIP bị từ chối
+     * (docs/evidence/WWHN-267/ROLE_BASELINE_PIN.json, DELTA-06):
+     *  - audit: gỡ audit_log.view + audit_log.view_all khỏi LEADERSHIP ("Không xem Audit Log
+     *    toàn hệ thống mặc định").
+     *  - pv.admin: baDecisions20260907 — chỉ ADMIN quản trị App PV (pv.master.manage).
+     *
+     * @var list<string>
+     */
+    private const LEADERSHIP_MUST_BE_DENIED = ['audit', 'pv.admin'];
 
     public function test_regression_scope_manifest_covers_every_area_with_real_test_classes(): void
     {
@@ -133,12 +149,15 @@ class Wwhn268RegressionContractTest extends TestCase
     {
         $this->seed(AuthDatabaseSeeder::class);
 
-        // LEADERSHIP là vai trò read-only báo cáo theo SRS §3: có report.view nhưng
-        // không có quyền ghi/đọc nghiệp vụ kho, nên là mẫu tự nhiên cho 403.
+        // LEADERSHIP là vai chỉ-đọc giám sát (SRS §3). Từ DELTA-06 (06/09/2026, seeder d019d63)
+        // vai này được ĐỌC phiếu nhập/xuất để drill-down từ báo cáo, nên sáu bề mặt nghiệp vụ
+        // ban đầu đều trả 200 và phép đo dưới đây không còn ca từ chối nào. Hai bề mặt
+        // LEADERSHIP_MUST_BE_DENIED được thêm để phép đo luôn có ca 403 thật — khẳng định
+        // assertGreaterThan(0) giữ nguyên, không nới.
         $headers = $this->authHeadersWithRole('LEADERSHIP');
         unset($headers['__user_id']);
 
-        $denied = 0;
+        $deniedAreas = [];
         foreach (self::PROTECTED_SURFACES as $area => $surface) {
             $response = $this->getJson($surface['path'], $headers);
 
@@ -146,7 +165,7 @@ class Wwhn268RegressionContractTest extends TestCase
                 continue;
             }
 
-            $denied++;
+            $deniedAreas[] = $area;
             $body = $response->json();
             $this->assertContains(
                 $body['error_code'] ?? null,
@@ -158,12 +177,23 @@ class Wwhn268RegressionContractTest extends TestCase
                 "{$area}: 403 vẫn phải trả request_id."
             );
         }
+        $denied = count($deniedAreas);
 
         $this->assertGreaterThan(
             0,
             $denied,
             'Không có bề mặt nào từ chối vai trò LEADERSHIP — permission middleware không còn hiệu lực.'
         );
+
+        // Không để cổng này rỗng thêm lần nữa trong im lặng: nếu một bề mặt bắt buộc từ chối
+        // lại mở cho LEADERSHIP thì quyết định BA đã bị đổi mà không ai cập nhật hợp đồng.
+        foreach (self::LEADERSHIP_MUST_BE_DENIED as $area) {
+            $this->assertContains(
+                $area,
+                $deniedAreas,
+                "{$area}: LEADERSHIP phải bị từ chối theo DELTA-06 (docs/evidence/WWHN-267/ROLE_BASELINE_PIN.json)."
+            );
+        }
     }
 
     public function test_pv_public_catalog_stays_anonymous_readable(): void

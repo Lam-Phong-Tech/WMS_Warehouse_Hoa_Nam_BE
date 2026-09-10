@@ -4,7 +4,11 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Modules\Auth\Models\Permission;
+use Modules\Auth\Models\Role;
+use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Container;
 use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
@@ -478,28 +482,104 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
 
     public function test_cancel_inbound_accepts_annex_c_inbound_create_permission(): void
     {
-        // Annex C cancelInboundDocument khai permission `inbound.create`.
-        // WAREHOUSE_STAFF có inbound.create nhưng không có inbound.cancel.
+        // Annex C cancelInboundDocument khai permission `inbound.create`, nên route cancel nhận
+        // `inbound.cancel|inbound.create` (Modules/Warehouse/routes/api.php).
+        //
+        // DELTA-06 (docs/evidence/WWHN-267/ROLE_BASELINE_PIN.json; seeder d019d63): từ 06/09/2026
+        // WAREHOUSE_STAFF giữ CẢ inbound.cancel, nên vai đó không còn đo được nhánh alias
+        // `inbound.create`. Nhánh alias chuyển sang một vai fixture chỉ có inbound.create; NV kho
+        // nhận ca dương tính của quyết định mới; vai không có quyền nào trong hai quyền vẫn 403.
         $staff = $this->authHeadersWithRole('WAREHOUSE_STAFF');
-        $this->assertFalse(
-            DB::table('role_permission as rp')
-                ->join('permission as p', 'p.permission_id', '=', 'rp.permission_id')
-                ->join('role as r', 'r.role_id', '=', 'rp.role_id')
-                ->where('r.role_code', 'WAREHOUSE_STAFF')
-                ->where('p.permission_key', 'inbound.cancel')
-                ->exists(),
-            'Test này chỉ có nghĩa khi WAREHOUSE_STAFF không có inbound.cancel.'
+        $this->assertTrue(
+            $this->roleHasPermission('WAREHOUSE_STAFF', 'inbound.cancel'),
+            'DELTA-06: WAREHOUSE_STAFF phải giữ inbound.cancel.'
         );
 
-        $ctx = $this->draftInbound('FLOW02-CANCEL', 1, $staff);
+        // 1) Nhánh alias Annex C: vai CHỈ có inbound.create.
+        [$createOnly, $createOnlyRole] = $this->headersForFixtureRole(['inbound.create']);
+        $this->assertTrue($this->roleHasPermission($createOnlyRole, 'inbound.create'));
+        $this->assertFalse(
+            $this->roleHasPermission($createOnlyRole, 'inbound.cancel'),
+            'Nhánh alias chỉ có nghĩa khi vai fixture không có inbound.cancel.'
+        );
+
+        $ctx = $this->draftInbound('FLOW02-CANCEL', 1, $createOnly);
 
         $this->postJson("/api/v1/inbound-documents/{$ctx['document_id']}/cancel", [
             'reason' => 'Nhà cung cấp giao sai lô',
+        ], $createOnly + ['If-Match' => '1'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'CANCELLED');
+
+        // 2) DELTA-06: NV kho tự huỷ phiếu nhập. Quên guard để request xác thực lại từ token của
+        // NV kho, không dùng lại user vừa đăng nhập gần nhất.
+        $this->app['auth']->forgetGuards();
+        $staffCtx = $this->draftInbound('FLOW02-CANCEL-STAFF', 1, $staff);
+
+        $this->postJson("/api/v1/inbound-documents/{$staffCtx['document_id']}/cancel", [
+            'reason' => 'NV kho huỷ phiếu nhập tạo nhầm',
         ], $staff + ['If-Match' => '1'])
             ->assertOk()
             ->assertJsonPath('data.status', 'CANCELLED');
 
+        // 3) Vai không có inbound.cancel lẫn inbound.create (VIEWER chỉ đọc) vẫn bị chặn.
+        $openCtx = $this->draftInbound('FLOW02-CANCEL-DENY', 1, $staff);
+        $viewer = $this->authHeadersWithRole('VIEWER');
+        $this->assertFalse($this->roleHasPermission('VIEWER', 'inbound.cancel'));
+        $this->assertFalse($this->roleHasPermission('VIEWER', 'inbound.create'));
+
+        $this->postJson("/api/v1/inbound-documents/{$openCtx['document_id']}/cancel", [
+            'reason' => 'Vai chỉ đọc thử huỷ phiếu',
+        ], $viewer + ['If-Match' => '1'])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCESS_DENIED');
+        $this->assertDatabaseHas('stock_documents', ['id' => $openCtx['document_id'], 'status' => 'DRAFT']);
+
         $this->assertSame(0, DB::table('stock_movements')->count());
+    }
+
+    private function roleHasPermission(string $roleCode, string $permissionKey): bool
+    {
+        return DB::table('role_permission as rp')
+            ->join('permission as p', 'p.permission_id', '=', 'rp.permission_id')
+            ->join('role as r', 'r.role_id', '=', 'rp.role_id')
+            ->where('r.role_code', $roleCode)
+            ->where('p.permission_key', $permissionKey)
+            ->exists();
+    }
+
+    /**
+     * Vai fixture mang ĐÚNG các quyền liệt kê, lấy từ bảng permission đã seed thật — không mock
+     * middleware, CheckPermission chạy như production.
+     *
+     * @param  list<string>  $permissionKeys
+     * @return array{0: array<string, string>, 1: string} headers + role_code
+     */
+    private function headersForFixtureRole(array $permissionKeys): array
+    {
+        $roleCode = 'FLOW02_FIXTURE_'.Str::upper(Str::random(8));
+        $role = Role::create([
+            'role_code' => $roleCode,
+            'role_name' => 'Flow02 fixture role (Test)',
+            'scope_type' => 'FUNCTION',
+            'status' => 'ACTIVE',
+        ]);
+        foreach ($permissionKeys as $permissionKey) {
+            $permission = Permission::query()->where('permission_key', $permissionKey)->firstOrFail();
+            $role->permissions()->attach($permission->permission_id, ['role_permission_id' => (string) Str::uuid()]);
+        }
+
+        $user = User::create([
+            'username' => 'flow02-fixture-'.Str::lower(Str::random(8)),
+            'display_name' => 'Flow02 fixture user',
+            // Không bao giờ đăng nhập bằng mật khẩu: token cấp thẳng bên dưới.
+            'password_hash' => Hash::make(Str::random(40)),
+            'status' => 'ACTIVE',
+            'version' => 1,
+        ]);
+        $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
+
+        return [['Authorization' => 'Bearer '.auth('api')->login($user)], $roleCode];
     }
 
     public function test_inbound_list_accepts_page_size_pagination_parameter(): void
