@@ -5578,12 +5578,18 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/document-attachments/pending-evidence - Modules Warehouse Http Controllers DocumentAttachmentController pendingEvidence'
-      operationId: get_api_v1_document__attachments_pending__evidence
-      parameters: []
+      summary: 'Danh sách phiếu (nhập/hoàn trả) đang thiếu chứng từ bắt buộc'
+      operationId: document_attachment_pending_evidence
+      parameters:
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
       responses:
         200:
-          description: 'Thành công'
+          description: 'Danh sách phiếu cần bổ sung chứng từ, mới nhất trước'
           content:
             application/json:
               schema:
@@ -5649,8 +5655,8 @@ paths:
     delete:
       tags:
         - '00. Platform'
-      summary: 'DELETE /api/v1/document-attachments/{attachmentId} - Modules Warehouse Http Controllers DocumentAttachmentController destroy'
-      operationId: delete_api_v1_document__attachments_attachmentid
+      summary: 'Xoá chứng từ đính kèm (xoá logic, không xoá file vật lý ngay)'
+      operationId: document_attachment_delete
       parameters:
         -
           name: attachmentId
@@ -5658,9 +5664,10 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: 'Thành công'
+          description: 'Đã xoá chứng từ đính kèm (xoá logic)'
           content:
             application/json:
               schema:
@@ -5726,8 +5733,8 @@ paths:
     get:
       tags:
         - '00. Platform'
-      summary: 'GET /api/v1/document-attachments/{attachmentId}/download - Modules Warehouse Http Controllers DocumentAttachmentController download'
-      operationId: get_api_v1_document__attachments_attachmentid_download
+      summary: 'Tải chứng từ đính kèm'
+      operationId: document_attachment_download
       parameters:
         -
           name: attachmentId
@@ -5735,9 +5742,10 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       responses:
         200:
-          description: 'Thành công'
+          description: 'Nội dung tệp (binary)'
           content:
             application/json:
               schema:
@@ -6764,8 +6772,8 @@ paths:
     get:
       tags:
         - '09. Stock In (Inbound)'
-      summary: 'Chi tiết phiếu nhập'
-      operationId: get_api_v1_inbound__documents_id_attachments
+      summary: 'Danh sách chứng từ đính kèm của phiếu nhập'
+      operationId: inbound_attachment_list
       parameters:
         -
           name: id
@@ -6773,9 +6781,16 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
       responses:
         200:
-          description: 'Thành công'
+          description: 'Danh sách chứng từ đính kèm'
           content:
             application/json:
               schema:
@@ -6840,8 +6855,8 @@ paths:
     post:
       tags:
         - '09. Stock In (Inbound)'
-      summary: 'Tạo phiếu nhập mới'
-      operationId: post_api_v1_inbound__documents_id_attachments
+      summary: 'Tải lên chứng từ đính kèm cho phiếu nhập (stock-neutral)'
+      operationId: uploadInboundAttachment
       parameters:
         -
           name: id
@@ -6849,17 +6864,37 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       requestBody:
-        required: false
+        required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
+              required:
+                - file
+              properties:
+                file:
+                  description: 'Ảnh jpg/jpeg/png/webp hoặc PDF, <=15MB.'
+                  type: string
+                  format: binary
+                attachment_type:
+                  type: string
+                  example: SOURCE_DOCUMENT
+                  nullable: true
+                  enum:
+                    - SOURCE_DOCUMENT
+                    - INVOICE
+                    - DELIVERY_NOTE
+                    - PHOTO
+                    - OTHER
+                note:
+                  type: string
+                  nullable: true
+                  maxLength: 500
               type: object
-              example: []
-              additionalProperties: true
       responses:
         200:
-          description: 'Thành công'
+          description: 'Chứng từ đã lưu; tồn kho chưa thay đổi (stock_effect=NONE).'
           content:
             application/json:
               schema:
@@ -9817,7 +9852,7 @@ paths:
     get:
       tags:
         - '22. Mini App'
-      summary: 'GET /api/v1/mini-app/document-attachments/pending-evidence - Modules Warehouse Http Controllers DocumentAttachmentController pendingEvidence'
+      summary: 'Mini App — danh sách phiếu đang thiếu chứng từ bắt buộc'
       operationId: get_api_v1_mini__app_document__attachments_pending__evidence
       parameters: []
       responses:
@@ -9888,7 +9923,7 @@ paths:
     delete:
       tags:
         - '22. Mini App'
-      summary: 'DELETE /api/v1/mini-app/document-attachments/{attachmentId} - Modules Warehouse Http Controllers DocumentAttachmentController destroy'
+      summary: 'Mini App — xoá chứng từ đính kèm (xoá logic)'
       operationId: delete_api_v1_mini__app_document__attachments_attachmentid
       parameters:
         -
@@ -9965,7 +10000,7 @@ paths:
     get:
       tags:
         - '22. Mini App'
-      summary: 'GET /api/v1/mini-app/document-attachments/{attachmentId}/download - Modules Warehouse Http Controllers DocumentAttachmentController download'
+      summary: 'Mini App — tải chứng từ đính kèm'
       operationId: get_api_v1_mini__app_document__attachments_attachmentid_download
       parameters:
         -
@@ -10399,7 +10434,7 @@ paths:
     get:
       tags:
         - '22. Mini App'
-      summary: 'GET /api/v1/mini-app/inbound-documents/{id}/attachments - Modules Warehouse Http Controllers DocumentAttachmentController indexInbound'
+      summary: 'Mini App — danh sách chứng từ đính kèm của phiếu nhập'
       operationId: get_api_v1_mini__app_inbound__documents_id_attachments
       parameters:
         -
@@ -10475,7 +10510,7 @@ paths:
     post:
       tags:
         - '22. Mini App'
-      summary: 'POST /api/v1/mini-app/inbound-documents/{id}/attachments - Modules Warehouse Http Controllers DocumentAttachmentController storeInbound'
+      summary: 'Mini App — tải lên chứng từ đính kèm cho phiếu nhập (stock-neutral)'
       operationId: post_api_v1_mini__app_inbound__documents_id_attachments
       parameters:
         -
@@ -12678,7 +12713,7 @@ paths:
     get:
       tags:
         - '22. Mini App'
-      summary: 'GET /api/v1/mini-app/outbound-documents/{id}/attachments - Modules Warehouse Http Controllers DocumentAttachmentController indexOutbound'
+      summary: 'Mini App — danh sách chứng từ đính kèm của phiếu xuất'
       operationId: get_api_v1_mini__app_outbound__documents_id_attachments
       parameters:
         -
@@ -12754,7 +12789,7 @@ paths:
     post:
       tags:
         - '22. Mini App'
-      summary: 'POST /api/v1/mini-app/outbound-documents/{id}/attachments - Modules Warehouse Http Controllers DocumentAttachmentController storeOutbound'
+      summary: 'Mini App — tải lên chứng từ đính kèm cho phiếu xuất (stock-neutral)'
       operationId: post_api_v1_mini__app_outbound__documents_id_attachments
       parameters:
         -
@@ -14331,16 +14366,67 @@ paths:
     get:
       tags:
         - '22. Mini App'
-      summary: 'GET /api/v1/mini-app/products - Modules Warehouse Http Controllers MiniAppProductController index'
-      operationId: get_api_v1_mini__app_products
-      parameters: []
+      summary: 'Mini App — tra cứu SKU kèm tồn khả dụng tại Kho tổng Hoa Nam'
+      description: 'Chỉ đọc. Mặc định chỉ trả SKU ACTIVE, sắp theo tên. `available_qty` là tồn AVAILABLE tại kho canonical duy nhất mà Mini App vận hành; `meta.warehouse_id` cho biết kho đó. Không có kho ACTIVE thì trả 422 WAREHOUSE_NOT_FOUND.'
+      operationId: miniAppListProducts
+      parameters:
+        -
+          name: keyword
+          in: query
+          description: 'Tìm theo mã hoặc tên SKU, không phân biệt hoa thường.'
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+        -
+          name: sku_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - PRODUCT
+              - COMPONENT
+        -
+          name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            default: ACTIVE
+            enum:
+              - ACTIVE
+              - INACTIVE
+        -
+          name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+            minimum: 1
       responses:
         200:
-          description: 'Thành công'
+          description: 'Danh sách SKU; `meta` gồm current_page, per_page, total, last_page, warehouse_id.'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        422:
+          description: 'VALIDATION_ERROR hoặc WAREHOUSE_NOT_FOUND'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -14373,12 +14459,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         412:
           description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
           content:
             application/json:
               schema:
@@ -14402,22 +14482,36 @@ paths:
     get:
       tags:
         - '22. Mini App'
-      summary: 'GET /api/v1/mini-app/products/{id} - Modules Warehouse Http Controllers MiniAppProductController show'
-      operationId: get_api_v1_mini__app_products_id
+      summary: 'Mini App — chi tiết SKU kèm tồn khả dụng tại Kho tổng Hoa Nam'
+      description: 'Chỉ đọc. Trả thương hiệu, danh mục, model, nguồn điện, quy cách đóng gói, mô tả App PV và `available_qty` tại kho canonical.'
+      operationId: miniAppGetProduct
       parameters:
         -
           name: id
           in: path
+          description: sku_id
           required: true
           schema:
             type: string
       responses:
         200:
-          description: 'Thành công'
+          description: 'Chi tiết SKU'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        404:
+          description: 'Không tìm thấy sản phẩm'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: WAREHOUSE_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -14436,12 +14530,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
         409:
           description: 'Xung đột trạng thái, nghiệp vụ, idempotency hoặc thao tác đồng thời'
           content:
@@ -14450,12 +14538,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         412:
           description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
           content:
             application/json:
               schema:
@@ -17132,8 +17214,8 @@ paths:
     get:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'Chi tiết phiếu xuất'
-      operationId: get_api_v1_outbound__documents_id_attachments
+      summary: 'Danh sách chứng từ đính kèm của phiếu xuất'
+      operationId: outbound_attachment_list
       parameters:
         -
           name: id
@@ -17141,9 +17223,16 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
       responses:
         200:
-          description: 'Thành công'
+          description: 'Danh sách chứng từ đính kèm'
           content:
             application/json:
               schema:
@@ -17208,8 +17297,8 @@ paths:
     post:
       tags:
         - '10. Stock Out (Outbound)'
-      summary: 'Tạo phiếu xuất mới'
-      operationId: post_api_v1_outbound__documents_id_attachments
+      summary: 'Tải lên chứng từ đính kèm cho phiếu xuất (stock-neutral)'
+      operationId: uploadOutboundAttachment
       parameters:
         -
           name: id
@@ -17217,17 +17306,37 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       requestBody:
-        required: false
+        required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
+              required:
+                - file
+              properties:
+                file:
+                  description: 'Ảnh jpg/jpeg/png/webp hoặc PDF, <=15MB.'
+                  type: string
+                  format: binary
+                attachment_type:
+                  type: string
+                  example: DELIVERY_NOTE
+                  nullable: true
+                  enum:
+                    - SOURCE_DOCUMENT
+                    - INVOICE
+                    - DELIVERY_NOTE
+                    - PHOTO
+                    - OTHER
+                note:
+                  type: string
+                  nullable: true
+                  maxLength: 500
               type: object
-              example: []
-              additionalProperties: true
       responses:
         200:
-          description: 'Thành công'
+          description: 'Chứng từ đã lưu; tồn kho chưa thay đổi (stock_effect=NONE).'
           content:
             application/json:
               schema:
@@ -25017,18 +25126,41 @@ paths:
     post:
       tags:
         - '21. Public Catalog'
-      summary: 'POST /api/v1/pv-admin/product-images - Modules Warehouse Http Controllers PvProductImageController store'
-      operationId: post_api_v1_pv__admin_product__images
+      summary: 'PV Admin — tải ảnh sản phẩm App PV lên object storage'
+      description: 'Trả về URL công khai để gắn vào `images[]` của product-profiles.'
+      operationId: uploadPvProductImage
       parameters: []
       requestBody:
-        required: false
+        required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
               type: object
-              example: []
-              additionalProperties: true
       responses:
+        201:
+          description: 'PvProductImage {url, storage_key, bytes, mime_type}'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccessEnvelope'
+        403:
+          description: 'Không có quyền pv.master.manage'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
+        422:
+          description: 'VALIDATION_ERROR / ATTACHMENT_CONTENT_TYPE_INVALID / ATTACHMENT_MALWARE_DETECTED'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         200:
           description: 'Thành công'
           content:
@@ -25047,12 +25179,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
-        403:
-          description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
         404:
           description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
           content:
@@ -25067,12 +25193,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         412:
           description: 'Điều kiện If-Match không đạt'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        422:
-          description: 'Dữ liệu không hợp lệ hoặc vi phạm quy tắc nghiệp vụ'
           content:
             application/json:
               schema:
@@ -25620,8 +25740,8 @@ paths:
     get:
       tags:
         - '21. Public Catalog'
-      summary: 'GET /api/v1/pv/product-images/{key} - Modules Warehouse Http Controllers PvProductImageController show'
-      operationId: get_api_v1_pv_product__images_key
+      summary: 'App PV — ảnh sản phẩm (ẩn danh)'
+      operationId: showPvProductImage
       parameters:
         -
           name: key
@@ -25631,11 +25751,17 @@ paths:
             type: string
       responses:
         200:
-          description: 'Thành công'
+          description: 'Nội dung ảnh'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiSuccessEnvelope'
+        404:
+          description: 'Không tìm thấy ảnh'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiErrorEnvelope'
         400:
           description: 'Yêu cầu không đúng định dạng'
           content:
@@ -25650,12 +25776,6 @@ paths:
                 $ref: '#/components/schemas/ApiErrorEnvelope'
         403:
           description: 'Không có quyền truy cập'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiErrorEnvelope'
-        404:
-          description: 'Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu'
           content:
             application/json:
               schema:
@@ -29836,12 +29956,100 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'GET /api/v1/reports/outbound-by-recipient - Modules Warehouse Http Controllers BaM1ReportController outboundByRecipient'
-      operationId: get_api_v1_reports_outbound__by__recipient
-      parameters: []
+      summary: 'GĐ1 — báo cáo xuất kho theo đối tượng nhận'
+      description: 'Chỉ tính phiếu xuất POSTED có doc_date trong kỳ; mặc định kỳ là 30 ngày gần nhất và 10 dòng/trang. `by_sku` và `by_recipient` gộp trên TOÀN BỘ tập đã lọc, không theo trang. SĐT nơi nhận chỉ trả dạng che (`contact_masked`).'
+      operationId: report_outbound_by_recipient
+      parameters:
+        -
+          name: from_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          description: 'Phải lớn hơn hoặc bằng from_date.'
+          required: false
+          schema:
+            type: string
+            format: date
+        -
+          name: recipient_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - DISTRIBUTOR
+              - AGENCY
+              - PROJECT_CUSTOMER
+              - RETAIL_CUSTOMER
+        -
+          name: recipient_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        -
+          name: agency_id
+          in: query
+          description: 'Bí danh tương thích của recipient_id.'
+          required: false
+          schema:
+            type: string
+            format: uuid
+        -
+          name: market
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+        -
+          name: region
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+        -
+          name: sku_code
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+        -
+          name: keyword
+          in: query
+          description: 'Tìm theo mã/tên nơi nhận, thị trường, khu vực, mã/tên SKU hoặc số phiếu.'
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+        -
+          name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        -
+          name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+            minimum: 1
       responses:
         200:
-          description: 'Thành công'
+          description: 'period, rows, summary, pagination, recipient_types, by_sku, by_recipient'
           content:
             application/json:
               schema:
@@ -29997,12 +30205,62 @@ paths:
     get:
       tags:
         - '12. Dashboard / Report'
-      summary: 'GET /api/v1/reports/warranty-defect-sku-breakdown - Modules Warehouse Http Controllers BaM1ReportController defectSkuBreakdown'
-      operationId: get_api_v1_reports_warranty__defect__sku__breakdown
-      parameters: []
+      summary: 'GĐ1 — phân rã bệnh/lỗi bảo hành theo SKU'
+      description: 'Đếm số hồ sơ bảo hành theo cặp (SKU, bệnh/lỗi), lọc theo COALESCE(received_at, created_at) trong kỳ; mặc định kỳ là 30 ngày gần nhất, không phân trang. GĐ1-REQ-022: lọc đa chọn qua sku_ids[]/defect_ids[]; sku_id/defect_id là bí danh tương thích.'
+      operationId: report_warranty_defect_sku_breakdown
+      parameters:
+        -
+          name: from_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        -
+          name: to_date
+          in: query
+          description: 'Phải lớn hơn hoặc bằng from_date.'
+          required: false
+          schema:
+            type: string
+            format: date
+        -
+          name: sku_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        -
+          name: 'sku_ids[]'
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+            maxItems: 500
+        -
+          name: defect_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        -
+          name: 'defect_ids[]'
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+            maxItems: 500
       responses:
         200:
-          description: 'Thành công'
+          description: 'period, rows[] gồm sku_id, sku_code, sku_name, defect_id, defect_code, defect_name, case_count'
           content:
             application/json:
               schema:
@@ -30772,8 +31030,8 @@ paths:
     get:
       tags:
         - '07. Inventory'
-      summary: 'GET /api/v1/reversal-documents/{id}/attachments - Modules Warehouse Http Controllers DocumentAttachmentController indexReversal'
-      operationId: get_api_v1_reversal__documents_id_attachments
+      summary: 'Danh sách chứng từ đính kèm của phiếu hoàn trả/điều chỉnh'
+      operationId: reversal_attachment_list
       parameters:
         -
           name: id
@@ -30781,9 +31039,16 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
+        -
+          name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 15
       responses:
         200:
-          description: 'Thành công'
+          description: 'Danh sách chứng từ đính kèm'
           content:
             application/json:
               schema:
@@ -30848,8 +31113,8 @@ paths:
     post:
       tags:
         - '07. Inventory'
-      summary: 'POST /api/v1/reversal-documents/{id}/attachments - Modules Warehouse Http Controllers DocumentAttachmentController storeReversal'
-      operationId: post_api_v1_reversal__documents_id_attachments
+      summary: 'Tải lên chứng từ đính kèm cho phiếu hoàn trả/điều chỉnh (stock-neutral, bắt buộc trước khi Post)'
+      operationId: uploadReversalAttachment
       parameters:
         -
           name: id
@@ -30857,17 +31122,37 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       requestBody:
-        required: false
+        required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
+              required:
+                - file
+              properties:
+                file:
+                  description: 'Ảnh jpg/jpeg/png/webp hoặc PDF, <=15MB.'
+                  type: string
+                  format: binary
+                attachment_type:
+                  type: string
+                  example: SOURCE_DOCUMENT
+                  nullable: true
+                  enum:
+                    - SOURCE_DOCUMENT
+                    - INVOICE
+                    - DELIVERY_NOTE
+                    - PHOTO
+                    - OTHER
+                note:
+                  type: string
+                  nullable: true
+                  maxLength: 500
               type: object
-              example: []
-              additionalProperties: true
       responses:
         200:
-          description: 'Thành công'
+          description: 'Chứng từ đã lưu; tồn kho chưa thay đổi (stock_effect=NONE).'
           content:
             application/json:
               schema:
