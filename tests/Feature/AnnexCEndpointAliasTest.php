@@ -34,7 +34,11 @@ class AnnexCEndpointAliasTest extends TestCase
         'get api/v1/inventory' => 'inventory.view',
         'get api/v1/inventory/trace/{code}' => 'inventory.trace',
         'post api/v1/scan-batches/classify' => 'scan.execute',
-        'get api/v1/reports/inventory-ledger' => 'report.view',
+        // DELTA-07 (docs/evidence/WWHN-267/ROLE_BASELINE_PIN.json; acc971c + 38b51a6): quyền
+        // đọc báo cáo tách theo MÀN. Annex C khai `report.view` cho path này, nhưng
+        // inventory-ledger là endpoint dùng chung của RPT-01/01B/08 nên nay gác OR đúng ba mã
+        // màn đó — tập mã chính xác được ghim ở cuối test.
+        'get api/v1/reports/inventory-ledger' => 'report.inventory_flow.view',
         'get api/v1/reports/{report_code}' => 'report.view',
         'post api/v1/reports/export' => 'report.export',
         'put api/v1/outbound-documents/{id}/items/{itemId}/rfid' => 'physical_code.assign_rfid',
@@ -57,6 +61,18 @@ class AnnexCEndpointAliasTest extends TestCase
         'get api/v1/catalog-masters/{masterType}' => 'catalog.view',
         'post api/v1/catalog-masters/{masterType}' => 'catalog.manage',
         'patch api/v1/catalog-masters/{masterType}/{id}' => 'catalog.manage',
+    ];
+
+    /**
+     * DELTA-07: tập mã màn DUY NHẤT mà reports/inventory-ledger được chấp nhận (RPT-01 Nhập
+     * kho, RPT-01B Xuất kho, RPT-08 Lịch sử nhập – xuất), đã sắp xếp.
+     *
+     * @var list<string>
+     */
+    private const INVENTORY_LEDGER_SCREEN_PERMISSIONS = [
+        'report.inventory_flow.view',
+        'report.io_history.view',
+        'report.outbound_flow.view',
     ];
 
     public function test_every_annex_c_path_is_registered_with_required_permission(): void
@@ -99,6 +115,24 @@ class AnnexCEndpointAliasTest extends TestCase
 
         $this->assertSame([], $missing, 'Thiếu path Annex C: '.implode(', ', $missing));
         $this->assertSame([], $unguarded, 'Permission chưa khớp Annex C: '.implode(', ', $unguarded));
+
+        // DELTA-07: lệch Annex C ở inventory-ledger là lệch CÓ CHỦ Ý, nên ghim đúng tập mã được
+        // chấp nhận. Thêm lại `report.view` (mở endpoint cho mọi vai có quyền đọc báo cáo, kể cả
+        // vai BA chỉ cho một phần màn) hoặc thêm mã màn khác đều phải làm test đỏ.
+        $ledgerAccepts = [];
+        foreach ($registered['get api/v1/reports/inventory-ledger'] ?? [] as $item) {
+            if (is_string($item) && str_starts_with($item, 'permission:')) {
+                foreach (explode('|', substr($item, strlen('permission:'))) as $candidate) {
+                    $ledgerAccepts[] = trim($candidate);
+                }
+            }
+        }
+        sort($ledgerAccepts);
+        $this->assertSame(
+            self::INVENTORY_LEDGER_SCREEN_PERMISSIONS,
+            $ledgerAccepts,
+            'reports/inventory-ledger phải gác đúng ba mã màn RPT-01/01B/08 và không nhận report.view (DELTA-07).'
+        );
     }
 
     public function test_legacy_paths_remain_available_for_existing_clients(): void
