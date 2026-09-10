@@ -113,6 +113,12 @@ return [
     'default_limit' => (int) env('PUBLIC_API_DEFAULT_LIMIT', 20),
     'max_limit' => (int) env('PUBLIC_API_MAX_LIMIT', 50),
 
+    // Trần số id cho chế độ tra-theo-id của `GET /public/products` (màn "đã lưu"
+    // của App PV). Tách khỏi max_limit vì hai con số phục vụ hai việc khác nhau:
+    // max_limit là kích thước MỘT TRANG cuộn, còn đây là số sản phẩm người dùng
+    // đã lưu mà app hỏi lại trong MỘT lượt.
+    'max_ids' => (int) env('PUBLIC_API_MAX_IDS', 50),
+
     // Số sản phẩm mỗi section trên /home.
     'home_section_size' => (int) env('PUBLIC_API_HOME_SECTION_SIZE', 12),
 

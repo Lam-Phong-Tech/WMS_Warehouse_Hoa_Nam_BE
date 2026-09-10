@@ -400,6 +400,125 @@ class PublicStorefrontApiTest extends TestCase
     }
 
     // ==================================================================
+    // Tra theo id (màn "đã lưu" của App PV)
+    // ==================================================================
+
+    /**
+     * App chỉ lưu product_id; mở lại màn "đã lưu" thì hỏi một lượt cho toàn bộ
+     * id. Hai thứ app dựa vào: THỨ TỰ trả về đúng thứ tự gửi, và `missing_ids`
+     * để phân biệt "đã hỏi và không còn" với "chưa tải xong".
+     */
+    public function test_ids_lookup_giu_dung_thu_tu_gui_len_va_bao_missing_ids(): void
+    {
+        $warehouse = $this->warehouseFixture();
+
+        $a = $this->publishedSku('IDS-001', 'Máy khoan A');
+        $b = $this->publishedSku('IDS-002', 'Máy khoan B');
+        $c = $this->publishedSku('IDS-003', 'Máy khoan C');
+        foreach ([$a, $b, $c] as $sku) {
+            $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 5);
+        }
+
+        $goneId = '00000000-0000-4000-8000-000000000000';
+
+        // Gửi ngược thứ tự để chứng minh không rơi về sort của catalog.
+        $query = collect([$c->sku_id, $goneId, $a->sku_id, $b->sku_id])
+            ->map(fn ($id): string => 'ids[]='.$id)->implode('&');
+
+        $data = $this->getJson(self::BASE.'/products?'.$query)->assertOk()->json('data');
+
+        $this->assertSame(
+            [(string) $c->sku_id, (string) $a->sku_id, (string) $b->sku_id],
+            array_column($data['items'], 'id')
+        );
+        $this->assertSame([$goneId], $data['missing_ids']);
+
+        // Chế độ này không phân trang nên không có page_info.
+        $this->assertArrayNotHasKey('page_info', $data);
+    }
+
+    /** Id trùng chỉ trả một lần, giữ vị trí xuất hiện đầu tiên. */
+    public function test_ids_lookup_loai_trung_nhung_giu_vi_tri_dau_tien(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $a = $this->publishedSku('IDS-DUP-1', 'Máy A');
+        $b = $this->publishedSku('IDS-DUP-2', 'Máy B');
+        $this->seedAvailableBalance($warehouse->id, $a->sku_id, 3);
+        $this->seedAvailableBalance($warehouse->id, $b->sku_id, 3);
+
+        $data = $this->getJson(self::BASE."/products?ids[]={$a->sku_id}&ids[]={$b->sku_id}&ids[]={$a->sku_id}")
+            ->assertOk()->json('data');
+
+        $this->assertSame([(string) $a->sku_id, (string) $b->sku_id], array_column($data['items'], 'id'));
+    }
+
+    /**
+     * Hỏi ĐÍCH DANH không nới điều kiện hiển thị: chưa publish hoặc hết hàng vẫn
+     * nằm ở missing_ids, đúng như khi duyệt danh sách
+     * (test_listing_returns_only_published_and_in_stock_products).
+     */
+    public function test_ids_lookup_khong_lo_hang_chua_publish_hay_het_ton(): void
+    {
+        $warehouse = $this->warehouseFixture();
+
+        $visible = $this->publishedSku('IDS-VIS', 'Máy hiển thị');
+        $this->seedAvailableBalance($warehouse->id, $visible->sku_id, 4);
+
+        $outOfStock = $this->publishedSku('IDS-OOS', 'Máy hết hàng');
+        $this->seedAvailableBalance($warehouse->id, $outOfStock->sku_id, 0);
+
+        $unpublished = $this->sku('IDS-UNPUB', 'Máy chưa publish');
+        $this->seedAvailableBalance($warehouse->id, $unpublished->sku_id, 9);
+
+        $data = $this->getJson(self::BASE
+            ."/products?ids[]={$visible->sku_id}&ids[]={$outOfStock->sku_id}&ids[]={$unpublished->sku_id}")
+            ->assertOk()->json('data');
+
+        $this->assertSame([(string) $visible->sku_id], array_column($data['items'], 'id'));
+        $this->assertEqualsCanonicalizing(
+            [(string) $outOfStock->sku_id, (string) $unpublished->sku_id],
+            $data['missing_ids']
+        );
+    }
+
+    /**
+     * Trộn ids với bộ lọc/sắp xếp/phân trang phải 400, KHÔNG bỏ qua im lặng.
+     * Trước bản vá, `ids[]` bị bỏ qua hoàn toàn và endpoint trả nguyên trang đầu
+     * 20 sản phẩm — nhìn như đã chạy nên hỏng rất khó thấy.
+     */
+    public function test_ids_lookup_tu_choi_khi_tron_voi_tham_so_khac(): void
+    {
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->publishedSku('IDS-MIX', 'Máy trộn tham số');
+        $this->seedAvailableBalance($warehouse->id, $sku->sku_id, 2);
+
+        foreach (['q=khoan', 'sort=name_asc', 'limit=5', 'cursor=abc', 'domain=POWER_TOOLS', 'category=X', 'feature=A'] as $extra) {
+            $this->getJson(self::BASE."/products?ids[]={$sku->sku_id}&{$extra}")
+                ->assertStatus(400)
+                ->assertJsonPath('error_code', 'INVALID_QUERY');
+        }
+    }
+
+    /** UUID hỏng là lỗi client, không được gộp vào missing_ids (app sẽ xoá oan). */
+    public function test_ids_lookup_tu_choi_uuid_sai_dinh_dang_va_vuot_tran(): void
+    {
+        $this->getJson(self::BASE.'/products?ids[]=khong-phai-uuid')
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_QUERY');
+
+        $this->getJson(self::BASE.'/products?ids[]=')
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_QUERY');
+
+        $tooMany = collect(range(1, 51))
+            ->map(fn (int $n): string => 'ids[]='.sprintf('%08d-0000-4000-8000-000000000000', $n))
+            ->implode('&');
+        $this->getJson(self::BASE.'/products?'.$tooMany)
+            ->assertStatus(400)
+            ->assertJsonPath('error_code', 'INVALID_QUERY');
+    }
+
+    // ==================================================================
     // Bộ lọc
     // ==================================================================
 

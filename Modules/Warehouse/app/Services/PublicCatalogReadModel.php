@@ -56,6 +56,55 @@ class PublicCatalogReadModel
      * @param  array<string, mixed>  $filters
      * @return array{items: array<int, array<string, mixed>>, page_info: array<string, mixed>}
      */
+    /**
+     * Tra CỨNG theo danh sách product_id, dùng cho màn "đã lưu" của App PV:
+     * app chỉ giữ id, khi mở lại thì hỏi một lượt cho toàn bộ id đã lưu.
+     *
+     * Khác listProducts() ở ba điểm, và cả ba đều có chủ đích:
+     *  - KHÔNG phân trang/cursor/sort: tập kết quả do client quyết định, không
+     *    phải một dòng chảy vô hạn để cuộn.
+     *  - Thứ tự trả về ĐÚNG THỨ TỰ id gửi lên, không theo sort của catalog —
+     *    app dựng lại danh sách đã lưu theo thứ tự của người dùng.
+     *  - Trả kèm `missing_ids` cho id không còn hiển thị công khai (bị ẩn, gỡ
+     *    khỏi app, hoặc hết tồn). Client cần phân biệt "đã hỏi và không còn"
+     *    với "chưa tải xong"; im lặng bỏ bớt phần tử thì hai việc đó nhìn y hệt.
+     *
+     * Điều kiện hiển thị dùng CHUNG baseQuery() với danh sách: một sản phẩm
+     * không tự nhiên public hơn chỉ vì được hỏi đích danh.
+     *
+     * @param  list<string>  $ids  đã chuẩn hoá, đã loại trùng, giữ nguyên thứ tự
+     * @return array{items: array<int, array<string, mixed>>, missing_ids: list<string>}
+     */
+    public function productsByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return ['items' => [], 'missing_ids' => []];
+        }
+
+        $rows = $this->baseQuery()->whereIn('s.sku_id', $ids)->get();
+        $items = $this->presentMany($rows);
+
+        // Sắp lại theo thứ tự client gửi. presentMany() đi theo thứ tự của DB,
+        // còn hợp đồng là thứ tự của id đầu vào.
+        $byId = [];
+        foreach ($items as $item) {
+            $byId[strtolower((string) $item['id'])] = $item;
+        }
+
+        $ordered = [];
+        $missing = [];
+        foreach ($ids as $id) {
+            $key = strtolower($id);
+            if (isset($byId[$key])) {
+                $ordered[] = $byId[$key];
+            } else {
+                $missing[] = $id;
+            }
+        }
+
+        return ['items' => $ordered, 'missing_ids' => $missing];
+    }
+
     public function listProducts(array $filters, string $sort, ?string $cursor, int $limit): array
     {
         $fingerprint = PublicApiCursor::fingerprint($filters);
