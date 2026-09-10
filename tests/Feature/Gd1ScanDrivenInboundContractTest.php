@@ -67,7 +67,15 @@ class Gd1ScanDrivenInboundContractTest extends TestCase
         $this->assertSame(3, (int) $lines->first()->scanned_qty);
     }
 
-    /** TC-P0-04: SKU chưa tồn tại — hệ thống vẫn nhận, tạo đúng MỘT SKU, tồn tăng. */
+    /**
+     * TC-P0-04: SKU chưa tồn tại — hệ thống vẫn nhận, tạo đúng MỘT SKU, tồn tăng.
+     *
+     * 38b51a6 (07/09/2026, cổng INBOUND_SKU_INFO_INCOMPLETE — hợp đồng đầy đủ ở
+     * InboundNewSkuInfoGateTest): SKU tự tạo lúc quét chỉ có mã (tên tạm = mã, ĐVT rỗng) nên
+     * Post Receipt bị 422 cho tới khi bổ sung tên + ĐVT qua PATCH
+     * inbound-documents/{id}/lines/{lineId}/sku. "Vẫn nhận" giữ nguyên; Post chỉ thêm bước
+     * bổ sung thông tin, và bị chặn TRƯỚC mọi hiệu ứng tồn.
+     */
     public function test_scan_sku_chua_ton_tai_van_nhan_va_tao_dung_mot_sku(): void
     {
         $headers = $this->superAdminHeaders();
@@ -79,10 +87,24 @@ class Gd1ScanDrivenInboundContractTest extends TestCase
         ]);
 
         $this->assertSame(1, DB::table('sku')->where('sku_code', 'GD1-NEW-01')->count());
+        $skuId = (string) DB::table('sku')->where('sku_code', 'GD1-NEW-01')->value('sku_id');
+
+        $this->postInboundReceipt($headers, $fixture['document_id'], $fixture['version'])
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'INBOUND_SKU_INFO_INCOMPLETE')
+            ->assertJsonPath('errors.skus.0.sku_code', 'GD1-NEW-01')
+            ->assertJsonPath('errors.skus.0.missing_fields', ['sku_name', 'unit']);
+        $this->assertFalse(DB::table('stock_movements')->where('product_id', $skuId)->exists());
+
+        $lineId = (string) $fixture['lines']['GD1-NEW-01']['line_id'];
+        $this->patchJson("/api/v1/inbound-documents/{$fixture['document_id']}/lines/{$lineId}/sku", [
+            'sku_name' => 'Máy khoan GD1 NEW 01',
+            'unit' => 'Cái',
+        ], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.info_complete', true);
 
         $this->postInboundReceipt($headers, $fixture['document_id'], $fixture['version'])->assertOk();
-
-        $skuId = (string) DB::table('sku')->where('sku_code', 'GD1-NEW-01')->value('sku_id');
         $available = (int) DB::table('inventory_balances')
             ->where('warehouse_id', $warehouse->id)
             ->where(fn ($q) => $q->where('sku_id', $skuId)->orWhere('product_id', $skuId))

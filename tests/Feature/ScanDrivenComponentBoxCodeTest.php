@@ -68,8 +68,27 @@ class ScanDrivenComponentBoxCodeTest extends TestCase
         $this->assertSame('BOX', (string) $box->container_type);
         $this->assertSame((string) $sku->sku_id, (string) $box->primary_sku_id);
 
+        // 38b51a6 (07/09/2026, cổng INBOUND_SKU_INFO_INCOMPLETE — hợp đồng đầy đủ ở
+        // InboundNewSkuInfoGateTest): SKU COMPONENT tự tạo từ mã hộp chỉ có mã (tên tạm = mã,
+        // ĐVT rỗng) nên Post Receipt bị chặn 422 TRƯỚC mọi hiệu ứng tồn, cho tới khi bổ sung
+        // tên + ĐVT ngay trong phiếu.
+        $version = (int) $scan->json('data.version');
+        $this->postInboundReceipt($headers, $document['document_id'], $version)
+            ->assertStatus(422)
+            ->assertJsonPath('error_code', 'INBOUND_SKU_INFO_INCOMPLETE')
+            ->assertJsonPath('errors.skus.0.sku_code', $skuCode)
+            ->assertJsonPath('errors.skus.0.missing_fields', ['sku_name', 'unit']);
+        $this->assertFalse(DB::table('stock_movements')->where('product_id', $sku->sku_id)->exists());
+
+        $this->patchJson("/api/v1/inbound-documents/{$document['document_id']}/lines/{$lines->first()->id}/sku", [
+            'sku_name' => 'Linh kiện hộp BASE 777',
+            'unit' => 'Cái',
+        ], $headers)
+            ->assertOk()
+            ->assertJsonPath('data.info_complete', true);
+
         // Post Receipt → tồn tăng đúng số đếm.
-        $this->postInboundReceipt($headers, $document['document_id'], (int) $scan->json('data.version'))->assertOk();
+        $this->postInboundReceipt($headers, $document['document_id'], $version)->assertOk();
         $available = (int) DB::table('inventory_balances')
             ->where('warehouse_id', $warehouse->id)
             ->where(fn ($q) => $q->where('sku_id', $sku->sku_id)->orWhere('product_id', $sku->sku_id))
