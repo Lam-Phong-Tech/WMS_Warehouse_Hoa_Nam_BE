@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -141,9 +143,10 @@ class ListSortOrderTest extends TestCase
         ], $overrides));
     }
 
-    private function makeWarrantyCase(string $code, \Illuminate\Support\Carbon $createdAt, \Illuminate\Support\Carbon $updatedAt): void
+    private function makeWarrantyCase(string $code, Carbon $createdAt, Carbon $updatedAt): void
     {
-        DB::table('warranty_case')->insert([
+        // WWHN-SEC-06: mọi lệnh ghi warranty_case đi qua encode(), kể cả fixture không mang PII.
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => (string) Str::uuid(),
             'warranty_case_code' => $code,
             'identification_status' => 'TEMP_ONLY',
@@ -152,7 +155,7 @@ class ListSortOrderTest extends TestCase
             'version' => 1,
             'created_at' => $createdAt,
             'updated_at' => $updatedAt,
-        ]);
+        ]));
     }
 
     private function createRole(string $code, array $permissions): Role

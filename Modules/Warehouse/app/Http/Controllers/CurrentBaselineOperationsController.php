@@ -400,14 +400,17 @@ class CurrentBaselineOperationsController extends Controller
                 ApiError::abort(409, 'INVALID_WARRANTY_TRANSITION', "Không cho phép {$case->status} -> {$target}.");
             }
 
-            DB::table('warranty_case')->where('warranty_case_id', $id)->update([
+            // WWHN-SEC-06: mọi lệnh ghi warranty_case đi qua encode(). Payload này không mang
+            // cột PII nên encode() trả nguyên vẹn; bọc để quy ước "ghi -> encode" không có
+            // ngoại lệ (WwhnSec06WarrantyPiiTest soi TỪNG lệnh ghi).
+            DB::table('warranty_case')->where('warranty_case_id', $id)->update(WarrantyCasePii::encode([
                 'status' => $target,
                 'condition_status' => $validated['condition_status'] ?? $case->condition_status,
                 'description' => $validated['description'] ?? $case->description,
                 'version' => $expectedVersion + 1,
                 'closed_at' => in_array($target, ['RETURNED', 'CANCELLED'], true) ? now() : $case->closed_at,
                 'updated_at' => now(),
-            ]);
+            ]));
 
             if ($target !== $case->status) {
                 DB::table('warranty_event')->insert([

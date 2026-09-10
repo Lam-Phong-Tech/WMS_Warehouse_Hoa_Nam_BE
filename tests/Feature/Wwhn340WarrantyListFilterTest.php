@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -211,7 +212,8 @@ class Wwhn340WarrantyListFilterTest extends TestCase
     private function makeCase(string $code, string $identification, ?string $defectId): string
     {
         $id = (string) Str::uuid();
-        DB::table('warranty_case')->insert([
+        // WWHN-SEC-06: mọi lệnh ghi warranty_case đi qua encode(), kể cả fixture không mang PII.
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $id,
             'warranty_case_code' => $code,
             'identification_status' => $identification,
@@ -221,7 +223,7 @@ class Wwhn340WarrantyListFilterTest extends TestCase
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ]));
 
         return $id;
     }
