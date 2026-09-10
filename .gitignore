@@ -49,6 +49,11 @@ CLAUDE.md
 # File `wms_hoanam` truoc day BI COMMIT (chi co schema, nhung moi lan `db:seed`
 # se ghi du lieu that vao no roi `git add .` la day PII len remote.
 wms_hoanam
+# File phu SQLite sinh canh `wms_hoanam` khi chay test sqlite ma khong ghi de
+# DB_DATABASE (tung bi `git add` len index 10/09/2026).
+wms_hoanam-journal
+wms_hoanam-wal
+wms_hoanam-shm
 *.sqlite
 *.sqlite3
 *.db
