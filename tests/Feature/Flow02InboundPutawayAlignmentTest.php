@@ -511,8 +511,10 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'CANCELLED');
 
-        // 2) DELTA-06: NV kho tự huỷ phiếu nhập. Quên guard để request xác thực lại từ token của
-        // NV kho, không dùng lại user vừa đăng nhập gần nhất.
+        // 2) DELTA-06: NV kho tự huỷ phiếu nhập, bằng token của NV kho chứ không phải của vai fixture
+        // vừa đăng nhập. Đặt lại guard là phòng hờ theo mẫu WwhnSec09HardeningTest: đã kiểm, mỗi
+        // request hiện tự xác thực lại từ Bearer token; nhưng vai fixture cũng huỷ được phiếu, nên
+        // nếu sau này guard giữ lại user cũ thì ca này sẽ xanh giả mà không ai biết.
         $this->app['auth']->forgetGuards();
         $staffCtx = $this->draftInbound('FLOW02-CANCEL-STAFF', 1, $staff);
 

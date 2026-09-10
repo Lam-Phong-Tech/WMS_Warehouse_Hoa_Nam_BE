@@ -142,8 +142,10 @@ class OutboundPermissionTest extends TestCase
         $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'status' => 'SCANNING', 'version' => 2]);
         $this->assertSame(0, DB::table('stock_movements')->where('stock_document_id', $documentId)->count());
 
-        // Ca dương tính mới (DELTA-06): NV kho tự Post Issue. Quên guard để request dưới đây
-        // xác thực lại từ token của NV kho, không dùng lại user vừa đăng nhập gần nhất.
+        // Ca dương tính mới (DELTA-06): NV kho tự Post Issue, bằng token của NV kho chứ không phải
+        // của MANAGER vừa đăng nhập. Đặt lại guard chỉ là phòng hờ theo mẫu WwhnSec09HardeningTest:
+        // đã kiểm, mỗi request tự xác thực lại từ Bearer token; cặp 403 (MANAGER) rồi 200 (NV kho)
+        // trên cùng một phiếu tự chứng minh danh tính đúng.
         $this->app['auth']->forgetGuards();
         $this->postJson("/api/v1/outbound-documents/{$documentId}/post-issue", [], $staffHeaders + [
             'If-Match' => '2',
