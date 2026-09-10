@@ -10,15 +10,18 @@ use App\Swagger\Processors\MiniAppTagProcessor;
 use App\Swagger\Processors\RouteSyncProcessor;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\CommandFinished;
+use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Database\Events\MigrationEnded;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Database\Events\MigrationsStarted;
 use Illuminate\Foundation\Events\DatabaseRefreshed;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use RuntimeException;
 use Tymon\JWTAuth\Http\Parser\AuthHeaders;
 
 class AppServiceProvider extends ServiceProvider
@@ -62,6 +65,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerSwaggerProcessors();
         $this->registerRateLimiters();
+        $this->registerDeploymentDatabaseSafety();
         $this->registerCacheAutoInvalidation();
         $this->registerSchemaCacheInvalidation();
     }
@@ -211,6 +215,32 @@ class AppServiceProvider extends ServiceProvider
                     $headers,
                     'Vượt quá giới hạn làm mới phiên đăng nhập. Vui lòng thử lại sau.',
                 ));
+        });
+    }
+
+    /**
+     * Deployed databases are not disposable. A normal release may advance the
+     * schema with `migrate --force`, but may never reset it or silently rerun the
+     * full seed bundle, which also contains catalog-retirement behaviour.
+     */
+    private function registerDeploymentDatabaseSafety(): void
+    {
+        if (! (bool) config('deployment_safety.protect_database')) {
+            return;
+        }
+
+        DB::prohibitDestructiveCommands();
+        \Illuminate\Database\Console\Seeds\SeedCommand::prohibit(! (bool) config('deployment_safety.allow_protected_database_seed'));
+
+        Event::listen(CommandStarting::class, static function (CommandStarting $event): void {
+            if ($event->command !== 'db:seed' || (bool) config('deployment_safety.allow_protected_database_seed')) {
+                return;
+            }
+
+            throw new RuntimeException(
+                'db:seed bị chặn trên CSDL được bảo vệ. Deploy chỉ được dùng migrate --force. '
+                .'Seed dữ liệu phải được duyệt riêng và đặt WMS_ALLOW_PROTECTED_DATABASE_SEED=CONFIRM_SEED_WRITE cho đúng một lệnh.',
+            );
         });
     }
 
