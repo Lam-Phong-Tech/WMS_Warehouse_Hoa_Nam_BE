@@ -192,23 +192,82 @@ final class UserFacingMessageLocalizer
     /**
      * Việt hóa đệ quy value trong validation details nhưng giữ nguyên key field để
      * FE vẫn map lỗi đúng input và contract API không đổi.
+     *
+     * GIÁ TRỊ MÁY KHÔNG BAO GIỜ BỊ DỊCH. Details không chỉ chứa câu cho người đọc mà
+     * còn chứa enum, mã, id, số chứng từ, field, permission và đường dẫn — client rẽ
+     * nhánh/điều hướng theo đúng các chuỗi đó. Dịch chúng là đổi hợp đồng API, đã xảy ra:
+     * `conflicting_document_status` SCANNING -> "Đang quét", và `status_endpoint`
+     * "/api/v1/auth/mfa/status" -> "/api/v1/auth/mfa/trạng thái" (một đường dẫn không
+     * tồn tại). Cần nhãn cho người đọc thì thêm khoá `*_label` riêng.
      */
     public static function translateDetails(mixed $details): mixed
     {
-        if (is_string($details)) {
-            return self::translate($details);
+        return self::localizeDetail($details, null);
+    }
+
+    /**
+     * @param  'value'|'item'|null  $machine  null = giá trị cho người đọc; 'value' = giá
+     *                                        trị trực tiếp của khoá máy; 'item' = phần tử
+     *                                        (khoá số) nằm dưới một khoá máy
+     */
+    private static function localizeDetail(mixed $value, ?string $machine): mixed
+    {
+        if (is_string($value)) {
+            return self::isMachineValue($value, $machine) ? $value : self::translate($value);
         }
 
-        if (! is_array($details)) {
-            return $details;
+        if (! is_array($value)) {
+            return $value;
         }
 
         $localized = [];
-        foreach ($details as $key => $value) {
-            $localized[$key] = self::translateDetails($value);
+        foreach ($value as $key => $child) {
+            $localized[$key] = self::localizeDetail($child, match (true) {
+                is_string($key) && self::isMachineKey($key) => 'value',
+                is_int($key) && $machine !== null => 'item',
+                default => null,
+            });
         }
 
         return $localized;
+    }
+
+    /**
+     * Khoá mang giá trị máy, so theo đoạn cuối sau `_` hoặc `.`: `status`,
+     * `conflicting_document_status`, `doc_no`, `status_endpoint`, `required_permission`,
+     * `field`, `items.0.raw_code`...
+     */
+    private static function isMachineKey(string $key): bool
+    {
+        return preg_match(
+            '/(?:^|[._])(?:status|statuses|code|codes|id|ids|uuid|no|type|types|endpoint|endpoints|url|urls|uri|path|paths|field|fields|permission|permissions|key|keys)$/i',
+            $key
+        ) === 1;
+    }
+
+    private static function isMachineValue(string $value, ?string $machine): bool
+    {
+        $trimmed = trim($value);
+
+        // Đường dẫn/URL không bao giờ là câu cho người đọc ("/api/v1/auth/mfa/status").
+        if (preg_match('#^(?:[a-z][a-z0-9+.\-]*://|/)\S*$#i', $trimmed) === 1) {
+            return true;
+        }
+
+        // Enum/mã thô dạng UPPER_SNAKE ("SCANNING", "WAREHOUSE_INACTIVE"): client tự map nhãn.
+        if (preg_match('/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/', $trimmed) === 1) {
+            return true;
+        }
+
+        return match ($machine) {
+            'value' => true,
+            // Danh sách dưới khoá máy: phần tử liền một khối là giá trị máy
+            // (allowed_statuses, missing_fields...), còn CÂU có khoảng trắng là message
+            // validation của chính field đó (`sku_code` => ['The sku code field...'])
+            // nên vẫn Việt hoá.
+            'item' => preg_match('/\s/u', $trimmed) !== 1,
+            default => false,
+        };
     }
 
     /**

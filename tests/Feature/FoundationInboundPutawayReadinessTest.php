@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Support\UserFacingMessageLocalizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -268,9 +267,8 @@ class FoundationInboundPutawayReadinessTest extends TestCase
         ], $headers)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'BOX_NOT_PUTAWAY_ELIGIBLE')
-            // error.details đi qua UserFacingMessageLocalizer::translateDetails() ở
-            // boundary API nên enum thô được Việt hóa — error_code giữ nguyên.
-            ->assertJsonPath('error.details.box_status', UserFacingMessageLocalizer::translate('STORED'));
+            // Giá trị máy trong error.details giữ nguyên enum thô (client tự map nhãn).
+            ->assertJsonPath('error.details.box_status', 'STORED');
         $this->assertSame($movementAfterPost, DB::table('stock_movements')->count());
     }
 

@@ -487,10 +487,10 @@ class MiniAppComponentIssueStagingTest extends TestCase
         ], $fixture['headers'] + $this->idem())
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'WARRANTY_CASE_STATUS_NOT_ALLOWED')
-            // UserFacingMessageLocalizer::translateDetails() việt hoá value trong
-            // details, nên chỗ này thấy nhãn chứ không thấy enum thô — đúng quy ước
-            // "enum phải qua map nhãn" của dự án.
-            ->assertJsonPath('error.details.warranty_case_status', 'Đã tiếp nhận');
+            // Giá trị máy trong details giữ nguyên enum thô: client tự map nhãn (quy ước
+            // "enum phải qua map nhãn" nằm ở FE). Pin nhãn "Đã tiếp nhận" trước đây là
+            // pin chính lỗi translateDetails() dịch cả giá trị máy.
+            ->assertJsonPath('error.details.warranty_case_status', 'RECEIVED');
 
         $this->assertSame($before, $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']));
         $this->assertSame(0, DB::table('component_issue_documents')->count());

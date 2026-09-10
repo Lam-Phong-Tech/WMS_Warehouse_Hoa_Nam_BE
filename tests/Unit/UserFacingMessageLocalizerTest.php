@@ -72,6 +72,46 @@ class UserFacingMessageLocalizerTest extends TestCase
     }
 
     /**
+     * Giá trị máy trong error.details là hợp đồng API: client rẽ nhánh/điều hướng theo
+     * đúng chuỗi đó. Trước đây mọi dòng dưới đây đều bị "Việt hoá" thành giá trị khác
+     * (SCANNING -> "Đang quét", "/api/v1/auth/mfa/status" -> ".../trạng thái",
+     * "reason" -> "lý do", permission có chữ "document" -> câu lỗi chung).
+     */
+    public function test_machine_detail_values_are_never_localized(): void
+    {
+        $details = [
+            'conflicting_document_status' => 'SCANNING',
+            'conflicting_document_no' => 'OUT-2026-0001',
+            'conflicting_document_id' => '9d6f0c1e-7a1b-4c2d-8e3f-000000000001',
+            'status_endpoint' => '/api/v1/auth/mfa/status',
+            'download_url' => 'https://wms.example.test/api/v1/reports/export/1/download?status=READY',
+            'required_permission' => 'inbound.document.post',
+            'field' => 'reason',
+            'error_code' => 'INVALID_QUANTITY',
+            'allowed_statuses' => ['DRAFT', 'SCANNING'],
+            'lines' => [['line_no' => 1, 'sku_code' => 'HN-MK-001', 'item_status' => 'QUARANTINE']],
+            'current' => 'POSTED',
+        ];
+
+        $this->assertSame($details, UserFacingMessageLocalizer::translateDetails($details));
+    }
+
+    public function test_human_detail_text_is_still_localized_next_to_machine_values(): void
+    {
+        $localized = UserFacingMessageLocalizer::translateDetails([
+            'document_status' => 'SCANNING',
+            'hint' => 'Document must have at least one line.',
+            'warehouse_id' => ['The warehouse id field is required.'],
+            'lines' => [['line_no' => 2, 'message' => 'Scan quantity must be greater than zero.']],
+        ]);
+
+        $this->assertSame('SCANNING', $localized['document_status']);
+        $this->assertSame('Chứng từ phải có ít nhất một dòng.', $localized['hint']);
+        $this->assertSame('Trường kho là bắt buộc.', $localized['warehouse_id'][0]);
+        $this->assertSame('Số lượng quét phải lớn hơn 0.', $localized['lines'][0]['message']);
+    }
+
+    /**
      * Phát hiện 26/08: "permission" và "product" là từ mượn tiếng Anh dùng phổ biến
      * TRONG câu tiếng Việt hợp lệ của chính codebase (RoleController::assignPermissions,
      * ProductMasterController) — nếu 2 từ này còn nằm trong danh sách kích hoạt
