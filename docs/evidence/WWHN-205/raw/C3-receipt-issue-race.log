@@ -1,0 +1,61 @@
+{
+    "status": "PASS",
+    "postgres_version": "PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+    "failed_scenarios": [],
+    "scenarios": {
+        "s1_competing_receipt_and_issue_same_balance": {
+            "passed": true,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "both_directions_succeeded": true,
+                "exactly_two_movements": true,
+                "no_duplicate_business_key": true,
+                "final_balance_order_independent": true,
+                "balance_version_bumped_once_per_writer": true,
+                "no_lost_update_path_consistent": true,
+                "ledger_sum_equals_balance_delta": true,
+                "balance_never_negative": true,
+                "aggregated_line_keeps_item_id_null": true
+            }
+        },
+        "s2_mixed_receipt_and_two_issues_non_negative": {
+            "passed": true,
+            "checks": {
+                "three_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "receipt_never_rejected_for_stock": true,
+                "movement_count_equals_success_count": true,
+                "no_duplicate_business_key": true,
+                "final_balance_matches_signed_ledger": true,
+                "no_negative_at_any_point": true,
+                "no_lost_update_path_consistent": true,
+                "balance_version_bumped_once_per_writer": true,
+                "rejected_issues_carry_insufficient_stock_code": true
+            }
+        },
+        "s3_same_receipt_document_double_post": {
+            "passed": true,
+            "checks": {
+                "two_distinct_backend_connections": true,
+                "real_contention_proven": true,
+                "exactly_one_success": true,
+                "loser_rejected_state_conflict": true,
+                "exactly_one_movement_no_double": true,
+                "business_key_matches_canonical_formula": true,
+                "item_id_set_for_single_item_line": true,
+                "document_posted_once": true,
+                "ledger_sum_equals_balance_delta": true,
+                "balance_never_negative": true
+            }
+        }
+    },
+    "post_race_reconciliation": {
+        "serial_divergence_confined_to_intentional_oversell_sku": true,
+        "touched_dimensions_all_reconciled": true,
+        "ledger_equals_balance_globally": true,
+        "no_duplicate_business_key_globally": true,
+        "no_negative_balance_globally": true,
+        "no_orphan_movement_globally": true
+    }
+}

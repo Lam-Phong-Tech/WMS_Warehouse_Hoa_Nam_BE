@@ -1,4 +1,9 @@
 *.log
+# WWHN-205: log thô mà wwhn-205-source-register.json khai là evidence bắt buộc (A1, C1..C5)
+# phải nằm trong git. Clone sạch thiếu chúng thì register chỉ còn là lời hứa và
+# Wwhn205InvariantClosureContractTest đỏ. Chỉ mở đúng dạng <pha><số>-*.log của thư mục
+# này; log do CI tự sinh (ci-*.log) vẫn bị ignore.
+!docs/evidence/WWHN-205/raw/[A-Z][0-9]-*.log
 .DS_Store
 .env
 .env.backup
