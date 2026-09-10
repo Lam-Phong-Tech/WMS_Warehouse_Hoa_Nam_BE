@@ -31,16 +31,34 @@ class AgencyTest extends TestCase
         return ['Authorization' => "Bearer {$token}"];
     }
 
+    /**
+     * GĐ1-REQ-001 (5c64d42 + 652fc7d, 25/08/2026; khối agencies/recipients trong
+     * Modules/Warehouse/routes/api.php): /agencies là alias tương thích của master "nơi nhận"
+     * 4 loại do BaM1RecipientController phục vụ, nên `recipient_type` là bắt buộc khi tạo —
+     * thiếu thì 422, không ngầm gán loại mặc định.
+     */
     public function test_agency_can_be_created_listed_and_updated(): void
     {
         $headers = $this->authHeaders();
 
+        $this->postJson('/api/v1/agencies', [
+            'agency_code' => 'DL-0001',
+            'agency_name' => 'Đại lý Hoa Nam Q1',
+        ], $headers)
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR')
+            ->assertJsonStructure(['errors' => ['recipient_type']]);
+        $this->assertFalse(Agency::query()->where('agency_code', 'DL-0001')->exists());
+
         $create = $this->postJson('/api/v1/agencies', [
             'agency_code' => 'DL-0001',
             'agency_name' => 'Đại lý Hoa Nam Q1',
+            'recipient_type' => 'AGENCY',
         ], $headers);
 
-        $create->assertCreated()->assertJsonPath('data.agency_code', 'DL-0001');
+        $create->assertCreated()
+            ->assertJsonPath('data.agency_code', 'DL-0001')
+            ->assertJsonPath('data.recipient_type', 'AGENCY');
         $id = $create->json('data.agency_id');
 
         $list = $this->getJson('/api/v1/agencies?keyword=Hoa+Nam', $headers);
@@ -58,9 +76,16 @@ class AgencyTest extends TestCase
         $response = $this->postJson('/api/v1/agencies', [
             'agency_code' => 'DL-DUP',
             'agency_name' => 'Đại lý trùng code',
+            // GĐ1-REQ-001 (5c64d42 + 652fc7d): thiếu recipient_type cũng ra 422 — gửi đủ để
+            // 422 dưới đây chỉ có thể đến từ luật trùng mã, không phải từ trường bắt buộc mới.
+            'recipient_type' => 'AGENCY',
         ], $headers);
 
-        $response->assertStatus(422)->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR');
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR')
+            ->assertJsonStructure(['errors' => ['agency_code']])
+            ->assertJsonMissingPath('errors.recipient_type');
+        $this->assertSame(1, Agency::query()->where('agency_code', 'DL-DUP')->count());
     }
 
     public function test_agency_detail_for_unknown_id_returns_404(): void
@@ -91,6 +116,11 @@ class AgencyTest extends TestCase
         $this->assertNotNull(Agency::find($agency->agency_id));
     }
 
+    /**
+     * GĐ1-REQ-001 (5c64d42 + 652fc7d): handler nơi nhận ghi audit theo đối tượng `recipient`
+     * với hành động RECIPIENT_CREATE (BaM1RecipientController::audit), thay cho cặp
+     * `agency`/CREATE của handler cũ.
+     */
     public function test_agency_create_writes_audit_log(): void
     {
         $headers = $this->authHeaders();
@@ -98,12 +128,19 @@ class AgencyTest extends TestCase
         $create = $this->postJson('/api/v1/agencies', [
             'agency_code' => 'DL-AUDIT',
             'agency_name' => 'Đại lý có audit',
+            'recipient_type' => 'AGENCY',
         ], $headers);
 
+        // Phải tạo được thật: request hỏng thì object_id null và khẳng định audit bên dưới
+        // mất nghĩa.
+        $create->assertCreated();
+        $agencyId = (string) $create->json('data.agency_id');
+        $this->assertNotSame('', $agencyId);
+
         $this->assertDatabaseHas('audit_log', [
-            'object_type' => 'agency',
-            'object_id' => $create->json('data.agency_id'),
-            'action' => 'CREATE',
+            'object_type' => 'recipient',
+            'object_id' => $agencyId,
+            'action' => 'RECIPIENT_CREATE',
         ]);
     }
 }
