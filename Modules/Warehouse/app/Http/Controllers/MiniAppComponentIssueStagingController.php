@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\BoxCodeParser;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
-use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use OpenApi\Attributes as OA;
 
 /**
@@ -43,7 +43,7 @@ class MiniAppComponentIssueStagingController extends Controller
 {
     use ApiResponse;
     use CachesReadPayload;
-    use ResolvesActorOrNull;
+    use ResolvesActor;
 
     /** Máy quét đọc: TTL ngắn nhất, bám `stock:version` như các adapter Mini App khác. */
     private const CACHE_VERSION_NS = 'stock:version';
@@ -89,16 +89,6 @@ class MiniAppComponentIssueStagingController extends Controller
         private readonly ProductQrPayloadParser $parser,
         private readonly CurrentBaselineComponentFlowController $flow,
     ) {}
-
-    private function actorId(): string
-    {
-        $id = $this->actorIdOrNull();
-        if ($id === null) {
-            ApiError::abort(401, 'UNAUTHENTICATED', 'Bạn chưa đăng nhập.');
-        }
-
-        return $id;
-    }
 
     #[OA\Post(
         path: '/api/v1/mini-app/warranty-component-issues/resolve-code',
