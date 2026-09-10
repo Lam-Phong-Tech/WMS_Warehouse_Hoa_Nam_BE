@@ -73,7 +73,7 @@ return [
     | Domain (POWER_TOOLS / HAND_TOOLS / ACCESSORIES)
     |--------------------------------------------------------------------------
     | CSDL KHÔNG có cột `domain` — taxonomy thật là `product_categories`
-    | (TRACTOR/HARVESTER/PUMP/ENGINE/SPARE_PART). Domain là một lớp gộp ở tầng
+    | (nhóm PT, HAND_TOOLS, SPARE_PART). Domain là một lớp gộp ở tầng
     | trình bày, ánh xạ sang `category_code`, nên BA đổi cách gộp mà không cần
     | migration hay sửa dữ liệu.
     |
@@ -82,9 +82,14 @@ return [
     */
     'domains' => [
         'POWER_TOOLS' => [
-            'name' => 'Máy và thiết bị động lực',
-            'description' => 'Máy nông nghiệp, động cơ và thiết bị chạy điện/xăng dầu.',
-            'categories' => ['TRACTOR', 'HARVESTER', 'PUMP', 'ENGINE'],
+            'name' => 'Máy và dụng cụ điện',
+            'description' => 'Máy và thiết bị động lực DongCheng.',
+            'categories' => [
+                'PT_DRILL_DRIVER', 'PT_IMPACT', 'PT_GRINDING', 'PT_SAW',
+                'PT_CONCRETE', 'PT_WOODWORK', 'PT_AIR', 'PT_WELDING',
+                'PT_GARDEN', 'PT_CLEANING', 'PT_GENERATOR', 'PT_PUMP',
+                'PT_MEASURE_LIGHT', 'PT_COMBO_KIT', 'PT_SPECIAL',
+            ],
         ],
         'HAND_TOOLS' => [
             'name' => 'Dụng cụ cầm tay',
