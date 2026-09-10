@@ -64,6 +64,12 @@ server {
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         include fastcgi_params;
 
+        # WWHN-SEC-03, phòng thủ nhiều lớp: không để phiên bản PHP lọt ra ngoài kể
+        # cả khi image php-fpm cũ còn expose_php=On (production từng trả
+        # `X-Powered-By: PHP/8.3.33`) hay request lỗi trước middleware
+        # SecurityHeaders. Lớp PHP tương ứng: docker/php/security.ini.
+        fastcgi_hide_header X-Powered-By;
+
         # Chuỗi forwarded gửi xuống PHP. $proxy_add_x_forwarded_for nối
         # $remote_addr vào cuối chuỗi client gửi lên, đúng thứ tự trái->phải mà
         # Symfony/Laravel duyệt ngược để loại các hop đã tin

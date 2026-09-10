@@ -110,6 +110,10 @@ server {
         fastcgi_param SCRIPT_FILENAME ${WMS_PHP_DOCROOT}$fastcgi_script_name;
         include fastcgi_params;
 
+        # WWHN-SEC-03, phòng thủ nhiều lớp (giống default.conf.template): không để
+        # phiên bản PHP lọt ra ngoài dù php-fpm còn expose_php=On.
+        fastcgi_hide_header X-Powered-By;
+
         # Bắt buộc để keepalive tới upstream có tác dụng.
         fastcgi_keep_conn on;
 
