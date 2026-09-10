@@ -1,0 +1,41 @@
+{
+  "document": "WWHN-328-AGGREGATE-ROUTE-AMENDMENTS",
+  "task": "WWHN-328",
+  "schemaVersion": "1.0.0",
+  "recordedAt": "2026-09-10",
+  "rule": "AC WWHN-328 'tái sử dụng endpoint aggregate có sẵn, không tạo route mới'. Tập route runtime có uri chứa 'reports/dashboard' phải BẰNG ĐÚNG originalRoute + amendments[].route. Thêm route dashboard mà không có amendment là đổi contract: tests/Feature/Wwhn328R4ClosureTest.php::test_dashboard_aggregate_is_served_by_exactly_one_reused_route và scripts/verify-wwhn-328-closure.mjs (mục 5) đều đỏ.",
+  "originalRoute": "GET|HEAD api/v1/reports/dashboard-quick",
+  "originalRoutePermission": "permission:report.view",
+  "amendments": [
+    {
+      "id": "WWHN-328-AMD-001",
+      "route": "GET|HEAD api/v1/reports/dashboard-overview",
+      "routePermission": "permission:report.view",
+      "handler": "Modules\\Warehouse\\Http\\Controllers\\OperationalReportController@dashboardOverview",
+      "introducedIn": "b6d9a34",
+      "introducedAt": "2026-08-30",
+      "introducedCommitSubject": "feat(api): public storefront API (catalog, quote requests) + fixes [skip ci]",
+      "recordedAt": "2026-09-10",
+      "rationale": "Aggregate một-lần-gọi cho màn Dashboard tổng quan (KPI tách product/component, chuỗi nhập-xuất theo ngày, xu hướng và cơ cấu tồn, tình trạng bảo hành, bộ đếm vấn đề). Bổ sung cho dashboard-quick chứ không thay thế — routes/api.php ghi 'hợp đồng cũ vẫn có consumer'. Landing trong một commit storefront [skip ci] nên chưa từng qua cổng WWHN-328.",
+      "contractImpactOnDashboardQuick": "Không đổi: dashboard-quick giữ nguyên route, permission, field set và fingerprint trong CONTRACT_PIN.json (WWHN-328 R4).",
+      "consumers": [
+        "FE: src/modules/dashboard/overview/overview-data.ts (màn Tổng quan)",
+        "UAT TC_UI_01 (Tổng quan)"
+      ],
+      "owners": ["BA", "Tech Lead"],
+      "signOff": "PENDING",
+      "appsec": {
+        "status": "FLAGGED_FOR_BA — cổng KHÔNG đổi trong lần ghi bù này",
+        "gate": "Chỉ permission:report.view. Từ 07/09/2026 báo cáo đã tách 9 mã report.<màn>.view (DELTA-07), nhưng dashboard-overview và dashboard-quick cố ý giữ report.view để dashboard của các vai không bị trắng (Modules/Warehouse/routes/api.php, khối gác báo cáo).",
+        "dataAggregated": [
+          "Tồn/nhập/xuất: KPI tách product/component, chuỗi theo ngày, xu hướng tồn, cơ cấu sku_type x stock_status, top SKU xuất nhiều/ít — lọc theo data-scope kho của người gọi (dữ liệu tầm RPT-01/01B/02).",
+          "Bảo hành: số ca theo trạng thái, số ca quá hạn, mẫu tối đa 50 ca quá hạn (mã ca, tên khách LUÔN mask, trạng thái, ngày dự kiến hoàn thành), số ca tiếp nhận hôm nay/tuần/tháng — GLOBAL, không lọc kho (dữ liệu tầm RPT-06 / module bảo hành).",
+          "Bộ đếm vấn đề: lệch tồn, lỗi import, in nhãn lỗi, SKU chờ bổ sung thông tin."
+        ],
+        "exposure": "Mọi vai production giữ report.view (ADMIN, WAREHOUSE_MANAGER, WAREHOUSE_STAFF, WARRANTY_STAFF, LEADERSHIP, VIEWER) đều gọi được. WAREHOUSE_STAFF và VIEWER không có warranty.view (bảng đo §4.1 tài liệu bàn giao BA: màn Bảo hành 403) nhưng thấy mã ca, trạng thái, hạn và số ca quá hạn; WARRANTY_STAFF không có màn RPT-01/01B nhưng thấy KPI luồng nhập-xuất và top SKU. Không lộ PII dạng rõ.",
+        "questionForBa": "Dashboard tổng quan có được coi là cross-domain cho mọi vai có report.view không? (a) Chấp nhận và ghi vào DELTA-07; hoặc (b) lọc từng khối theo quyền trong builder (khối bảo hành chỉ khi có warranty.view hoặc report.warranty.view; khối luồng chỉ khi có report.inventory_flow.view hoặc report.outbound_flow.view), kèm biến thể quyền trong khoá cache.",
+        "evidence": "Modules/Warehouse/app/Http/Controllers/OperationalReportController.php (dashboardOverview, buildDashboardOverview; OA\\Get ghi ngoại lệ bảo hành GLOBAL); docs/security/ROUTE_CONTRACT_DELTA_20260910.md mục E7"
+      }
+    }
+  ]
+}

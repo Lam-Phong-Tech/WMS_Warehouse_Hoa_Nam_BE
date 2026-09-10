@@ -203,18 +203,49 @@ class Wwhn328R4ClosureTest extends TestCase
 
     // ── AC WWHN-328: tái sử dụng, không tạo route mới ────────
 
+    /**
+     * AC gốc: dashboard dùng lại đúng MỘT endpoint aggregate có sẵn (dashboard-quick).
+     * `GET reports/dashboard-overview` được thêm ở b6d9a34 (30/08/2026) mà không có
+     * amendment; nay ghi bù thành WWHN-328-AMD-001 trong
+     * docs/evidence/WWHN-328/AGGREGATE_ROUTE_AMENDMENTS.json (BA + Tech Lead: PENDING).
+     *
+     * Cổng vẫn khoá cứng: tập route dashboard ở runtime phải BẰNG ĐÚNG tập đã pin — một
+     * route dashboard thứ ba không có amendment vẫn đỏ. Tên test giữ nguyên vì
+     * R4_CLOSURE.md và scripts/verify-wwhn-328-closure.mjs viện dẫn đúng tên này.
+     */
     public function test_dashboard_aggregate_is_served_by_exactly_one_reused_route(): void
     {
+        $register = json_decode(
+            (string) file_get_contents(base_path('docs/evidence/WWHN-328/AGGREGATE_ROUTE_AMENDMENTS.json')),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+
+        $this->assertSame('GET|HEAD api/v1/reports/dashboard-quick', $register['originalRoute']);
+
+        $pinned = [$register['originalRoute']];
+        foreach ($register['amendments'] as $amendment) {
+            foreach (['id', 'route', 'introducedIn', 'owners', 'signOff', 'rationale'] as $field) {
+                $this->assertNotEmpty(
+                    $amendment[$field] ?? null,
+                    'Amendment WWHN-328 '.($amendment['id'] ?? '?')." thiếu [{$field}]."
+                );
+            }
+            $pinned[] = $amendment['route'];
+        }
+        sort($pinned);
+
         $aggregate = collect(Route::getRoutes()->getRoutes())
             ->filter(fn ($route) => str_contains($route->uri(), 'reports/dashboard'))
             ->map(fn ($route) => implode('|', $route->methods()).' '.$route->uri())
+            ->sort()
             ->values()
             ->all();
 
         $this->assertSame(
-            ['GET|HEAD api/v1/reports/dashboard-quick'],
+            $pinned,
             $aggregate,
-            'WWHN-328 chốt tái sử dụng endpoint sẵn có; thêm route dashboard mới là đổi contract chứ không phải bổ sung.'
+            'WWHN-328 chốt tái sử dụng endpoint sẵn có; route dashboard ngoài tập đã pin (route gốc + amendment đã ghi) là đổi contract chứ không phải bổ sung.'
         );
     }
 

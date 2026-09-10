@@ -222,20 +222,55 @@ if (pin) {
   }
 }
 
-// ── 5. Đúng một route aggregate ─────────────────────────────
+// ── 5. Route aggregate = route gốc + amendment đã ghi ───────
+// AC gốc: tái sử dụng đúng 1 route. dashboard-overview (b6d9a34) được ghi bù thành
+// WWHN-328-AMD-001 trong AGGREGATE_ROUTE_AMENDMENTS.json; route dashboard ngoài tập đã
+// pin vẫn đỏ ở đây.
 if (source.routes) {
+  const registerPath = EVIDENCE + "/AGGREGATE_ROUTE_AMENDMENTS.json";
+  const registerText = read(registerPath);
+  let register = null;
+  if (registerText !== null) {
+    try {
+      register = JSON.parse(registerText);
+    } catch (error) {
+      fail(registerPath + ": không parse được JSON — " + error.message);
+    }
+  }
+  const amendments = (register && register.amendments) || [];
+  const pinnedUris = [register ? register.originalRoute : "GET|HEAD api/v1/reports/dashboard-quick"]
+    .concat(amendments.map((amendment) => amendment.route))
+    .map((key) => String(key).replace(/^[A-Z|]+ api\/v1\//, ""))
+    .sort();
   const dashboardRoutes = source.routes
     .split(/\r?\n/)
     .filter((line) => line.includes("reports/dashboard"));
-  if (dashboardRoutes.length !== 1) {
+  const declaredUris = dashboardRoutes
+    .map((line) => (line.match(/Route::get\('([^']*reports\/dashboard[^']*)'/) || [])[1])
+    .filter(Boolean)
+    .sort();
+  const quickLine = dashboardRoutes.find((line) => line.includes("'reports/dashboard-quick'")) || "";
+  const incomplete = amendments.filter(
+    (amendment) => !Array.isArray(amendment.owners) || amendment.owners.length === 0 || !amendment.signOff,
+  );
+  if (declaredUris.length !== dashboardRoutes.length || JSON.stringify(declaredUris) !== JSON.stringify(pinnedUris)) {
     fail(
-      "routes/api.php phải khai đúng 1 route dashboard aggregate (AC: tái sử dụng, không tạo route mới), đang có " +
-        dashboardRoutes.length,
+      "routes/api.php phải khai đúng tập route dashboard aggregate đã pin (route gốc + amendment trong " +
+        registerPath +
+        "), đang có " +
+        JSON.stringify(declaredUris),
     );
-  } else if (!dashboardRoutes[0].includes("permission:report.view")) {
+  } else if (!quickLine.includes("permission:report.view")) {
     fail("Route dashboard-quick phải gate bằng permission:report.view.");
+  } else if (incomplete.length > 0) {
+    fail("Amendment route dashboard thiếu owners/signOff: " + incomplete.map((a) => a.id).join(", "));
   } else {
-    ok("đúng 1 route aggregate, gate permission:report.view");
+    ok(
+      declaredUris.length +
+        " route aggregate khớp tập đã pin (" +
+        amendments.map((a) => a.id + " sign-off " + a.signOff).join(", ") +
+        "); dashboard-quick gate permission:report.view",
+    );
   }
 }
 
