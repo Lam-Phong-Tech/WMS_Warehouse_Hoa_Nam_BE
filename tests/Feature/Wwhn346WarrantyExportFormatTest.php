@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ReportExportJob;
+use Modules\Warehouse\Support\ReportExportFileStore;
 use Modules\Warehouse\Support\ReportExportJobRunner;
 use Tests\TestCase;
 
@@ -68,7 +69,7 @@ class Wwhn346WarrantyExportFormatTest extends TestCase
         $this->assertSame('READY', $job->status, 'Job PDF phải chốt READY. error='.$job->error_message);
         $this->assertStringEndsWith('.pdf', (string) $job->file_name);
 
-        $bytes = Storage::disk('local')->get((string) $job->file_path);
+        $bytes = ReportExportFileStore::read($job);
         $this->assertStringStartsWith(
             '%PDF',
             (string) $bytes,
@@ -88,7 +89,7 @@ class Wwhn346WarrantyExportFormatTest extends TestCase
         $job->refresh();
         $this->assertSame('READY', $job->status, 'error='.$job->error_message);
         $this->assertStringEndsWith('.xlsx', (string) $job->file_name);
-        $this->assertStringStartsWith('PK', (string) Storage::disk('local')->get((string) $job->file_path));
+        $this->assertStringStartsWith('PK', (string) ReportExportFileStore::read($job));
     }
 
     /**

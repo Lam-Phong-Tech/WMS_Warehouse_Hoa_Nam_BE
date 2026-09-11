@@ -20,7 +20,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
@@ -30,6 +29,7 @@ use Modules\Warehouse\Jobs\GenerateReportExportJob;
 use Modules\Warehouse\Models\ReportExportJob;
 use Modules\Warehouse\Services\LedgerReconciliationService;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\ReportExportFileStore;
 use Modules\Warehouse\Support\ReportExportJobRunner;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use OpenApi\Attributes as OA;
@@ -349,12 +349,39 @@ class OperationalReportController extends Controller
             return $this->respondNotFound('File export này đã hết hạn.');
         }
 
-        $disk = Storage::disk(config('wms_export.disk'));
-        if (! $disk->exists($job->file_path)) {
-            return $this->respondNotFound('Không tìm thấy file export (có thể đã bị dọn dẹp).');
+        $bytes = ReportExportFileStore::read($job);
+        if ($bytes === null) {
+            // READY + còn hạn mà không đọc được nội dung ở đâu cả thì KHÔNG phải "đã bị dọn
+            // dẹp" (hết hạn có nhánh riêng ngay trên, purge thì null hoá file_path): nội dung
+            // chưa từng tới được nơi lưu mà tiến trình này đọc. Dựng lại ngay tại đây thay cho
+            // một 404 lặp lại vô hạn — xem ReportExportJobRunner::recoverMissingFile().
+            $job = ReportExportJobRunner::recoverMissingFile($job);
+            $bytes = $job->status === 'READY' ? ReportExportFileStore::read($job) : null;
+
+            if ($bytes === null && $job->status === 'READY') {
+                $job = ReportExportJobRunner::markFileMissing($job);
+            }
+            if ($bytes === null) {
+                return $job->status === 'FAILED'
+                    ? $this->respondError($job->error_message, [], 404, $job->error_code)
+                    : $this->respondNotFound('Không tìm thấy file export (job chưa sẵn sàng hoặc không tồn tại).');
+            }
         }
 
-        return $disk->download($job->file_path, $job->file_name ?? ($job->export_job_id.'.'.($job->format === 'pdf' ? 'pdf' : 'xlsx')));
+        // Trả thẳng nội dung vừa đọc, MIME khai tường minh: nội dung lưu trong database không có
+        // đuôi file để Flysystem tự đoán như `$disk->download()` trước đây.
+        return response()->streamDownload(
+            function () use ($bytes): void {
+                echo $bytes;
+            },
+            $job->file_name ?? ($job->export_job_id.'.'.($job->format === 'pdf' ? 'pdf' : 'xlsx')),
+            [
+                'Content-Type' => $job->format === 'pdf'
+                    ? 'application/pdf'
+                    : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Length' => (string) strlen($bytes),
+            ],
+        );
     }
 
     /** Fail-closed như ImportReportController::scopedQuery(): job của actor khác = không tồn tại. */

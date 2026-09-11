@@ -3,15 +3,17 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Storage;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\ReportExportJob;
+use Modules\Warehouse\Support\ReportExportFileStore;
 
 /**
  * Dọn file XLSX/PDF export báo cáo đã quá `expires_at` (24h sau khi job READY — xem
- * GenerateReportExportJob) khỏi storage/app/report-exports, cùng mẫu với
- * PurgeExpiredImportErrorFiles: không hard-delete bản ghi job (giữ audit trail), chỉ null
- * hoá file_path/file_name sau khi xoá file vật lý.
+ * ReportExportJobRunner::run()), cùng mẫu với PurgeExpiredImportErrorFiles: không hard-delete
+ * bản ghi job (giữ audit trail), chỉ null hoá file_path/file_name sau khi xoá nội dung.
+ *
+ * Từ 11/09/2026 nội dung nằm ở bảng `report_export_files` (mặc định) hoặc trên ổ đĩa (job cũ,
+ * hay `REPORT_EXPORT_DISK` trỏ ra ổ) — ReportExportFileStore::delete() xoá ở cả hai nơi.
  */
 class PurgeExpiredReportExports extends Command
 {
@@ -22,7 +24,6 @@ class PurgeExpiredReportExports extends Command
     public function handle(): int
     {
         $dryRun = (bool) $this->option('dry-run');
-        $disk = Storage::disk(config('wms_export.disk'));
 
         $expired = ReportExportJob::query()
             ->where('status', 'READY')
@@ -32,15 +33,12 @@ class PurgeExpiredReportExports extends Command
             ->get(['export_job_id', 'file_path']);
 
         $purged = 0;
+        // Giữ tên khoá audit cũ; nay nghĩa là "không còn nội dung ở database lẫn ổ đĩa".
         $missingOnDisk = 0;
 
         foreach ($expired as $job) {
-            $path = (string) $job->file_path;
-
             if (! $dryRun) {
-                if ($disk->exists($path)) {
-                    $disk->delete($path);
-                } else {
+                if (! ReportExportFileStore::delete($job)) {
                     $missingOnDisk++;
                 }
 

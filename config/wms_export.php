@@ -19,24 +19,34 @@ return [
     | instance bất kỳ — người dùng nhận 404 "file đã bị dọn dẹp" cho một file thật
     | sự đang tồn tại.
     |
-    | MẶC ĐỊNH GIỮ `local` — hành vi y hệt trước, không môi trường nào đổi ngầm.
+    | Không cần tới load balancer mới lộ: khohoanamfe.lptech.info.vn (11/09/2026)
+    | nhận đúng câu 404 "có thể đã bị dọn dẹp" cho MỌI lần tải — tiến trình ghi file
+    | và tiến trình tải về không nhìn chung một ổ đĩa, còn stack local không lộ vì
+    | compose dev bind-mount cùng một thư mục cho mọi container.
     |
-    | ĐỂ CHẠY NHIỀU INSTANCE: đặt `REPORT_EXPORT_DISK` sang một đĩa DÙNG CHUNG
-    | (s3 / R2 / MinIO). KIỂM TRA TRƯỚC KHI ĐỔI: đĩa đó phải thật sự dùng được.
-    | Đo ngày 06/09/2026 trên stack local, `FILESYSTEM_DISK=s3` trỏ vào MinIO
-    | nhưng bucket `wms-hoanam` CHƯA ĐƯỢC TẠO — mọi thao tác đĩa s3 đều hỏng, nên
-    | mặc định theo `FILESYSTEM_DISK` sẽ làm hỏng chức năng xuất báo cáo. Xem
+    | MẶC ĐỊNH `database` (từ 11/09/2026): nội dung file nằm ở bảng
+    | `report_export_files`, cạnh chính bản ghi job. Database là nơi DUY NHẤT chắc
+    | chắn dùng chung giữa mọi tiến trình — trạng thái READY mà request tải về đọc
+    | được chính do worker ghi vào đó. Xem migration
+    | 2026_09_11_120000_create_report_export_files_table.
+    |
+    | Vẫn đặt được `REPORT_EXPORT_DISK` sang tên một filesystem disk DÙNG CHUNG
+    | (s3 / R2 / MinIO — hồ sơ chịu tải docker-compose.perf.yml đặt `s3`). KIỂM TRA
+    | TRƯỚC KHI ĐỔI: đĩa đó phải ghi được thật. Đo ngày 06/09/2026 trên stack local,
+    | bucket `wms-hoanam` CHƯA ĐƯỢC TẠO — mọi thao tác đĩa s3 đều hỏng. Xem
     | docs/perf/PERF_AUDIT_2026-09-06.md §7.
     |
     |   docker compose exec backend php artisan tinker --execute=\
     |     "Storage::disk('s3')->put('healthcheck.txt','ok');"
     |
-    | LƯU Ý KHI ĐỔI GIÁ TRỊ NÀY: job đã READY trước đó trỏ vào đĩa cũ sẽ không tải
-    | được nữa. Chúng tự hết hạn sau 24 giờ (expires_at), nên cách an toàn là đổi
-    | vào lúc ít người dùng, hoặc chấp nhận người dùng bấm xuất lại.
+    | ĐỔI GIÁ TRỊ NÀY KHÔNG LÀM HỎNG JOB ĐÃ READY: tải về luôn thử database trước
+    | rồi tới ổ đĩa (`local` với job tạo trước khi chuyển sang database). Không thấy
+    | ở đâu cả thì chính request tải về dựng lại file từ bộ lọc đã lưu của job và
+    | lưu bản mới vào database (khi `inline_fallback` bật) — xem
+    | ReportExportJobRunner::recoverMissingFile().
     |
     */
-    'disk' => env('REPORT_EXPORT_DISK', 'local'),
+    'disk' => env('REPORT_EXPORT_DISK', 'database'),
 
     /*
     |--------------------------------------------------------------------------

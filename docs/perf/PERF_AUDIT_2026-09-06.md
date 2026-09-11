@@ -262,7 +262,7 @@ là thêm bề mặt vô hiệu hoá phải bảo trì mà gần như không đ�
 | Scheduler | ✅ một tiến trình riêng | không nhân bản theo instance web |
 | Health check | ✅ | `/up` và `/api/v1/health` |
 | Trần worker ↔ trần kết nối DB | ✅ **đã sửa hôm nay** | xem LOAD_TEST_2026-09-06.md §3 |
-| **File export báo cáo** | ✅ **đã mở (07/09)** | hồ sơ chịu tải đặt `REPORT_EXPORT_DISK=s3` cho cả backend lẫn queue; bucket MinIO `wms-hoanam` nay do service `minio-init` tạo, đã kiểm `put()`=true. Stack dev vẫn `local` |
+| **File export báo cáo** | ✅ **đã mở (07/09)** | hồ sơ chịu tải đặt `REPORT_EXPORT_DISK=s3` cho cả backend lẫn queue; bucket MinIO `wms-hoanam` nay do service `minio-init` tạo, đã kiểm `put()`=true. **11/09**: không đặt biến thì mặc định nay là `database` (bảng `report_export_files`, dùng chung mọi tiến trình); tải về không đọc được file thì tự dựng lại vào database |
 | File import SKU (tệp tải lên) | ✅ **không phải chặn** | đọc lại kỹ: `store` → parse → `finally delete` trong CÙNG một request, tệp tạm chỉ cần sống trên instance đang xử lý. Kết luận "chặn" hôm 06/09 là sai |
 | File CSV chi tiết lỗi import | ✅ **đã mở (07/09)** | `config/wms_import.php` → `IMPORT_ERROR_FILE_DISK` (mặc định `local`); ghi (`ImportErrorFileService::diskName()`), tải về (`ImportReportController`) và dọn dẹp (`PurgeExpiredImportErrorFiles`) cùng đọc một chỗ. Hồ sơ chịu tải đặt `s3` cho backend + queue + **scheduler** (lệnh dọn dẹp chạy ở scheduler — trước đó `REPORT_EXPORT_DISK` cũng thiếu ở scheduler, đã thêm) |
 | Ảnh bảo hành | ✅ **đã mở (07/09)** | trước ghi cứng `'local'`; nay `config('warranty.photo_disk')` ← `WARRANTY_PHOTO_DISK` (video đã có `WARRANTY_VIDEO_DISK`). Mỗi bản ghi lưu `storage_disk` riêng nên file cũ vẫn đọc đúng đĩa cũ |

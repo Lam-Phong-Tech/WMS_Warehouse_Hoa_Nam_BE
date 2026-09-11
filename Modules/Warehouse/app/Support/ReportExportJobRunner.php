@@ -2,16 +2,14 @@
 
 namespace Modules\Warehouse\Support;
 
-use Illuminate\Contracts\Auth\Authenticatable;
 use App\Support\ReportExportFatalGuard;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Controllers\OperationalReportController;
 use Modules\Warehouse\Models\ReportExportJob;
-use RuntimeException;
 use Throwable;
 
 /**
@@ -47,6 +45,12 @@ class ReportExportJobRunner
     public const ERROR_ACTOR_UNRESOLVED = 'REPORT_EXPORT_ACTOR_UNRESOLVED';
 
     /**
+     * Job READY, còn hạn, nhưng tiến trình phục vụ tải về không đọc được nội dung file ở
+     * đâu cả và không được phép dựng lại — xem recoverMissingFile() / markFileMissing().
+     */
+    public const ERROR_FILE_MISSING = 'REPORT_EXPORT_FILE_MISSING';
+
+    /**
      * Giành quyền chạy job: PENDING -> PROCESSING, nguyên tử.
      *
      * Trả `true` cho ĐÚNG MỘT tiến trình. Ai nhận `false` nghĩa là job đã được tiến
@@ -62,14 +66,17 @@ class ReportExportJobRunner
     }
 
     /**
-     * Chạy phần nặng (query + dựng XLSX/PDF + ghi đĩa) rồi chốt job READY/FAILED.
+     * Chạy phần nặng (query + dựng XLSX/PDF + lưu nội dung) rồi chốt job READY/FAILED.
      *
-     * CHỈ gọi sau khi claim() trả true. Hàm KHÔNG ném lỗi ra ngoài: mọi Throwable đều
-     * được chuyển thành FAILED + error_code + error_message, vì người gọi có thể là một
-     * request HTTP đang poll trạng thái — ném lỗi ở đó sẽ biến câu trả lời poll thành
-     * 500 và lại giấu mất nguyên nhân thật của lần export.
+     * CHỈ gọi sau khi claim() (hoặc recoverMissingFile()) giành được quyền chạy. Hàm KHÔNG
+     * ném lỗi ra ngoài: mọi Throwable đều được chuyển thành FAILED + error_code +
+     * error_message, vì người gọi có thể là một request HTTP đang poll trạng thái — ném lỗi
+     * ở đó sẽ biến câu trả lời poll thành 500 và lại giấu mất nguyên nhân thật của lần export.
+     *
+     * `$storeTarget` null = lưu vào nơi đang cấu hình (`wms_export.disk`); recoverMissingFile()
+     * ép `database` — lý do ở đó.
      */
-    public static function run(ReportExportJob $job): void
+    public static function run(ReportExportJob $job, ?string $storeTarget = null): void
     {
         // WWHN-347: `catch (Throwable)` bên dưới KHÔNG bắt được lỗi fatal của PHP (hết bộ
         // nhớ, quá thời gian) — tiến trình chết thẳng và job nằm lại PROCESSING với
@@ -115,18 +122,13 @@ class ReportExportJobRunner
 
             $extension = $job->format === 'pdf' ? 'pdf' : 'xlsx';
             $storedPath = 'report-exports/'.$job->export_job_id.'.'.$extension;
-            // `put()` KHÔNG ném lỗi khi ghi hỏng — nó trả về `false`. Không kiểm giá
-            // trị trả về thì job vẫn tự chuyển sang READY cho một file CHƯA BAO GIỜ
-            // được ghi, và người dùng chỉ phát hiện ở bước bấm Tải về (500/404) — mất
-            // hẳn manh mối vì log lúc đó không còn nói gì về nguyên nhân thật.
-            // Dựng lại được đúng tình huống này ngày 06/09/2026 khi thử trỏ đĩa export
-            // sang s3 trong lúc bucket chưa được tạo.
-            $disk = (string) config('wms_export.disk');
-            if (Storage::disk($disk)->put($storedPath, $payload['bytes']) === false) {
-                throw new RuntimeException(
-                    "Không ghi được file export vào đĩa '{$disk}' (đường dẫn: {$storedPath})."
-                );
-            }
+            $expiresAt = now()->addHours(24);
+
+            // Lưu hỏng thì store NÉM lỗi — kể cả khi `put()` của ổ đĩa chỉ lặng lẽ trả
+            // `false` — nên nhánh catch bên dưới chốt FAILED kèm nguyên nhân: job không bao
+            // giờ READY cho một file chưa từng được lưu. Nơi lưu mặc định là database, dùng
+            // chung cho mọi tiến trình — xem ReportExportFileStore.
+            ReportExportFileStore::put($job, $storedPath, (string) $payload['bytes'], $expiresAt, $storeTarget);
 
             $job->forceFill([
                 'status' => 'READY',
@@ -135,8 +137,10 @@ class ReportExportJobRunner
                 'file_name' => $payload['fileName'],
                 'error_code' => null,
                 'error_message' => null,
-                'expires_at' => now()->addHours(24),
+                'expires_at' => $expiresAt,
             ])->save();
+
+            ReportExportFileStore::pruneExpired();
         } catch (Throwable $e) {
             Log::error('Report export job failed', [
                 'export_job_id' => $job->export_job_id,
@@ -182,6 +186,73 @@ class ReportExportJobRunner
                 'exception' => $e,
             ]);
         }
+    }
+
+    /**
+     * Job READY, còn hạn, nhưng tiến trình đang phục vụ tải về KHÔNG đọc được nội dung file
+     * ở đâu cả (database, rồi ổ đĩa).
+     *
+     * Trước đây trường hợp này chỉ trả 404 "có thể đã bị dọn dẹp" và để job nằm nguyên
+     * READY: bấm tải bao nhiêu lần cũng ra đúng câu đó, log không để lại gì. Gặp ở cả hai
+     * môi trường ngày 11/09/2026 — bản BE build 07/09 ghi hỏng mà không kiểm `put()`, còn
+     * khohoanamfe.lptech.info.vn (đã có bản vá đó) thì file được ghi THÀNH CÔNG nhưng bởi
+     * một tiến trình khác, lên ổ đĩa mà tiến trình tải về không nhìn thấy. File hết hạn đã
+     * có nhánh riêng ("đã hết hạn") và lệnh purge null hoá `file_path`, nên tới được đây
+     * nghĩa là nội dung chưa từng tới được nơi lưu mà tiến trình này đọc.
+     *
+     * Mặc định (`inline_fallback` bật — cùng công tắc với đường cứu hộ WWHN-343): dựng lại
+     * file NGAY trong tiến trình này từ bộ lọc + actor đã lưu của job (BR-EXP-01 giữ nguyên
+     * filter/scope; số liệu là số liệu tại lúc dựng lại) và lưu bản mới vào DATABASE bất kể
+     * `wms_export.disk` — nơi lưu đang cấu hình vừa chứng minh là tiến trình này không đọc
+     * được, ghi lại vào đó thì lần tải sau hỏng y hệt. Người dùng nhận file thay vì 404.
+     *
+     * Tắt `inline_fallback` (muốn mọi export đi qua worker): markFileMissing().
+     *
+     * Trả về bản ghi đã refresh: READY (đọc lại được qua ReportExportFileStore), FAILED (kèm
+     * lý do), hoặc PROCESSING khi một request khác đang dựng lại đúng job này.
+     */
+    public static function recoverMissingFile(ReportExportJob $job): ReportExportJob
+    {
+        if (! (bool) config('wms_export.inline_fallback', true)) {
+            return self::markFileMissing($job);
+        }
+
+        Log::warning('Report export file missing at download — rebuilding it in this process', self::fileContext($job));
+
+        // Giành quyền dựng lại giống claim(): READY -> PROCESSING nguyên tử, để hai lần bấm
+        // tải cùng lúc không dựng hai lần. Bên thua nhận PROCESSING ("chưa sẵn sàng"); tiến
+        // trình dựng lại mà chết giữa chừng thì FatalGuard/ensureProgress() chốt như mọi job.
+        $reclaimed = ReportExportJob::query()
+            ->where('export_job_id', $job->export_job_id)
+            ->where('status', 'READY')
+            ->update(['status' => 'PROCESSING', 'updated_at' => now()]) === 1;
+
+        if ($reclaimed) {
+            self::run($job->refresh(), ReportExportFileStore::DATABASE);
+        }
+
+        return $job->refresh();
+    }
+
+    /**
+     * Chốt FAILED + REPORT_EXPORT_FILE_MISSING cho job READY mà nội dung file không đọc được ở
+     * đâu cả và không dựng lại được — để lần poll sau không còn trả READY + download_url cho
+     * một file không tồn tại. Log đủ nơi lưu/đường dẫn/máy để đối chiếu với log "Report export
+     * file stored" lúc ghi.
+     */
+    public static function markFileMissing(ReportExportJob $job): ReportExportJob
+    {
+        Log::error('Report export file missing at download', self::fileContext($job));
+
+        self::fail(
+            $job,
+            self::ERROR_FILE_MISSING,
+            'Máy chủ không tìm thấy file của lần xuất này (file chưa được lưu thành công hoặc máy chủ '
+                .'không đọc được nơi lưu file). Vui lòng bấm xuất lại; nếu lỗi lặp lại, báo quản trị viên '
+                .'kiểm tra nơi lưu file xuất báo cáo.'
+        );
+
+        return $job->refresh();
     }
 
     /** Chốt job ở trạng thái lỗi — luôn kèm error_code + error_message để FE nói được lý do. */
@@ -255,6 +326,25 @@ class ReportExportJobRunner
         }
 
         return $job;
+    }
+
+    /**
+     * Ngữ cảnh log chung của hai nhánh "không đọc được file": nơi lưu đang cấu hình, đường
+     * dẫn và MÁY đang phục vụ tải về — so với log "Report export file stored" lúc ghi là
+     * biết ngay hai tiến trình có nhìn cùng một nơi lưu hay không.
+     *
+     * @return array<string, mixed>
+     */
+    private static function fileContext(ReportExportJob $job): array
+    {
+        return [
+            'export_job_id' => $job->export_job_id,
+            'report_code' => $job->report_code,
+            'target' => ReportExportFileStore::target(),
+            'path' => $job->file_path,
+            'host' => gethostname() ?: null,
+            'ready_since' => $job->updated_at?->toIso8601String(),
+        ];
     }
 
     /**
