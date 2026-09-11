@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Mockery;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ItemInstance;
@@ -169,6 +171,31 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         $this->assertCount(0, $after->json('data'));
         $this->get("/api/v1/warranty-attachments/{$attachmentId}/download", $headers)
             ->assertStatus(404);
+    }
+
+    /**
+     * Disk media để `throw => false`: ghi lỗi (R2 sai credential, mất mạng) chỉ trả false.
+     * Upload phải báo 503 và KHÔNG để lại dòng ACTIVE trỏ tới tệp không tồn tại.
+     */
+    public function test_warranty_attachment_upload_returns_503_when_storage_write_fails(): void
+    {
+        Storage::fake('local');
+        $headers = $this->authHeaders();
+        $caseId = $this->createTempOnlyCase($headers);
+
+        $broken = Mockery::mock(FilesystemAdapter::class);
+        $broken->shouldReceive('putFileAs')->once()->andReturnFalse();
+        Storage::set('broken-media', $broken);
+        config(['warranty.photo_disk' => 'broken-media']);
+
+        $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
+            'file' => UploadedFile::fake()->image('mat-truoc.jpg'),
+            'attachment_type' => 'INTAKE',
+        ], $headers)
+            ->assertStatus(503)
+            ->assertJsonPath('error.code', 'STORAGE_UNAVAILABLE');
+
+        $this->assertSame(0, DB::table('warranty_attachments')->where('warranty_case_id', $caseId)->count());
     }
 
     /**

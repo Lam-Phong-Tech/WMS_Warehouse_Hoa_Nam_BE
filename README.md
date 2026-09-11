@@ -97,6 +97,7 @@ các màn khác vẫn đủ dữ liệu).
 | TTL cache | `CACHE_TTL_RBAC`, `CACHE_TTL_MASTER`, `CACHE_TTL_REFERENCE`, `CACHE_TTL_SKU`, `CACHE_TTL_SEARCH`, `CACHE_TTL_DASHBOARD`, `CACHE_TTL_REPORT` | Policy tập trung ở `config/wms_cache.php`, không hard-code TTL trong code |
 | Auth | `JWT_SECRET`, `JWT_TTL` | |
 | Storage | `FILESYSTEM_DISK=s3`, `AWS_*` | MinIO ở local, S3-compatible ở production |
+| Media (Cloudflare R2) | `R2_*`, `WARRANTY_PHOTO_DISK`, `WARRANTY_VIDEO_DISK`, `DOCUMENT_ATTACHMENT_DISK`, `PV_IMAGE_DISK` | Ảnh/video bảo hành, chứng từ đính kèm, ảnh sản phẩm PV. Đặt `*_DISK=r2` sau khi điền `R2_*`; bucket để private, BE stream tệp qua API có phân quyền |
 
 Không commit `.env`; secret chuyển giao qua kênh an toàn, không dán vào tài liệu hay Jira.
 

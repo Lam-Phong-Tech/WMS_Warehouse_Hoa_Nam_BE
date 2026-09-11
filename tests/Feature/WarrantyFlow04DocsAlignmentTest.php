@@ -347,6 +347,47 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
         );
     }
 
+    /**
+     * Ảnh cũ nằm ở local, ảnh mới lên R2 sau khi đổi WARRANTY_PHOTO_DISK: purge phải xoá
+     * cả hai. Trước đây lệnh gắn cứng disk 'local' nên tệp trên R2 sống mãi dù hồ sơ đã
+     * anonymize.
+     */
+    public function test_purge_deletes_attachment_files_on_the_disk_each_was_uploaded_to(): void
+    {
+        Storage::fake('local');
+        Storage::fake('r2');
+        $headers = $this->authHeaders('SUPER_ADMIN_W4R');
+        $caseId = $this->createTempOnlyCase($headers);
+
+        foreach (['local' => 'truoc-khi-doi.jpg', 'r2' => 'sau-khi-doi.jpg'] as $disk => $name) {
+            config(['warranty.photo_disk' => $disk]);
+            $this->post("/api/v1/warranty-cases/{$caseId}/attachments", [
+                'file' => UploadedFile::fake()->image($name),
+            ], $headers)->assertCreated();
+        }
+
+        $stored = DB::table('warranty_attachments')
+            ->where('warranty_case_id', $caseId)
+            ->pluck('storage_key', 'storage_disk')
+            ->all();
+        ksort($stored);
+        $this->assertSame(['local', 'r2'], array_keys($stored));
+        Storage::disk('local')->assertExists($stored['local']);
+        Storage::disk('r2')->assertExists($stored['r2']);
+
+        DB::table('warranty_case')->where('warranty_case_id', $caseId)->update(WarrantyCasePii::encode([
+            'retention_until' => now()->subDay(),
+        ]));
+        $this->artisan('warranty:purge-pii')->assertExitCode(0);
+
+        Storage::disk('local')->assertMissing($stored['local']);
+        Storage::disk('r2')->assertMissing($stored['r2']);
+        $this->assertSame(0, DB::table('warranty_attachments')
+            ->where('warranty_case_id', $caseId)
+            ->where('status', '!=', 'DELETED')
+            ->count());
+    }
+
     public function test_legal_hold_case_is_excluded_from_purge(): void
     {
         $headers = $this->authHeaders('SUPER_ADMIN_W4H');

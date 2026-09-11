@@ -39,5 +39,11 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Disk media ghim đúng disk mà test Storage::fake(): .env dev có thể trỏ R2 thật
+             (WARRANTY_*_DISK=r2...) — không ghim thì test upload ghi lên bucket thật. -->
+        <env name="WARRANTY_PHOTO_DISK" value="local" force="true"/>
+        <env name="WARRANTY_VIDEO_DISK" value="local" force="true"/>
+        <env name="DOCUMENT_ATTACHMENT_DISK" value="local" force="true"/>
+        <env name="PV_IMAGE_DISK" value="s3" force="true"/>
     </php>
 </phpunit>

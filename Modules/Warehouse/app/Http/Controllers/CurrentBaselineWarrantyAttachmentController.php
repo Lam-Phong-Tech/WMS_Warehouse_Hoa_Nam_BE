@@ -190,7 +190,13 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             ]);
         }
 
-        Storage::disk($storageDisk)->putFileAs("warranty-attachments/{$id}", $file, "{$attachmentId}.{$extension}");
+        // Disk để `throw => false`: ghi lỗi (R2 sai credential, mất mạng, bucket chưa có)
+        // thì putFileAs trả false chứ không ném. Không chặn ở đây là client nhận 201, DB có
+        // dòng ACTIVE nhưng tệp không tồn tại — chỉ lộ ra lúc mở hồ sơ.
+        $stored = Storage::disk($storageDisk)->putFileAs("warranty-attachments/{$id}", $file, "{$attachmentId}.{$extension}");
+        if ($stored === false) {
+            ApiError::abort(503, 'STORAGE_UNAVAILABLE', 'Không ghi được tệp đính kèm lên kho lưu trữ. Thử lại sau ít phút.');
+        }
 
         $now = now();
         $actorId = $this->actorId();
@@ -477,5 +483,4 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             'stock_effect' => 'NONE',
         ];
     }
-
 }

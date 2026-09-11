@@ -103,12 +103,16 @@ class PurgeWarrantyPii extends Command
             $attachments = DB::table('warranty_attachments')
                 ->whereIn('warranty_case_id', $caseIds)
                 ->where('status', '!=', 'DELETED')
-                ->get(['id', 'storage_key', 'storage_path']);
+                ->get(['id', 'storage_key', 'storage_path', 'storage_disk']);
 
             foreach ($attachments as $attachment) {
                 $path = (string) ($attachment->storage_key ?? $attachment->storage_path ?? '');
-                if ($path !== '' && Storage::disk('local')->exists($path)) {
-                    Storage::disk('local')->delete($path);
+                // Xoá trên đúng disk đã ghi lúc upload (cột storage_disk: local / s3 / r2).
+                // Gắn cứng 'local' thì ảnh/video nằm trên R2 không bao giờ bị purge dù hồ
+                // sơ đã anonymize — §13.8 chỉ được thỏa trên giấy.
+                $disk = Storage::disk((string) ($attachment->storage_disk ?: 'local'));
+                if ($path !== '' && $disk->exists($path)) {
+                    $disk->delete($path);
                 }
             }
 

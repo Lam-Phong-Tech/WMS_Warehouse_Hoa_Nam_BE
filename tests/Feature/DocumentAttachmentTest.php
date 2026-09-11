@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -58,6 +60,31 @@ class DocumentAttachmentTest extends TestCase
         $listFinal = $this->getJson("/api/v1/inbound-documents/{$documentId}/attachments", $headers)->assertOk();
         $this->assertCount(0, $listFinal->json('data'));
         $this->get("/api/v1/document-attachments/{$attachmentId}/download", $headers)->assertNotFound();
+    }
+
+    /** Cùng lý do với WarrantyFlow04ApiSurfaceTest: ghi storage lỗi phải 503, không tạo dòng ACTIVE. */
+    public function test_inbound_attachment_upload_returns_503_when_storage_write_fails(): void
+    {
+        Storage::fake('local');
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $document = $this->createInboundHeader($headers, $warehouse->id);
+
+        $broken = Mockery::mock(FilesystemAdapter::class);
+        $broken->shouldReceive('putFileAs')->once()->andReturnFalse();
+        Storage::set('broken-media', $broken);
+        config(['documents.disk' => 'broken-media']);
+
+        $this->post("/api/v1/inbound-documents/{$document['document_id']}/attachments", [
+            'file' => UploadedFile::fake()->image('phieu-giao-hang.jpg'),
+            'attachment_type' => 'SOURCE_DOCUMENT',
+        ], $headers)
+            ->assertStatus(503)
+            ->assertJsonPath('error.code', 'STORAGE_UNAVAILABLE');
+
+        $this->assertSame(0, DB::table('document_attachments')
+            ->where('document_id', $document['document_id'])
+            ->count());
     }
 
     public function test_inbound_attachment_rejects_disguised_file_content_type(): void

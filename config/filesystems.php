@@ -71,6 +71,11 @@ return [
             'url' => env('R2_URL'),
             'endpoint' => env('R2_ENDPOINT'),
             'use_path_style_endpoint' => true,
+            // aws-sdk-php >= 3.337 mặc định tự tính và gửi checksum mới (CRC32, dạng
+            // trailer khi upload luồng) cho MỌI request; R2 không tương thích hoàn toàn
+            // với cơ chế này. Chỉ gửi/kiểm checksum khi API bắt buộc — hành vi SDK cũ.
+            'request_checksum_calculation' => 'when_required',
+            'response_checksum_validation' => 'when_required',
             'throw' => false,
             'report' => false,
         ],

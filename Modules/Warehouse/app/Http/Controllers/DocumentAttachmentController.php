@@ -468,11 +468,16 @@ class DocumentAttachmentController extends Controller
             ]);
         }
 
-        Storage::disk($storageDisk)->putFileAs(
+        // Disk để `throw => false`: ghi lỗi thì trả false chứ không ném — phải chặn trước
+        // khi tạo dòng ACTIVE (xem CurrentBaselineWarrantyAttachmentController).
+        $stored = Storage::disk($storageDisk)->putFileAs(
             'document-attachments/'.strtolower($documentType)."/{$documentId}",
             $file,
             "{$attachmentId}.{$extension}"
         );
+        if ($stored === false) {
+            ApiError::abort(503, 'STORAGE_UNAVAILABLE', 'Không ghi được chứng từ đính kèm lên kho lưu trữ. Thử lại sau ít phút.');
+        }
 
         $now = now();
         $actorId = $this->actorId();
