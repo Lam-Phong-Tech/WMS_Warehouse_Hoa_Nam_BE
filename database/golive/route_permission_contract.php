@@ -77,6 +77,7 @@ return [
     'GET|HEAD api/v1/label-print-events' => 'permission:label.print|packing_label.print|report.packing_label.view',
     'GET|HEAD api/v1/label-snapshots' => 'permission:label.print',
     'GET|HEAD api/v1/label-snapshots/{id}' => 'permission:label.print',
+    'GET|HEAD api/v1/mini-app/dashboard/summary' => 'permission:inbound.view|outbound.view',
     'GET|HEAD api/v1/mini-app/document-attachments/pending-evidence' => 'permission:inventory.view',
     'GET|HEAD api/v1/mini-app/document-attachments/{attachmentId}/download' => 'permission:inbound.view|outbound.view|inventory.view',
     'GET|HEAD api/v1/mini-app/inbound-documents' => 'permission:inbound.view',

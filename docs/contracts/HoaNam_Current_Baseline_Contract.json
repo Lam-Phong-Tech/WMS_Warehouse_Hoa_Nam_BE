@@ -554,6 +554,18 @@
             "GET /api/v1/notifications/{id}",
             "PATCH /api/v1/auth/me"
           ]
+        },
+        {
+          "id": "AMD-API-028",
+          "introduced_in": "9ad1a0b",
+          "introduced_at": "2026-09-11",
+          "title": "Mini App — số liệu tổng hợp cho thẻ KPI màn Trang chủ (chờ duyệt, đã duyệt trong ngày)",
+          "rationale": "Đội Mini App báo KPI Trang chủ không sửa đúng được chỉ bằng client: /mini-app/inbound-documents và /mini-app/outbound-documents phân trang, sắp theo created_at và không lọc được theo posted_at hay warehouse_id, nên không tự đếm được số phiếu đã duyệt trong ngày. Endpoint đọc tổng hợp, không đổi trạng thái; pending_approval_count dùng đúng điều kiện WAITING_APPROVAL/ready_for_issue của hai danh sách; permission inbound.view|outbound.view, khối người gọi không có quyền trả null; chịu warehouse data-scope.",
+          "owner": "BA + Tech Lead",
+          "approval": "PENDING (BA + Tech Lead)",
+          "operations": [
+            "GET /api/v1/mini-app/dashboard/summary"
+          ]
         }
       ]
     },

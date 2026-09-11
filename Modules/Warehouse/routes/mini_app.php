@@ -7,6 +7,7 @@ use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentIssueQueryControl
 use Modules\Warehouse\Http\Controllers\CurrentBaselineWarrantyAttachmentController;
 use Modules\Warehouse\Http\Controllers\DocumentAttachmentController;
 use Modules\Warehouse\Http\Controllers\MiniAppComponentIssueStagingController;
+use Modules\Warehouse\Http\Controllers\MiniAppDashboardController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundController;
 use Modules\Warehouse\Http\Controllers\MiniAppInboundStagingController;
 use Modules\Warehouse\Http\Controllers\MiniAppNfcController;
@@ -35,6 +36,10 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
     // ── Shared Mini App support ──────────────────────────────────────────
     Route::get('printer-configs', [CanonicalMvpController::class, 'listPrinterConfigs'])
         ->middleware('permission:label.print');
+
+    // Thẻ KPI màn Trang chủ: danh sách phiếu không lọc được theo ngày Post nên client không tự đếm đúng.
+    Route::get('dashboard/summary', [MiniAppDashboardController::class, 'summary'])
+        ->middleware(['permission:inbound.view|outbound.view', EnforceInboundWarehouseScope::class, EnforceOutboundWarehouseScope::class]);
 
     // ── Product lookup ───────────────────────────────────────────────────
     // Read-only tra cứu SKU cho Mini App (dùng chung permission sku.view với
