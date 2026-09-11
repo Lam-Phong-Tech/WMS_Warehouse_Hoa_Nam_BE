@@ -17,6 +17,39 @@ map $http_x_forwarded_port $wms_forwarded_port {
     ""      "${WMS_NGINX_EXTERNAL_PORT}";
 }
 
+# LỖI GATEWAY ĐỌC ĐƯỢC KHI BACKEND CHƯA SẴN SÀNG (10/09/2026) — giải thích đầy đủ ở
+# đầu docker/nginx/default.conf.template. Giữ khối map + hai location
+# @wms_backend_* ĐỒNG BỘ với file đó (tests/Unit/DockerNginxBackendUnavailableTest.php).
+map "$http_origin|${WMS_CORS_ALLOWED_ORIGINS}," $wms_gateway_cors_origin {
+    default "";
+    "~^([^|,\s]+)\|(?:[^|]*,)?\s*\1/?\s*," $http_origin;
+}
+
+map $wms_gateway_cors_origin $wms_gateway_cors_credentials {
+    ""      "";
+    default "true";
+}
+
+map $wms_gateway_cors_origin $wms_gateway_cors_methods {
+    ""      "";
+    default $http_access_control_request_method;
+}
+
+map $wms_gateway_cors_origin $wms_gateway_cors_headers {
+    ""      "";
+    default $http_access_control_request_headers;
+}
+
+map $wms_gateway_cors_origin $wms_gateway_cors_expose {
+    ""      "";
+    default "Retry-After, X-Request-ID";
+}
+
+map $request_method $wms_gateway_retry_after {
+    OPTIONS "";
+    default "5";
+}
+
 # Resolver của Docker. `valid=5s` là ĐỘ DÀI CỬA SỔ 502 sau khi backend đổi IP:
 # đo thật với valid=10s ra ~12 giây, với 5s còn ~6 giây. Chi phí là vài truy vấn
 # DNS nội bộ mỗi giây — không đáng kể so với việc rút ngắn thời gian gián đoạn.
@@ -154,6 +187,49 @@ server {
         fastcgi_next_upstream error timeout;
         fastcgi_next_upstream_tries 2;
         fastcgi_next_upstream_timeout 10s;
+
+        # Lỗi do CHÍNH nginx sinh ra (hết node, không kết nối được) → JSON + CORS.
+        error_page 502 503 = @wms_backend_unavailable;
+        error_page 504 = @wms_backend_timeout;
+    }
+
+    location @wms_backend_unavailable {
+        default_type "application/json; charset=utf-8";
+        add_header Access-Control-Allow-Origin      $wms_gateway_cors_origin always;
+        add_header Access-Control-Allow-Credentials $wms_gateway_cors_credentials always;
+        add_header Access-Control-Allow-Methods     $wms_gateway_cors_methods always;
+        add_header Access-Control-Allow-Headers     $wms_gateway_cors_headers always;
+        add_header Access-Control-Expose-Headers    $wms_gateway_cors_expose always;
+        add_header Vary Origin always;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Request-ID $request_id always;
+        add_header Retry-After $wms_gateway_retry_after always;
+
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        return 503 '{"success":false,"message":"Hệ thống đang khởi động lại hoặc tạm gián đoạn. Vui lòng thử lại sau ít giây.","error_code":"BACKEND_UNAVAILABLE","errors":[],"error":{"code":"BACKEND_UNAVAILABLE","details":[]},"meta":{"request_id":"$request_id","timestamp":"$time_iso8601"}}';
+    }
+
+    location @wms_backend_timeout {
+        default_type "application/json; charset=utf-8";
+        add_header Access-Control-Allow-Origin      $wms_gateway_cors_origin always;
+        add_header Access-Control-Allow-Credentials $wms_gateway_cors_credentials always;
+        add_header Access-Control-Allow-Methods     $wms_gateway_cors_methods always;
+        add_header Access-Control-Allow-Headers     $wms_gateway_cors_headers always;
+        add_header Access-Control-Expose-Headers    $wms_gateway_cors_expose always;
+        add_header Vary Origin always;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Request-ID $request_id always;
+
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
+
+        return 504 '{"success":false,"message":"Máy chủ xử lý quá thời gian cho phép. Vui lòng thử lại sau; nếu vẫn lỗi, liên hệ quản trị viên.","error_code":"GATEWAY_TIMEOUT","errors":[],"error":{"code":"GATEWAY_TIMEOUT","details":[]},"meta":{"request_id":"$request_id","timestamp":"$time_iso8601"}}';
     }
 
     location ~ /\.ht {
