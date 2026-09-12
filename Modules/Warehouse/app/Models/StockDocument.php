@@ -62,7 +62,7 @@ class StockDocument extends Model
 
     protected $fillable = [
         'doc_type', 'doc_no', 'doc_date', 'status', 'src_warehouse_id', 'dst_warehouse_id',
-        'note', 'create_idempotency_key',
+        'note', 'create_idempotency_key', 'draft_expires_at',
         'submitted_by', 'submitted_at', 'approved_by', 'approved_at',
         'posted_by', 'posted_at', 'closed_by', 'closed_at',
         'reversed_by', 'reversed_at', 'reverse_reason',
@@ -79,6 +79,7 @@ class StockDocument extends Model
 
     protected $casts = [
         'doc_date' => 'date',
+        'draft_expires_at' => 'datetime',
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
         'posted_at' => 'datetime',
