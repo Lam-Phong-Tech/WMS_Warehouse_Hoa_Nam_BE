@@ -285,6 +285,9 @@ class CurrentBaselineDocumentController extends Controller
                 'doc_no' => $docNo,
                 'doc_date' => $validated['doc_date'] ?? now()->toDateString(),
                 'status' => 'DRAFT',
+                // Mini App: nháp chỉ được tiếp tục trong 07 ngày. Không tự xoá
+                // chứng từ khi hết hạn; UI nhận metadata để hướng người dùng Cancel.
+                'draft_expires_at' => now()->addWeek(),
                 'src_warehouse_id' => $type === 'issue' ? $warehouseId : null,
                 'dst_warehouse_id' => $type === 'receipt' ? $warehouseId : null,
                 'source_name' => $validated['source_name'] ?? null,
@@ -352,6 +355,7 @@ class CurrentBaselineDocumentController extends Controller
             if (! in_array($document->status, ['DRAFT', 'SCANNING'], true)) {
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được cập nhật.');
             }
+            $this->assertDraftNotExpired($document);
 
             $lineUpdateMode = 'NONE';
             if (isset($validated['lines'])) {
@@ -635,8 +639,33 @@ class CurrentBaselineDocumentController extends Controller
     private function assertActiveWarehouse(string $warehouseId): void
     {
         $warehouse = DB::table('warehouses')->where('id', $warehouseId)->first();
-        if ($warehouse === null || strtoupper((string) $warehouse->status) !== 'ACTIVE') {
-            ApiError::abort(422, 'WAREHOUSE_NOT_ACTIVE', 'Chỉ kho ACTIVE được dùng cho stock document.');
+        if ($warehouse === null) {
+            ApiError::abort(404, 'WAREHOUSE_NOT_FOUND', 'Không tìm thấy kho.');
+        }
+        if (strtoupper((string) $warehouse->status) !== 'ACTIVE') {
+            ApiError::abort(409, 'WAREHOUSE_SUSPENDED', 'Kho đang tạm ngừng, không thể tạo hoặc tiếp tục chứng từ.', [
+                'warehouse_id' => (string) $warehouse->id,
+                'warehouse_status' => (string) $warehouse->status,
+                'suspension_reason' => $warehouse->suspension_reason ?? null,
+            ]);
+        }
+    }
+
+    /**
+     * Hết hạn không xoá và không tự đổi trạng thái để bảo toàn audit. Client phải
+     * hiển thị nháp hết hạn, khóa "Tiếp tục" và cho phép người dùng Cancel để
+     * chuyển chứng từ sang CANCELLED có lý do rõ ràng.
+     */
+    private function assertDraftNotExpired(object $document): void
+    {
+        if ((string) $document->status !== 'DRAFT' || empty($document->draft_expires_at)) {
+            return;
+        }
+        if (now()->greaterThanOrEqualTo($document->draft_expires_at)) {
+            ApiError::abort(409, 'DRAFT_EXPIRED', 'Phiếu nháp đã hết hạn sau 07 ngày. Hãy hủy phiếu hoặc tạo phiếu mới.', [
+                'document_id' => (string) $document->id,
+                'draft_expires_at' => $document->draft_expires_at,
+            ]);
         }
     }
 
@@ -683,11 +712,31 @@ class CurrentBaselineDocumentController extends Controller
     private function documentPayload(string $id): array
     {
         $document = DB::table('stock_documents')->where('id', $id)->first();
+        $warehouseId = $document->doc_type === 'receipt'
+            ? $document->dst_warehouse_id
+            : $document->src_warehouse_id;
+        $warehouse = $warehouseId === null ? null : DB::table('warehouses')->where('id', $warehouseId)->first();
+        $draftExpired = (string) $document->status === 'DRAFT'
+            && ! empty($document->draft_expires_at)
+            && now()->greaterThanOrEqualTo($document->draft_expires_at);
 
         return [
             ...(array) $document,
             // Alias đọc theo tên field của Annex A / Annex D SCR-IN-01.
             'source_reference' => $document->source_name ?? null,
+            'draft' => [
+                'expires_at' => $document->draft_expires_at ?? null,
+                'is_expired' => $draftExpired,
+                'retention_days' => 7,
+            ],
+            'warehouse' => $warehouse === null ? null : [
+                'id' => (string) $warehouse->id,
+                'code' => (string) $warehouse->code,
+                'name' => (string) $warehouse->name,
+                'status' => (string) $warehouse->status,
+                'is_suspended' => strtoupper((string) $warehouse->status) !== 'ACTIVE',
+                'suspension_reason' => $warehouse->suspension_reason ?? null,
+            ],
             'lines' => DB::table('stock_document_lines')->where('stock_document_id', $id)->orderBy('line_no')->get()->map(fn (object $row): array => (array) $row)->all(),
         ];
     }
