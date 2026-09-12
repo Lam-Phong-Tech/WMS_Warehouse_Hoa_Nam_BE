@@ -37,6 +37,9 @@ class MiniAppOutboundController extends Controller
      */
     private const CACHE_VERSION_NS = 'stock:version';
 
+    /** @var array<string, array<string, mixed>|null> */
+    private array $warehouseStateCache = [];
+
     public function __construct(
         private readonly CurrentBaselineDocumentController $documents,
         private readonly AlignedOutboundFlowController $flow,
@@ -180,6 +183,7 @@ class MiniAppOutboundController extends Controller
     /** Camera Mini App may send SCANNER as a friendly alias of canonical HARDWARE. */
     public function scan(Request $request, string $id)
     {
+        $this->assertDraftNotExpired($this->requireDocument($id));
         if (strtoupper(trim((string) $request->input('scan_source', ''))) === 'SCANNER') {
             $request->merge(['scan_source' => 'HARDWARE']);
         }
@@ -342,8 +346,14 @@ class MiniAppOutboundController extends Controller
         $readyForIssue = (string) $document->status === StockDocument::STATUS_SCANNING
             && $fullScan;
 
+        $draft = $this->draftState($document);
+        $warehouse = $this->warehouseState((string) $document->src_warehouse_id);
+
         return [
             ...$document->toArray(),
+            'draft' => $draft,
+            'warehouse' => $warehouse,
+            'can_continue' => ! $draft['is_expired'] && ($warehouse === null || ! $warehouse['is_suspended']),
             'required_total_qty' => $required,
             'scanned_total_qty' => $scanned,
             'remaining_qty' => max($required - $scanned, 0),
@@ -354,6 +364,54 @@ class MiniAppOutboundController extends Controller
             'packing_label' => $label,
             'rfid_required' => false,
         ];
+    }
+
+    /** @return array{expires_at:?string,is_expired:bool,retention_days:int} */
+    private function draftState(StockDocument $document): array
+    {
+        $expiresAt = $document->draft_expires_at
+            ?? ($document->created_at?->copy()->addWeek());
+        $expired = (string) $document->status === StockDocument::STATUS_DRAFT
+            && $expiresAt !== null
+            && now()->greaterThanOrEqualTo($expiresAt);
+
+        return ['expires_at' => $expiresAt?->toIso8601String(), 'is_expired' => $expired, 'retention_days' => 7];
+    }
+
+    /** @return array<string,mixed>|null */
+    private function warehouseState(string $warehouseId): ?array
+    {
+        if ($warehouseId === '') {
+            return null;
+        }
+        if (! array_key_exists($warehouseId, $this->warehouseStateCache)) {
+            $warehouse = DB::table('warehouses')->where('id', $warehouseId)->first();
+            $this->warehouseStateCache[$warehouseId] = $warehouse === null ? null : [
+                'id' => (string) $warehouse->id,
+                'code' => (string) $warehouse->code,
+                'name' => (string) $warehouse->name,
+                'status' => (string) $warehouse->status,
+                'is_suspended' => strtoupper((string) $warehouse->status) !== 'ACTIVE',
+                'suspension_reason' => $warehouse->suspension_reason ?? null,
+            ];
+        }
+
+        return $this->warehouseStateCache[$warehouseId];
+    }
+
+    private function assertDraftNotExpired(object $document): void
+    {
+        if ((string) $document->status !== 'DRAFT') {
+            return;
+        }
+        $expiresAt = $document->draft_expires_at
+            ?? (empty($document->created_at) ? null : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek());
+        if ($expiresAt !== null && now()->greaterThanOrEqualTo($expiresAt)) {
+            ApiError::abort(409, 'DRAFT_EXPIRED', 'Phiếu nháp đã hết hạn sau 07 ngày. Hãy hủy phiếu hoặc tạo phiếu mới.', [
+                'document_id' => (string) $document->id,
+                'draft_expires_at' => $expiresAt,
+            ]);
+        }
     }
 
     private function miniAppStatus(string $status, bool $fullScan, ?array $label): string
