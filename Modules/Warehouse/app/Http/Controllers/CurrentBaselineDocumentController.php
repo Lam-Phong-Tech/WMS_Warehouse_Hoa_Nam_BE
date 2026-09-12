@@ -658,13 +658,17 @@ class CurrentBaselineDocumentController extends Controller
      */
     private function assertDraftNotExpired(object $document): void
     {
-        if ((string) $document->status !== 'DRAFT' || empty($document->draft_expires_at)) {
+        if ((string) $document->status !== 'DRAFT') {
             return;
         }
-        if (now()->greaterThanOrEqualTo($document->draft_expires_at)) {
+        // Fallback created_at + 07 ngày giúp các phiếu sinh trước migration hoặc
+        // sinh từ luồng outbound request vẫn tuân cùng một hạn nháp.
+        $expiresAt = $document->draft_expires_at
+            ?? (empty($document->created_at) ? null : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek());
+        if ($expiresAt !== null && now()->greaterThanOrEqualTo($expiresAt)) {
             ApiError::abort(409, 'DRAFT_EXPIRED', 'Phiếu nháp đã hết hạn sau 07 ngày. Hãy hủy phiếu hoặc tạo phiếu mới.', [
                 'document_id' => (string) $document->id,
-                'draft_expires_at' => $document->draft_expires_at,
+                'draft_expires_at' => $expiresAt,
             ]);
         }
     }
@@ -716,16 +720,18 @@ class CurrentBaselineDocumentController extends Controller
             ? $document->dst_warehouse_id
             : $document->src_warehouse_id;
         $warehouse = $warehouseId === null ? null : DB::table('warehouses')->where('id', $warehouseId)->first();
+        $draftExpiresAt = $document->draft_expires_at
+            ?? (empty($document->created_at) ? null : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek());
         $draftExpired = (string) $document->status === 'DRAFT'
-            && ! empty($document->draft_expires_at)
-            && now()->greaterThanOrEqualTo($document->draft_expires_at);
+            && $draftExpiresAt !== null
+            && now()->greaterThanOrEqualTo($draftExpiresAt);
 
         return [
             ...(array) $document,
             // Alias đọc theo tên field của Annex A / Annex D SCR-IN-01.
             'source_reference' => $document->source_name ?? null,
             'draft' => [
-                'expires_at' => $document->draft_expires_at ?? null,
+                'expires_at' => $draftExpiresAt,
                 'is_expired' => $draftExpired,
                 'retention_days' => 7,
             ],
