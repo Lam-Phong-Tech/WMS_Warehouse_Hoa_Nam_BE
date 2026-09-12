@@ -100,14 +100,27 @@ class EnsureWarehouseOperational
             return $next($request);
         }
 
+        // Hoa Nam chỉ có đúng 01 kho tổng. Lấy chính dòng đang tạm dừng để FE Mini App
+        // có trạng thái + lý do thật, không phải tự suy đoán từ message.
+        $warehouse = DB::table('warehouses')
+            ->where('status', '<>', 'ACTIVE')
+            ->orderBy('created_at')
+            ->first(['id', 'code', 'name', 'status', 'suspension_reason']);
+
         // 409 (không phải 422): dữ liệu gửi lên không sai, chỉ là TRẠNG THÁI hệ thống
         // hiện không nhận thao tác ghi — cùng lớp ngữ nghĩa với ScanController.
         ApiError::abort(
             409,
             'WAREHOUSE_INACTIVE',
             'Kho đang tạm dừng hoạt động nên mọi thao tác ghi bị khoá. Vẫn xem, tra cứu, '
-            .'xuất báo cáo và tra nhật ký được. Liên hệ Super Admin để mở lại kho.',
-            ['blocked_method' => strtoupper($request->method())],
+            .'xuất báo cáo và tra nhật ký được. Liên hệ quản trị để mở lại kho.',
+            [
+                'blocked_method' => strtoupper($request->method()),
+                'warehouse_id' => $warehouse?->id !== null ? (string) $warehouse->id : null,
+                'warehouse_status' => $warehouse?->status !== null ? (string) $warehouse->status : 'INACTIVE',
+                'is_suspended' => true,
+                'suspension_reason' => $warehouse?->suspension_reason,
+            ],
         );
     }
 

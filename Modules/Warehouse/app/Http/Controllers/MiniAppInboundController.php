@@ -642,11 +642,15 @@ class MiniAppInboundController extends Controller
 
         $draft = $this->draftState($document);
         $warehouse = $this->warehouseState((string) $document->dst_warehouse_id);
+        $canContinue = in_array((string) $document->status, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING], true)
+            && ! $draft['is_expired']
+            && ($warehouse === null || ! $warehouse['is_suspended']);
 
         return $data + [
             'draft' => $draft,
             'warehouse' => $warehouse,
-            'can_continue' => ! $draft['is_expired'] && ($warehouse === null || ! $warehouse['is_suspended']),
+            'can_continue' => $canContinue,
+            'continue_from' => $canContinue ? ($ready ? 'REVIEW' : 'SCAN') : null,
             'expected_total_qty' => $this->number($expected),
             'scanned_total_qty' => $this->number($scanned),
             'remaining_qty' => $this->number(max(0, $expected - $scanned)),
@@ -698,8 +702,7 @@ class MiniAppInboundController extends Controller
     /** @return array{expires_at:?string,is_expired:bool,retention_days:int} */
     private function draftState(StockDocument $document): array
     {
-        $expiresAt = $document->draft_expires_at
-            ?? ($document->created_at?->copy()->addWeek());
+        $expiresAt = $document->created_at?->copy()->addWeek();
         $expired = (string) $document->status === StockDocument::STATUS_DRAFT
             && $expiresAt !== null
             && now()->greaterThanOrEqualTo($expiresAt);
@@ -733,8 +736,9 @@ class MiniAppInboundController extends Controller
         if ((string) $document->status !== 'DRAFT') {
             return;
         }
-        $expiresAt = $document->draft_expires_at
-            ?? (empty($document->created_at) ? null : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek());
+        $expiresAt = empty($document->created_at)
+            ? null
+            : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek();
         if ($expiresAt !== null && now()->greaterThanOrEqualTo($expiresAt)) {
             ApiError::abort(409, 'DRAFT_EXPIRED', 'Phiếu nháp đã hết hạn sau 07 ngày. Hãy hủy phiếu hoặc tạo phiếu mới.', [
                 'document_id' => (string) $document->id,

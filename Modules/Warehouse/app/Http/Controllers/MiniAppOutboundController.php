@@ -348,19 +348,24 @@ class MiniAppOutboundController extends Controller
 
         $draft = $this->draftState($document);
         $warehouse = $this->warehouseState((string) $document->src_warehouse_id);
+        $miniAppStatus = $this->miniAppStatus((string) $document->status, $fullScan, $label);
+        $canContinue = in_array((string) $document->status, [StockDocument::STATUS_DRAFT, StockDocument::STATUS_SCANNING], true)
+            && ! $draft['is_expired']
+            && ($warehouse === null || ! $warehouse['is_suspended']);
 
         return [
             ...$document->toArray(),
             'draft' => $draft,
             'warehouse' => $warehouse,
-            'can_continue' => ! $draft['is_expired'] && ($warehouse === null || ! $warehouse['is_suspended']),
+            'can_continue' => $canContinue,
+            'continue_from' => $canContinue ? $miniAppStatus : null,
             'required_total_qty' => $required,
             'scanned_total_qty' => $scanned,
             'remaining_qty' => max($required - $scanned, 0),
             'progress_percent' => $required > 0 ? round(min($scanned / $required, 1) * 100, 2) : 0,
             'full_scan' => $fullScan,
             'ready_for_issue' => $readyForIssue,
-            'mini_app_status' => $this->miniAppStatus((string) $document->status, $fullScan, $label),
+            'mini_app_status' => $miniAppStatus,
             'packing_label' => $label,
             'rfid_required' => false,
         ];
@@ -369,8 +374,7 @@ class MiniAppOutboundController extends Controller
     /** @return array{expires_at:?string,is_expired:bool,retention_days:int} */
     private function draftState(StockDocument $document): array
     {
-        $expiresAt = $document->draft_expires_at
-            ?? ($document->created_at?->copy()->addWeek());
+        $expiresAt = $document->created_at?->copy()->addWeek();
         $expired = (string) $document->status === StockDocument::STATUS_DRAFT
             && $expiresAt !== null
             && now()->greaterThanOrEqualTo($expiresAt);
@@ -404,8 +408,9 @@ class MiniAppOutboundController extends Controller
         if ((string) $document->status !== 'DRAFT') {
             return;
         }
-        $expiresAt = $document->draft_expires_at
-            ?? (empty($document->created_at) ? null : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek());
+        $expiresAt = empty($document->created_at)
+            ? null
+            : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek();
         if ($expiresAt !== null && now()->greaterThanOrEqualTo($expiresAt)) {
             ApiError::abort(409, 'DRAFT_EXPIRED', 'Phiếu nháp đã hết hạn sau 07 ngày. Hãy hủy phiếu hoặc tạo phiếu mới.', [
                 'document_id' => (string) $document->id,

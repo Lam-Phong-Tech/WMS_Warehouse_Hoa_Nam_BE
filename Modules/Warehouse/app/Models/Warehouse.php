@@ -15,5 +15,5 @@ class Warehouse extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['code', 'name', 'address', 'contact_person', 'phone', 'status'];
+    protected $fillable = ['code', 'name', 'address', 'contact_person', 'phone', 'status', 'suspension_reason'];
 }

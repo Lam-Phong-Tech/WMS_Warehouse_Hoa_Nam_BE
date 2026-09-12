@@ -37,7 +37,10 @@ class WarehousePauseContractTest extends TestCase
     private function pauseWarehouse(): Warehouse
     {
         $warehouse = $this->warehouseFixture();
-        $warehouse->forceFill(['status' => 'INACTIVE'])->save();
+        $warehouse->forceFill([
+            'status' => 'INACTIVE',
+            'suspension_reason' => 'Kiểm kê định kỳ',
+        ])->save();
 
         return $warehouse;
     }
@@ -64,15 +67,20 @@ class WarehousePauseContractTest extends TestCase
         $headers = $this->auth($this->superAdminHeaders());
         $warehouse = $this->warehouseFixture();
 
-        $this->patchJson("/api/v1/warehouses/{$warehouse->id}", ['status' => 'INACTIVE'], $headers)
+        $this->patchJson("/api/v1/warehouses/{$warehouse->id}", [
+            'status' => 'INACTIVE',
+            'suspension_reason' => 'Kiểm kê định kỳ',
+        ], $headers)
             ->assertOk()
-            ->assertJsonPath('data.status', 'INACTIVE');
+            ->assertJsonPath('data.status', 'INACTIVE')
+            ->assertJsonPath('data.suspension_reason', 'Kiểm kê định kỳ');
 
         // Q04: đường quay lại phải còn sống. Nếu PATCH này cũng bị đóng băng thì "tạm
         // dừng" là trạng thái một chiều, chỉ sửa được bằng tay dưới database.
         $this->patchJson("/api/v1/warehouses/{$warehouse->id}", ['status' => 'ACTIVE'], $headers)
             ->assertOk()
-            ->assertJsonPath('data.status', 'ACTIVE');
+            ->assertJsonPath('data.status', 'ACTIVE')
+            ->assertJsonPath('data.suspension_reason', null);
     }
 
     public function test_admin_with_warehouse_manage_cannot_change_status(): void
@@ -121,7 +129,10 @@ class WarehousePauseContractTest extends TestCase
         ] as [$method, $uri]) {
             $this->json(strtoupper($method), $uri, [], $headers)
                 ->assertStatus(409)
-                ->assertJsonPath('error_code', 'WAREHOUSE_INACTIVE');
+                ->assertJsonPath('error_code', 'WAREHOUSE_INACTIVE')
+                ->assertJsonPath('error.details.warehouse_status', 'INACTIVE')
+                ->assertJsonPath('error.details.is_suspended', true)
+                ->assertJsonPath('error.details.suspension_reason', 'Kiểm kê định kỳ');
         }
     }
 

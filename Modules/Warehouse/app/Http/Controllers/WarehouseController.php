@@ -174,6 +174,14 @@ class WarehouseController extends Controller
                     enum: ['ACTIVE', 'INACTIVE'],
                     example: 'ACTIVE'
                 ),
+                new OA\Property(
+                    property: 'suspension_reason',
+                    description: 'Lý do tạm dừng kho; chỉ Super Admin được sửa. Tự xoá khi kho chuyển lại ACTIVE.',
+                    type: 'string',
+                    maxLength: 1000,
+                    nullable: true,
+                    example: 'Kiểm kê định kỳ'
+                ),
             ])
         ),
         responses: [
@@ -207,14 +215,23 @@ class WarehouseController extends Controller
         // ADMIN sửa tên kho.
         $statusChange = isset($validated['status'])
             && strtoupper((string) $validated['status']) !== strtoupper((string) $before->status);
+        $reasonChange = array_key_exists('suspension_reason', $validated)
+            && trim((string) ($validated['suspension_reason'] ?? '')) !== trim((string) ($before->suspension_reason ?? ''));
 
-        if ($statusChange && ! $this->authenticatedUser()->isSuperAdmin()) {
+        if (($statusChange || $reasonChange) && ! $this->authenticatedUser()->isSuperAdmin()) {
             ApiError::abort(
                 403,
                 'ACCESS_DENIED',
-                'Chỉ Super Admin được đổi trạng thái hoạt động của kho.',
-                ['field' => 'status'],
+                'Chỉ Super Admin được đổi trạng thái hoặc lý do tạm dừng của kho.',
+                ['field' => $statusChange ? 'status' : 'suspension_reason'],
             );
+        }
+
+        // Khi mở lại kho, lý do tạm dừng cũ không còn hiệu lực và phải được xoá để
+        // Mini App không hiển thị nhầm lý do của lần tạm dừng trước.
+        $targetStatus = strtoupper((string) ($validated['status'] ?? $before->status));
+        if ($targetStatus === 'ACTIVE') {
+            $validated['suspension_reason'] = null;
         }
 
         // REQ-SRS-001 + §8.1: chỉ tồn tại một kho ACTIVE. Trả 409 STATE_CONFLICT

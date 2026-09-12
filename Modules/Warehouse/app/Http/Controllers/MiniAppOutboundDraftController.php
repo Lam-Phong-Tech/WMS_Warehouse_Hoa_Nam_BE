@@ -242,6 +242,7 @@ class MiniAppOutboundDraftController extends Controller
 
         $documentId = (string) Str::uuid();
         $docNo = 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6));
+        $documentCreatedAt = now();
         $documentInsert = [
             'id' => $documentId,
             'doc_type' => 'issue',
@@ -259,8 +260,8 @@ class MiniAppOutboundDraftController extends Controller
             'version' => 1,
             'created_by' => $actorId,
             'updated_by' => $actorId,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'created_at' => $documentCreatedAt,
+            'updated_at' => $documentCreatedAt,
         ];
         DB::table('stock_documents')->insert($documentInsert);
 
@@ -328,6 +329,21 @@ class MiniAppOutboundDraftController extends Controller
             'name' => $name !== '' ? $name : null,
             'status' => 'DRAFT',
             'mini_app_status' => 'PICKING',
+            'draft' => [
+                'expires_at' => $documentCreatedAt->copy()->addWeek()->toIso8601String(),
+                'is_expired' => false,
+                'retention_days' => 7,
+            ],
+            'warehouse' => [
+                'id' => (string) $warehouse->id,
+                'code' => (string) $warehouse->code,
+                'name' => (string) $warehouse->name,
+                'status' => (string) $warehouse->status,
+                'is_suspended' => false,
+                'suspension_reason' => $warehouse->suspension_reason ?? null,
+            ],
+            'can_continue' => true,
+            'continue_from' => 'PICKING',
             'version' => 1,
             'expected_total_qty' => $totalQty,
             'scanned_total_qty' => 0,

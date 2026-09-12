@@ -21,6 +21,7 @@ class UpdateWarehouseRequest extends FormRequest
             'contact_person' => ['nullable', 'string', 'max:200'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'status' => ['sometimes', 'in:ACTIVE,INACTIVE'],
+            'suspension_reason' => ['nullable', 'string', 'max:1000'],
         ];
     }
 
