@@ -949,12 +949,25 @@ class CurrentBaselineOperationsController extends Controller
         // SRS v1.12 §15 + REQ-SRS-014: recipient_address/phone nullable — không chặn
         // Confirm khi toa nguồn (vd. toa mẫu khách hàng) không có địa chỉ.
 
-        $sku = null;
-        if ($skuId) {
-            $sku = DB::table('sku')->where('sku_id', $skuId)->first();
-        } elseif ($skuCode !== '') {
-            $sku = DB::table('sku')->where('sku_code', $skuCode)->first();
+        // Manual entry gửi cả ID (định danh) và mã SKU mà người dùng nhìn thấy.
+        // Khi catalog/tồn vừa đồng bộ lại, ID cũ có thể không còn nhưng mã vẫn hợp
+        // lệ. Tra cả hai để không báo lỗi giả; nếu CẢ HAI tồn tại mà chỉ về hai SKU
+        // khác nhau thì tuyệt đối không tự đoán, phải buộc người dùng chọn lại.
+        $skuById = $skuId
+            ? DB::table('sku')->where('sku_id', $skuId)->first()
+            : null;
+        $skuByCode = $skuCode !== ''
+            ? DB::table('sku')->where('sku_code', $skuCode)->first()
+            : null;
+        if ($skuById !== null && $skuByCode !== null && (string) $skuById->sku_id !== (string) $skuByCode->sku_id) {
+            $errors[] = $this->rowError(
+                $rowNo,
+                'sku_code',
+                'SKU_REFERENCE_MISMATCH',
+                'SKU identifier and SKU code point to different records.'
+            );
         }
+        $sku = $skuById ?? $skuByCode;
         if ($sku === null || strtoupper((string) $sku->status) !== 'ACTIVE') {
             $errors[] = $this->rowError($rowNo, 'sku_code', 'SKU_NOT_ACTIVE', 'Không tìm thấy SKU hoặc SKU đang ngừng hoạt động.');
         } elseif (strtoupper((string) $sku->sku_type) !== 'PRODUCT') {

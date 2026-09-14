@@ -233,6 +233,50 @@ class Wwhn46OutboundPickScanDedupTest extends TestCase
      * 2 lớp validate: SKU type được chốt tại create, scanStockDocument() chỉ re-check
      * phòng hờ (defense in depth) cho trường hợp SKU bị đổi type sau khi toa đã tạo.
      */
+    public function test_outbound_request_intake_resolves_a_valid_sku_code_when_the_submitted_id_is_stale(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $sku = $this->productSkuFixture('PICK-DEDUP-SKU-FALLBACK');
+
+        $import = $this->postJson('/api/v1/outbound-request-imports', [
+            'rows' => [[
+                'request_no' => 'TOA-'.Str::upper(Str::random(6)),
+                'customer_name' => 'Đại lý test',
+                // UUID hợp lệ về định dạng nhưng không còn trong catalog — mô phỏng
+                // dữ liệu chọn SKU bị stale trong lúc catalog vừa đồng bộ.
+                'sku_id' => (string) Str::uuid(),
+                'sku_code' => $sku->sku_code,
+                'required_qty' => 1,
+            ]],
+        ], $headers);
+
+        $import->assertCreated()
+            ->assertJsonPath('data.import.status', 'VALIDATED')
+            ->assertJsonPath('data.rows.0.normalized_payload.sku_id', $sku->sku_id)
+            ->assertJsonPath('data.rows.0.normalized_payload.sku_code', $sku->sku_code);
+    }
+
+    public function test_outbound_request_intake_rejects_mismatched_sku_id_and_code(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $firstSku = $this->productSkuFixture('PICK-DEDUP-SKU-MISMATCH-A');
+        $secondSku = $this->productSkuFixture('PICK-DEDUP-SKU-MISMATCH-B');
+
+        $import = $this->postJson('/api/v1/outbound-request-imports', [
+            'rows' => [[
+                'request_no' => 'TOA-'.Str::upper(Str::random(6)),
+                'customer_name' => 'Đại lý test',
+                'sku_id' => $firstSku->sku_id,
+                'sku_code' => $secondSku->sku_code,
+                'required_qty' => 1,
+            ]],
+        ], $headers);
+
+        $import->assertCreated()
+            ->assertJsonPath('data.import.status', 'REJECTED')
+            ->assertJsonPath('data.rows.0.error_code', 'SKU_REFERENCE_MISMATCH');
+    }
+
     /**
      * §5.4.1: COMPONENT chỉ được xuất qua Component Issue gắn warranty case active,
      * nên toa xuất chứa COMPONENT bị chặn ngay ở bước tiếp nhận/Confirm (§8.1 — không
