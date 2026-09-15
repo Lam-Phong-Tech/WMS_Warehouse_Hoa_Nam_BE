@@ -60,4 +60,21 @@ class CorsConfigurationTest extends TestCase
 
         $this->assertNull($response->headers->get('Access-Control-Allow-Origin'));
     }
+    public function test_canonical_hoa_nam_frontend_origin_is_always_allowed(): void
+    {
+        $origin = 'https://khohoanamfe.lptech.info.vn';
+
+        $this->assertContains($origin, config('cors.allowed_origins'));
+
+        $response = $this->withHeaders([
+            'Origin' => $origin,
+            'Access-Control-Request-Method' => 'POST',
+            'Access-Control-Request-Headers' => 'content-type',
+        ])->options('/api/v1/auth/login');
+
+        $response->assertNoContent();
+        $response->assertHeader('Access-Control-Allow-Origin', $origin);
+        $response->assertHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
 }
