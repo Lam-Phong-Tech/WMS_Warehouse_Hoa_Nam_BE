@@ -78,6 +78,41 @@ class WwhnSecRefreshTokenTransportTest extends TestCase
         $this->assertDatabaseMissing('audit_log', ['action' => 'LOGIN', 'object_id' => $user->user_id]);
     }
 
+    public function test_cookie_login_accepts_a_cors_pattern_origin(): void
+    {
+        config()->set('cors.allowed_origins', []);
+        config()->set('cors.allowed_origins_patterns', ['#^http://localhost:\\d+$#']);
+
+        $user = $this->makeUser('p1-pattern-origin');
+
+        $response = $this->withHeader('Origin', 'http://localhost:5174')
+            ->postJson('/api/v1/auth/login', ['email' => $user->email, 'password' => self::PASSWORD])
+            ->assertOk();
+
+        $this->assertNotNull($this->refreshCookie($response));
+        $response->assertJsonMissingPath('data.refresh_token');
+    }
+
+    public function test_cookie_login_accepts_the_effective_same_origin_behind_a_proxy(): void
+    {
+        config()->set('cors.allowed_origins', []);
+        config()->set('cors.allowed_origins_patterns', []);
+        config()->set('app.url', 'http://backend-internal:8080');
+
+        $user = $this->makeUser('p1-same-origin-proxy');
+
+        $response = $this->withHeaders([
+            'Host' => 'warehouse.local.test',
+            'Origin' => 'http://warehouse.local.test',
+        ])->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => self::PASSWORD,
+        ])->assertOk();
+
+        $this->assertNotNull($this->refreshCookie($response));
+        $response->assertJsonMissingPath('data.refresh_token');
+    }
+
     public function test_cookie_refresh_rotates_the_cookie_and_never_returns_a_token_in_json(): void
     {
         $user = $this->makeUser('p1-rotate');
