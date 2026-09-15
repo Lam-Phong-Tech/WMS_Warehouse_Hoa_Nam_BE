@@ -113,6 +113,60 @@ class WwhnSecRefreshTokenTransportTest extends TestCase
         $response->assertJsonMissingPath('data.refresh_token');
     }
 
+    public function test_cookie_login_and_refresh_accept_browser_same_origin_when_internal_proxy_host_differs(): void
+    {
+        config()->set('cors.allowed_origins', []);
+        config()->set('cors.allowed_origins_patterns', []);
+        config()->set('app.url', 'http://backend-internal:8080');
+
+        $user = $this->makeUser('p1-sec-fetch-same-origin');
+
+        $login = $this->withHeaders([
+            // Browser/public origin. BE may see an internal Host after the FE
+            // reverse-proxy hop; Sec-Fetch-Site remains browser-authored.
+            'Host' => 'backend-internal',
+            'Origin' => 'https://khohoanamfe.lptech.info.vn',
+            'Sec-Fetch-Site' => 'same-origin',
+        ])->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => self::PASSWORD,
+        ])->assertOk();
+
+        $refreshToken = $this->refreshTokenFromCookie($login);
+        $this->assertNotSame('', $refreshToken);
+
+        $refresh = $this->withHeaders([
+            'Host' => 'backend-internal',
+            'Origin' => 'https://khohoanamfe.lptech.info.vn',
+            'Sec-Fetch-Site' => 'same-origin',
+        ])->withCredentials()
+            ->withUnencryptedCookie((string) config('refresh_token.cookie.name'), $refreshToken)
+            ->postJson('/api/v1/auth/refresh')
+            ->assertOk()
+            ->assertJsonMissingPath('data.refresh_token');
+
+        $this->assertNotNull($this->refreshCookie($refresh));
+    }
+
+    public function test_sec_fetch_cross_site_never_bypasses_origin_allowlist(): void
+    {
+        config()->set('cors.allowed_origins', []);
+        config()->set('cors.allowed_origins_patterns', []);
+        config()->set('app.url', 'http://backend-internal:8080');
+
+        $user = $this->makeUser('p1-sec-fetch-cross-site');
+
+        $this->withHeaders([
+            'Host' => 'backend-internal',
+            'Origin' => 'https://attacker.example',
+            'Sec-Fetch-Site' => 'cross-site',
+        ])->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => self::PASSWORD,
+        ])->assertStatus(403)
+            ->assertJsonPath('error_code', 'ORIGIN_NOT_ALLOWED');
+    }
+
     public function test_cookie_refresh_rotates_the_cookie_and_never_returns_a_token_in_json(): void
     {
         $user = $this->makeUser('p1-rotate');
