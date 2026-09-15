@@ -110,6 +110,20 @@ final class RefreshTokenTransport
             return true;
         }
 
+        /*
+         * Browser hiện đại tự gắn Sec-Fetch-Site và JavaScript không thể tự đặt
+         * header này. Khi FE gọi /api qua reverse proxy CÙNG origin, Chrome/Edge
+         * gửi "same-origin" dù hop nội bộ FE-nginx -> BE có thể làm Laravel thấy
+         * Host/X-Forwarded-Host khác origin public. Tin tín hiệu browser này giúp
+         * auth cookie không phụ thuộc vào topology proxy, nhưng vẫn chặn login-CSRF:
+         * request từ site khác sẽ là "cross-site", còn request không phải browser
+         * không có header này và phải qua allow-list phía dưới.
+         */
+        if ($request !== null
+            && strtolower(trim((string) $request->headers->get('Sec-Fetch-Site', ''))) === 'same-origin') {
+            return true;
+        }
+
         foreach ((array) config('cors.allowed_origins_patterns', []) as $pattern) {
             $pattern = trim((string) $pattern);
             if ($pattern !== '' && @preg_match($pattern, $normalized) === 1) {
