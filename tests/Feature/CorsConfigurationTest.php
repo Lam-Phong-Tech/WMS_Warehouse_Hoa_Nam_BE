@@ -38,6 +38,19 @@ class CorsConfigurationTest extends TestCase
         $response->assertHeader('Access-Control-Allow-Credentials', 'true');
     }
 
+    public function test_local_vite_fallback_accepts_an_alternate_loopback_port(): void
+    {
+        $response = $this->withHeaders([
+            'Origin' => 'http://localhost:5174',
+            'Access-Control-Request-Method' => 'POST',
+            'Access-Control-Request-Headers' => 'content-type',
+        ])->options('/api/v1/auth/login');
+
+        $response->assertNoContent();
+        $response->assertHeader('Access-Control-Allow-Origin', 'http://localhost:5174');
+        $response->assertHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
     public function test_unknown_origin_is_not_granted_cors_access(): void
     {
         $response = $this->withHeaders([
