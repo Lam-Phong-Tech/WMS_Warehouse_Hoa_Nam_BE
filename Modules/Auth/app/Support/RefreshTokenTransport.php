@@ -93,17 +93,45 @@ final class RefreshTokenTransport
         return $this->originOf($referer) ?? 'invalid-referer';
     }
 
-    /** Origin của FE được CORS cho phép, hoặc chính origin của API (Swagger UI cùng origin). */
-    public function isTrustedBrowserOrigin(?string $origin): bool
+    /**
+     * Origin của FE được CORS cho phép, origin khớp allowed_origins_patterns, hoặc
+     * chính origin hiệu lực của request sau reverse proxy. Nhánh cuối giúp mô hình
+     * same-origin proxy (/api -> BE) không phụ thuộc APP_URL/CORS env bị cũ.
+     */
+    public function isTrustedBrowserOrigin(?string $origin, ?Request $request = null): bool
     {
-        return $origin !== null && in_array($origin, $this->trustedBrowserOrigins(), true);
+        if ($origin === null) {
+            return false;
+        }
+
+        $normalized = strtolower(rtrim(trim($origin), '/'));
+
+        if (in_array($normalized, $this->trustedBrowserOrigins(), true)) {
+            return true;
+        }
+
+        foreach ((array) config('cors.allowed_origins_patterns', []) as $pattern) {
+            $pattern = trim((string) $pattern);
+            if ($pattern !== '' && @preg_match($pattern, $normalized) === 1) {
+                return true;
+            }
+        }
+
+        if ($request !== null) {
+            $effectiveRequestOrigin = $this->originOf($request->getSchemeAndHttpHost());
+            if ($effectiveRequestOrigin !== null && hash_equals($effectiveRequestOrigin, $normalized)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Lần đăng nhập (mật khẩu hoặc bước MFA) này có được nhận refresh token không. */
     public function shouldIssueOnLogin(Request $request): bool
     {
         return $this->mode($request) === self::BODY
-            || $this->isTrustedBrowserOrigin($this->requestOrigin($request));
+            || $this->isTrustedBrowserOrigin($this->requestOrigin($request), $request);
     }
 
     /** Refresh token client xuất trình, đọc ĐÚNG kênh của request và chỉ kênh đó. */
