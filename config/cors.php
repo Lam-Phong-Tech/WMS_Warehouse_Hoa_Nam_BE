@@ -3,7 +3,10 @@
 $rawAllowedOrigins = trim((string) env('CORS_ALLOWED_ORIGINS', ''));
 $rawAllowedOriginPatterns = trim((string) env('CORS_ALLOWED_ORIGIN_PATTERNS', ''));
 $appEnv = strtolower(trim((string) env('APP_ENV', 'production')));
-$isLocalLike = in_array($appEnv, ['local', 'testing', 'test', 'dev', 'development'], true);
+$appUrlHost = strtolower((string) parse_url((string) env('APP_URL', ''), PHP_URL_HOST));
+$isLoopbackApp = in_array($appUrlHost, ['localhost', '127.0.0.1', '::1'], true);
+$isLocalLike = in_array($appEnv, ['local', 'testing', 'test', 'dev', 'development'], true)
+    || $isLoopbackApp;
 
 // Local/DEV phải chạy được ngay cả khi .env cũ để CORS_ALLOWED_ORIGINS= rỗng.
 // Giữ exact 5173 cho đường lỗi nginx và thêm regex loopback mọi port vì Vite tự
