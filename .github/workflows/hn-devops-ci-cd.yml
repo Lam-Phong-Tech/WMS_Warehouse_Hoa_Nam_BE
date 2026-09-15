@@ -314,7 +314,7 @@ jobs:
             -v "$PWD:/var/www/html" \
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
-            -lc 'php artisan optimize:clear && php artisan migrate --force && php artisan db:seed --force && php artisan l5-swagger:generate'
+            -lc 'php artisan optimize:clear && php artisan migrate --force && php artisan db:seed --force && php artisan db:seed --force && php artisan l5-swagger:generate'
 
       # Nâng memory_limit qua PHP_INI_SCAN_DIR chứ KHÔNG qua `php -d`:
       # `artisan test` spawn một tiến trình con, nên `-d` của tiến trình cha không
@@ -389,7 +389,7 @@ jobs:
             -v "$PWD:/var/www/html" \
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
-            -lc 'mkdir -p /tmp/phpini && echo memory_limit=1G > /tmp/phpini/zz-memory.ini && PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d:/tmp/phpini php artisan test --configuration=phpunit.pgsql.xml --filter "\b(WwhnSec05DataTransportTest|WwhnSec06PiiEncryptionTest|WwhnSecSuperAdminBootstrapTest|WwhnSecRefreshTokenTransportTest|Wwhn300ProductionSafeSeedingTest|AuthLoginContractSecurityTest|AuthSessionPersistenceTest|SecurityRbacAuditNegativeTest|PrivilegeEscalationGuardTest|WwhnSec08MfaTest|WwhnSec09HardeningTest|AuthorizationTest|Wwhn289SecurityRegressionProofTest|RbacCacheInvalidationTest)::"'
+            -lc 'mkdir -p /tmp/phpini && echo memory_limit=1G > /tmp/phpini/zz-memory.ini && PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d:/tmp/phpini php artisan test --configuration=phpunit.pgsql.xml --filter "\b(WwhnSec05DataTransportTest|WwhnSec06PiiEncryptionTest|WwhnSecSuperAdminBootstrapTest|WwhnSecRefreshTokenTransportTest|Wwhn300ProductionSafeSeedingTest|AuthLoginContractSecurityTest|AuthSessionPersistenceTest|SecurityRbacAuditNegativeTest|PrivilegeEscalationGuardTest|WwhnSec08MfaTest|WwhnSec09HardeningTest|AuthorizationTest|Wwhn289SecurityRegressionProofTest|RbacCacheInvalidationTest|IdempotencyMirrorScopeKeyRegressionTest)::"'
 
       # Suite đầy đủ là cổng CỨNG (quyết định chủ dự án 10/09/2026: không còn chạy
       # advisory). Mốc nền đỏ đang được sửa trên các nhánh sec/be-red-*;
