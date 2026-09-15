@@ -81,8 +81,9 @@ class IdempotencyMirrorScopeKeyRegressionTest extends TestCase
         $canonical = DB::table('idempotency_records')
             ->where('scope', $operation)
             ->where('idempotency_key', $key)
-            ->firstOrFail();
+            ->first();
 
+        $this->assertNotNull($canonical);
         $this->assertSame('seed-user-b', $canonical->user_id);
         $this->assertSame(200, (int) $canonical->response_status);
         $this->assertSame(
