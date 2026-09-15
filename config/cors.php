@@ -1,20 +1,35 @@
 <?php
 
 $rawAllowedOrigins = trim((string) env('CORS_ALLOWED_ORIGINS', ''));
+$rawAllowedOriginPatterns = trim((string) env('CORS_ALLOWED_ORIGIN_PATTERNS', ''));
 $appEnv = strtolower(trim((string) env('APP_ENV', 'production')));
+$isLocalLike = in_array($appEnv, ['local', 'testing', 'test', 'dev', 'development'], true);
 
-// Existing developer .env files may already contain CORS_ALLOWED_ORIGINS= blank.
-// Local/testing must remain usable after pull without weakening deployed environments.
-if ($rawAllowedOrigins === '' && in_array($appEnv, ['local', 'testing'], true)) {
+// Local/DEV phải chạy được ngay cả khi .env cũ để CORS_ALLOWED_ORIGINS= rỗng.
+// Giữ exact 5173 cho đường lỗi nginx và thêm regex loopback mọi port vì Vite tự
+// nhảy 5174/5175 khi 5173 đang bận. Không áp dụng fallback này cho UAT/PROD.
+if ($rawAllowedOrigins === '' && $isLocalLike) {
     $rawAllowedOrigins = 'http://localhost:5173,http://127.0.0.1:5173';
+}
+
+if ($rawAllowedOriginPatterns === '' && $isLocalLike) {
+    $rawAllowedOriginPatterns = '#^https?://(?:localhost|127\\.0\\.0\\.1|\\[::1\\])(?::\\d+)?$#i';
 }
 
 $allowedOrigins = array_values(array_unique(array_filter(
     array_map(
-        static fn (string $origin): string => rtrim(trim($origin), '/'),
+        static fn (string $origin): string => strtolower(rtrim(trim($origin), '/')),
         explode(',', $rawAllowedOrigins)
     ),
     static fn (string $origin): bool => $origin !== ''
+)));
+
+$allowedOriginPatterns = array_values(array_unique(array_filter(
+    array_map(
+        static fn (string $pattern): string => trim($pattern),
+        explode(',', $rawAllowedOriginPatterns)
+    ),
+    static fn (string $pattern): bool => $pattern !== ''
 )));
 
 return [
@@ -26,7 +41,7 @@ return [
     // silently breaking browser preflight while still rejecting unknown origins.
     'allowed_methods' => ['*'],
     'allowed_origins' => $allowedOrigins,
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => $allowedOriginPatterns,
     'allowed_headers' => ['*'],
 
     // FE/QA need request correlation and optimistic-concurrency metadata.
