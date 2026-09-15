@@ -5,11 +5,12 @@ $rawAllowedOriginPatterns = trim((string) env('CORS_ALLOWED_ORIGIN_PATTERNS', ''
 
 // Canonical FE origin của WMS Hoa Nam. Giữ ở config để một release DEV/TEST mới
 // không thể vô tình làm hỏng đăng nhập chỉ vì .env/CORS allow-list bị thiếu hoặc
-// config cache còn profile cũ. Có thể override/append bằng WMS_BROWSER_ORIGINS.
-$rawBrowserOrigins = trim((string) env(
-    'WMS_BROWSER_ORIGINS',
-    'https://khohoanamfe.lptech.info.vn'
-));
+// config cache còn profile cũ. WMS_BROWSER_ORIGINS chỉ BỔ SUNG origin chính thức,
+// không được phép xoá canonical origin này bằng cách để env rỗng.
+$canonicalBrowserOrigins = [
+    'https://khohoanamfe.lptech.info.vn',
+];
+$rawBrowserOrigins = trim((string) env('WMS_BROWSER_ORIGINS', ''));
 $appEnv = strtolower(trim((string) env('APP_ENV', 'production')));
 $appUrlHost = strtolower((string) parse_url((string) env('APP_URL', ''), PHP_URL_HOST));
 $isLoopbackApp = in_array($appUrlHost, ['localhost', '127.0.0.1', '::1'], true);
@@ -32,6 +33,7 @@ $allowedOrigins = array_values(array_unique(array_filter(
         static fn (string $origin): string => strtolower(rtrim(trim($origin), '/')),
         array_merge(
             explode(',', $rawAllowedOrigins),
+            $canonicalBrowserOrigins,
             explode(',', $rawBrowserOrigins),
         )
     ),
