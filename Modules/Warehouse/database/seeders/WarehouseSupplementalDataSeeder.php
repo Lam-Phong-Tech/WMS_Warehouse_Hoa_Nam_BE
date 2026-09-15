@@ -670,7 +670,13 @@ class WarehouseSupplementalDataSeeder extends Seeder
         foreach ($operations as $index => $operation) {
             $idemKey = 'seed-idem-'.sprintf('%03d', $index + 1);
             $businessKey = sha1($operation.'|'.$this->actorId.'|'.$idemKey);
-            if (DB::table('idempotency_keys')->where('business_key', $businessKey)->exists()) {
+            // Seed key là fixture logic cố định. Actor có thể đổi giữa các lần
+            // deploy/seed (keeper01 -> admin hoặc ngược lại), nên guard theo
+            // business_key sẽ tạo thêm row nguồn cùng operation + idem_key.
+            if (DB::table('idempotency_keys')
+                ->where('idem_key', $idemKey)
+                ->where('operation', $operation)
+                ->exists()) {
                 continue;
             }
 
