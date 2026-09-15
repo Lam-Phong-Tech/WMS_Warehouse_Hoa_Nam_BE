@@ -42,7 +42,7 @@ class PersistRefreshTokenCookie
 
         if ($mode === RefreshTokenTransport::COOKIE && in_array($action, self::TOKEN_ACTIONS, true)) {
             $origin = $this->transport->requestOrigin($request);
-            $untrustedOrigin = $origin !== null && ! $this->transport->isTrustedBrowserOrigin($origin);
+            $untrustedOrigin = $origin !== null && ! $this->transport->isTrustedBrowserOrigin($origin, $request);
             $cookieRefreshWithoutOrigin = $action === 'refresh' && $origin === null;
 
             if ($untrustedOrigin || $cookieRefreshWithoutOrigin) {
