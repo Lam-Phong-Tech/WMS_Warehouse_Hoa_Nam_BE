@@ -11,6 +11,7 @@ use App\Support\IdempotentEnvelope;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
@@ -89,7 +90,7 @@ class PutawayController extends Controller
             ->orderBy('c.container_code')
             ->select([
                 'c.container_id', 'c.container_code', 'c.primary_sku_id',
-                'c.parent_container_id', 'c.location_hint', 'c.status', 'c.version',
+                'c.parent_container_id', 'c.location_hint', 'c.status', 'c.version', 'c.updated_at',
                 's.sku_code', 's.sku_name',
             ]);
 
@@ -123,6 +124,10 @@ class PutawayController extends Controller
                 'status' => (string) $box->status,
                 'location_hint' => $box->location_hint,
                 'container_version' => (int) $box->version,
+                // Persisted BOX time; refreshing this list must not change it.
+                'updated_at' => $box->updated_at !== null
+                    ? Carbon::parse($box->updated_at, config('app.timezone'))->toISOString()
+                    : null,
                 'draft_id' => $draft?->id,
                 'draft_version' => $draft ? (int) $draft->version : null,
                 'to_tray_id' => $draft?->to_tray_id,

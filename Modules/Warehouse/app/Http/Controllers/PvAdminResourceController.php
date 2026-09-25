@@ -9,6 +9,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
@@ -91,7 +92,8 @@ class PvAdminResourceController extends Controller
         // bump `master:version` nên danh sách đổi ngay khi có ghi. resourceType nằm
         // trong namespace, phân trang chạy TRONG SQL nên page/per_page nằm trong khoá.
         $cached = $this->cachedReadPayload(
-            'warehouse:pv-admin:'.$resourceType,
+            // Do not reuse pre-deploy profile payloads that lack updated_at.
+            'warehouse:pv-admin:'.$resourceType.($resourceType === self::RESOURCE_PROFILES ? ':timestamps-v1' : ''),
             $this->readFiltersWithPaging($request),
             function () use ($request, $resourceType): array {
                 $page = match ($resourceType) {
@@ -644,7 +646,7 @@ class PvAdminResourceController extends Controller
             ->paginate($this->adminPageSize($request), [
                 'p.'.$relation['key'].' as profile_key',
                 'p.'.$relation['sku'].' as sku_ref',
-                'p.display_name', 'p.description', 'p.sort_order', 'p.version',
+                'p.display_name', 'p.description', 'p.sort_order', 'p.version', 'p.updated_at',
                 's.sku_code', 's.sku_name', 's.published_to_app', 's.status as sku_status',
             ]);
 
@@ -659,6 +661,10 @@ class PvAdminResourceController extends Controller
             'sku_code' => (string) $row->sku_code,
             'sku_name' => (string) $row->sku_name,
             'sku_status' => (string) $row->sku_status,
+            // Persisted profile time, not the request time or the SKU timestamp.
+            'updated_at' => $row->updated_at !== null
+                ? Carbon::parse($row->updated_at, config('app.timezone'))->toISOString()
+                : null,
             'display_name' => (string) $row->display_name,
             'description' => $row->description !== null ? (string) $row->description : null,
             'sort_order' => (int) ($row->sort_order ?? 0),
@@ -1005,7 +1011,7 @@ class PvAdminResourceController extends Controller
             ->first([
                 'p.'.$relation['key'].' as profile_key',
                 'p.'.$relation['sku'].' as sku_ref',
-                'p.display_name', 'p.description', 'p.sort_order', 'p.version',
+                'p.display_name', 'p.description', 'p.sort_order', 'p.version', 'p.updated_at',
                 's.sku_code', 's.sku_name', 's.published_to_app', 's.status as sku_status',
             ]);
         if ($row === null) {
@@ -1018,6 +1024,10 @@ class PvAdminResourceController extends Controller
             'sku_code' => (string) $row->sku_code,
             'sku_name' => (string) $row->sku_name,
             'sku_status' => (string) $row->sku_status,
+            // Persisted profile time, not the request time or the SKU timestamp.
+            'updated_at' => $row->updated_at !== null
+                ? Carbon::parse($row->updated_at, config('app.timezone'))->toISOString()
+                : null,
             'display_name' => (string) $row->display_name,
             'description' => $row->description !== null ? (string) $row->description : null,
             'sort_order' => (int) ($row->sort_order ?? 0),
