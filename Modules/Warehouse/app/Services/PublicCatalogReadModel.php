@@ -17,16 +17,9 @@ use Modules\Warehouse\Support\PvRelations;
 /**
  * Read model của storefront công khai `/api/v1/public/*`.
  *
- * TÁCH KHỎI PvCatalogReadModel một cách có chủ đích. Hai read model đọc gần
- * cùng bộ bảng nhưng thi hành hai hợp đồng NGƯỢC NHAU ở hai điểm cốt lõi:
- *
- * | | /api/v1/pv (WWHN-252) | /api/v1/public (App PV mới) |
- * |---|---|---|
- * | Tồn 0 | vẫn hiện, nhãn "Chưa có hàng" (DEC-CATALOG-001) | ẩn hẳn |
- * | Số tồn | trả `available_qty` | KHÔNG bao giờ trả |
- *
- * Gộp chung sẽ buộc một trong hai hợp đồng phải nhượng bộ, và Wwhn252PvContractTest
- * đang khoá vế trái. Nên chúng sống song song.
+ * TÁCH KHỎI PvCatalogReadModel một cách có chủ đích: nhóm /api/v1/pv
+ * (WWHN-252) trả available_qty; nhóm public chỉ trả IN_STOCK/PREORDER.
+ * Sản phẩm ACTIVE đã publish vẫn hiển thị khi hết tồn, với nhãn PREORDER.
  *
  * ĐIỂM CHẶN RÒ RỈ: mọi trường ra tới client ẩn danh đều đi qua whitelist tường
  * minh trong presentProduct(). Thêm cột vào SELECT không tự động lộ ra ngoài.
@@ -107,7 +100,7 @@ class PublicCatalogReadModel
         return ['items' => $ordered, 'missing_ids' => $missing];
     }
 
-    public function listProducts(array $filters, string $sort, ?string $cursor, int $limit): array
+    public function listProducts(array $filters, string $sort, ?string $cursor, int $limit, bool $includeTotal = true): array
     {
         $fingerprint = PublicApiCursor::fingerprint($filters);
         $cursorKeys = $this->decodeCursor($cursor, $sort, $fingerprint);
@@ -117,12 +110,13 @@ class PublicCatalogReadModel
 
         $query = $this->baseQuery();
         $this->applyFilters($query, $filters);
+        // Count the SAME filtered public SKU set, before cursor/limit and
+        // before search ranking adds SELECT bindings. Never count stock units.
+        $total = $includeTotal ? (int) (clone $query)->distinct()->count('s.sku_id') : null;
         $this->applyOrder($query, $order, $keyword);
         $this->applyKeyset($query, $order, $cursorKeys, $keyword);
 
-        // Lấy dư một bản ghi để biết còn trang sau hay không mà không cần COUNT
-        // toàn bảng — COUNT(*) trên mỗi lần cuộn là chi phí vô ích cho một danh
-        // sách vô hạn.
+        // Keyset/has_more remain unchanged; total is an additive UI field.
         $rows = $query->limit($limit + 1)->get();
         $hasMore = $rows->count() > $limit;
         $rows = $rows->take($limit);
@@ -140,6 +134,7 @@ class PublicCatalogReadModel
                 'limit' => $limit,
                 'has_more' => $hasMore,
                 'next_cursor' => $nextCursor,
+                ...($includeTotal ? ['total' => $total] : []),
             ],
         ];
     }
@@ -302,6 +297,7 @@ class PublicCatalogReadModel
             });
         }
 
+        $total = (int) (clone $query)->distinct()->count('s.sku_id');
         $this->applyOrder($query, $order, '');
         $this->applyKeyset($query, $order, $cursorKeys, '');
 
@@ -320,6 +316,7 @@ class PublicCatalogReadModel
                 'limit' => $limit,
                 'has_more' => $hasMore,
                 'next_cursor' => $nextCursor,
+                'total' => $total,
             ],
         ];
     }
@@ -416,7 +413,8 @@ class PublicCatalogReadModel
         $size = max(1, (int) config('public_api.home_section_size', 12));
         $sections = [];
 
-        $featured = $this->listProducts(['featured' => true], self::SORT_FEATURED, null, $size);
+        // Home only consumes items; do not add COUNT queries per carousel.
+        $featured = $this->listProducts(['featured' => true], self::SORT_FEATURED, null, $size, includeTotal: false);
         if ($featured['items'] !== []) {
             $sections[] = [
                 'code' => 'FEATURED',
@@ -426,7 +424,7 @@ class PublicCatalogReadModel
             ];
         }
 
-        $newest = $this->listProducts([], self::SORT_UPDATED_DESC, null, $size);
+        $newest = $this->listProducts([], self::SORT_UPDATED_DESC, null, $size, includeTotal: false);
         if ($newest['items'] !== []) {
             $sections[] = [
                 'code' => 'NEWEST',
@@ -441,7 +439,7 @@ class PublicCatalogReadModel
                 continue;
             }
 
-            $items = $this->listProducts(['domain' => $domain['code']], self::SORT_FEATURED, null, $size);
+            $items = $this->listProducts(['domain' => $domain['code']], self::SORT_FEATURED, null, $size, includeTotal: false);
             if ($items['items'] === []) {
                 continue;
             }

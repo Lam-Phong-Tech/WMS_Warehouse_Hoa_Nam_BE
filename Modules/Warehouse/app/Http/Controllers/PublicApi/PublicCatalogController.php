@@ -78,7 +78,7 @@ class PublicCatalogController extends Controller
             ),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'data.items + data.page_info.next_cursor; riêng chế độ ids[] trả data.items + data.missing_ids'),
+            new OA\Response(response: 200, description: 'data.items + data.page_info {limit, has_more, next_cursor, total}; total đếm SKU công khai theo bộ lọc trước phân trang. Riêng ids[] trả data.items + data.missing_ids, không có page_info.'),
             new OA\Response(response: 400, description: 'INVALID_QUERY / INVALID_SORT / INVALID_DOMAIN / INVALID_CURSOR'),
             new OA\Response(response: 429, description: 'RATE_LIMIT_EXCEEDED'),
         ]
@@ -167,8 +167,8 @@ class PublicCatalogController extends Controller
             new OA\Parameter(name: 'slug', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'Chi tiết sản phẩm'),
-            new OA\Response(response: 404, description: 'PRODUCT_NOT_FOUND (kể cả khi sản phẩm tồn tại nhưng chưa publish hoặc hết hàng)'),
+            new OA\Response(response: 200, description: 'Chi tiết sản phẩm công khai, availability IN_STOCK hoặc PREORDER'),
+            new OA\Response(response: 404, description: 'PRODUCT_NOT_FOUND — không tồn tại, không ACTIVE hoặc chưa publish; hết tồn không phải lý do 404'),
             new OA\Response(response: 429, description: 'RATE_LIMIT_EXCEEDED'),
         ]
     )]
@@ -176,9 +176,7 @@ class PublicCatalogController extends Controller
     {
         $product = $this->readModel->findBySlug($slug);
         if ($product === null) {
-            // 404 che cả ba ca: không tồn tại / chưa publish / hết hàng. Phân
-            // biệt chúng là xác nhận cho người ẩn danh biết mã hàng nội bộ nào
-            // có thật.
+            // Không tiết lộ mã chưa công khai. Hết tồn vẫn trả PREORDER.
             PublicApiError::productNotFound();
         }
 
@@ -197,7 +195,7 @@ class PublicCatalogController extends Controller
             new OA\Parameter(name: 'limit', in: 'query', schema: new OA\Schema(type: 'integer', default: 20, maximum: 50)),
         ],
         responses: [
-            new OA\Response(response: 200, description: 'data.items + data.page_info.next_cursor'),
+            new OA\Response(response: 200, description: 'data.items + data.page_info {limit, has_more, next_cursor, total}; total không gồm chính sản phẩm đang xem'),
             new OA\Response(response: 404, description: 'PRODUCT_NOT_FOUND'),
             new OA\Response(response: 429, description: 'RATE_LIMIT_EXCEEDED'),
         ]

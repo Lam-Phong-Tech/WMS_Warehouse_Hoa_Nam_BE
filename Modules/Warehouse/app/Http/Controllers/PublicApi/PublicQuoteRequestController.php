@@ -127,14 +127,19 @@ class PublicQuoteRequestController extends Controller
         $this->assertEndpointIsOpen();
 
         $idempotencyKey = $this->idempotencyKey($request);
-        $payload = $this->validatedPayload($request);
+        $payload = $this->normalizedPayload($request);
         $payloadHash = $this->payloadHash($payload);
 
-        // Đường đi phổ biến nhất của một lần retry: khoá đã tồn tại.
+        // Replay must not depend on today's catalogue or privacy version.
+        // The hash remains identical to the pre-existing contract, including
+        // the originally accepted privacy version and ordered selection.
         $existing = PublicQuoteRequest::query()->where('idempotency_key', $idempotencyKey)->first();
         if ($existing !== null) {
             return $this->respondForExisting($existing, $payloadHash);
         }
+
+        // Only a NEW write must satisfy the current business conditions.
+        $payload = $this->validateNewRequest($payload);
 
         try {
             $created = $this->persist($request, $idempotencyKey, $payloadHash, $payload);
@@ -229,11 +234,11 @@ class PublicQuoteRequestController extends Controller
     /**
      * Chỉ nhận ĐÚNG các trường trong hợp đồng. Trường lạ bị bỏ qua (không phải
      * lỗi) để FE thêm field mới không làm vỡ app cũ, nhưng cũng không bao giờ
-     * lọt xuống DB.
+     * lọt xuống DB. Normalization does not resolve mutable catalogue data.
      *
      * @return array<string, mixed>
      */
-    private function validatedPayload(Request $request): array
+    private function normalizedPayload(Request $request): array
     {
         $errors = [];
 
@@ -281,11 +286,29 @@ class PublicQuoteRequestController extends Controller
             );
         }
 
-        $privacyVersion = $this->stringInput($request, 'privacy_version');
+        return [
+            'items' => $items,
+            'uses_items_shape' => $usesItemsShape,
+            'full_name' => $fullName,
+            'phone' => $phone,
+            'phone_normalized' => $phoneNormalized,
+            'province_code' => $provinceCode,
+            'note' => $note,
+            'privacy_version' => $this->stringInput($request, 'privacy_version'),
+        ];
+    }
+
+    /**
+     * Current policy and product visibility apply only to a new request.
+     * Replays have already matched the accepted payload hash and never write.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function validateNewRequest(array $payload): array
+    {
         $expectedVersion = (string) config('public_api.privacy.version');
-        if ($privacyVersion !== $expectedVersion) {
-            // Người dùng đang xem một bản chính sách cũ. Chấp nhận sự đồng ý đó
-            // là ghi nhận một sự đồng ý KHÔNG đúng với nội dung hiện hành.
+        if ($payload['privacy_version'] !== $expectedVersion) {
             PublicApiError::abort(
                 422,
                 PublicApiErrorCode::PRIVACY_VERSION_MISMATCH,
@@ -294,15 +317,10 @@ class PublicQuoteRequestController extends Controller
             );
         }
 
-        return [
-            'items' => $this->resolveItems($items, $usesItemsShape),
-            'full_name' => $fullName,
-            'phone' => $phone,
-            'phone_normalized' => $phoneNormalized,
-            'province_code' => $provinceCode,
-            'note' => $note,
-            'privacy_version' => $privacyVersion,
-        ];
+        $payload['items'] = $this->resolveItems($payload['items'], $payload['uses_items_shape']);
+        unset($payload['uses_items_shape']);
+
+        return $payload;
     }
 
     /**
@@ -438,10 +456,8 @@ class PublicQuoteRequestController extends Controller
         }
 
         if ($missing !== []) {
-            // Cùng lý do như GET /products/{slug}: không phân biệt "không tồn
-            // tại" với "chưa publish/hết hàng". Nhưng CÓ nói rõ dòng nào hỏng —
-            // client vốn đã biết những id nó vừa gửi, và không nói thì FE chỉ
-            // còn cách xoá sạch lựa chọn của khách.
+            // Không phân biệt mã không tồn tại với mã chưa được công khai.
+            // PREORDER vẫn là sản phẩm công khai; không bị loại vì hết tồn.
             PublicApiError::abort(
                 404,
                 PublicApiErrorCode::PRODUCT_NOT_FOUND,

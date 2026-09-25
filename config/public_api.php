@@ -3,11 +3,9 @@
 /**
  * App PV (storefront công khai) — hợp đồng `/api/v1/public/*`.
  *
- * Mặt API này TÁCH HẲN khỏi nhóm `/api/v1/pv/*` cũ (WWHN-252/249). Nhóm cũ bị
- * khoá bởi Wwhn252PvContractTest: nó trả `available_qty` và cố ý vẫn hiển thị
- * SKU tồn 0 (DEC-CATALOG-001). Hợp đồng mới của FE App PV nói ngược lại — không
- * được lộ số tồn, và chỉ trả hàng đang còn — nên hai mặt phải sống song song
- * thay vì sửa cái cũ.
+ * Mặt API này TÁCH HẲN khỏi nhóm `/api/v1/pv/*` cũ (WWHN-252/249).
+ * Nhóm cũ trả available_qty; nhóm public chỉ trả nhãn IN_STOCK/PREORDER,
+ * không lộ số tồn. Sản phẩm ACTIVE đã publish vẫn hiển thị khi hết tồn.
  *
  * Mọi knob nghiệp vụ (hotline, giờ hỗ trợ, domain, feature flag) để ở đây để BA
  * chỉnh qua .env mà không cần deploy code hay migration.
@@ -180,7 +178,7 @@ return [
         | của endpoint ghi ẩn danh duy nhất: mỗi dòng là một sản phẩm phải đối
         | chiếu với danh mục công khai.
         */
-        'max_items' => (int) env('PUBLIC_API_QUOTE_MAX_ITEMS', 20),
+        'max_items' => max(1, min(20, (int) env('PUBLIC_API_QUOTE_MAX_ITEMS', 20))),
 
         /*
         | Trần số lượng khách được nêu cho một dòng. Không liên quan tồn kho —
@@ -196,12 +194,10 @@ return [
     | Chỉ công bố version của HỢP ĐỒNG API, không phải version build/commit —
     | lộ commit SHA ra endpoint ẩn danh là thông tin thừa cho người tấn công.
     |
-    | 1.1.0 (08/09/2026): POST /quote-requests nhận `items[]` nhiều sản phẩm.
-    | Thay đổi CỘNG THÊM, body một-sản-phẩm cũ vẫn chạy y nguyên — nên tăng
-    | MINOR chứ không phải MAJOR. FE đọc số này ở GET /config và
-    | GET /health/version để biết BE trước mặt có `items[]` hay chưa; một
-    | `contract_version` không bao giờ đổi khi hợp đồng đổi thì vô dụng.
-    | Cần trả lại giá trị cũ thì đặt PUBLIC_API_CONTRACT_VERSION, không sửa code.
+    | 1.2.0: thêm page_info.total theo bộ lọc, công bố giới hạn Quote trong
+    | /config; replay giữ kết quả đã nhận khi catalogue/privacy thay đổi.
+    | Giữ nguyên cursor, envelope và body Quote cũ. Privacy version độc lập,
+    | KHÔNG tăng theo contract version khi nội dung chính sách không thay đổi.
     */
-    'contract_version' => env('PUBLIC_API_CONTRACT_VERSION', '1.1.0'),
+    'contract_version' => env('PUBLIC_API_CONTRACT_VERSION', '1.2.0'),
 ];

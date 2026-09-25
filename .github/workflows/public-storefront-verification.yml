@@ -1,0 +1,103 @@
+name: Public storefront contract verification
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/PublicApi/**'
+      - 'Modules/Warehouse/app/Services/PublicCatalogReadModel.php'
+      - 'config/public_api.php'
+      - 'tests/Feature/PublicStorefront*Test.php'
+      - 'tests/Feature/HandToolsFamilyVariantPublicTest.php'
+      - '.github/workflows/public-storefront-verification.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: public-storefront-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        driver: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: public_storefront_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d public_storefront_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: ${{ matrix.driver }}
+      DB_DATABASE: ${{ matrix.driver == 'pgsql' && 'public_storefront_test' || ':memory:' }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${{ github.run_id }}
+      DB_URL: ''
+      DB_SSLMODE: disable
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      MAIL_MAILER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      PUBLIC_API_CONTRACT_VERSION: 1.2.0
+      PUBLIC_API_QUOTE_MAX_ITEMS: '20'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, bcmath, curl, dom, fileinfo, gd, intl, pdo_sqlite, pdo_pgsql, sqlite3, xml, zip
+          tools: composer:v2
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare isolated environment
+        run: |
+          cp .env.example .env
+          mkdir -p storage/logs bootstrap/cache
+      - name: Install locked PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Generate ephemeral application key
+        run: php artisan key:generate --force
+      - name: PHP syntax
+        run: |
+          php -l Modules/Warehouse/app/Http/Controllers/PublicApi/PublicQuoteRequestController.php
+          php -l Modules/Warehouse/app/Http/Controllers/PublicApi/PublicAppController.php
+          php -l Modules/Warehouse/app/Http/Controllers/PublicApi/PublicCatalogController.php
+          php -l Modules/Warehouse/app/Services/PublicCatalogReadModel.php
+          php -l config/public_api.php
+          php -l tests/Feature/PublicStorefrontHandoffTest.php
+      - name: Focused HTTP regression suites
+        run: php artisan test --filter='PublicStorefront(Api|Handoff)Test|HandToolsFamilyVariantPublicTest' --log-junit=storage/logs/public-storefront.xml
+      - name: Changed PHP style
+        if: ${{ !cancelled() }}
+        run: >-
+          vendor/bin/pint --test
+          Modules/Warehouse/app/Http/Controllers/PublicApi/PublicQuoteRequestController.php
+          Modules/Warehouse/app/Http/Controllers/PublicApi/PublicAppController.php
+          Modules/Warehouse/app/Http/Controllers/PublicApi/PublicCatalogController.php
+          Modules/Warehouse/app/Services/PublicCatalogReadModel.php
+          config/public_api.php
+          tests/Feature/PublicStorefrontHandoffTest.php
+      - name: Retain test report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-storefront-${{ matrix.driver }}-${{ github.sha }}
+          path: storage/logs/public-storefront.xml
+          if-no-files-found: warn
+          retention-days: 7

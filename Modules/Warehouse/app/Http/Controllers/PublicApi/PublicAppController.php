@@ -70,6 +70,8 @@ class PublicAppController extends Controller
                 'idempotency_key_min_length' => (int) config('public_api.quote_request.idempotency_key_min'),
                 'idempotency_key_max_length' => (int) config('public_api.quote_request.idempotency_key_max'),
                 'note_max_length' => (int) config('public_api.quote_request.note_max_length'),
+                'max_items' => (int) config('public_api.quote_request.max_items', 20),
+                'max_quantity' => (int) config('public_api.quote_request.max_quantity', 9999),
             ],
             'catalog' => [
                 'default_limit' => (int) config('public_api.default_limit'),
