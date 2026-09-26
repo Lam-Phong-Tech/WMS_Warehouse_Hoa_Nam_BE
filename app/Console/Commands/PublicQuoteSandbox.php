@@ -125,7 +125,7 @@ class PublicQuoteSandbox extends Command
             throw new RuntimeException('Sandbox requires local/testing and PUBLIC_QUOTE_SANDBOX_ENABLED=true.');
         }
         if (config('mail.default') !== 'array' || config('queue.default') !== 'sync'
-            || config('broadcasting.default') !== 'null') {
+            || ! in_array(config('broadcasting.default'), [null, 'null'], true)) {
             throw new RuntimeException('Sandbox requires MAIL_MAILER=array, QUEUE_CONNECTION=sync, BROADCAST_CONNECTION=null.');
         }
         $connection = DB::connection();

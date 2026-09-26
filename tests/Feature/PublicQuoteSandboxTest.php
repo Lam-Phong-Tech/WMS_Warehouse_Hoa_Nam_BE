@@ -104,6 +104,13 @@ class PublicQuoteSandboxTest extends TestCase
         $this->assertSame(0, Sku::query()->count());
     }
 
+    public function test_null_broadcast_env_value_is_safe_and_can_prepare(): void
+    {
+        // Laravel parses the environment literal null into PHP null.
+        config()->set('broadcasting.default', null);
+        $this->assertCount(21, $this->prepare()['product_ids']);
+    }
+
     public function test_real_notification_or_queue_drivers_are_refused(): void
     {
         foreach (['mail.default' => 'smtp', 'queue.default' => 'redis', 'broadcasting.default' => 'reverb'] as $key => $value) {
