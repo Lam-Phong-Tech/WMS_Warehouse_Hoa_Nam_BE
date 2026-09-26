@@ -101,16 +101,39 @@ class WwhnSecRefreshTokenTransportTest extends TestCase
 
         $user = $this->makeUser('p1-same-origin-proxy');
 
-        $response = $this->withHeaders([
-            'Host' => 'warehouse.local.test',
-            'Origin' => 'http://warehouse.local.test',
-        ])->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => self::PASSWORD,
-        ])->assertOk();
+        // A relative test URI is expanded using the application's boot URL.
+        // Symfony derives Host/port from that URI, so a Host header alone does
+        // not simulate the public request origin when CI boots on port 8000.
+        // Use the actual external URI; do not relax the production origin gate.
+        $response = $this->withHeader('Origin', 'http://warehouse.local.test')
+            ->postJson('http://warehouse.local.test/api/v1/auth/login', [
+                'email' => $user->email,
+                'password' => self::PASSWORD,
+            ])->assertOk();
 
         $this->assertNotNull($this->refreshCookie($response));
         $response->assertJsonMissingPath('data.refresh_token');
+    }
+
+    public function test_effective_origin_still_rejects_a_different_port_or_host(): void
+    {
+        config()->set('cors.allowed_origins', []);
+        config()->set('cors.allowed_origins_patterns', []);
+        config()->set('app.url', 'http://backend-internal:8080');
+        $user = $this->makeUser('p1-origin-boundary');
+
+        foreach (['http://warehouse.local.test:8081', 'https://attacker.example'] as $origin) {
+            $this->flushHeaders();
+            $response = $this->withHeader('Origin', $origin)
+                ->postJson('http://warehouse.local.test/api/v1/auth/login', [
+                    'email' => $user->email,
+                    'password' => self::PASSWORD,
+                ])->assertForbidden()->assertJsonPath('error_code', 'ORIGIN_NOT_ALLOWED');
+            $this->assertNull($this->refreshCookie($response));
+            $response->assertJsonMissingPath('data.access_token');
+        }
+
+        $this->assertSame(0, RefreshToken::query()->where('user_id', $user->user_id)->count());
     }
 
     public function test_cookie_login_and_refresh_accept_browser_same_origin_when_internal_proxy_host_differs(): void

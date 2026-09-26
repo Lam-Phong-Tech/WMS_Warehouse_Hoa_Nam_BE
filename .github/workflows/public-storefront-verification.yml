@@ -6,8 +6,14 @@ on:
       - 'Modules/Warehouse/app/Http/Controllers/PublicApi/**'
       - 'Modules/Warehouse/app/Services/PublicCatalogReadModel.php'
       - 'config/public_api.php'
+      - 'config/public_sandbox.php'
+      - 'app/Console/Commands/PublicQuoteSandbox.php'
       - 'tests/Feature/PublicStorefront*Test.php'
+      - 'tests/Feature/PublicQuoteSandboxTest.php'
+      - 'tests/Feature/WwhnSecRefreshTokenTransportTest.php'
       - 'tests/Feature/HandToolsFamilyVariantPublicTest.php'
+      - 'scripts/verify-public-quote-sandbox.mjs'
+      - 'docker/public-quote-sandbox/**'
       - '.github/workflows/public-storefront-verification.yml'
   workflow_dispatch:
 permissions:
@@ -17,30 +23,35 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Match the already configured project runner instead of requiring a
+    # GitHub-hosted runner that may not be available for this organization.
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         driver: [sqlite, pgsql]
     services:
       postgres:
-        image: postgres:17
+        image: postgres:16-alpine
         env:
-          POSTGRES_DB: public_storefront_test
+          POSTGRES_DB: hn_public_quote_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ${{ github.run_id }}
         ports:
-          - 5432:5432
+          - 5432/tcp
         options: >-
-          --health-cmd "pg_isready -U postgres -d public_storefront_test"
+          --health-cmd "pg_isready -U postgres -d hn_public_quote_test"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       APP_ENV: testing
+      APP_DEBUG: 'false'
+      APP_URL: http://127.0.0.1:8000
+      APP_BUILD_SHA: ${{ github.sha }}
       DB_CONNECTION: ${{ matrix.driver }}
-      DB_DATABASE: ${{ matrix.driver == 'pgsql' && 'public_storefront_test' || ':memory:' }}
+      DB_DATABASE: ${{ matrix.driver == 'pgsql' && 'hn_public_quote_test' || ':memory:' }}
       DB_HOST: 127.0.0.1
-      DB_PORT: '5432'
       DB_USERNAME: postgres
       DB_PASSWORD: ${{ github.run_id }}
       DB_URL: ''
@@ -51,53 +62,90 @@ jobs:
       QUEUE_CONNECTION: sync
       BROADCAST_CONNECTION: 'null'
       PUBLIC_API_CONTRACT_VERSION: 1.2.0
+      PUBLIC_QUOTE_SANDBOX_ENABLED: 'true'
       PUBLIC_API_QUOTE_MAX_ITEMS: '20'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: mbstring, bcmath, curl, dom, fileinfo, gd, intl, pdo_sqlite, pdo_pgsql, sqlite3, xml, zip
-          tools: composer:v2
-          coverage: none
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Prepare isolated environment
+      - name: Build the same PHP runtime as application CI
+        run: docker build -f docker/php/Dockerfile -t "hn-public-verify:${GITHUB_RUN_ID}" .
+      - name: Prepare isolated application keys and runner
         run: |
-          cp .env.example .env
+          set -euo pipefail
           mkdir -p storage/logs bootstrap/cache
-      - name: Install locked PHP dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress
-      - name: Generate ephemeral application key
-        run: php artisan key:generate --force
-      - name: PHP syntax
+          echo "DB_PORT=${{ job.services.postgres.ports[5432] }}" >> "$GITHUB_ENV"
+          app_key="base64:$(openssl rand -base64 32)"
+          jwt_key="$(openssl rand -hex 32)"
+          echo "::add-mask::$app_key"
+          echo "::add-mask::$jwt_key"
+          echo "APP_KEY=$app_key" >> "$GITHUB_ENV"
+          echo "JWT_SECRET=$jwt_key" >> "$GITHUB_ENV"
+          # Do NOT copy a deployment .env or point tests at repository DB vars.
+          cat > /tmp/hn-public-${GITHUB_RUN_ID}-${{ matrix.driver }}.sh <<'SH'
+          #!/bin/bash
+          set -euo pipefail
+          exec docker run --rm --network host \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp -e COMPOSER_HOME=/tmp/composer \
+            -e APP_ENV -e APP_DEBUG -e APP_URL -e APP_KEY -e JWT_SECRET -e APP_BUILD_SHA \
+            -e DB_CONNECTION -e DB_DATABASE -e DB_HOST -e DB_PORT -e DB_USERNAME -e DB_PASSWORD -e DB_URL -e DB_SSLMODE \
+            -e CACHE_STORE -e SESSION_DRIVER -e MAIL_MAILER -e QUEUE_CONNECTION -e BROADCAST_CONNECTION \
+            -e PUBLIC_API_CONTRACT_VERSION -e PUBLIC_QUOTE_SANDBOX_ENABLED -e PUBLIC_API_QUOTE_MAX_ITEMS \
+            -v "$PWD:/var/www/html" --entrypoint sh "hn-public-verify:${GITHUB_RUN_ID}" -lc "$1"
+          SH
+      - name: Install locked dependencies
+        run: bash /tmp/hn-public-${GITHUB_RUN_ID}-${{ matrix.driver }}.sh 'composer install --prefer-dist --no-interaction --no-progress'
+      - name: HTTP regressions and sandbox safety
         run: |
-          php -l Modules/Warehouse/app/Http/Controllers/PublicApi/PublicQuoteRequestController.php
-          php -l Modules/Warehouse/app/Http/Controllers/PublicApi/PublicAppController.php
-          php -l Modules/Warehouse/app/Http/Controllers/PublicApi/PublicCatalogController.php
-          php -l Modules/Warehouse/app/Services/PublicCatalogReadModel.php
-          php -l config/public_api.php
-          php -l tests/Feature/PublicStorefrontHandoffTest.php
-      - name: Focused HTTP regression suites
-        run: php artisan test --filter='PublicStorefront(Api|Handoff)Test|HandToolsFamilyVariantPublicTest' --log-junit=storage/logs/public-storefront.xml
-      - name: Changed PHP style
+          set -euo pipefail
+          bash /tmp/hn-public-${GITHUB_RUN_ID}-${{ matrix.driver }}.sh 'php -d memory_limit=1G artisan test --filter="PublicStorefront(Api|Handoff)Test|PublicQuoteSandboxTest|HandToolsFamilyVariantPublicTest|WwhnSecRefreshTokenTransportTest" --log-junit=storage/logs/public-storefront.xml' | tee storage/logs/public-storefront-tests.txt
+      - name: PHP style gate
         if: ${{ !cancelled() }}
         run: >-
-          vendor/bin/pint --test
-          Modules/Warehouse/app/Http/Controllers/PublicApi/PublicQuoteRequestController.php
-          Modules/Warehouse/app/Http/Controllers/PublicApi/PublicAppController.php
-          Modules/Warehouse/app/Http/Controllers/PublicApi/PublicCatalogController.php
-          Modules/Warehouse/app/Services/PublicCatalogReadModel.php
-          config/public_api.php
-          tests/Feature/PublicStorefrontHandoffTest.php
-      - name: Retain test report
+          bash /tmp/hn-public-${GITHUB_RUN_ID}-${{ matrix.driver }}.sh
+          'vendor/bin/pint --test
+          app/Console/Commands/PublicQuoteSandbox.php config/public_sandbox.php
+          tests/Feature/PublicQuoteSandboxTest.php tests/Feature/WwhnSecRefreshTokenTransportTest.php
+          tests/Feature/PublicStorefrontHandoffTest.php'
+      - name: Network smoke against an isolated loopback sandbox
+        if: ${{ success() && matrix.driver == 'sqlite' }}
+        run: |
+          set -euo pipefail
+          docker build --build-arg RUNTIME_IMAGE="hn-public-verify:${GITHUB_RUN_ID}" \
+            --build-arg APP_BUILD_SHA="$GITHUB_SHA" -f docker/public-quote-sandbox/Dockerfile \
+            -t "hn-public-sandbox:${GITHUB_RUN_ID}" .
+          network="hn-public-smoke-${GITHUB_RUN_ID}"
+          name="hn-public-smoke-${GITHUB_RUN_ID}"
+          docker network create --internal "$network"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true; docker network rm "$network" >/dev/null 2>&1 || true' EXIT
+          docker run -d --name "$name" --network "$network" -p 127.0.0.1::8080 \
+            -e APP_ENV=testing -e APP_DEBUG=false -e APP_URL=http://127.0.0.1:18080 \
+            -e DB_CONNECTION=sqlite -e DB_DATABASE=/var/www/html/storage/sandbox/hn_public_quote_test.sqlite -e DB_URL= \
+            -e CACHE_STORE=file -e SESSION_DRIVER=array -e MAIL_MAILER=array -e QUEUE_CONNECTION=sync -e BROADCAST_CONNECTION=null \
+            -e PUBLIC_QUOTE_SANDBOX_ENABLED=true -e PUBLIC_API_CONTRACT_VERSION=1.2.0 -e PUBLIC_API_QUOTE_MAX_ITEMS=20 \
+            "hn-public-sandbox:${GITHUB_RUN_ID}"
+          port="$(docker port "$name" 8080/tcp | awk -F: '{print $NF}')"
+          ready=false
+          for i in $(seq 1 90); do
+            if curl --fail --silent "http://127.0.0.1:$port/api/v1/public/config" >/dev/null; then ready=true; break; fi
+            sleep 2
+          done
+          if [ "$ready" != true ]; then docker logs "$name"; exit 1; fi
+          docker cp "$name:/var/www/html/storage/sandbox/manifest.json" storage/logs/sandbox-manifest.json
+          PORT="$port" node --input-type=module -e 'import fs from "node:fs"; const p="storage/logs/sandbox-manifest.json"; const m=JSON.parse(fs.readFileSync(p)); m.base_url=`http://127.0.0.1:${process.env.PORT}/api/v1`; fs.writeFileSync(p,JSON.stringify(m));'
+          node scripts/verify-public-quote-sandbox.mjs storage/logs/sandbox-manifest.json --allow-sandbox-writes storage/logs/public-quote-smoke.json
+      - name: Retain evidence without secrets
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: public-storefront-${{ matrix.driver }}-${{ github.sha }}
-          path: storage/logs/public-storefront.xml
+          path: |
+            storage/logs/public-storefront.xml
+            storage/logs/public-storefront-tests.txt
+            storage/logs/sandbox-manifest.json
+            storage/logs/public-quote-smoke.json
           if-no-files-found: warn
           retention-days: 7

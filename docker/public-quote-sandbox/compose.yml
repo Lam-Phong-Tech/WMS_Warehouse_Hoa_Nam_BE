@@ -1,0 +1,41 @@
+# Separate compose project, no dev/prod DB mounts or credentials, no outbound
+# network. Port is loopback-only; remote FE uses an approved SSH tunnel.
+name: hn-public-quote-sandbox
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: docker/public-quote-sandbox/Dockerfile
+      args:
+        APP_BUILD_SHA: ${HN_SANDBOX_BUILD_SHA:?Set HN_SANDBOX_BUILD_SHA to git rev-parse HEAD}
+    environment:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      APP_URL: http://127.0.0.1:18080
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/www/html/storage/sandbox/hn_public_quote_test.sqlite
+      DB_URL: ''
+      CACHE_STORE: file
+      SESSION_DRIVER: array
+      MAIL_MAILER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      LOG_CHANNEL: stderr
+      PUBLIC_QUOTE_SANDBOX_ENABLED: 'true'
+      PUBLIC_API_CONTRACT_VERSION: 1.2.0
+      PUBLIC_API_QUOTE_MAX_ITEMS: '20'
+      PUBLIC_API_QUOTE_MAX_QUANTITY: '9999'
+      PUBLIC_API_PRIVACY_VERSION: 1.0.0
+    ports:
+      - '127.0.0.1:18080:8080'
+    volumes:
+      - sandbox-data:/var/www/html/storage/sandbox
+    networks:
+      - isolated
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  sandbox-data:
+networks:
+  isolated:
+    internal: true
