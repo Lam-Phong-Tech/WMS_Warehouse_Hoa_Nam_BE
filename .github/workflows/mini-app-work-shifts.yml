@@ -34,7 +34,7 @@ jobs:
           POSTGRES_DB: work_shift_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready --health-interval 10s
+          --health-cmd "pg_isready -U postgres -d work_shift_test" --health-interval 10s
           --health-timeout 5s --health-retries 5
     env:
       APP_ENV: testing
@@ -74,7 +74,7 @@ jobs:
       - name: Work shift and authentication regressions
         timeout-minutes: 6
         run: |
-          php artisan test tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --log-junit work-shift-results.xml
+          php artisan test tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --stop-on-error --stop-on-failure --log-junit work-shift-results.xml
       - name: Verify registered endpoints
         run: php artisan route:list --path=api/v1/mini-app/work-shifts
       - name: Publish test evidence without artifact storage
@@ -87,11 +87,11 @@ jobs:
           report = pathlib.Path('work-shift-results.xml')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
               summary.write(f"## Work shifts — {os.environ['DB_CONNECTION']}\nCommit: `{os.environ['GITHUB_SHA']}`\n\n")
-              if report.exists():
+              try:
                   root = ET.parse(report).getroot()
                   for suite in root.findall('./testsuite'):
                       summary.write(str(suite.attrib) + '\n')
                       print(suite.attrib)
-              else:
-                  summary.write('No JUnit report was produced. Read the failed step log.\n')
+              except (OSError, ET.ParseError):
+                  summary.write('No complete JUnit report was produced. Read the failed step log.\n')
           PYTHON

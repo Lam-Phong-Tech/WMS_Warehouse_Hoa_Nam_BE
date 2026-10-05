@@ -18,14 +18,19 @@ return new class extends Migration
         DB::table('refresh_tokens')->whereNull('auth_session_id')
             ->update(['auth_session_id' => DB::raw('id')]);
 
-        Schema::create('mini_app_work_shifts', function (Blueprint $table): void {
+        // PostgreSQL app_user is a compatibility VIEW over app_users.id.
+        // Match the physical FK target used by the current IAM schema.
+        $userTable = DB::getDriverName() === 'pgsql' ? 'app_users' : 'app_user';
+        $userKey = DB::getDriverName() === 'pgsql' ? 'id' : 'user_id';
+
+        Schema::create('mini_app_work_shifts', function (Blueprint $table) use ($userTable, $userKey): void {
             $table->uuid('shift_id')->primary();
             $table->uuid('actor_id');
             $table->uuid('auth_session_id')->unique();
             $table->uuid('warehouse_id');
             // Explicit UTC strings on write/read avoid application/DB timezone drift.
             $table->timestampTz('started_at');
-            $table->foreign('actor_id')->references('user_id')->on('app_user');
+            $table->foreign('actor_id')->references($userKey)->on($userTable);
             $table->foreign('warehouse_id')->references('id')->on('warehouses');
             $table->index(['actor_id', 'warehouse_id']);
         });
