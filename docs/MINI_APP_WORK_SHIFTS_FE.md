@@ -1,7 +1,7 @@
 # Mini App — Bắt đầu ca (FE)
 
 ## Triển khai BE trước
-Chạy `php artisan migrate --force`, sau đó `php artisan optimize:clear` trên đúng môi trường BE; nếu dùng route cache, dựng lại bằng `php artisan route:cache`. Không dùng `migrate:fresh`, không seed dữ liệu demo.
+Chạy `php artisan migrate --force`, sau đó `php artisan route:clear` trên đúng môi trường BE; nếu dùng route cache, dựng lại bằng `php artisan route:cache`. Không dùng `migrate:fresh`, không seed dữ liệu demo, không xoá cache token/blacklist.
 
 ## FE nối 4 bước
 1. Đăng nhập như hiện tại. `GET /api/v1/auth/me` có thêm `data.auth_session_id` (ổn định qua refresh) và `data.active_warehouse_id` (null khi chưa xác nhận kho). `login`, `refresh`, MFA verify cũng có các trường này trong `data.user` khi thực sự cấp phiên refresh.
