@@ -19,6 +19,7 @@ class RouteServiceProvider extends ServiceProvider
         $this->mapApiRoutes();
         $this->mapPublicApiRoutes();
         $this->mapMiniAppRoutes();
+        $this->mapWorkShiftRoutes();
         $this->mapImportRoutes();
         $this->mapGovernanceRoutes();
         $this->mapWebRoutes();
@@ -51,6 +52,11 @@ class RouteServiceProvider extends ServiceProvider
     protected function mapMiniAppRoutes(): void
     {
         Route::middleware('api')->prefix('api')->name('api.mini-app.')->group(module_path($this->name, '/routes/mini_app.php'));
+    }
+
+    protected function mapWorkShiftRoutes(): void
+    {
+        Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/work_shifts.php'));
     }
 
     protected function mapImportRoutes(): void

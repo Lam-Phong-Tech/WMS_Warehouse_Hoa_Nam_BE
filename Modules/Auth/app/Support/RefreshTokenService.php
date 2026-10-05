@@ -29,12 +29,14 @@ class RefreshTokenService
      *
      * @return array{raw: string, id: string}
      */
-    public function issueSession(User $user, Request $request): array
+    public function issueSession(User $user, Request $request, ?string $authSessionId = null): array
     {
         $raw = $this->generateRawToken();
+        $authSessionId ??= (string) Str::uuid();
 
         $record = RefreshToken::create([
             'user_id' => $user->user_id,
+            'auth_session_id' => $authSessionId,
             'token_hash' => $this->hash($raw),
             // refresh_tokens.user_agent là varchar(255): trình duyệt nào gửi UA
             // dài hơn 255 ký tự (Chrome kèm extension/enterprise agent) sẽ làm
@@ -45,6 +47,11 @@ class RefreshTokenService
             'ip_address' => Str::limit((string) $request->ip(), 45, ''),
             'expires_at' => now()->addMinutes((int) config('refresh_token.ttl_minutes')),
         ]);
+
+        // Request-scoped only: login/MFA/refresh can expose the newly issued
+        // session without parsing an old or absent incoming Authorization header.
+        $request->attributes->set('wms.issued_auth_session_id', $authSessionId);
+        $request->attributes->set('wms.issued_auth_session_user_id', (string) $user->user_id);
 
         return ['raw' => $raw, 'id' => (string) $record->getKey()];
     }
@@ -113,7 +120,7 @@ class RefreshTokenService
                 return null;
             }
 
-            $session = $this->issueSession($user, $request);
+            $session = $this->issueSession($user, $request, (string) ($record->auth_session_id ?? $record->id));
 
             return ['user' => $user, 'raw' => $session['raw'], 'id' => $session['id']];
         });
