@@ -50,8 +50,13 @@ class RefreshTokenService
 
         // Request-scoped only: login/MFA/refresh can expose the newly issued
         // session without parsing an old or absent incoming Authorization header.
-        $request->attributes->set('wms.issued_auth_session_id', $authSessionId);
-        $request->attributes->set('wms.issued_auth_session_user_id', (string) $user->user_id);
+        // Login/MFA use a FormRequest cloned from the container's base request.
+        // Publish on both objects so AuthUserPayload sees the newly issued
+        // family, never an absent or previous incoming bearer token.
+        foreach ([$request, request()] as $currentRequest) {
+            $currentRequest->attributes->set('wms.issued_auth_session_id', $authSessionId);
+            $currentRequest->attributes->set('wms.issued_auth_session_user_id', (string) $user->user_id);
+        }
 
         return ['raw' => $raw, 'id' => (string) $record->getKey()];
     }

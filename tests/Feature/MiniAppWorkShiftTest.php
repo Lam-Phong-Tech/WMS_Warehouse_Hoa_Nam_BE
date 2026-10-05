@@ -269,7 +269,7 @@ class MiniAppWorkShiftTest extends TestCase
 
     private function login(User $user): array
     {
-        $this->app['auth']->forgetGuards();
+        $this->resetRequestAuthentication();
         $login = $this->browserLogin($user->email, 'secret123')->assertOk();
 
         return [(string) $login->json('data.access_token'), $this->refreshTokenFromCookie($login)];
@@ -277,9 +277,19 @@ class MiniAppWorkShiftTest extends TestCase
 
     private function headers(string $token): array
     {
-        $this->app['auth']->forgetGuards();
+        $this->resetRequestAuthentication();
 
         return ['Authorization' => 'Bearer '.$token];
+    }
+
+    private function resetRequestAuthentication(): void
+    {
+        // HTTP tests share a container. Forgetting the guard alone does not
+        // clear the JWT singleton's cached token. Model a fresh HTTP request
+        // when switching between independent users/devices (including back).
+        $this->app['auth']->forgetGuards();
+        $this->app['tymon.jwt']->unsetToken();
+        $this->app['tymon.jwt.auth']->unsetToken();
     }
 
     private function start(string $token, string $warehouseId, ?string $key = null)
