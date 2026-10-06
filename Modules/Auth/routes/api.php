@@ -8,6 +8,7 @@ use Modules\Auth\Http\Controllers\PasswordResetController;
 use Modules\Auth\Http\Controllers\PermissionController;
 use Modules\Auth\Http\Controllers\RoleController;
 use Modules\Auth\Http\Controllers\UserController;
+use Modules\Auth\Http\Controllers\WarehouseContextController;
 use Modules\Auth\Http\Middleware\EnsureMutableRole;
 use Modules\Auth\Http\Middleware\PersistRefreshTokenCookie;
 use Modules\Auth\Http\Middleware\PreventSelfRoleAssignment;
@@ -42,7 +43,7 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('auth/me', [AuthController::class, 'updateMe']);
         Route::post('auth/change-password', [AuthController::class, 'changePassword'])
             ->middleware(PersistRefreshTokenCookie::class);
-        Route::post('auth/switch-context', [AuthController::class, 'switchContext']);
+        Route::post('auth/switch-context', [WarehouseContextController::class, 'switchContext']);
 
         // Thiết bị đang đăng nhập của CHÍNH mình — mỗi phiên là một refresh token còn
         // hiệu lực. Lọc cứng theo user đang gọi; id phiên của người khác trả 404.

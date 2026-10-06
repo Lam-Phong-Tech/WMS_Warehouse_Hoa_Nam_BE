@@ -3,7 +3,6 @@
 namespace Modules\Auth\Support;
 
 use App\Support\ApiError;
-use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
 
@@ -59,22 +58,16 @@ final class StableAuthSession
         ApiError::abort(401, 'AUTH_SESSION_EXPIRED', 'Phiên làm việc đã hết hạn hoặc bị thu hồi. Vui lòng đăng nhập lại.');
     }
 
-    /** @return array{auth_session_id: ?string, active_warehouse_id: ?string} */
+    /** @return array<string, mixed> */
     public function payload(User $user): array
     {
         $id = $this->id($user);
-        $warehouseId = $id === null ? null : DB::table('mini_app_work_shifts')
-            ->where('actor_id', $user->user_id)->where('auth_session_id', $id)->value('warehouse_id');
-
-        // This is the confirmed warehouse, not the first allowed warehouse and
-        // not an authorization shortcut. Missing selection must remain null.
-        if ($warehouseId !== null && ! $user->canAccessWarehouse((string) $warehouseId)) {
-            $warehouseId = null;
-        }
+        $noSessionCode = $this->tokens->currentSessionId() === null
+            ? 'AUTH_SESSION_REQUIRED' : 'AUTH_SESSION_EXPIRED';
 
         return [
             'auth_session_id' => $id,
-            'active_warehouse_id' => $warehouseId === null ? null : (string) $warehouseId,
+            ...app(WarehouseContext::class)->payload($user, $id, $noSessionCode),
         ];
     }
 }

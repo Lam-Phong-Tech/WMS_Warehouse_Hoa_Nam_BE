@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\StableAuthSession;
+use Modules\Auth\Support\WarehouseContext;
 use Modules\Warehouse\Models\Warehouse;
 use stdClass;
 
@@ -28,6 +29,7 @@ final class MiniAppWorkShiftService
         if ($shift === null) {
             return null;
         }
+        app(WarehouseContext::class)->assertMatches($user, $sessionId, (string) $shift->warehouse_id);
         $this->assertWarehouse($user, (string) $shift->warehouse_id);
 
         return $this->payload($shift);
@@ -55,6 +57,7 @@ final class MiniAppWorkShiftService
             if ($shift !== null && $shift->warehouse_id !== $warehouseId) {
                 ApiError::abort(409, 'SHIFT_WAREHOUSE_CONFLICT', 'Phiên hiện tại đã bắt đầu ca tại kho khác.');
             }
+            app(WarehouseContext::class)->assertMatches($actor, $sessionId, $warehouseId);
             $this->assertWarehouse($actor, $warehouseId, true);
             $created = $shift === null;
             if ($created) {
