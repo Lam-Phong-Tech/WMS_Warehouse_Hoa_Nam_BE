@@ -32,6 +32,7 @@ use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\ReportExportFileStore;
 use Modules\Warehouse\Support\ReportExportJobRunner;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -858,9 +859,8 @@ class OperationalReportController extends Controller
         }
         $warnings = $warnings->values();
 
-        // warranty_case không mang warehouse_id (ERD) nên KPI bảo hành là GLOBAL theo
-        // thiết kế dữ liệu, kể cả với người dùng bị giới hạn kho. Đã khai rõ trong OpenAPI.
-        $warranty = DB::table('warranty_case')
+        // Warranty aggregates now follow persisted case ownership, including TEMP_ONLY.
+        $warranty = WarrantyWarehouseScope::dashboardQuery($warehouseIds)
             ->select('status', DB::raw('COUNT(*) AS total'))
             ->groupBy('status')
             ->pluck('total', 'status')
@@ -881,7 +881,7 @@ class OperationalReportController extends Controller
             ->get()
             ->groupBy('bucket_date');
 
-        $dailyWarranty = DB::table('warranty_case')
+        $dailyWarranty = WarrantyWarehouseScope::dashboardQuery($warehouseIds)
             ->select(DB::raw('DATE(received_at) as bucket_date'), DB::raw('COUNT(*) AS total'))
             ->whereBetween('received_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
             ->groupBy(DB::raw('DATE(received_at)'))
@@ -1086,7 +1086,7 @@ class OperationalReportController extends Controller
             ->sortByDesc('issue_qty')
             ->values();
 
-        $warrantyByStatus = DB::table('warranty_case')
+        $warrantyByStatus = WarrantyWarehouseScope::dashboardQuery($warehouseIds)
             ->select('status')
             ->selectRaw('COUNT(*) AS total')
             ->groupBy('status')
@@ -1096,7 +1096,7 @@ class OperationalReportController extends Controller
 
         // "Quá hạn" đọc từ cột hạn THẬT (estimated_completion_date), không phải ngưỡng
         // tuổi tự chế. Ca chưa điền hạn dự kiến thì không có gì để quá — không tính.
-        $overdueBase = fn () => DB::table('warranty_case')
+        $overdueBase = fn () => WarrantyWarehouseScope::dashboardQuery($warehouseIds)
             ->whereNotNull('estimated_completion_date')
             ->whereDate('estimated_completion_date', '<', $today->toDateString())
             ->whereNotIn('status', self::WARRANTY_CLOSED_STATUSES);
@@ -1133,8 +1133,8 @@ class OperationalReportController extends Controller
             ])
             ->all();
 
-        $warrantyReceived = function (string $windowFrom, string $windowTo): int {
-            return (int) DB::table('warranty_case')
+        $warrantyReceived = function (string $windowFrom, string $windowTo) use ($warehouseIds): int {
+            return (int) WarrantyWarehouseScope::dashboardQuery($warehouseIds)
                 ->whereBetween('received_at', [$windowFrom, $windowTo])
                 ->count();
         };

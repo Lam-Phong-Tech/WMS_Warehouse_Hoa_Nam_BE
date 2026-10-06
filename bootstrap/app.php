@@ -23,6 +23,7 @@ use Modules\Auth\Http\Middleware\EnforceCredentialFreshness;
 use Modules\Auth\Http\Middleware\EnforceMfaEnrollment;
 use Modules\Auth\Http\Middleware\EnforcePasswordChangeRequired;
 use Modules\Warehouse\Http\Middleware\EnforceInventoryWarehouseScope;
+use Modules\Warehouse\Http\Middleware\EnforceWarrantyWarehouseScope;
 use Modules\Warehouse\Http\Middleware\EnsureWarehouseOperational;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
@@ -84,7 +85,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Gắn vào nhóm `api` chứ KHÔNG global, cùng lý do với ApiRateLimit ở trên:
         // middleware global chạy trước bước khớp route nên `$request->route()` là null,
         // mà danh sách route được phép ghi lúc kho tạm dừng so theo `Route::uri()`.
-        $middleware->api(append: [EnsureWarehouseOperational::class]);
+        $middleware->api(append: [EnsureWarehouseOperational::class, EnforceWarrantyWarehouseScope::class]);
         // Global registration is deliberate: the middleware itself is a no-op
         // outside the six WWHN-211 read/trace endpoints. Registering centrally
         // prevents a future route refactor from silently dropping data-scope.
@@ -113,6 +114,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->priority([
             Authenticate::class,
             CheckPermission::class,
+            EnforceWarrantyWarehouseScope::class,
         ]);
 
         $middleware->redirectGuestsTo(fn () => null);

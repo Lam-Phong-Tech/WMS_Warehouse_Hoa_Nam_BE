@@ -3,13 +3,14 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Http\Controllers\AlignedWarrantyReportController;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
@@ -22,8 +23,10 @@ class WarrantyWarehouseScopeTest extends TestCase
     use RefreshDatabase;
 
     private const BASE = '/api/v1/warranty-cases';
+
     private const MINI = '/api/v1/mini-app/warranty-cases';
-    private const PERMISSIONS = ['warranty.view', 'warranty.manage', 'warranty.temp_only', 'report.view', 'inbound.view', 'outbound.view', 'warehouse.view'];
+
+    private const PERMISSIONS = ['warranty.view', 'warranty.manage', 'warranty.temp_only', 'report.view', 'report.warranty.view', 'report.export', 'inbound.view', 'outbound.view', 'warehouse.view'];
 
     public function test_creation_requires_explicit_confirmation_and_never_selects_a_singleton(): void
     {
@@ -257,11 +260,33 @@ class WarrantyWarehouseScopeTest extends TestCase
     {
         [$a, $b, $global, $idA, $idB] = $this->twoWarehouses();
         [, $scoped] = $this->actor((string) $a->id);
-        foreach (['/api/v1/reports/warranty', '/api/v1/reports/warranty-defects', '/api/v1/reports/dashboard', '/api/v1/dashboard/overview'] as $path) {
+        foreach (['/api/v1/reports/warranty-defects', '/api/v1/reports/dashboard-quick', '/api/v1/reports/dashboard-overview'] as $path) {
             $response = $this->getJson($path.'?warehouse_id='.$a->id, $this->headers($scoped))->assertOk();
             $this->assertStringNotContainsString($idB, $response->getContent());
+            if ($path === '/api/v1/reports/warranty-defects') {
+                $response->assertJsonPath('data.summary.total', 1)->assertJsonPath('data.summary.processing', 1)
+                    ->assertJsonPath('data.summary.temp_only', 1);
+            } elseif ($path === '/api/v1/reports/dashboard-quick') {
+                $response->assertJsonPath('data.warranty_cases_by_status.RECEIVED', 1);
+            } else {
+                $response->assertJsonPath('data.warranty.by_status.RECEIVED', 1)
+                    ->assertJsonPath('data.warranty_received.today', 1);
+            }
             $this->getJson($path.'?warehouse_id='.$b->id, $this->headers($scoped))->assertForbidden();
         }
+    }
+
+    public function test_export_payload_uses_request_warehouse_scope_including_temp_only(): void
+    {
+        [$a, $b, $token, $idA, $idB] = $this->twoWarehouses();
+        [$user, $scoped] = $this->actor((string) $a->id);
+        $this->getJson(self::BASE, $this->headers($scoped))->assertOk();
+        $request = Request::create('/', 'GET', ['warehouse_id' => (string) $a->id]);
+        $request->setUserResolver(fn () => $user);
+        $payload = app(AlignedWarrantyReportController::class)->exportPayload($request, 'xlsx');
+        $this->assertSame(1, $payload['rowCount']);
+        $this->assertNotEmpty($payload['bytes']);
+        $this->getJson('/api/v1/reports/warranty-defects/export-excel?warehouse_id='.$b->id, $this->headers($scoped))->assertForbidden();
     }
 
     public function test_unauthenticated_and_empty_role_scope_cannot_read_warranty(): void
@@ -275,6 +300,60 @@ class WarrantyWarehouseScopeTest extends TestCase
         $this->getJson(self::BASE, $this->headers($noPermission))->assertForbidden();
     }
 
+    public function test_secondary_report_routes_apply_owner_scope_before_cache(): void
+    {
+        [$a, $b, $global, $idA, $idB] = $this->twoWarehouses();
+        [, $scoped] = $this->actor((string) $a->id);
+        foreach (['/api/v1/reports/warranty-defect-sku-breakdown', '/api/v1/reports/warranty-component-usage'] as $path) {
+            DB::enableQueryLog();
+            $this->getJson($path.'?warehouse_id='.$a->id, $this->headers($scoped))->assertOk();
+            $queries = DB::getQueryLog();
+            DB::disableQueryLog();
+            $reportQueries = array_filter($queries, fn ($q) => str_contains($q['query'], 'warranty_case as') || str_contains($q['query'], '"warranty_case" as'));
+            $this->assertNotEmpty($reportQueries);
+            foreach ($reportQueries as $query) {
+                $this->assertStringContainsString('warranty_case_warehouse_owners', $query['query']);
+                $this->assertContains((string) $a->id, $query['bindings']);
+            }
+            $this->getJson($path.'?warehouse_id='.$b->id, $this->headers($scoped))->assertForbidden();
+        }
+    }
+
+    public function test_same_create_key_cannot_replay_a_case_under_another_warehouse(): void
+    {
+        $a = $this->ensureActiveWarehouse('OWNER-A');
+        $b = Warehouse::create(['code' => 'OWNER-B', 'name' => 'Owner B', 'status' => 'INACTIVE']);
+        [, $token] = $this->actor();
+        $key = (string) Str::uuid();
+        $body = $this->body();
+        $first = $this->postJson(self::BASE, $body + ['warehouse_id' => (string) $a->id], $this->headers($token) + ['Idempotency-Key' => $key])->assertCreated();
+        $a->update(['status' => 'INACTIVE']);
+        $b->update(['status' => 'ACTIVE']);
+        $this->postJson(self::BASE, $body + ['warehouse_id' => (string) $b->id], $this->headers($token) + ['Idempotency-Key' => $key])->assertStatus(409);
+        $this->assertDatabaseCount(WarrantyWarehouseScope::TABLE, 1);
+        $this->assertDatabaseHas(WarrantyWarehouseScope::TABLE, ['warranty_case_id' => $first->json('data.warranty_case_id'), 'warehouse_id' => (string) $a->id]);
+    }
+
+    public function test_temp_only_cached_result_cannot_bypass_revoked_warehouse_scope(): void
+    {
+        $a = $this->ensureActiveWarehouse('OWNER-A');
+        $b = Warehouse::create(['code' => 'OWNER-B', 'name' => 'Owner B', 'status' => 'INACTIVE']);
+        [$actor, $token] = $this->actor((string) $a->id);
+        $id = $this->createCase($token, $a);
+        $key = (string) Str::uuid();
+        $body = $this->tempBody();
+        $this->postJson(self::BASE.'/'.$id.'/temp-only', $body, $this->headers($token) + ['Idempotency-Key' => $key])->assertOk();
+        $roleId = $actor->roles()->first()->role_id;
+        // Match UserController::assignRoles: membership and user.version change
+        // together. Direct pivot SQL without this bump is not the IAM write contract.
+        DB::transaction(function () use ($actor, $roleId, $b): void {
+            $actor->roles()->updateExistingPivot($roleId, ['scope_ref' => (string) $b->id]);
+            $actor->forceFill(['version' => $actor->version + 1])->save();
+        });
+        $this->postJson(self::BASE.'/'.$id.'/temp-only', $body, $this->headers($token) + ['Idempotency-Key' => $key])
+            ->assertForbidden()->assertJsonPath('error.code', 'WARRANTY_WAREHOUSE_ACCESS_DENIED');
+    }
+
     private function twoWarehouses(): array
     {
         $a = $this->ensureActiveWarehouse('OWNER-A');
@@ -286,6 +365,7 @@ class WarrantyWarehouseScopeTest extends TestCase
         $idB = $this->createCase($token, $b);
         $b->update(['status' => 'INACTIVE']);
         $a->update(['status' => 'ACTIVE']);
+
         return [$a, $b, $token, $idA, $idB];
     }
 
@@ -320,12 +400,14 @@ class WarrantyWarehouseScopeTest extends TestCase
                 'permission_id' => $permission->permission_id, 'created_at' => now(), 'updated_at' => now()]);
         }
         $this->resetAuthentication();
+
         return [$user, JWTAuth::fromUser($user)];
     }
 
     private function headers(string $token): array
     {
         $this->resetAuthentication();
+
         return ['Authorization' => 'Bearer '.$token];
     }
 

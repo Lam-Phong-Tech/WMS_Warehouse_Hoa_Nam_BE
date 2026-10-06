@@ -2,9 +2,9 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\Validation\InputLimits;
 use App\Support\WarrantyPiiMasker;
@@ -12,9 +12,10 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use OpenApi\Attributes as OA;
 use Modules\Warehouse\Support\ListSortOrder;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
+use OpenApi\Attributes as OA;
 
 /**
  * DEV handover QA 2026-08-20 (HN-BE-API-005, đợt 3) — chỉ 6 trong số các public
@@ -421,6 +422,7 @@ class CanonicalMvpController extends Controller
                 // mask §13.8 SAU enricher, nên đây là chỗ duy nhất còn kịp để lớp
                 // mask nhận được giá trị thật thay vì ciphertext.
                 WarrantyCasePii::decodeRows($rows);
+                WarrantyWarehouseScope::enrich($rows);
 
                 $productIds = $rows->pluck('product_id')->filter()->unique()->values()->all();
                 if ($productIds !== []) {
@@ -580,7 +582,9 @@ class CanonicalMvpController extends Controller
 
     private function tablePage(Request $request, string $table, string $orderBy = 'created_at', array $masked = [], array $filterColumns = [], ?callable $keywordExtension = null, ?callable $collectionEnricher = null, ?callable $filterExtension = null)
     {
-        $query = DB::table($table);
+        $query = $table === 'warranty_case'
+            ? WarrantyWarehouseScope::query($request)
+            : DB::table($table);
         if ($request->filled('status')) {
             // Nhận cả một giá trị lẫn danh sách phân tách bằng dấu phẩy
             // (`?status=CHECKING,REPAIRING`). Màn "Xuất linh kiện" cần đúng hai
@@ -696,7 +700,14 @@ class CanonicalMvpController extends Controller
             });
         }
 
-        return $this->respondPaginated($page);
+        $response = $this->respondPaginated($page);
+        if ($table === 'warranty_case') {
+            $body = $response->getData(true);
+            $body['meta']['warehouse_scope'] = WarrantyWarehouseScope::metadata($request);
+            $response->setData($body);
+        }
+
+        return $response;
     }
 
     private function insertAndReturn(string $table, array $data)

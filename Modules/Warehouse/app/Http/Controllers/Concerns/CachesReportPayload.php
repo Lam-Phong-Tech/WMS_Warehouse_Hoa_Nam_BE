@@ -6,8 +6,10 @@ use App\Support\Cache\CacheKey;
 use App\Support\Cache\CacheService;
 use App\Support\Cache\CacheTtl;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
 
 /**
  * Lớp cache dùng chung cho MỌI controller báo cáo.
@@ -70,7 +72,16 @@ trait CachesReportPayload
      */
     protected function reportCacheKey(string $namespace, array $filters, ?array $scope): string
     {
+        $warrantyRevision = null;
+        if (str_contains($namespace, 'warranty') || str_contains($namespace, 'dashboard')) {
+            WarrantyWarehouseScope::readSelection(new Request($filters));
+            $revision = DB::table(WarrantyWarehouseScope::TABLE)
+                ->selectRaw('COUNT(*) as total')->selectRaw('MAX(assigned_at) as latest')->first();
+            $warrantyRevision = [WarrantyWarehouseScope::VERSION, $revision->total, $revision->latest];
+        }
+
         return CacheKey::of($namespace, [
+            'warranty_owner_revision' => $warrantyRevision,
             'f' => CacheKey::hashFilters($filters),
             'scope' => $scope === null ? 'global' : CacheKey::scopeSignature($scope),
             // Version namespace dùng chung với tồn kho: `stock:version` được bump

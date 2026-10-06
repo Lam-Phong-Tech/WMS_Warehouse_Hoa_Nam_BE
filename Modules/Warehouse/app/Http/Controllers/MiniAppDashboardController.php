@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Modules\Warehouse\Models\StockDocument;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 
 class MiniAppDashboardController extends Controller
@@ -79,6 +80,14 @@ class MiniAppDashboardController extends Controller
             'stock_short',
             'stock:version',
         );
+
+        $canReadWarranty = $request->user()?->hasPermission('warranty.view') || $request->user()?->hasPermission('warranty.manage');
+        $payload['warranty'] = $canReadWarranty ? [
+            'open_count' => WarrantyWarehouseScope::query($request)
+                ->whereIn('status', WarrantyWarehouseScope::OPEN_STATUSES)->count(),
+            'open_statuses' => WarrantyWarehouseScope::OPEN_STATUSES,
+            'warehouse_scope' => WarrantyWarehouseScope::metadata($request),
+        ] : null;
 
         return $this->respondSuccess($payload);
     }

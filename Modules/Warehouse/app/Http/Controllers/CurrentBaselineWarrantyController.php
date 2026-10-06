@@ -2,8 +2,8 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Support\ApiError;
+use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
@@ -13,10 +13,13 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Events\WarrantyCaseCreated;
+use Modules\Warehouse\Events\WarrantyStatusChanged;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 
 class CurrentBaselineWarrantyController extends CurrentBaselineOperationsController
@@ -133,6 +136,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'customer_phone.regex' => 'Số điện thoại phải bắt đầu bằng số 0 và đủ 10 chữ số.',
         ]);
 
+        WarrantyWarehouseScope::prepareCreate($request);
+
         $execute = function () use ($validated, $request): array {
             $caseId = $this->createWarrantyCase($validated, $request);
 
@@ -145,7 +150,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 $idempotencyKey,
                 'create_warranty_case',
                 $this->currentActorId(),
-                IdempotencyStore::requestHash($request),
+                WarrantyWarehouseScope::creationHash($request),
                 $execute
             );
 
@@ -157,6 +162,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
     private function createWarrantyCase(array $validated, Request $request): string
     {
         return DB::transaction(function () use ($validated, $request): string {
+            WarrantyWarehouseScope::lockCreate($request);
             $item = $this->resolveWarrantyItem($validated);
             $defectIds = $this->resolveDefectIds($validated);
 
@@ -219,6 +225,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'created_at' => now(),
                 'updated_at' => now(),
             ]));
+            WarrantyWarehouseScope::bindNew($request, $caseId);
             $this->syncWarrantyDefects($caseId, $defectIds);
 
             if ($item !== null) {
@@ -256,7 +263,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 ],
             );
 
-            event(new \Modules\Warehouse\Events\WarrantyCaseCreated($caseId, $caseCode, $this->currentActorId()));
+            event(new WarrantyCaseCreated($caseId, $caseCode, $this->currentActorId()));
             // Mở hồ sơ bảo hành là stock-neutral nhưng đổi warranty_case/item_instances
             // — dữ liệu mà read cache tra cứu bảo hành và báo cáo lỗi đang phục vụ.
             $this->invalidateReadCache();
@@ -542,7 +549,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'event_at' => now(),
                 ]);
 
-                event(new \Modules\Warehouse\Events\WarrantyStatusChanged($id, $case->status, $target, $this->currentActorId()));
+                event(new WarrantyStatusChanged($id, $case->status, $target, $this->currentActorId()));
             } elseif (($validated['note'] ?? $validated['description'] ?? $validated['confirmed_defect'] ?? null) !== null) {
                 DB::table('warranty_event')->insert([
                     'warranty_event_id' => (string) Str::uuid(),
@@ -814,6 +821,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
         }
 
         return [
+            ...WarrantyWarehouseScope::fields($id),
             'id' => (string) $case->warranty_case_id,
             'warranty_case_id' => (string) $case->warranty_case_id,
             'case_code' => (string) $case->warranty_case_code,
@@ -878,5 +886,4 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
         return (int) $header;
     }
-
 }

@@ -4,16 +4,18 @@ on:
   push:
     branches: [dev]
     paths:
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'app/Console/Commands/AssignWarrantyWarehouseOwners.php'
+      - 'bootstrap/app.php'
+      - 'database/migrations/**'
+      - 'tests/Feature/*Warranty*.php'
+      - 'tests/Feature/P02ReadContractTest.php'
       - '.github/workflows/warranty-scope-contract.yml'
-      - 'scripts/apply_warranty_owner_contract.py'
-      - 'scripts/finalize_warranty_owner_contract.py'
-      - 'scripts/warranty_owner/**'
 permissions:
   contents: read
 jobs:
-  prepare-and-verify:
-    permissions:
-      contents: write
+  contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     services:
@@ -30,15 +32,12 @@ jobs:
     env:
       APP_ENV: testing
       APP_DEBUG: 'false'
-      DB_CONNECTION: sqlite
-      DB_DATABASE: ':memory:'
       DB_HOST: '127.0.0.1'
       DB_PORT: '5432'
       DB_USERNAME: postgres
       DB_PASSWORD: disposable-ci-only
       DB_SSLMODE: disable
       DB_URL: ''
-      PGOPTIONS: '-c lock_timeout=10000 -c statement_timeout=60000'
       CACHE_STORE: array
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
@@ -58,26 +57,16 @@ jobs:
           extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Install locked dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Apply reviewed candidate in disposable checkout
-        run: python3 scripts/warranty_owner/refine.py
-      - name: Lint and format only candidate PHP files
-        run: |
-          python3 - <<'PY'
-          import json, subprocess
-          paths = json.load(open('/tmp/warranty-owner-changed.json'))['changed']
-          php = [p for p in paths if p.endswith('.php')]
-          for p in php:
-              subprocess.run(['php', '-l', p], check=True)
-          subprocess.run(['vendor/bin/pint', *php], check=True)
-          PY
+      - run: composer install --no-interaction --prefer-dist --no-progress
       - name: Prepare isolated application
         run: |
           cp .env.example .env
           php artisan key:generate
           php artisan config:clear
       - name: SQLite ownership and auth regressions
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
         run: php artisan test tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --stop-on-error --stop-on-failure --log-junit warranty-sqlite.xml
       - name: PostgreSQL ownership and auth regressions
         env:
@@ -94,35 +83,5 @@ jobs:
               try:
                   print(path, [s.attrib for s in ET.parse(path).getroot().findall('./testsuite')])
               except ET.ParseError:
-                  print(path, 'Incomplete; read failed step.')
-          PY
-      - name: Publish verified PHP tree without changing branch or workflow references
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          import json, os, pathlib, subprocess, urllib.request, urllib.error
-          repo = os.environ['GITHUB_REPOSITORY']
-          assert repo == 'Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
-          manifest = json.load(open('/tmp/warranty-owner-changed.json'))
-          paths = [p for p in manifest['changed'] if p.endswith('.php')]
-          assert all(p.startswith('scripts/') for p in manifest['deleted'])
-          def api(path, body):
-              req = urllib.request.Request('https://api.github.com/repos/'+repo+path, data=json.dumps(body).encode(), method='POST', headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json', 'Content-Type':'application/json', 'User-Agent':'warranty-contract-ci'})
-              try:
-                  with urllib.request.urlopen(req, timeout=60) as r:
-                      return json.load(r)
-              except urllib.error.HTTPError as e:
-                  error = json.loads(e.read())
-                  print('GitHub object publication failed:', e.code, error.get('message'), error.get('documentation_url'))
-                  raise
-          nodes = [{'path':p, 'mode':'100644', 'type':'blob', 'content':pathlib.Path(p).read_text()} for p in paths]
-          nodes += [{'path':p, 'mode':'100644', 'type':'blob', 'sha':None} for p in manifest['deleted']]
-          base = subprocess.check_output(['git','rev-parse','HEAD^{tree}'], text=True).strip()
-          tree = api('/git/trees', {'base_tree':base,'tree':nodes})['sha']
-          print('VERIFIED_SOURCE_TREE='+tree)
-          print('VERIFIED_PARENT='+os.environ['GITHUB_SHA'])
-          print('Source paths:', '\n'.join(paths))
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as out:
-              out.write('Verified source tree: `'+tree+'`\n\nParent: `'+os.environ['GITHUB_SHA']+'`\n\nNo branch or workflow reference changed. Publish the reviewed read-only workflow separately with authorized repository tools.\n')
+                  print(path, 'Incomplete test report; read the failed step.')
           PY

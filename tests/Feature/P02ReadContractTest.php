@@ -131,7 +131,7 @@ class P02ReadContractTest extends TestCase
 
     public function test_warranty_default_order_is_stable_without_changing_status_or_pii_rules(): void
     {
-        $this->ensureActiveWarehouse('P02-A');
+        $warehouse = $this->ensureActiveWarehouse('P02-A');
         $token = $this->token();
         $ids = [];
         for ($i = 0; $i < 3; $i++) {
@@ -139,6 +139,7 @@ class P02ReadContractTest extends TestCase
                 'customer_name' => 'P02 automated test', 'customer_phone' => '0900000000',
                 'description' => 'Disposable test only', 'missing_code_reason' => 'Test without serial',
                 'manual_product_description' => 'P02 isolated fixture',
+                'warehouse_id' => (string) $warehouse->id,
             ], $this->headers($token))->assertCreated();
             $id = (string) $response->json('data.warranty_case_id');
             $this->assertTrue(Str::isUuid($id));

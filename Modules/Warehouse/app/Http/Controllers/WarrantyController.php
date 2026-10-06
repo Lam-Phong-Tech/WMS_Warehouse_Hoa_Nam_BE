@@ -15,6 +15,7 @@ use Modules\Warehouse\Models\InventorySerial;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
 use Modules\Warehouse\Support\MasterSelectionGuard;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 
 class WarrantyController extends Controller
@@ -175,6 +176,7 @@ class WarrantyController extends Controller
                     );
 
                     return [
+                        ...WarrantyWarehouseScope::fields((string) $case->warranty_case_id),
                         'warranty_case_id' => $case->warranty_case_id,
                         'status' => $fromStatus,
                         'identification_status' => 'TEMP_ONLY',

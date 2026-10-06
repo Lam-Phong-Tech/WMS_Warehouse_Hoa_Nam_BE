@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Warehouse\Http\Controllers\Concerns\CachesReportPayload;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 
 /**
@@ -295,7 +296,7 @@ class BaM1ReportController extends Controller
             ! empty($validated['defect_id']) ? [(string) $validated['defect_id']] : []
         ))));
 
-        $query = DB::table('warranty_case as wc')
+        $query = WarrantyWarehouseScope::query($request, 'wc')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
         if (! empty($validated['status'])) {
@@ -417,7 +418,7 @@ class BaM1ReportController extends Controller
         // ra một con số sai mà người đọc không có cách nào nghi ngờ.
         // `ReportFlow06IntegrationTest::test_warranty_defects_filters_by_status`
         // đã khai đúng hành vi mong đợi từ trước; chỉ phần cài đặt chưa theo kịp.
-        $summaryBase = DB::table('warranty_case as wc')
+        $summaryBase = WarrantyWarehouseScope::query($request, 'wc')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
 
@@ -453,6 +454,7 @@ class BaM1ReportController extends Controller
         // làm nguồn sống cho route này (xem comment ở routes/api.php).
         $byDefectQuery = DB::table('warranty_case_defects as wcd')
             ->join('warranty_case as wc', 'wc.warranty_case_id', '=', 'wcd.warranty_case_id')
+            ->whereIn('wc.warranty_case_id', WarrantyWarehouseScope::query($request)->select('warranty_case.warranty_case_id'))
             ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
@@ -584,6 +586,7 @@ class BaM1ReportController extends Controller
 
         $query = DB::table('warranty_case_defects as wcd')
             ->join('warranty_case as wc', 'wc.warranty_case_id', '=', 'wcd.warranty_case_id')
+            ->whereIn('wc.warranty_case_id', WarrantyWarehouseScope::query($request)->select('warranty_case.warranty_case_id'))
             ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
@@ -658,6 +661,7 @@ class BaM1ReportController extends Controller
             ->join('component_issue_lines as cil', 'cil.component_issue_document_id', '=', 'cid.id')
             ->join('sku as cs', 'cs.sku_id', '=', 'cil.sku_id')
             ->join('warranty_case as wc', 'wc.warranty_case_id', '=', 'cid.warranty_case_id')
+            ->whereIn('wc.warranty_case_id', WarrantyWarehouseScope::query($request)->select('warranty_case.warranty_case_id'))
             ->where('cid.status', 'POSTED')
             ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
         if ($filterDefects !== []) {

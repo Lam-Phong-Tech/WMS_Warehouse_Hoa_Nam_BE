@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -213,8 +214,8 @@ class AlignedWarrantyReportController extends Controller
         // client gửi `?include_pii=1` sẽ ghi đè cờ do server tính — tức là dùng chung entry
         // giữa bản mask và bản PII thô. array_merge cho giá trị server tính luôn thắng.
         return $this->cachedReadPayload(
-            'warehouse:report:warranty-defects',
-            array_merge($filters, ['include_pii' => $includePii]),
+            'warehouse:report:warranty-defects:warranty-owner-v1',
+            array_merge($filters, ['include_pii' => $includePii, 'warranty_owner_context' => WarrantyWarehouseScope::cacheContext($request)]),
             fn (): array => $this->buildUncached($request, $includePii),
             'report',
             'stock:version',
@@ -238,7 +239,7 @@ class AlignedWarrantyReportController extends Controller
         $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
         $to = (string) ($validated['to_date'] ?? now()->toDateString());
 
-        $query = DB::table('warranty_case as wc')
+        $query = WarrantyWarehouseScope::query($request, 'wc')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->leftJoin('defect_catalogs as d', 'd.defect_id', '=', 'wc.defect_id')
             // §13.10 "event timestamps Asia/Ho_Chi_Minh" + cột "received": kỳ báo cáo

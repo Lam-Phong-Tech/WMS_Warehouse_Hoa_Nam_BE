@@ -39,7 +39,7 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
 
     // Thẻ KPI màn Trang chủ: danh sách phiếu không lọc được theo ngày Post nên client không tự đếm đúng.
     Route::get('dashboard/summary', [MiniAppDashboardController::class, 'summary'])
-        ->middleware(['permission:inbound.view|outbound.view', EnforceInboundWarehouseScope::class, EnforceOutboundWarehouseScope::class]);
+        ->middleware(['permission:inbound.view|outbound.view|warranty.view|warranty.manage', EnforceInboundWarehouseScope::class, EnforceOutboundWarehouseScope::class]);
 
     // ── Product lookup ───────────────────────────────────────────────────
     // Read-only tra cứu SKU cho Mini App (dùng chung permission sku.view với
