@@ -68,7 +68,12 @@ edit(p, '    private function twoWarehouses(): array', '''    public function te
         $body = $this->tempBody();
         $this->postJson(self::BASE.'/'.$id.'/temp-only', $body, $this->headers($token) + ['Idempotency-Key' => $key])->assertOk();
         $roleId = $actor->roles()->first()->role_id;
-        $actor->roles()->updateExistingPivot($roleId, ['scope_ref' => (string) $b->id]);
+        // Match UserController::assignRoles: membership and user.version change
+        // together. Direct pivot SQL without this bump is not the IAM write contract.
+        DB::transaction(function () use ($actor, $roleId, $b): void {
+            $actor->roles()->updateExistingPivot($roleId, ['scope_ref' => (string) $b->id]);
+            $actor->forceFill(['version' => $actor->version + 1])->save();
+        });
         $this->postJson(self::BASE.'/'.$id.'/temp-only', $body, $this->headers($token) + ['Idempotency-Key' => $key])
             ->assertForbidden()->assertJsonPath('error.code', 'WARRANTY_WAREHOUSE_ACCESS_DENIED');
     }
