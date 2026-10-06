@@ -3,56 +3,122 @@ on:
   workflow_dispatch:
   push:
     branches: [dev]
-    paths: ['.github/workflows/warranty-scope-contract.yml']
+    paths:
+      - '.github/workflows/warranty-scope-contract.yml'
+      - 'scripts/apply_warranty_owner_contract.py'
+      - 'scripts/finalize_warranty_owner_contract.py'
+      - 'scripts/warranty_owner/**'
 permissions:
   contents: read
 jobs:
-  inspect:
+  prepare-and-verify:
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: warranty_owner_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d warranty_owner_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: disposable-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=10000 -c statement_timeout=60000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: warranty-owner-contract-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Inspect warranty ownership integration points
-        run: |
-          python3 - <<'PY'
-          import pathlib, re
-          for root in [pathlib.Path('Modules/Warehouse'), pathlib.Path('app')]:
-              for p in sorted(root.rglob('*.php')):
-                  if '/Database/Seeders/' in str(p):
-                      continue
-                  lines = p.read_text().splitlines()
-                  hits = [i for i,l in enumerate(lines) if re.search(r"(?:DB::table\(['\"]warranty_case|warranty-cases|temp-only|function (?:tempOnly|createWarrantyCase|warrantyDefects|summary|casePayload|caseEnvelope))", l)]
-                  if not hits:
-                      continue
-                  print('\nFILE', p)
-                  shown = set()
-                  for i in hits:
-                      for j in range(max(0, i-2), min(len(lines), i+8)):
-                          if j not in shown:
-                              print(f'{j+1}: {lines[j]}')
-                              shown.add(j)
-          for name in ['tests/Feature/P02ReadContractTest.php', '.github/workflows/mini-app-work-shifts.yml']:
-              print('\nFULL', name)
-              print(pathlib.Path(name).read_text())
-          print('\nTEST_FILES')
-          print('\n'.join(str(p) for p in pathlib.Path('tests').rglob('*Warranty*')))
-          PY
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, sqlite3, pdo_sqlite, bcmath, gd, zip, intl
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Install locked test dependencies
+      - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Package source for isolated review
+      - name: Apply exact candidate changes in disposable checkout
+        run: python3 scripts/finalize_warranty_owner_contract.py
+      - name: Lint and format only candidate PHP files
         run: |
-          git archive HEAD -o source.tar
-          tar --append --file=source.tar vendor
-          gzip source.tar
-      - uses: actions/upload-artifact@v4
-        with:
-          name: warranty-scope-review-source
-          path: source.tar.gz
-          retention-days: 1
+          python3 - <<'PY'
+          import json, subprocess
+          paths = json.load(open('/tmp/warranty-owner-changed.json'))['changed']
+          php = [p for p in paths if p.endswith('.php')]
+          for p in php:
+              subprocess.run(['php', '-l', p], check=True)
+          subprocess.run(['vendor/bin/pint', *php], check=True)
+          PY
+      - name: Prepare isolated application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: SQLite ownership and auth regressions
+        run: php artisan test tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --stop-on-error --stop-on-failure --log-junit warranty-sqlite.xml
+      - name: PostgreSQL ownership and auth regressions
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: warranty_owner_test
+        run: php artisan test tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --stop-on-error --stop-on-failure --log-junit warranty-pgsql.xml
+      - name: Publish test summaries without artifact storage
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in Path('.').glob('warranty-*.xml'):
+              try:
+                  print(path, [s.attrib for s in ET.parse(path).getroot().findall('./testsuite')])
+              except ET.ParseError:
+                  print(path, 'Incomplete; read failed step.')
+          PY
+      - name: Create detached candidate commit only after both database suites pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, urllib.request
+          repo = os.environ['GITHUB_REPOSITORY']
+          assert repo == 'Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
+          manifest = json.load(open('/tmp/warranty-owner-changed.json'))
+          assert all(p.endswith(('.php', '.yml')) for p in manifest['changed'])
+          assert all(p.startswith('scripts/') for p in manifest['deleted'])
+          def api(path, body):
+              req = urllib.request.Request('https://api.github.com/repos/'+repo+path, data=json.dumps(body).encode(), method='POST', headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json', 'Content-Type':'application/json'})
+              with urllib.request.urlopen(req, timeout=60) as r:
+                  return json.load(r)
+          nodes = [{'path':p, 'mode':'100644', 'type':'blob', 'content':pathlib.Path(p).read_text()} for p in manifest['changed']]
+          nodes += [{'path':p, 'mode':'100644', 'type':'blob', 'sha':None} for p in manifest['deleted']]
+          base = subprocess.check_output(['git','rev-parse','HEAD^{tree}'], text=True).strip()
+          tree = api('/git/trees', {'base_tree':base,'tree':nodes})['sha']
+          commit = api('/git/commits', {'message':'feat(warranty): persist warehouse ownership and enforce scoped warranty contracts\n\nCapture confirmed ownership atomically including TEMP_ONLY; scope lists, details, events, attachments and warranty aggregates. Keep existing permissions and stock-neutral behavior. Add audited explicit legacy assignment and true SQL totals. Verified on isolated SQLite and PostgreSQL; no production migration or deployment performed.', 'tree':tree, 'parents':[os.environ['GITHUB_SHA']]})['sha']
+          print('CANDIDATE_COMMIT='+commit)
+          print('CANDIDATE_TREE='+tree)
+          print('Changed paths:', '\n'.join(manifest['changed']))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as out:
+              out.write('Verified detached candidate: `'+commit+'`\n\nNo branch reference was changed.\n')
+          PY
