@@ -32,12 +32,15 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
     )]
     public function index(Request $request)
     {
+        // Validate before a read-cache hit; retain the existing permission/scope middleware.
+        $request->validate(['warehouse_id' => ['nullable', 'uuid']]);
+
         // Cùng chính sách với OutboundDocumentController::index() — TTL 'search'
         // (120s, chứng từ đang lưu thông) trên version `stock:version`. Namespace
         // RIÊNG vì payload khác (thêm packing_label_*): dùng chung namespace sẽ trả
         // nhầm hình dạng của route kia. Trait CachesReadPayload kế thừa từ lớp cha.
         $payload = $this->cachedReadPayload(
-            'warehouse:outbound-document:aligned-list',
+            'warehouse:outbound-document:aligned-list:p02-scope-sort-v1',
             // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
             $this->readFiltersWithPaging($request),
             fn (): array => $this->buildAlignedIndexPayload($request),
@@ -57,7 +60,11 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
     {
         $query = StockDocument::query()
             ->with('lines')
-            ->where('doc_type', $this->docType());
+            ->where('doc_type', $this->docType())
+            ->when($request->filled('warehouse_id'), fn ($filtered) => $filtered->where(
+                'src_warehouse_id',
+                $request->input('warehouse_id'),
+            ));
 
         // WWHN-SEC-09 (BOLA): lọc theo warehouse data-scope như bản danh sách gốc
         // (OutboundDocumentController::buildIndexPayload) — khoá cache đã mang scope.
@@ -79,7 +86,7 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
         // theo chiều sắp xếp, không cần đổi gì ở tầng cache.
         $sortOrder = ListSortOrder::fromRequest($request);
         if ($sortOrder === null) {
-            $query->orderByDesc('created_at');
+            $query->orderByDesc('created_at')->orderByDesc('id');
         } else {
             ListSortOrder::applyRecency($query, $sortOrder);
         }

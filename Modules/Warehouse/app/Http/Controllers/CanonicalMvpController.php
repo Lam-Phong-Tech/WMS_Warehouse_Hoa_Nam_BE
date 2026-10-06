@@ -650,6 +650,11 @@ class CanonicalMvpController extends Controller
         $sortOrder = ListSortOrder::fromRequest($request);
         if ($sortOrder === null) {
             $query->orderByDesc($orderBy);
+            // P02: deterministic creation-order pagination for warranty receipts.
+            // Does not change sort_order's existing update-recency semantics.
+            if ($table === 'warranty_case') {
+                $query->orderByDesc('warranty_case_id');
+            }
         } else {
             // hasRelationColumn chứ không hasColumn — `warranty_case` là VIEW
             // (xem chú thích filterColumns ở trên). Bảng/view thiếu updated_at

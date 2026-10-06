@@ -25,9 +25,16 @@ trait InteractsWithStockDocuments
 
     public function index(Request $request)
     {
+        // Validate before a read-cache hit; retain the existing permission/scope middleware.
+        $request->validate(['warehouse_id' => ['nullable', 'uuid']]);
+
         $query = StockDocument::query()
             ->with('lines')
-            ->where('doc_type', $this->docType());
+            ->where('doc_type', $this->docType())
+            ->when($request->filled('warehouse_id'), fn ($filtered) => $filtered->where(
+                ($this->docType() === StockDocument::TYPE_RECEIPT ? 'dst_warehouse_id' : 'src_warehouse_id'),
+                $request->input('warehouse_id'),
+            ));
 
         // WWHN-SEC-09 (BOLA): danh sách phải theo warehouse data-scope như các
         // route chi tiết. Middleware Enforce{Inbound,Outbound}WarehouseScope chỉ
@@ -66,7 +73,7 @@ trait InteractsWithStockDocuments
         // vắng mặt thì giữ nguyên thứ tự cũ cho client không gửi tham số.
         $sortOrder = ListSortOrder::fromRequest($request);
         if ($sortOrder === null) {
-            $query->orderByDesc('created_at');
+            $query->orderByDesc('created_at')->orderByDesc('id');
         } else {
             ListSortOrder::applyRecency($query, $sortOrder);
         }

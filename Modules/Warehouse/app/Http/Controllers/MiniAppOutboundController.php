@@ -48,6 +48,9 @@ class MiniAppOutboundController extends Controller
 
     public function index(Request $request)
     {
+        // Validate before a read-cache hit; retain the existing permission/scope middleware.
+        $request->validate(['warehouse_id' => ['nullable', 'uuid']]);
+
         // Kiểm tra tham số TRƯỚC cache: status sai phải trả 422 ngay.
         $status = strtoupper(trim((string) $request->query('status', '')));
         if ($status !== '' && ! in_array($status, ['DRAFT', 'SCANNING', 'POSTED', 'CANCELLED'], true)) {
@@ -62,11 +65,12 @@ class MiniAppOutboundController extends Controller
         // sẵn trong khoá qua readCacheScopeIds(); phân trang chạy TRONG SQL nên page/
         // per_page cũng phải nằm trong khoá.
         $cached = $this->cachedReadPayload(
-            'miniapp:outbound:list',
+            'miniapp:outbound:list:p02-scope-sort-v1',
             $this->readFiltersWithPaging($request),
             function () use ($request, $status, $readyForIssue, $perPage): array {
                 $page = $this->indexQuery($request, $status, $readyForIssue)
                     ->orderByDesc('created_at')
+                    ->orderByDesc('id')
                     ->paginate($perPage);
 
                 return [
@@ -94,7 +98,11 @@ class MiniAppOutboundController extends Controller
     {
         $query = StockDocument::query()
             ->with('lines')
-            ->where('doc_type', StockDocument::TYPE_ISSUE);
+            ->where('doc_type', StockDocument::TYPE_ISSUE)
+            ->when($request->filled('warehouse_id'), fn ($filtered) => $filtered->where(
+                'src_warehouse_id',
+                $request->input('warehouse_id'),
+            ));
 
         if ($status !== '') {
             $query->where('status', $status);
