@@ -163,6 +163,7 @@ class P02ReadContractTest extends TestCase
         $document->forceFill([
             'doc_type' => $type, 'doc_no' => 'P02-'.Str::uuid(), 'doc_date' => '2026-01-15',
             'created_by' => $this->actorId, 'updated_by' => $this->actorId,
+            'recipient_name' => 'P02 isolated recipient', 'recipient_address' => 'P02 disposable test address',
             'status' => 'DRAFT', $type === 'receipt' ? 'dst_warehouse_id' : 'src_warehouse_id' => $warehouse->id,
             'created_at' => '2026-01-15 08:00:00', 'updated_at' => '2026-01-15 08:00:00',
         ])->save();
