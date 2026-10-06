@@ -26,6 +26,8 @@ class P02ReadContractTest extends TestCase
         '/api/v1/mini-app/outbound-documents' => 'issue',
     ];
 
+    private string $actorId;
+
     public function test_document_lists_still_require_authentication(): void
     {
         foreach (self::LISTS as $path => $type) {
@@ -160,6 +162,7 @@ class P02ReadContractTest extends TestCase
         $document = new StockDocument;
         $document->forceFill([
             'doc_type' => $type, 'doc_no' => 'P02-'.Str::uuid(), 'doc_date' => '2026-01-15',
+            'created_by' => $this->actorId, 'updated_by' => $this->actorId,
             'status' => 'DRAFT', $type === 'receipt' ? 'dst_warehouse_id' : 'src_warehouse_id' => $warehouse->id,
             'created_at' => '2026-01-15 08:00:00', 'updated_at' => '2026-01-15 08:00:00',
         ])->save();
@@ -174,6 +177,7 @@ class P02ReadContractTest extends TestCase
             'username' => 'p02_'.$suffix, 'display_name' => 'P02 test', 'email' => 'p02_'.$suffix.'@wms-hoanam.test',
             'password_hash' => Hash::make('secret123'), 'status' => 'ACTIVE', 'version' => 1,
         ]);
+        $this->actorId = (string) $user->user_id;
         $role = Role::create(['role_code' => 'P02_'.$suffix, 'role_name' => 'P02 test', 'scope_type' => 'WAREHOUSE', 'status' => 'ACTIVE']);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid(), 'scope_ref' => $scope]);
         foreach (['inbound.view', 'outbound.view', 'warranty.view', 'warranty.manage'] as $key) {
