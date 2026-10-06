@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare the exact candidate tree in CI. This script never changes a live database or pushes a ref."""
+"""Prepare the candidate in isolated CI; never change a live database or push a ref."""
 from pathlib import Path
 import json
 import runpy
@@ -21,6 +21,20 @@ edit(p, '    public static function fields(string $caseId): array', '''    publi
         return [self::VERSION, $selection, $revision->total, $revision->latest];
     }
 
+    /** Dashboard builders already receive their validated effective warehouse set, not an HTTP request. */
+    public static function dashboardQuery(?array $warehouseIds): Builder
+    {
+        $query = self::query(new Request());
+        if ($warehouseIds !== null) {
+            $query->whereExists(function (Builder $owners) use ($warehouseIds): void {
+                $owners->selectRaw('1')->from(self::TABLE.' as dashboard_owner')
+                    ->whereColumn('dashboard_owner.warranty_case_id', 'warranty_case.warranty_case_id')
+                    ->whereIn('dashboard_owner.warehouse_id', $warehouseIds);
+            });
+        }
+        return $query;
+    }
+
     public static function fields(string $caseId): array''')
 
 p = 'Modules/Warehouse/app/Http/Controllers/AlignedWarrantyReportController.php'
@@ -30,8 +44,8 @@ edit(p, "array_merge($filters, ['include_pii' => $includePii]),", "array_merge($
 p = 'Modules/Warehouse/app/Http/Controllers/Concerns/CachesReportPayload.php'
 edit(p, '\\Modules\\Warehouse\\Support\\WarrantyWarehouseScope::readSelection(request());', '\\Modules\\Warehouse\\Support\\WarrantyWarehouseScope::readSelection(new Request($filters));')
 p = 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
-edit(p, '\\Modules\\Warehouse\\Support\\WarrantyWarehouseScope::query(request())', '\\Modules\\Warehouse\\Support\\WarrantyWarehouseScope::query($request)', count=5)
-edit(p, '$warrantyReceived = function (string $windowFrom, string $windowTo): int {', '$warrantyReceived = function (string $windowFrom, string $windowTo) use ($request): int {')
+edit(p, '\\Modules\\Warehouse\\Support\\WarrantyWarehouseScope::query(request())', '\\Modules\\Warehouse\\Support\\WarrantyWarehouseScope::dashboardQuery($warehouseIds)', count=5)
+edit(p, '$warrantyReceived = function (string $windowFrom, string $windowTo): int {', '$warrantyReceived = function (string $windowFrom, string $windowTo) use ($warehouseIds): int {')
 
 p = 'app/Console/Commands/AssignWarrantyWarehouseOwners.php'
 edit(p, '            // Report caches include the ownership table revision, so audited backfills cannot leave old totals cached.', '''            if ($apply && $count > 0) {
@@ -39,10 +53,38 @@ edit(p, '            // Report caches include the ownership table revision, so a
             }
             // Report caches also include the ownership table revision.''')
 
-write('tests/Feature/WarrantyWarehouseScopeTest.php', Path('scripts/warranty_owner/WarrantyWarehouseScopeTest.php').read_text())
+p = 'tests/Feature/WarrantyWarehouseScopeTest.php'
+write(p, Path('scripts/warranty_owner/WarrantyWarehouseScopeTest.php').read_text())
+edit(p, "'warranty.temp_only', 'report.view',", "'warranty.temp_only', 'report.view', 'report.warranty.view', 'report.export',")
+edit(p, "['/api/v1/reports/warranty', '/api/v1/reports/warranty-defects', '/api/v1/reports/dashboard', '/api/v1/dashboard/overview']", "['/api/v1/reports/warranty-defects', '/api/v1/reports/dashboard-quick', '/api/v1/reports/dashboard-overview']")
+anchor = "            $this->assertStringNotContainsString($idB, $response->getContent());"
+edit(p, anchor, anchor + '''
+            if ($path === '/api/v1/reports/warranty-defects') {
+                $response->assertJsonPath('data.summary.total', 1)->assertJsonPath('data.summary.processing', 1)
+                    ->assertJsonPath('data.summary.temp_only', 1);
+            } elseif ($path === '/api/v1/reports/dashboard-quick') {
+                $response->assertJsonPath('data.warranty_cases_by_status.RECEIVED', 1);
+            } else {
+                $response->assertJsonPath('data.warranty.by_status.RECEIVED', 1)
+                    ->assertJsonPath('data.warranty_received.today', 1);
+            }''')
+# Exercise the actual aligned XLSX export builder, not a made-up report route.
+edit(p, '    public function test_unauthenticated_and_empty_role_scope_cannot_read_warranty(): void', '''    public function test_export_payload_uses_request_warehouse_scope_including_temp_only(): void
+    {
+        [$a, $b, $token, $idA, $idB] = $this->twoWarehouses();
+        [$user, $scoped] = $this->actor((string) $a->id);
+        $this->getJson(self::BASE, $this->headers($scoped))->assertOk();
+        $request = \\Illuminate\\Http\\Request::create('/', 'GET', ['warehouse_id' => (string) $a->id]);
+        $request->setUserResolver(fn () => $user);
+        $payload = app(\\Modules\\Warehouse\\Http\\Controllers\\AlignedWarrantyReportController::class)->exportPayload($request, 'xlsx');
+        $this->assertSame(1, $payload['rowCount']);
+        $this->assertNotEmpty($payload['bytes']);
+        $this->getJson('/api/v1/reports/warranty-defects/export-excel?warehouse_id='.$b->id, $this->headers($scoped))->assertForbidden();
+    }
 
-# This is the permanent, read-only regression workflow in the candidate. The currently-running
-# preparation workflow can only create a detached candidate commit; the assistant updates dev.
+    public function test_unauthenticated_and_empty_role_scope_cannot_read_warranty(): void''')
+
+# Published candidate contains only a read-only regression workflow.
 write('.github/workflows/warranty-scope-contract.yml', '''name: Warranty Warehouse Contract
 on:
   workflow_dispatch:
@@ -132,7 +174,6 @@ jobs:
           PY
 ''')
 
-# Remove staging-only files from the published candidate, not from its parent commit.
 deleted = ['scripts/apply_warranty_owner_contract.py', 'scripts/finalize_warranty_owner_contract.py', 'scripts/warranty_owner/WarrantyWarehouseScopeTest.php']
 for path in deleted:
     Path(path).unlink()
