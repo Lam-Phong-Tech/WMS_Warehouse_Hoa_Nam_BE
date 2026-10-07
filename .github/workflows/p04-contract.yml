@@ -1,0 +1,68 @@
+name: P04 Inbound Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/**'
+      - 'tests/Feature/P04*Test.php'
+      - 'database/migrations/**'
+      - '.github/workflows/p04-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_URL: ''
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p04-isolated-ci-only-not-a-production-secret
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Inspect existing inbound contract sources
+        run: |
+          git ls-files | grep -Ei 'supplier|inbound.*type|P04|MiniAppInbound.*Test|Inbound.*Staging.*Test' || true
+          git grep -n -i 'supplier_id' -- Modules database | head -60 || true
+      - name: Prepare private offline verification workspace
+        run: |
+          git archive HEAD -o /tmp/p04-source.tar
+          tar -rf /tmp/p04-source.tar vendor
+          gzip /tmp/p04-source.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p04-private-verification-workspace
+          path: /tmp/p04-source.tar.gz
+          retention-days: 1
+      - name: Prepare isolated test application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: P03 and inbound regression tests
+        run: php artisan test tests/Feature/P03Draft*Test.php tests/Feature/AuthWarehouseContextTest.php --log-junit p04-tests.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p04-test-results
+          path: p04-tests.xml
+          retention-days: 7
