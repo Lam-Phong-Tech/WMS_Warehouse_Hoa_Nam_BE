@@ -36,7 +36,7 @@ class BaM1StockService extends DiagnosticCurrentBaselineStockService
                 $parsed = app(ProductQrPayloadParser::class)->parse($code);
                 if ($parsed->isComposite() && $parsed->skuCode !== null) {
                     $skuCode = strtoupper(trim((string) $parsed->skuCode));
-                    if (! DB::table('sku')->where('sku_code', $skuCode)->exists()) {
+                    if (! $this->skuExists($skuCode)) {
                         $chosenType = strtoupper(trim((string) ($payload['new_sku_type'] ?? '')));
                         if ($chosenType === '') {
                             ApiError::abort(
@@ -75,7 +75,7 @@ class BaM1StockService extends DiagnosticCurrentBaselineStockService
         ?string $actorId
     ): void {
         $skuCode = strtoupper(trim($skuCode));
-        if ($skuCode === '' || DB::table('sku')->where('sku_code', $skuCode)->exists()) {
+        if ($skuCode === '' || $this->skuExists($skuCode)) {
             return;
         }
 
@@ -105,9 +105,18 @@ class BaM1StockService extends DiagnosticCurrentBaselineStockService
             // Concurrent first scans of the same unseen SKU can race on the unique
             // sku_code constraint. If the other transaction won, continue with the
             // canonical resolver; otherwise keep the original failure visible.
-            if (! DB::table('sku')->where('sku_code', $skuCode)->exists()) {
+            if (! $this->skuExists($skuCode)) {
                 throw $exception;
             }
         }
+    }
+
+    private function skuExists(string $skuCode): bool
+    {
+        // Resolve-code and ProductIdentityResolver already compare normalized
+        // codes case-insensitively. Record must not create a second SKU or ask
+        // for a new type just because existing master data uses mixed case.
+        // Active/type/identity checks remain in the authoritative parent resolver.
+        return DB::table('sku')->whereRaw('UPPER(sku_code) = ?', [strtoupper(trim($skuCode))])->exists();
     }
 }
