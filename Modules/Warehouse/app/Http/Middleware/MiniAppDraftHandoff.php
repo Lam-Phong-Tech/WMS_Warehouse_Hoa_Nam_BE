@@ -18,6 +18,6 @@ final class MiniAppDraftHandoff
             return $next($request);
         }
 
-        return app(MiniAppDraftService::class)->handoff($request, $next, $operation);
+        return P03JsonEnvelope::ready($request, app(MiniAppDraftService::class)->handoff($request, $next, $operation));
     }
 }
