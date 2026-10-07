@@ -43,8 +43,12 @@ final class P04InboundController extends Controller
         }
         unset($allowed);
         $data['actor_id'] = (string) $request->user()->user_id;
-        $data['permissions'] = $permissions + ['record' => $permissions['save']];
-        $data['warehouse_status'] = $warehouse?->status;
+        $data['permissions'] = $permissions + ['record' => $permissions['save'] && $permissions['read']];
+        // WarehouseContext deliberately clears the usable ID on suspension.
+        // Only its authoritative INACTIVE signal may produce INACTIVE here;
+        // missing selection, withdrawn access or unknown state remain null.
+        $data['warehouse_status'] = $warehouse?->status
+            ?? (($data['warehouse_context']['error_code'] ?? null) === 'WAREHOUSE_INACTIVE' ? 'INACTIVE' : null);
         $data['inbound_supported'] = $canonical;
         $data['scan_event_mode'] = 'LOCAL_UNTIL_RECORD';
         $data['scan_session_creation'] = 'WITH_DRAFT_SAVE';
@@ -273,6 +277,7 @@ final class P04InboundController extends Controller
                 $body['data']['supplier'] = $supplier;
                 $body['data']['record_status'] = 'RECORDED';
                 $body['data']['posted'] = false;
+                $body['meta']['contract'] = self::CONTRACT;
 
                 return $response->setData($body);
             }, 'INBOUND');
@@ -328,7 +333,7 @@ final class P04InboundController extends Controller
             // warehouse (P12/P22); personal staging drafts remain actor+session scoped.
             $document = StockDocument::query()->with(['lines', 'statusHistory'])
                 ->where('doc_type', StockDocument::TYPE_RECEIPT)->where('dst_warehouse_id', $scope['warehouse_id'])
-                ->whereKey($id)->first();
+                ->whereKey($id)->lockForUpdate()->first();
             if ($document === null) {
                 ApiError::abort(404, 'INBOUND_DOCUMENT_NOT_FOUND', 'Không tìm thấy chứng từ nhập kho trong phạm vi hiện tại.');
             }
@@ -506,6 +511,8 @@ final class P04InboundController extends Controller
                     $reason = 'ITEM_QUANTITY_MUST_BE_ONE';
                 } elseif ($box && isset($item['box_number']) && ltrim((string) $item['box_number'], '0') !== ltrim((string) $resolved['box_number'], '0')) {
                     $reason = 'BOX_NUMBER_MISMATCH';
+                } elseif ($box && isset($item['new_sku_type']) && $item['new_sku_type'] !== 'COMPONENT') {
+                    $reason = 'NEW_SKU_TYPE_CONFLICT';
                 } elseif (! $box && ($resolved['requires_new_sku_type'] ?? false) && ! isset($item['new_sku_type'])) {
                     $reason = 'NEW_SKU_TYPE_REQUIRED';
                 } elseif (! $box && $resolved['resolution_status'] !== 'NEW_SKU_CANDIDATE'
@@ -574,6 +581,10 @@ final class P04InboundController extends Controller
         $draft['document_no'] = $draft['business_document_id'] === null ? null
             : DB::table('stock_documents')->where('id', $draft['business_document_id'])->value('doc_no');
         $draft['numbering_status'] = $draft['document_no'] === null ? 'ASSIGNED_ON_RECORD' : 'ASSIGNED';
+        // Typed resume data: FE never needs to reconstruct the private keyed
+        // options map or use the UI snapshot as a canonical record request.
+        $draft['metadata'] = (object) ($draft['form']['metadata'] ?? []);
+        $draft['items'] = $this->items($draft);
         $draft['scan_session'] = [
             'document_id' => $draft['document_id'], 'scan_session_id' => $draft['scan_session_id'],
             'auth_session_id' => $draft['auth_session_id'], 'warehouse_id' => $draft['warehouse_id'],

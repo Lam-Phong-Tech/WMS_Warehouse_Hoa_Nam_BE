@@ -7,6 +7,7 @@ on:
       - 'Modules/Warehouse/**'
       - 'Modules/Auth/**'
       - 'tests/Feature/P04*Test.php'
+      - 'tests/Feature/MiniAppInbound*Test.php'
       - 'database/migrations/**'
       - '.github/workflows/p04-contract.yml'
 permissions:
@@ -65,19 +66,21 @@ jobs:
           php -l Modules/Warehouse/routes/p04_inbound.php
           php -l database/migrations/2026_10_07_000002_add_p04_inbound_directory.php
           php -l tests/Feature/P04InboundContractTest.php
+          php -l tests/Feature/MiniAppInboundStagingTest.php
+          php -l Modules/Warehouse/app/Services/BaM1StockService.php
       - name: Prepare isolated application
         run: |
           cp .env.example .env
           php artisan key:generate
           php artisan config:clear
       - name: SQLite inbound and auth regressions
-        run: php artisan test tests/Feature/P04InboundContractTest.php tests/Feature/P03Draft*Test.php tests/Feature/MiniAppInboundStagingTest.php tests/Feature/MiniAppInboundNewSkuHandoffTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/P02ReadContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p04-sqlite.xml
+        run: php artisan test tests/Feature/P04*Test.php tests/Feature/P03Draft*Test.php tests/Feature/MiniAppInboundStagingTest.php tests/Feature/MiniAppInboundNewSkuHandoffTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/P02ReadContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p04-sqlite.xml
       - name: PostgreSQL inbound and auth regressions
         if: success() || failure()
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p04_contract_test
-        run: php artisan test tests/Feature/P04InboundContractTest.php tests/Feature/P03Draft*Test.php tests/Feature/MiniAppInboundStagingTest.php tests/Feature/MiniAppInboundNewSkuHandoffTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/P02ReadContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p04-pgsql.xml
+        run: php artisan test tests/Feature/P04*Test.php tests/Feature/P03Draft*Test.php tests/Feature/MiniAppInboundStagingTest.php tests/Feature/MiniAppInboundNewSkuHandoffTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/P02ReadContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p04-pgsql.xml
       - name: Publish evidence without artifact storage
         if: always()
         run: |
