@@ -400,6 +400,25 @@ class MiniAppInboundStagingTest extends TestCase
         $this->assertStringNotContainsString('FOR EACH STATEMENT', $source);
     }
 
+    public function test_record_reuses_mixed_case_existing_sku_without_creating_a_duplicate(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->productSkuFixture('prod-P04-MixedCase');
+        $before = DB::table('sku')->count();
+        $raw = 'HN1|SKU=PROD-P04-MIXEDCASE|ITEM=P04-MIXED-CASE-ONE';
+        $this->postJson('/api/v1/mini-app/inbound/resolve-code', [
+            'warehouse_id' => (string) $warehouse->id, 'raw_code' => $raw,
+        ], $headers)->assertOk()->assertJsonPath('data.sku_id', (string) $sku->sku_id);
+        $this->postJson('/api/v1/mini-app/inbound/record', [
+            'name' => 'Mixed-case existing SKU', 'warehouse_id' => (string) $warehouse->id,
+            'items' => [['raw_code' => $raw, 'quantity' => 1]],
+        ], $headers + ['Idempotency-Key' => 'p04-mixed-case-existing-sku'])->assertCreated()
+            ->assertJsonPath('data.items.0.sku_id', (string) $sku->sku_id)
+            ->assertJsonPath('data.stock_effect', 'NONE');
+        $this->assertSame($before, DB::table('sku')->count());
+    }
+
     private function seedDirtyOutboundAgencyHistory(string $warehouseId, string $actorId): void
     {
         $inactiveAgencyId = (string) Str::uuid();
@@ -407,7 +426,9 @@ class MiniAppInboundStagingTest extends TestCase
             'agency_id' => $inactiveAgencyId,
             'agency_code' => 'AG-DIRTY-'.Str::upper(Str::random(6)),
             'agency_name' => 'Inactive historical agency',
-            'status' => 'INACTIVE',
+            // The agency was active when the historical document was created.
+            // Withdraw it AFTER creation; never bypass the PostgreSQL guard.
+            'status' => 'ACTIVE',
             'version' => 1,
             'created_at' => now(),
             'updated_at' => now(),
@@ -436,5 +457,8 @@ class MiniAppInboundStagingTest extends TestCase
                 'updated_at' => now(),
             ]);
         }
+        DB::table('agencies')->where('agency_id', $inactiveAgencyId)->update(['status' => 'INACTIVE']);
+        $this->assertDatabaseHas('agencies', ['agency_id' => $inactiveAgencyId, 'status' => 'INACTIVE']);
+        $this->assertSame(1, DB::table('stock_documents')->where('doc_type', 'issue')->where('agency_id', $inactiveAgencyId)->count());
     }
 }
