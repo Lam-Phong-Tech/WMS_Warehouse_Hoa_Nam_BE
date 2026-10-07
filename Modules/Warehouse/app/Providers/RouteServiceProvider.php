@@ -26,6 +26,7 @@ class RouteServiceProvider extends ServiceProvider
         $this->mapGovernanceRoutes();
         $this->mapWebRoutes();
         Route::middleware('api')->prefix('api')->name('api.p03.')->group(module_path($this->name, '/routes/p03_drafts.php'));
+        Route::middleware('api')->prefix('api')->name('api.p04.')->group(module_path($this->name, '/routes/p04_inbound.php'));
         foreach (Route::getRoutes() as $route) {
             if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()]) && in_array('POST', $route->methods(), true)) {
                 $route->middleware(MiniAppDraftHandoff::class);

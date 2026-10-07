@@ -1,0 +1,408 @@
+<?php
+
+namespace Tests\Feature;
+
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use Modules\Auth\Models\Permission;
+use Modules\Auth\Models\Role;
+use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
+use Tests\Feature\Concerns\PreparesOutboundFixtures;
+use Tests\TestCase;
+
+class P04InboundContractTest extends TestCase
+{
+    use InteractsWithBrowserSession;
+    use PreparesOutboundFixtures;
+    use RefreshDatabase;
+
+    private const BASE = '/api/v1/mini-app/inbound';
+
+    private const PERMISSIONS = ['inbound.view', 'inbound.create', 'inbound.scan', 'inbound.cancel'];
+
+    public function test_all_p04_routes_require_authentication(): void
+    {
+        $id = (string) Str::uuid();
+        foreach (['/context', '/types', '/suppliers', '/drafts/'.$id, '/drafts/'.$id.'/scan-session', '/documents/'.$id] as $path) {
+            $this->getJson(self::BASE.$path)->assertUnauthorized();
+        }
+        foreach (['validate-code', 'review', 'record', 'cancel'] as $action) {
+            $this->postJson(self::BASE.'/drafts/'.$id.'/'.$action, [])->assertUnauthorized();
+        }
+        $this->putJson(self::BASE.'/drafts/'.$id, [])->assertUnauthorized();
+    }
+
+    public function test_context_does_not_select_a_warehouse_or_create_a_shift(): void
+    {
+        [, $token, , $warehouse] = $this->actor(confirm: false);
+        $this->getJson(self::BASE.'/context', $this->headers($token))->assertOk()
+            ->assertJsonPath('data.warehouse_context.status', 'REQUIRED')
+            ->assertJsonPath('data.active_warehouse_id', null)->assertJsonPath('data.permissions.record', false)
+            ->assertJsonPath('data.scan_event_mode', 'LOCAL_UNTIL_RECORD');
+        $this->putJson(self::BASE.'/drafts/'.Str::uuid(), $this->body($warehouse), $this->headers($token, 0, (string) Str::uuid()))
+            ->assertConflict()->assertJsonPath('error.code', 'WAREHOUSE_CONTEXT_REQUIRED');
+        $this->assertDatabaseCount('mini_app_work_shifts', 0);
+        $this->assertDatabaseCount('mini_app_drafts', 0);
+    }
+
+    public function test_type_catalogue_is_the_canonical_capability_and_supplier_directory_has_no_seeded_rows(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $this->getJson(self::BASE.'/types?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', 'receipt')
+            ->assertJsonPath('data.0.allowed', true)->assertJsonPath('meta.source', 'CANONICAL_RECORD_CAPABILITY');
+        $this->getJson(self::BASE.'/suppliers?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()
+            ->assertJsonPath('meta.total', 0)->assertJsonCount(0, 'data');
+        $this->assertDatabaseCount('inbound_suppliers', 0);
+    }
+
+    public function test_supplier_search_filters_scope_status_literal_query_and_sql_pagination(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $a = $this->supplierRow($warehouse, 'Alpha 100%');
+        $this->supplierRow($warehouse, 'Alpha 200');
+        $inactive = $this->supplierRow($warehouse, 'Alpha inactive', 'INACTIVE');
+        $other = Warehouse::create(['code' => 'P04-OTHER', 'name' => 'Other isolated warehouse', 'status' => 'INACTIVE']);
+        $this->supplierRow($other, 'Alpha foreign');
+        $url = self::BASE.'/suppliers?warehouse_id='.$warehouse->id;
+        $this->getJson($url.'&q=Alpha&per_page=1&page=1', $this->headers($token))->assertOk()
+            ->assertJsonPath('meta.total', 2)->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $a);
+        $this->getJson($url.'&q=100%25', $this->headers($token))->assertOk()->assertJsonPath('meta.total', 1);
+        $this->getJson($url.'&status=INACTIVE', $this->headers($token))->assertOk()->assertJsonPath('data.0.id', $inactive);
+        $this->getJson($url.'&per_page=101', $this->headers($token))->assertStatus(422);
+    }
+
+    public function test_draft_and_scan_session_are_persistent_but_do_not_allocate_a_wms_number_or_stock(): void
+    {
+        [$actor, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.document.actor_id', (string) $actor->user_id)
+            ->assertJsonPath('data.document.document_no', null)->assertJsonPath('data.document.operation', 'INBOUND')
+            ->assertJsonPath('data.document.scan_session.status', 'OPEN')->assertJsonPath('data.document.scan_session.expiry_policy', 'AUTH_SESSION');
+        $this->getJson($this->draftUrl($id, $body, '/scan-session'), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.scan_session_id', $body['scan_session_id'])->assertJsonPath('data.document_id', $id);
+        $this->assertStockNeutral();
+    }
+
+    public function test_validate_event_is_read_only_and_catches_normalized_duplicates_and_quantity_errors(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        $input = $this->identity($body) + ['client_event_id' => (string) Str::uuid(), 'item' => $body['items'][0]];
+        $this->postJson(self::BASE.'/drafts/'.$id.'/validate-code', $input, $this->headers($token, 1))->assertOk()
+            ->assertJsonPath('data.result.outcome', 'DUPLICATE')->assertJsonPath('data.event_persisted', false)
+            ->assertJsonPath('data.scan_evidence_created', false);
+        $input['item']['raw_code'] = str_replace('ITEM=ONE', 'ITEM=TWO', $input['item']['raw_code']);
+        $input['item']['quantity'] = 2;
+        $this->postJson(self::BASE.'/drafts/'.$id.'/validate-code', $input, $this->headers($token, 1))->assertOk()
+            ->assertJsonPath('data.result.reason_code', 'ITEM_QUANTITY_MUST_BE_ONE');
+        $input['item']['quantity'] = 1;
+        $this->postJson(self::BASE.'/drafts/'.$id.'/validate-code', $input, $this->headers($token, 1))->assertOk()
+            ->assertJsonPath('data.result.outcome', 'ACCEPTED');
+        $this->assertDatabaseCount('mini_app_draft_receipts', 1);
+        $this->assertStockNeutral();
+    }
+
+    public function test_review_reads_the_saved_version_not_client_replacement_data(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/review', $this->identity($body), $this->headers($token, 1))->assertOk()
+            ->assertJsonPath('data.can_record', true)->assertJsonPath('data.sku_summary.0.quantity', 1)
+            ->assertJsonPath('data.revalidation_policy', 'AGAIN_AT_RECORD');
+        $this->postJson(self::BASE.'/drafts/'.$id.'/review', $this->identity($body) + ['items' => []], $this->headers($token, 1))
+            ->assertStatus(422)->assertJsonPath('error.code', 'UNEXPECTED_FIELD');
+        $this->postJson(self::BASE.'/drafts/'.$id.'/review', $this->identity($body), $this->headers($token, 2))->assertStatus(412);
+        $this->assertStockNeutral();
+    }
+
+    public function test_record_replay_reconcile_and_p12_p22_reads_share_one_real_document(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $supplier = $this->supplierRow($warehouse, 'Isolated P04 supplier');
+        [$id, $body] = $this->save($token, $warehouse, ['supplier_id' => $supplier]);
+        $key = (string) Str::uuid();
+        $input = $this->identity($body) + ['client_request_id' => $key];
+        $result = $this->postJson(self::BASE.'/drafts/'.$id.'/record', $input, $this->headers($token, 1, $key))->assertCreated()
+            ->assertJsonPath('data.record_status', 'RECORDED')->assertJsonPath('data.posted', false)
+            ->assertJsonPath('data.status', 'SCANNING')->assertJsonPath('data.stock_effect', 'NONE')
+            ->assertJsonPath('meta.p03_draft.receipt.command', 'RECORD')->assertJsonPath('data.supplier.id', $supplier);
+        $documentId = $result->json('data.document_id');
+        $this->assertNotSame($id, $documentId);
+        $this->assertNotEmpty($result->json('data.doc_no'));
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $input, $this->headers($token, 1, $key))->assertCreated()
+            ->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.document_id', $documentId);
+        $this->getJson($this->receiptUrl($id, $body, $key), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.state', 'RECORDED')->assertJsonPath('data.outcome', 'SUCCEEDED');
+        $this->getJson(self::BASE.'/documents/'.$documentId.'?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()
+            ->assertJsonPath('data.document.id', $documentId)->assertJsonPath('data.status', 'SCANNING')
+            ->assertJsonPath('data.posted', false)->assertJsonPath('data.inbound_metadata.supplier_id', $supplier)
+            ->assertJsonStructure(['data' => ['history']]);
+        $this->assertDatabaseCount('stock_documents', 1);
+        $this->assertDatabaseCount('mini_app_inbound_record_metadata', 1);
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseCount('inventory_balances', 0);
+        // Only a controlled test changes the canonical status here; no P04 API Posts.
+        DB::table('stock_documents')->where('id', $documentId)->update(['status' => 'POSTED']);
+        $this->getJson($this->receiptUrl($id, $body, $key), $this->headers($token))->assertOk()->assertJsonPath('data.state', 'POSTED');
+        $cancel = $this->identity($body) + ['confirmed_request_id' => $key, 'reason' => 'Cannot cancel recorded'];
+        $this->postJson(self::BASE.'/drafts/'.$id.'/cancel', $cancel, $this->headers($token, 2, (string) Str::uuid()))
+            ->assertConflict()->assertJsonPath('error.code', 'DRAFT_STATE_CONFLICT');
+        fwrite(STDOUT, "\nP04_RECORD_EVIDENCE=".json_encode([
+            'document_id' => $documentId, 'draft_id' => $id, 'doc_no' => $result->json('data.doc_no'),
+            'status' => $result->json('data.status'), 'posted' => $result->json('data.posted'),
+            'stock_effect' => $result->json('data.stock_effect'), 'receipt' => $result->json('meta.p03_draft.receipt'),
+        ], JSON_UNESCAPED_SLASHES)."\n");
+    }
+
+    public function test_unknown_request_and_identity_conflicts_never_create_replacement_documents(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body, $saveKey] = $this->save($token, $warehouse);
+        $this->getJson($this->receiptUrl($id, $body, (string) Str::uuid()), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.state', 'UNKNOWN')->assertJsonPath('data.retry', 'SAME_REQUEST_ONLY')
+            ->assertJsonPath('data.new_document_allowed', false)->assertJsonPath('data.cancel_allowed', false);
+        $this->getJson($this->receiptUrl($id, $body, $saveKey, 'SAVE'), $this->headers($token))->assertOk()->assertJsonPath('data.outcome', 'SUCCEEDED');
+        $this->getJson($this->receiptUrl((string) Str::uuid(), $body, $saveKey, 'SAVE'), $this->headers($token))->assertConflict();
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body) + ['client_request_id' => (string) Str::uuid()], $this->headers($token, 1, (string) Str::uuid()))
+            ->assertConflict()->assertJsonPath('error.code', 'REQUEST_IDENTITY_MISMATCH');
+        $this->assertStockNeutral();
+    }
+
+    public function test_unknown_sku_requires_explicit_type_and_preview_does_not_create_it(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $item = ['raw_code' => 'HN1|SKU=P04-NEW-TYPE|ITEM=P04-NEW-ONE', 'quantity' => 1];
+        [$id, $body] = $this->save($token, $warehouse, ['items' => [$item]]);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/review', $this->identity($body), $this->headers($token, 1))->assertOk()
+            ->assertJsonPath('data.can_record', false)->assertJsonPath('data.items.0.reason_code', 'NEW_SKU_TYPE_REQUIRED');
+        $this->assertDatabaseMissing('sku', ['sku_code' => 'P04-NEW-TYPE']);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, (string) Str::uuid()))
+            ->assertStatus(422)->assertJsonPath('error.code', 'P04_REVALIDATION_FAILED');
+        $body['items'][0]['new_sku_type'] = 'PRODUCT';
+        $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 1, (string) Str::uuid()))->assertOk();
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 2, (string) Str::uuid()))->assertCreated()
+            ->assertJsonPath('data.posted', false)->assertJsonPath('data.product_info_complete', false);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_box_quantity_is_required_and_record_keeps_inventory_unchanged(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse, ['items' => [['raw_code' => 'BOX-P04-COMP-0001']]]);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/review', $this->identity($body), $this->headers($token, 1))->assertOk()
+            ->assertJsonPath('data.items.0.reason_code', 'BOX_QUANTITY_REQUIRED');
+        $body['items'][0]['quantity'] = 50;
+        $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 1, (string) Str::uuid()))->assertOk();
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 2, (string) Str::uuid()))->assertCreated()
+            ->assertJsonPath('data.scanned_total_qty', 50)->assertJsonPath('data.items.0.item_type', 'BOX');
+        $this->assertDatabaseCount('inventory_balances', 0);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_supplier_withdrawal_is_revalidated_after_review_before_record(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $supplier = $this->supplierRow($warehouse, 'Supplier to withdraw');
+        [$id, $body] = $this->save($token, $warehouse, ['supplier_id' => $supplier]);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/review', $this->identity($body), $this->headers($token, 1))->assertOk()->assertJsonPath('data.can_record', true);
+        DB::table('inbound_suppliers')->where('id', $supplier)->update(['status' => 'INACTIVE', 'version' => 2]);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, (string) Str::uuid()))
+            ->assertConflict()->assertJsonPath('error.code', 'SUPPLIER_INACTIVE');
+        $this->assertDatabaseCount('mini_app_inbound_record_metadata', 0);
+        $this->assertStockNeutral();
+    }
+
+    public function test_actor_session_and_warehouse_isolation_are_enforced(): void
+    {
+        [$actor, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        [, $other] = $this->actor($warehouse);
+        $this->getJson($this->draftUrl($id, $body), $this->headers($other))->assertNotFound();
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($other, 1, (string) Str::uuid()))->assertNotFound();
+        [$newToken] = $this->login($actor, $warehouse);
+        $this->getJson($this->draftUrl($id, $body), $this->headers($newToken))->assertNotFound();
+        $foreign = $body;
+        $foreign['warehouse_id'] = (string) Str::uuid();
+        $this->putJson(self::BASE.'/drafts/'.Str::uuid(), $foreign, $this->headers($token, 0, (string) Str::uuid()))->assertForbidden();
+        $this->assertStockNeutral();
+    }
+
+    public function test_refresh_retains_the_scan_session_and_saved_document(): void
+    {
+        [, $token, $cookie, $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        $before = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()->json('data.document.auth_session_id');
+        $this->resetAuth();
+        $refresh = $this->browserRefresh($cookie)->assertOk();
+        $this->getJson($this->draftUrl($id, $body), $this->headers($refresh->json('data.access_token')))->assertOk()
+            ->assertJsonPath('data.document.auth_session_id', $before)->assertJsonPath('data.document.scan_session_id', $body['scan_session_id']);
+    }
+
+    public function test_permission_withdrawal_blocks_record_replay(): void
+    {
+        [$actor, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        $key = (string) Str::uuid();
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, $key))->assertCreated();
+        DB::table('role_permission')->where('role_id', $actor->roles()->first()->role_id)
+            ->whereIn('permission_id', Permission::where('permission_key', 'inbound.scan')->pluck('permission_id'))->delete();
+        $actor->forceFill(['version' => $actor->version + 1])->save();
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, $key))->assertForbidden();
+        $this->assertDatabaseCount('stock_documents', 1);
+    }
+
+    public function test_soft_cancel_requires_confirmed_save_and_closes_the_session(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body, $saved] = $this->save($token, $warehouse);
+        $cancel = $this->identity($body) + ['confirmed_request_id' => (string) Str::uuid(), 'reason' => 'Cancel isolated draft'];
+        $this->postJson(self::BASE.'/drafts/'.$id.'/cancel', $cancel, $this->headers($token, 1, (string) Str::uuid()))->assertConflict();
+        $cancel['confirmed_request_id'] = $saved;
+        $key = (string) Str::uuid();
+        $this->postJson(self::BASE.'/drafts/'.$id.'/cancel', $cancel, $this->headers($token, 1, $key))->assertOk()
+            ->assertJsonPath('data.document.status', 'CANCELLED')->assertJsonPath('data.document.scan_session.status', 'CLOSED');
+        $this->postJson(self::BASE.'/drafts/'.$id.'/cancel', $cancel, $this->headers($token, 1, $key))->assertOk()->assertHeader('Idempotent-Replay', 'true');
+        $this->postJson(self::BASE.'/drafts/'.$id.'/review', $this->identity($body), $this->headers($token, 2))->assertConflict();
+        $this->assertDatabaseCount('mini_app_drafts', 1);
+        $this->assertStockNeutral();
+    }
+
+    public function test_version_key_and_forged_fields_do_not_overwrite_or_record(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body, $key] = $this->save($token, $warehouse);
+        $changed = $body;
+        $changed['name'] = 'Changed request';
+        $this->putJson(self::BASE.'/drafts/'.$id, $changed, $this->headers($token, 0, $key))->assertConflict();
+        $this->putJson(self::BASE.'/drafts/'.$id, $changed, $this->headers($token, 2, (string) Str::uuid()))->assertStatus(412);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token))->assertStatus(428);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1))->assertStatus(428);
+        $this->putJson(self::BASE.'/drafts/'.$id, $body + ['actor_id' => (string) Str::uuid()], $this->headers($token, 1, (string) Str::uuid()))->assertStatus(422);
+        $this->assertStockNeutral();
+    }
+
+    public function test_receipt_storage_failure_rolls_back_canonical_record_and_supplier_metadata(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        DB::listen(function (QueryExecuted $query): void {
+            if (str_starts_with(strtolower($query->sql), 'insert into') && str_contains($query->sql, 'mini_app_draft_receipts')) {
+                throw new \RuntimeException('Isolated P04 receipt storage fault');
+            }
+        });
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, (string) Str::uuid()))->assertStatus(500);
+        $this->assertDatabaseCount('mini_app_inbound_record_metadata', 0);
+        $this->assertDatabaseCount('mini_app_draft_receipts', 1);
+        $this->assertDatabaseHas('mini_app_drafts', ['document_id' => $id, 'status' => 'DRAFT', 'version' => 1]);
+        $this->assertStockNeutral();
+    }
+
+    private function actor(?Warehouse $warehouse = null, bool $confirm = true): array
+    {
+        $warehouse ??= $this->ensureActiveWarehouse('KHO-TONG-HN', 'Isolated P04 warehouse');
+        $suffix = substr((string) Str::uuid(), 0, 8);
+        $user = User::create(['username' => 'p04_'.$suffix, 'display_name' => 'P04 CI actor', 'email' => 'p04_'.$suffix.'@wms-hoanam.test', 'password_hash' => Hash::make('secret123'), 'status' => 'ACTIVE', 'version' => 1]);
+        $role = Role::create(['role_code' => 'P04_SCOPED_'.$suffix, 'role_name' => 'P04 test role', 'scope_type' => 'WAREHOUSE', 'status' => 'ACTIVE']);
+        $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid(), 'scope_ref' => (string) $warehouse->id]);
+        foreach (self::PERMISSIONS as $key) {
+            $permission = Permission::firstOrCreate(['permission_key' => $key], ['permission_name' => $key, 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']);
+            DB::table('role_permission')->insert(['role_permission_id' => (string) Str::uuid(), 'role_id' => $role->role_id, 'permission_id' => $permission->permission_id, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        [$token, $cookie] = $this->login($user, $confirm ? $warehouse : null);
+
+        return [$user, $token, $cookie, $warehouse];
+    }
+
+    private function login(User $user, ?Warehouse $warehouse): array
+    {
+        $this->resetAuth();
+        $login = $this->browserLogin($user->email, 'secret123')->assertOk();
+        $cookie = $this->refreshTokenFromCookie($login);
+        $token = $login->json('data.access_token');
+        if ($warehouse !== null) {
+            $token = $this->postJson('/api/v1/auth/switch-context', ['context_type' => 'WAREHOUSE', 'context_id' => (string) $warehouse->id], $this->headers($token))->assertOk()->json('data.access_token');
+        }
+
+        return [$token, $cookie];
+    }
+
+    private function body(Warehouse $warehouse, array $overrides = []): array
+    {
+        $sku = $this->productSkuFixture('P04-PRODUCT-'.substr((string) Str::uuid(), 0, 8));
+
+        return array_replace([
+            'warehouse_id' => (string) $warehouse->id, 'scan_session_id' => (string) Str::uuid(),
+            'inbound_type' => 'receipt', 'name' => 'Isolated P04 receipt',
+            'items' => [['raw_code' => 'HN1|SKU='.$sku->sku_code.'|ITEM=ONE', 'quantity' => 1, 'scan_source' => 'MANUAL']],
+        ], $overrides);
+    }
+
+    private function save(string $token, Warehouse $warehouse, array $overrides = []): array
+    {
+        $id = (string) Str::uuid();
+        $body = $this->body($warehouse, $overrides);
+        $key = (string) Str::uuid();
+        $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 0, $key))->assertCreated()->assertJsonPath('data.document.version', 1);
+
+        return [$id, $body, $key];
+    }
+
+    private function identity(array $body): array
+    {
+        return array_intersect_key($body, array_flip(['warehouse_id', 'scan_session_id']));
+    }
+
+    private function draftUrl(string $id, array $body, string $suffix = ''): string
+    {
+        return self::BASE.'/drafts/'.$id.$suffix.'?'.http_build_query($this->identity($body));
+    }
+
+    private function receiptUrl(string $id, array $body, string $key, string $command = 'RECORD'): string
+    {
+        return self::BASE.'/drafts/'.$id.'/requests/'.$key.'?'.http_build_query($this->identity($body) + ['command' => $command]);
+    }
+
+    private function supplierRow(Warehouse $warehouse, string $name, string $status = 'ACTIVE'): string
+    {
+        $id = (string) Str::uuid();
+        DB::table('inbound_suppliers')->insert(['id' => $id, 'warehouse_id' => (string) $warehouse->id, 'name' => $name, 'status' => $status, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+
+        return $id;
+    }
+
+    private function headers(string $token, ?int $version = null, ?string $key = null): array
+    {
+        $this->resetAuth();
+        $headers = ['Authorization' => 'Bearer '.$token];
+        if ($version !== null) {
+            $headers['If-Match'] = '"'.$version.'"';
+        }
+        if ($key !== null) {
+            $headers['Idempotency-Key'] = $key;
+        }
+
+        return $headers;
+    }
+
+    private function resetAuth(): void
+    {
+        $this->app['auth']->forgetGuards();
+        $this->app['tymon.jwt']->unsetToken();
+        $this->app['tymon.jwt.auth']->unsetToken();
+    }
+
+    private function assertStockNeutral(): void
+    {
+        $this->assertDatabaseCount('stock_documents', 0);
+        $this->assertDatabaseCount('inbound_scan_entries', 0);
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseCount('inventory_balances', 0);
+    }
+}

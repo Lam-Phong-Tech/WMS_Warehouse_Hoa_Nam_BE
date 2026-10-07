@@ -5,6 +5,7 @@ on:
     branches: [dev]
     paths:
       - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
       - 'tests/Feature/P04*Test.php'
       - 'database/migrations/**'
       - '.github/workflows/p04-contract.yml'
@@ -14,18 +15,37 @@ jobs:
   contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-p04-ci-only
+          POSTGRES_DB: p04_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p04_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
     env:
       APP_ENV: testing
       APP_DEBUG: 'false'
       DB_CONNECTION: sqlite
       DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: disposable-p04-ci-only
+      DB_SSLMODE: disable
       DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=20000'
       CACHE_STORE: array
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
       BROADCAST_CONNECTION: 'null'
       MAIL_MAILER: array
       JWT_SECRET: p04-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
       REFRESH_TOKEN_COOKIE_SECURE: 'false'
     steps:
       - uses: actions/checkout@v4
@@ -38,31 +58,38 @@ jobs:
           coverage: none
           tools: composer:v2
       - name: Install locked dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Inspect existing inbound contract sources
+        run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p04-composer.log 2>&1 || { tail -60 /tmp/p04-composer.log; exit 1; }
+      - name: Syntax validation
         run: |
-          git ls-files | grep -Ei 'supplier|inbound.*type|P04|MiniAppInbound.*Test|Inbound.*Staging.*Test' || true
-          git grep -n -i 'supplier_id' -- Modules database | head -60 || true
-      - name: Prepare private offline verification workspace
-        run: |
-          git archive HEAD -o /tmp/p04-source.tar
-          tar -rf /tmp/p04-source.tar vendor
-          gzip /tmp/p04-source.tar
-      - uses: actions/upload-artifact@v4
-        with:
-          name: p04-private-verification-workspace
-          path: /tmp/p04-source.tar.gz
-          retention-days: 1
-      - name: Prepare isolated test application
+          php -l Modules/Warehouse/app/Http/Controllers/P04InboundController.php
+          php -l Modules/Warehouse/routes/p04_inbound.php
+          php -l database/migrations/2026_10_07_000002_add_p04_inbound_directory.php
+          php -l tests/Feature/P04InboundContractTest.php
+      - name: Prepare isolated application
         run: |
           cp .env.example .env
           php artisan key:generate
           php artisan config:clear
-      - name: P03 and inbound regression tests
-        run: php artisan test tests/Feature/P03Draft*Test.php tests/Feature/AuthWarehouseContextTest.php --log-junit p04-tests.xml
-      - uses: actions/upload-artifact@v4
+      - name: SQLite inbound and auth regressions
+        run: php artisan test tests/Feature/P04InboundContractTest.php tests/Feature/P03Draft*Test.php tests/Feature/MiniAppInboundStagingTest.php tests/Feature/MiniAppInboundNewSkuHandoffTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/P02ReadContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p04-sqlite.xml
+      - name: PostgreSQL inbound and auth regressions
+        if: success() || failure()
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: p04_contract_test
+        run: php artisan test tests/Feature/P04InboundContractTest.php tests/Feature/P03Draft*Test.php tests/Feature/MiniAppInboundStagingTest.php tests/Feature/MiniAppInboundNewSkuHandoffTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/P02ReadContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p04-pgsql.xml
+      - name: Publish evidence without artifact storage
         if: always()
-        with:
-          name: p04-test-results
-          path: p04-tests.xml
-          retention-days: 7
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for p in Path('.').glob('p04-*.xml'):
+              root = ET.parse(p).getroot()
+              counts = [s.attrib for s in root.findall('./testsuite')]
+              print('::notice title=P04 counts::'+p.name+' '+str(counts))
+              for tag in ['failure', 'error']:
+                  for e in root.iter(tag):
+                      msg = (e.text or '')[:2500].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+                      print('::error title=P04 '+p.name+'::'+msg)
+          PY
