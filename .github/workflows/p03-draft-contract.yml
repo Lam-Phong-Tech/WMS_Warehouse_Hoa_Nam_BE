@@ -14,7 +14,7 @@ permissions:
 jobs:
   contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16
@@ -37,6 +37,7 @@ jobs:
       DB_PASSWORD: disposable-p03-ci-only
       DB_SSLMODE: disable
       DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=20000'
       CACHE_STORE: array
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
@@ -104,10 +105,11 @@ jobs:
         run: php artisan test tests/Feature/P03DraftContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --log-junit p03-sqlite.xml
       - name: PostgreSQL P03 and existing contract regressions
         if: success() || failure()
+        timeout-minutes: 3
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p03_contract_test
-        run: php artisan test tests/Feature/P03DraftContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --log-junit p03-pgsql.xml
+        run: php artisan test tests/Feature/P03DraftContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --stop-on-failure --stop-on-error --log-junit p03-pgsql.xml
       - name: Publish test counts and failure annotations
         if: always()
         run: |
@@ -132,6 +134,7 @@ jobs:
           for filename in ['p03-sqlite.xml', 'p03-pgsql.xml']:
               root = ET.parse(filename).getroot()
               assert not list(root.iter('failure')) and not list(root.iter('error'))
+              assert int(root.find('./testsuite').attrib['tests']) >= 104
           repo = os.environ['GITHUB_REPOSITORY']
           assert repo == 'Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
           paths = json.load(open('/tmp/p03-reviewed-paths.json'))
