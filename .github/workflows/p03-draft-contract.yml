@@ -7,10 +7,10 @@ on:
       - 'Modules/Warehouse/**'
       - 'Modules/Auth/**'
       - 'database/migrations/**'
-      - 'tests/Feature/P03DraftContractTest.php'
+      - 'tests/Feature/P03Draft*Test.php'
       - '.github/workflows/p03-draft-contract.yml'
 permissions:
-  contents: write
+  contents: read
 jobs:
   contract:
     runs-on: ubuntu-24.04
@@ -51,7 +51,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: 44369d11e1c100fcba491f4f40e40651ad6944e8
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -60,46 +59,14 @@ jobs:
           tools: composer:v2
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p03-composer.log 2>&1 || { tail -80 /tmp/p03-composer.log; exit 1; }
-      - name: Prepare exact reviewed refinements and format candidate
+      - name: P03 syntax and style
         run: |
           python3 - <<'PY'
-          from pathlib import Path
-          import json, subprocess
-          paths = ['Modules/Warehouse/app/Services/MiniAppDraftService.php', 'Modules/Warehouse/app/Http/Controllers/P03DraftController.php', 'Modules/Warehouse/app/Http/Middleware/MiniAppDraftHandoff.php', 'Modules/Warehouse/app/Providers/RouteServiceProvider.php', 'Modules/Warehouse/routes/p03_drafts.php', 'database/migrations/2026_10_07_000001_create_mini_app_drafts.php', 'tests/Feature/P03DraftContractTest.php', 'Modules/Warehouse/app/Http/Controllers/MiniAppInboundStagingController.php']
-          def edit(path, old, new):
-              p = Path(path)
-              text = p.read_text()
-              assert text.count(old) == 1, (path, old)
-              p.write_text(text.replace(old, new))
-          edit(paths[5], 'use Illuminate\\Support\\Facades\\Schema;', 'use Illuminate\\Support\\Facades\\DB;\nuse Illuminate\\Support\\Facades\\Schema;')
-          edit(paths[5], "        Schema::create('mini_app_drafts', function (Blueprint $table): void {", "        // Same physical IAM targets as the existing work-shift migration.\n        // PostgreSQL app_user is a compatibility view, not a foreign-key target.\n        $userTable = DB::getDriverName() === 'pgsql' ? 'app_users' : 'app_user';\n        $userKey = DB::getDriverName() === 'pgsql' ? 'id' : 'user_id';\n        Schema::create('mini_app_drafts', function (Blueprint $table) use ($userTable, $userKey): void {")
-          edit(paths[5], "$table->foreign('actor_id')->references('user_id')->on('app_user')->restrictOnDelete();", "$table->foreign('actor_id')->references($userKey)->on($userTable)->restrictOnDelete();")
-          for method, name in [('context', 'context'), ('index', 'drafts.index'), ('reconcile', 'drafts.reconcile'), ('show', 'drafts.show'), ('save', 'drafts.save'), ('cancel', 'drafts.cancel')]:
-              edit(paths[4], "[P03DraftController::class, '"+method+"']);", "[P03DraftController::class, '"+method+"'])->name('"+name+"');")
-          edit(paths[6], "$warehouse->update(['status' => 'INACTIVE']);", "// Match the production controller's repository update, including cache invalidation.\n        app(\\Modules\\Warehouse\\Repositories\\Contracts\\WarehouseRepositoryInterface::class)->update((string) $warehouse->id, ['status' => 'INACTIVE']);")
-          edit(paths[0], "            try {\n                $response = $next($request);", "            $request->attributes->set('p03.draft_handoff', true);\n            try {\n                $response = $next($request);")
-          edit(paths[7], "        $this->notifyPendingSkuInfo($body, $replayed, $actorId);", "        // P03 wraps record + draft receipt in an outer transaction. Notify only\n        // after that transaction commits; legacy callers keep their original path.\n        if ($request->attributes->get('p03.draft_handoff', false)) {\n            DB::afterCommit(fn () => $this->notifyPendingSkuInfo($body, $replayed, $actorId));\n        } else {\n            $this->notifyPendingSkuInfo($body, $replayed, $actorId);\n        }")
-          edit(paths[6], "    private function actor(?Warehouse $warehouse = null", """    public function test_receipt_failure_rolls_back_the_existing_owner_record_too(): void
-              {
-                  [, $token, , , $warehouse] = $this->actor();
-                  [$id, $scan] = $this->create($token, $warehouse, 'WARRANTY');
-                  DB::listen(function (QueryExecuted $query): void {
-                      if (str_starts_with(strtolower($query->sql), 'insert into') && str_contains($query->sql, 'mini_app_draft_receipts')) {
-                          throw new \\RuntimeException('Isolated owner receipt persistence fault');
-                      }
-                  });
-                  $this->postJson('/api/v1/mini-app/warranty-cases', $this->warrantyBody(), $this->recordHeaders($token, (string) Str::uuid(), $id, $scan, 1))->assertStatus(500);
-                  $this->assertSame(0, DB::table('warranty_case')->count());
-                  $this->assertDatabaseCount('warranty_case_warehouse_owners', 0);
-                  $this->assertDatabaseCount(MiniAppDraftService::RECEIPTS, 1);
-                  $this->assertDatabaseHas(MiniAppDraftService::TABLE, ['document_id' => $id, 'status' => 'DRAFT', 'version' => 1]);
-              }
-
-              private function actor(?Warehouse $warehouse = null""")
-          for p in paths:
-              subprocess.run(['php', '-l', p], check=True)
-          subprocess.run(['vendor/bin/pint', *paths], check=True)
-          Path('/tmp/p03-reviewed-paths.json').write_text(json.dumps(paths))
+          import subprocess
+          paths = ['Modules/Warehouse/app/Services/MiniAppDraftService.php', 'Modules/Warehouse/app/Http/Controllers/P03DraftController.php', 'Modules/Warehouse/app/Http/Middleware/MiniAppDraftHandoff.php', 'Modules/Warehouse/app/Providers/RouteServiceProvider.php', 'Modules/Warehouse/routes/p03_drafts.php', 'database/migrations/2026_10_07_000001_create_mini_app_drafts.php', 'tests/Feature/P03DraftContractTest.php', 'tests/Feature/P03DraftJsonShapeTest.php', 'Modules/Warehouse/app/Http/Controllers/MiniAppInboundStagingController.php']
+          for path in paths:
+              subprocess.run(['php', '-l', path], check=True)
+          subprocess.run(['vendor/bin/pint', '--test', *paths], check=True)
           PY
       - name: Prepare isolated application
         run: |
@@ -107,14 +74,14 @@ jobs:
           php artisan key:generate
           php artisan config:clear
       - name: SQLite P03 and existing contract regressions
-        run: php artisan test tests/Feature/P03DraftContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --log-junit p03-sqlite.xml
+        run: php artisan test tests/Feature/P03Draft*Test.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --stop-on-error --stop-on-failure --log-junit p03-sqlite.xml
       - name: PostgreSQL P03 and existing contract regressions
         if: success() || failure()
         timeout-minutes: 3
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p03_contract_test
-        run: php artisan test tests/Feature/P03DraftContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --stop-on-failure --stop-on-error --log-junit p03-pgsql.xml
+        run: php artisan test tests/Feature/P03Draft*Test.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P02ReadContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/AuthRbacAuditHardeningTest.php --stop-on-error --stop-on-failure --log-junit p03-pgsql.xml
       - name: Publish test counts and failure annotations
         if: always()
         run: |
@@ -123,33 +90,11 @@ jobs:
           import xml.etree.ElementTree as ET
           for path in Path('.').glob('p03-*.xml'):
               root = ET.parse(path).getroot()
-              print(path, [s.attrib for s in root.findall('./testsuite')])
+              counts = [s.attrib for s in root.findall('./testsuite')]
+              print(path, counts)
+              print('::notice title=P03 test counts::'+path.name+' '+str(counts))
               for tag in ['failure', 'error']:
                   for failure in root.iter(tag):
                       message = (failure.text or '')[:3000].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                       print('::error title=P03 '+path.name+'::'+message)
-          PY
-      - name: Publish verified source tree only
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          import os, json, pathlib, urllib.request, subprocess
-          import xml.etree.ElementTree as ET
-          for filename in ['p03-sqlite.xml', 'p03-pgsql.xml']:
-              root = ET.parse(filename).getroot()
-              assert not list(root.iter('failure')) and not list(root.iter('error'))
-              assert int(root.find('./testsuite').attrib['tests']) >= 104
-          repo = os.environ['GITHUB_REPOSITORY']
-          assert repo == 'Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
-          paths = json.load(open('/tmp/p03-reviewed-paths.json'))
-          nodes = [{'path':p, 'mode':'100644', 'type':'blob', 'content':pathlib.Path(p).read_text()} for p in paths]
-          base = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip()
-          request = urllib.request.Request('https://api.github.com/repos/'+repo+'/git/trees', data=json.dumps({'base_tree':base, 'tree':nodes}).encode(), method='POST', headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json', 'Content-Type':'application/json'})
-          with urllib.request.urlopen(request, timeout=60) as r:
-              tree = json.load(r)['sha']
-          print('VERIFIED_P03_TREE='+tree)
-          print('::notice title=Verified P03 source tree::'+tree)
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write('Verified source tree: `'+tree+'`. No branch or workflow reference changed.\n')
           PY

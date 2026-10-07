@@ -469,7 +469,13 @@ class MiniAppInboundStagingController extends Controller
             $body['data']['replayed'] = $replayed;
         }
 
-        $this->notifyPendingSkuInfo($body, $replayed, $actorId);
+        // P03 wraps record + draft receipt in an outer transaction. Notify only
+        // after that transaction commits; legacy callers keep their original path.
+        if ($request->attributes->get('p03.draft_handoff', false)) {
+            DB::afterCommit(fn () => $this->notifyPendingSkuInfo($body, $replayed, $actorId));
+        } else {
+            $this->notifyPendingSkuInfo($body, $replayed, $actorId);
+        }
 
         $response = response()->json($body, $code)
             ->header('Idempotent-Replay', $replayed ? 'true' : 'false');

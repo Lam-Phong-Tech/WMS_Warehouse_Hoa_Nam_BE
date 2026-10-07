@@ -4,6 +4,8 @@ namespace Modules\Warehouse\Providers;
 
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Middleware\MiniAppDraftHandoff;
+use Modules\Warehouse\Services\MiniAppDraftService;
 
 class RouteServiceProvider extends ServiceProvider
 {
@@ -23,6 +25,12 @@ class RouteServiceProvider extends ServiceProvider
         $this->mapImportRoutes();
         $this->mapGovernanceRoutes();
         $this->mapWebRoutes();
+        Route::middleware('api')->prefix('api')->name('api.p03.')->group(module_path($this->name, '/routes/p03_drafts.php'));
+        foreach (Route::getRoutes() as $route) {
+            if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()]) && in_array('POST', $route->methods(), true)) {
+                $route->middleware(MiniAppDraftHandoff::class);
+            }
+        }
     }
 
     protected function mapWebRoutes(): void
