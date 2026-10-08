@@ -1,0 +1,116 @@
+name: P14 Recovery and Shift Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'app/**'
+      - 'bootstrap/**'
+      - 'config/p14.php'
+      - 'database/migrations/*p14*'
+      - 'Modules/Auth/**'
+      - 'Modules/Warehouse/**'
+      - 'routes/p14.php'
+      - 'tests/Feature/P14*'
+      - '.github/workflows/p14-recovery-shift-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p14-disposable-ci-only
+          POSTGRES_DB: p14_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p14_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p14-disposable-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p14-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      P14_SHIFT_ENABLED: 'false'
+      P14_RECOVERY_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare isolated application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: SQLite P14 and owner context regressions
+        run: php artisan test tests/Feature/P14RecoveryShiftContractTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/P03DraftContractTest.php --log-junit p14-sqlite.xml
+      - name: PostgreSQL P14 and owner context regressions
+        if: success() || failure()
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: p14_contract_test
+        run: php artisan test tests/Feature/P14RecoveryShiftContractTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/P03DraftContractTest.php --log-junit p14-pgsql.xml
+      - name: P14 syntax and style
+        if: success() || failure()
+        run: |
+          files=(app/Http/Controllers/P14*.php app/Http/Middleware/P14*.php app/Support/P14*.php app/Console/Commands/P14*.php app/Providers/P14*.php config/p14.php routes/p14.php bootstrap/providers.php database/migrations/*p14*.php tests/Feature/P14*.php Modules/Warehouse/app/Support/MiniAppWorkShiftService.php Modules/Auth/app/Support/WarehouseContext.php)
+          for f in "${files[@]}"; do php -l "$f" || exit 1; done
+          vendor/bin/pint --test --format=json "${files[@]}"
+      - name: Publish exact commit test evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, xml.etree.ElementTree as ET
+          from pathlib import Path
+          report = ['P14_COMMIT=' + os.environ['GITHUB_SHA'], 'LIVE_DEV_SMOKE=false; DEPLOYMENT=false']
+          missing = []
+          for name in ['p14-sqlite.xml', 'p14-pgsql.xml']:
+              path = Path(name)
+              if not path.is_file():
+                  missing.append(name)
+                  continue
+              root = ET.parse(path).getroot()
+              for suite in root.findall('./testsuite'):
+                  report.append(name + ' ' + str(suite.attrib))
+              for case in root.iter('testcase'):
+                  failure = case.find('failure')
+                  error = case.find('error')
+                  status = 'FAIL' if failure is not None or error is not None else ('SKIP' if case.find('skipped') is not None else 'PASS')
+                  report.append(status + ' ' + case.get('classname', '') + '::' + case.get('name', ''))
+                  for node in [failure, error]:
+                      if node is not None:
+                          report.append((node.text or '')[:2000])
+          text = '\n'.join(report)
+          print(text)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as f:
+              f.write('```text\n' + text + '\n```\n')
+          if missing: raise SystemExit('Missing test evidence: ' + ', '.join(missing))
+          PY

@@ -39,7 +39,7 @@ final class WarehouseContext
 
         $selected = $this->storedWarehouseId($user, $sessionId);
         $shiftWarehouse = DB::table('mini_app_work_shifts')
-            ->where('actor_id', $user->user_id)->where('auth_session_id', $sessionId)->value('warehouse_id');
+            ->where('actor_id', $user->user_id)->where('auth_session_id', $sessionId)->whereNull('ended_at')->value('warehouse_id');
         if ($selected !== null && $shiftWarehouse !== null && $selected !== (string) $shiftWarehouse) {
             return $this->result(null, 'UNAVAILABLE', 'WAREHOUSE_CONTEXT_MISMATCH', $options);
         }
@@ -79,7 +79,7 @@ final class WarehouseContext
             }
             $sessionId = app(StableAuthSession::class)->requireId($actor);
             $shiftWarehouse = DB::table('mini_app_work_shifts')
-                ->where('actor_id', $actor->user_id)->where('auth_session_id', $sessionId)->value('warehouse_id');
+                ->where('actor_id', $actor->user_id)->where('auth_session_id', $sessionId)->whereNull('ended_at')->value('warehouse_id');
             if ($shiftWarehouse !== null && (string) $shiftWarehouse !== $warehouseId) {
                 ApiError::abort(409, 'SHIFT_WAREHOUSE_CONFLICT', 'Phiên đã bắt đầu ca; không thể đổi hoặc bỏ kho của ca này.');
             }
