@@ -8,6 +8,7 @@ use Modules\Warehouse\Http\Controllers\MiniAppNfcController;
 use Modules\Warehouse\Http\Controllers\P07NfcController;
 use Modules\Warehouse\Http\Middleware\MiniAppDraftHandoff;
 use Modules\Warehouse\Http\Middleware\P05OutboundSource;
+use Modules\Warehouse\Http\Middleware\P07NfcReadbackGuard;
 use Modules\Warehouse\Services\MiniAppDraftService;
 
 class RouteServiceProvider extends ServiceProvider
@@ -43,6 +44,10 @@ class RouteServiceProvider extends ServiceProvider
             if ($route->uri() === 'api/v1/mini-app/outbound/record' && in_array('POST', $route->methods(), true)) {
                 // Inside the P03 receipt transaction; untouched legacy calls pass through.
                 $route->middleware(P05OutboundSource::class);
+            }
+            if (($route->uri() === 'api/v1/mini-app/nfc/resolve-tag' && in_array('POST', $route->methods(), true))
+                || ($route->uri() === 'api/v1/mini-app/items/{itemId}/nfc' && in_array('PATCH', $route->methods(), true))) {
+                $route->middleware(P07NfcReadbackGuard::class);
             }
         }
     }
