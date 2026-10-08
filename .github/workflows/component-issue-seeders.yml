@@ -1,0 +1,75 @@
+name: Component issue seeder regression
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php'
+      - 'Modules/Warehouse/database/seeders/DisplayFieldCoverageSeeder.php'
+      - 'scripts/test-component-issue-seeder-immutability.php'
+      - '.github/workflows/component-issue-seeders.yml'
+  pull_request:
+    paths:
+      - 'Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php'
+      - 'Modules/Warehouse/database/seeders/DisplayFieldCoverageSeeder.php'
+      - 'scripts/test-component-issue-seeder-immutability.php'
+      - '.github/workflows/component-issue-seeders.yml'
+permissions:
+  contents: read
+jobs:
+  postgres-backfill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: '${{ github.run_id }}-seed-regression-only'
+          POSTGRES_DB: component_issue_seeder_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d component_issue_seeder_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: pgsql
+      DB_DATABASE: component_issue_seeder_test
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: '${{ github.run_id }}-seed-regression-only'
+      DB_SSLMODE: disable
+      DB_URL: ''
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_pgsql, sqlite3, pdo_sqlite, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Prepare isolated runtime
+        run: |
+          cp .env.example .env
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/seed-composer.log 2>&1 || { tail -40 /tmp/seed-composer.log; exit 1; }
+          php artisan key:generate
+          php artisan config:clear
+      - name: Syntax checks
+        run: |
+          php -l Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php
+          php -l Modules/Warehouse/database/seeders/DisplayFieldCoverageSeeder.php
+          php -l scripts/test-component-issue-seeder-immutability.php
+      - name: PostgreSQL backfill regression (temporary data only)
+        run: php scripts/test-component-issue-seeder-immutability.php
