@@ -6,9 +6,11 @@ use App\Support\ApiError;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
@@ -61,7 +63,7 @@ final class P09WarrantyRequests
                 }
                 $data = $payload['data'] ?? [];
                 if (! Str::isUuid((string) ($data['warranty_case_id'] ?? '')) || ! isset($data['version'], $data['status'])) {
-                    throw new \RuntimeException('P09_CANONICAL_RECEIPT_INVALID');
+                    throw new RuntimeException('P09_CANONICAL_RECEIPT_INVALID');
                 }
                 DB::table(self::TABLE)->where('id', $id)->update(['state' => 'SUCCEEDED',
                     'warranty_case_id' => $data['warranty_case_id'], 'committed_version' => (int) $data['version'],
@@ -91,16 +93,19 @@ final class P09WarrantyRequests
                     DB::table(self::TABLE)->where('id', $id)->where('state', 'PROCESSING')->update([
                         'state' => 'FAILED', 'http_status' => $http, 'error_code' => $code,
                         'completed_at' => now(), 'updated_at' => now()]);
+
                     return self::reply(DB::table(self::TABLE)->where('id', $id)->first(), $scope, false);
                 }
             } catch (Throwable) {
                 // No raw exception / SQL / input / credentials in the response.
             }
+
             return response()->json(['success' => false, 'error_code' => 'WARRANTY_RESULT_UNKNOWN',
                 'data' => ['receipt' => ['request_id' => $requestId, 'state' => 'UNKNOWN', 'may_create_new_request' => false]],
                 'message' => 'Chưa xác định kết quả; đối chiếu request, không gửi lại yêu cầu mới.'], 503)
                 ->header('Cache-Control', 'private, no-store');
         }
+
         return self::reply(DB::table(self::TABLE)->where('id', $id)->first(), $scope, false);
     }
 
@@ -113,6 +118,7 @@ final class P09WarrantyRequests
                 'state' => 'UNKNOWN', 'may_create_new_request' => false]], 'meta' => P09WarrantyScope::metadata($scope)])
                 ->header('Cache-Control', 'private, no-store');
         }
+
         return self::reply($row, $scope, true, true);
     }
 
@@ -122,7 +128,7 @@ final class P09WarrantyRequests
             P09WarrantyScope::requireCase($scope, $row->warranty_case_id);
         }
         $state = $row->state;
-        if ($state === 'PROCESSING' && \Illuminate\Support\Carbon::parse($row->created_at)->lt(now()->subMinutes(5))) {
+        if ($state === 'PROCESSING' && Carbon::parse($row->created_at)->lt(now()->subMinutes(5))) {
             $state = 'UNKNOWN'; // Age never grants permission to retry a command.
         }
         $receipt = ['request_id' => $row->request_id, 'state' => $state, 'operation' => $row->operation,
@@ -133,6 +139,12 @@ final class P09WarrantyRequests
         $code = $read ? 200 : (in_array($state, ['PROCESSING', 'UNKNOWN'], true) ? 202 : (int) $row->http_status);
         $body = ['success' => $read || $state !== 'FAILED', 'data' => ['receipt' => $receipt],
             'meta' => P09WarrantyScope::metadata($scope) + ['request_id' => request()->attributes->get('request_id')]];
+        // Additive identity compatibility for the existing P03/P06/P14 owner
+        // adapters. Only a durable successful receipt plus current case ACL
+        // can expose this ID. Unknown/processing/failed never become a record.
+        if ($state === 'SUCCEEDED') {
+            $body['data']['warranty_case_id'] = $row->warranty_case_id;
+        }
         if (! $read && $state === 'FAILED') {
             $body['error_code'] = $row->error_code;
             $body['error'] = ['code' => $row->error_code, 'details' => []];
@@ -144,6 +156,7 @@ final class P09WarrantyRequests
         if ($state === 'SUCCEEDED') {
             $response->headers->set('ETag', '"'.$row->committed_version.'"');
         }
+
         return $response;
     }
 }
