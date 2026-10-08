@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Modules\Notification\Models\NotificationRecipient;
 
 /** Forward keyset, not an immutable snapshot of unread membership. */
@@ -124,7 +125,7 @@ final class P13NotificationCursor
     private static function validKey(mixed $key): bool
     {
         return is_array($key) && is_string($key['time'] ?? null) && strlen($key['time']) <= 128
-            && is_string($key['id'] ?? null) && \Illuminate\Support\Str::isUuid($key['id']);
+            && is_string($key['id'] ?? null) && Str::isUuid($key['id']);
     }
 
     private static function before(Builder $query, array $key, bool $inclusive): void

@@ -73,23 +73,68 @@ jobs:
       - name: P13 style check
         if: success() || failure()
         run: vendor/bin/pint --test Modules/Notification/app/Http/Controllers/NotificationController.php Modules/Notification/app/Support/P13NotificationCursor.php tests/Feature/P13NotificationContractTest.php
-      - name: Report isolated counts
+      - name: Publish required CI evidence to log and job summary
         if: always()
         run: |
-          python3 - <<'PY'
+          python3 - <<'PY_REPORT'
           from pathlib import Path
+          import hashlib
+          import json
           import os
           import xml.etree.ElementTree as ET
-          print('P13_BUILD_SHA=' + os.environ['GITHUB_SHA'])
-          print('LIVE_DEV_SMOKE=false; DEPLOYMENT=false')
-          for path in sorted(Path('.').glob('p13-*.xml')):
-              root = ET.parse(path).getroot()
-              for suite in root.findall('./testsuite'):
-                  print(path.name, suite.attrib)
-          PY
-      - uses: actions/upload-artifact@v4
+          lines = ['## P13 isolated contract evidence',
+                   'Build: `' + os.environ['GITHUB_SHA'] + '`',
+                   'LIVE_DEV_SMOKE=false; DEPLOYMENT=false',
+                   'Required evidence: this log and job summary. XML download is an optional copy.']
+          missing = []
+          for filename in ['p13-sqlite.xml', 'p13-pgsql.xml']:
+              path = Path(filename)
+              if not path.is_file() or path.stat().st_size == 0:
+                  missing.append(filename)
+                  lines.append('MISSING REPORT: ' + filename)
+                  continue
+              content = path.read_bytes()
+              root = ET.fromstring(content)
+              suites = [root] if root.tag == 'testsuite' else root.findall('./testsuite')
+              cases = list(root.iter('testcase'))
+              if not suites or not cases:
+                  missing.append(filename + ': empty test report')
+              lines.append('### ' + filename)
+              lines.append('SHA256: `' + hashlib.sha256(content).hexdigest() + '`')
+              for suite in suites:
+                  counts = {key: suite.get(key, '0') for key in ['tests', 'assertions', 'errors', 'failures', 'skipped']}
+                  lines.append(json.dumps(counts, sort_keys=True))
+              for case in cases:
+                  status = 'PASS'
+                  for tag in ['failure', 'error', 'skipped']:
+                      if case.find(tag) is not None:
+                          status = tag.upper()
+                          break
+                  lines.append(status + ' ' + case.get('classname', '') + '::' + case.get('name', ''))
+          report = '\n\n'.join(lines) + '\n'
+          print(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write(report)
+          if missing:
+              raise SystemExit('Required CI evidence missing: ' + ', '.join(missing))
+          PY_REPORT
+      - name: Optional XML artifact copy
+        id: xml_artifact
+        uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: p13-contract-${{ github.sha }}
           path: p13-*.xml
+          if-no-files-found: error
           retention-days: 7
+      - name: Report artifact availability separately
+        if: always()
+        env:
+          ARTIFACT_OUTCOME: ${{ steps.xml_artifact.outcome }}
+        run: |
+          echo "XML_ARTIFACT_OUTCOME=$ARTIFACT_OUTCOME"
+          echo "XML artifact copy: **$ARTIFACT_OUTCOME**. Test/style gates are independent; see required evidence above." >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ARTIFACT_OUTCOME" != "success" ]; then
+            echo "::warning::XML artifact copy unavailable; inspect the upload error. Required counts and per-test results remain in the log and job summary."
+          fi
