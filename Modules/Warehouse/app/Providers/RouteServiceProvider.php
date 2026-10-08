@@ -5,6 +5,7 @@ namespace Modules\Warehouse\Providers;
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Middleware\MiniAppDraftHandoff;
+use Modules\Warehouse\Http\Middleware\P05OutboundSource;
 use Modules\Warehouse\Services\MiniAppDraftService;
 
 class RouteServiceProvider extends ServiceProvider
@@ -27,9 +28,14 @@ class RouteServiceProvider extends ServiceProvider
         $this->mapWebRoutes();
         Route::middleware('api')->prefix('api')->name('api.p03.')->group(module_path($this->name, '/routes/p03_drafts.php'));
         Route::middleware('api')->prefix('api')->name('api.p04.')->group(module_path($this->name, '/routes/p04_inbound.php'));
+        Route::middleware('api')->prefix('api')->name('api.p05.')->group(module_path($this->name, '/routes/p05_outbound.php'));
         foreach (Route::getRoutes() as $route) {
             if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()]) && in_array('POST', $route->methods(), true)) {
                 $route->middleware(MiniAppDraftHandoff::class);
+            }
+            if ($route->uri() === 'api/v1/mini-app/outbound/record' && in_array('POST', $route->methods(), true)) {
+                // Inside the P03 receipt transaction; untouched legacy calls pass through.
+                $route->middleware(P05OutboundSource::class);
             }
         }
     }

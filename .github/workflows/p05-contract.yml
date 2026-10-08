@@ -1,0 +1,97 @@
+name: P05 Outbound Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'tests/Feature/P05*Test.php'
+      - 'tests/Feature/MiniAppOutbound*Test.php'
+      - '.github/workflows/p05-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-p05-ci-only
+          POSTGRES_DB: p05_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p05_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: disposable-p05-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=20000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p05-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p05-composer.log 2>&1 || { tail -60 /tmp/p05-composer.log; exit 1; }
+      - name: Syntax validation
+        run: |
+          php -l Modules/Warehouse/app/Http/Controllers/P05OutboundController.php
+          php -l Modules/Warehouse/app/Http/Middleware/P05OutboundSource.php
+          php -l Modules/Warehouse/app/Http/Middleware/MiniAppDraftHandoff.php
+          php -l Modules/Warehouse/app/Providers/RouteServiceProvider.php
+          php -l Modules/Warehouse/routes/p05_outbound.php
+          php -l tests/Feature/P05OutboundContractTest.php
+      - name: Prepare isolated application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: SQLite P05 and related regressions
+        run: php artisan test tests/Feature/P05*Test.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/MiniAppOutboundStagingTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p05-sqlite.xml
+      - name: PostgreSQL P05 and related regressions
+        if: success() || failure()
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: p05_contract_test
+        run: php artisan test tests/Feature/P05*Test.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/MiniAppOutboundStagingTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p05-pgsql.xml
+      - name: Publish isolated test evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for p in Path('.').glob('p05-*.xml'):
+              root = ET.parse(p).getroot()
+              counts = [s.attrib for s in root.findall('./testsuite')]
+              print('::notice title=P05 counts::'+p.name+' '+str(counts))
+              for tag in ['failure', 'error']:
+                  for e in root.iter(tag):
+                      msg = (e.text or '')[:3000].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+                      print('::error title=P05 '+p.name+'::'+msg)
+          PY
