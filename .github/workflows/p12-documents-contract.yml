@@ -6,7 +6,7 @@ on:
     paths:
       - 'Modules/Warehouse/**'
       - 'tests/Feature/P12*Test.php'
-      - '.ci/p12-apply-read-contract.py'
+      - '.ci/p12-*.py'
       - '.github/workflows/p12-documents-contract.yml'
 permissions:
   contents: write
@@ -59,13 +59,13 @@ jobs:
           coverage: none
           tools: composer:v2
       - name: Apply exact-blob guarded P12 fixes
-        run: python3 .ci/p12-apply-read-contract.py
+        run: python3 .ci/p12-complete-read-contract.py
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p12-composer.log 2>&1 || { tail -60 /tmp/p12-composer.log; exit 1; }
       - name: Format and syntax check only changed PHP files
         run: |
-          vendor/bin/pint Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php
-          for file in Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Http/Controllers/{MiniAppInboundController,MiniAppOutboundController,P04InboundController}.php tests/Feature/{P04InboundContractTest,P12DocumentsReadContractTest}.php; do php -l "$file"; done
+          vendor/bin/pint Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php
+          for file in Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Http/Controllers/{MiniAppInboundController,MiniAppOutboundController,P04InboundController,DocumentAttachmentController}.php tests/Feature/{P04InboundContractTest,P12DocumentsReadContractTest}.php; do php -l "$file"; done
       - name: Prepare isolated application
         run: |
           cp .env.example .env
@@ -99,7 +99,7 @@ jobs:
           set -euo pipefail
           remote_sha="$(git ls-remote origin refs/heads/dev | cut -f1)"
           test "$remote_sha" = "$GITHUB_SHA" || { echo 'dev moved; refuse to overwrite. Rebase after review.'; exit 1; }
-          git add Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php
+          git add Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php
           git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
