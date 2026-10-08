@@ -35,7 +35,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_context_preserves_address_text_and_actual_permissions(): void
     {
-        [, $token] = $this->session();
+        [, $token] = $this->actorSession();
         $this->getJson(self::BASE.'/context', $this->headers($token))->assertOk()
             ->assertJsonPath('meta.contract', 'mini-app-p05-v1')
             ->assertJsonPath('data.selector.source_kind', 'WMS_OUTBOUND_DOCUMENT')
@@ -50,7 +50,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_selector_filters_before_total_and_orders_by_creation_and_id(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $a = $this->sourceFixture($warehouse);
         $b = $this->sourceFixture($warehouse);
         $excluded = $this->sourceFixture($warehouse);
@@ -70,7 +70,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_expired_partial_or_non_product_sources_are_not_selectable(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $expired = $this->sourceFixture($warehouse);
         DB::table('stock_documents')->where('id', $expired['document_id'])->update(['created_at' => now()->subDays(8)]);
         $partial = $this->sourceFixture($warehouse);
@@ -84,7 +84,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_linked_record_preserves_the_selected_source_recipient_and_plan(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse, 2);
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
         $counts = $this->sourceCounts();
@@ -114,7 +114,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_replay_and_lost_response_reconcile_do_not_create_a_replacement(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
         $this->postJson(self::BASE.'/record', $body, $this->recordHeaders($token, $draft, $scan, $key))->assertOk();
@@ -132,7 +132,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_standalone_source_mode_is_rejected_instead_of_inventing_reconcile(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         [, , $body, $key] = $this->linked($token, $warehouse, $source);
         $this->postJson(self::BASE.'/record', $body, $this->headers($token) + ['Idempotency-Key' => $key])->assertConflict()
@@ -142,7 +142,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_stale_source_or_draft_versions_do_not_write(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
         $headers = $this->recordHeaders($token, $draft, $scan, $key);
@@ -156,7 +156,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_full_count_with_wrong_sku_is_not_a_valid_plan(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         $other = $this->sourceFixture($warehouse);
         $source['raw_codes'] = $other['raw_codes'];
@@ -168,7 +168,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_normalized_duplicate_item_is_rejected(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse, 2);
         $source['raw_codes'][1] = $source['unique_codes'][0];
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
@@ -179,7 +179,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_body_cannot_overwrite_recipient_or_use_an_unsaved_batch(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
         $this->postJson(self::BASE.'/record', $body + ['recipient_name' => 'Untrusted replacement'], $this->recordHeaders($token, $draft, $scan, $key))
@@ -192,7 +192,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_scope_and_context_are_required_before_source_reads(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $this->getJson(self::BASE.'/sources?warehouse_id='.Str::uuid(), $this->headers($token))->assertForbidden();
         $this->postJson('/api/v1/auth/switch-context', ['context_type' => 'SYSTEM'], $this->headers($token))->assertOk();
         $this->getJson(self::BASE.'/sources?warehouse_id='.$warehouse->id, $this->headers($token))->assertConflict();
@@ -200,7 +200,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_read_permission_does_not_grant_record_and_withdrawal_blocks_replay(): void
     {
-        [$user, $token, $warehouse] = $this->session();
+        [$user, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
         $this->postJson(self::BASE.'/record', $body, $this->recordHeaders($token, $draft, $scan, $key))->assertOk();
@@ -214,7 +214,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_unknown_receipt_stays_unknown_and_cannot_cancel_or_create(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         [$draft, $scan, , $key] = $this->linked($token, $warehouse, $source);
         $this->getJson($this->receiptUrl($warehouse, $draft, $scan, $key), $this->headers($token))->assertOk()
@@ -225,7 +225,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_receipt_failure_rolls_back_matches_label_and_source_version(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse, 2);
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
         DB::listen(function (QueryExecuted $event): void {
@@ -257,7 +257,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_existing_reservation_is_not_stolen_from_another_document(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         $requestId = $this->outboundRequestFixture($source['sku_id'], 1, 'P05-RESERVE-'.Str::upper(Str::random(10)));
         $other = $this->outboundDocumentFixture($warehouse->id, $requestId);
@@ -273,7 +273,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_insufficient_aggregate_stock_rolls_back_the_whole_batch(): void
     {
-        [, $token, $warehouse] = $this->session();
+        [, $token, $warehouse] = $this->actorSession();
         $source = $this->sourceFixture($warehouse, 2);
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
         DB::table('inventory_balances')->where('product_id', $source['sku_id'])->update(['available_qty' => 0, 'on_hand_qty' => 0, 'quantity' => 0]);
@@ -285,7 +285,7 @@ class P05OutboundContractTest extends TestCase
 
     public function test_refresh_preserves_linked_identity_and_detail_reads_authoritative_posted_state(): void
     {
-        [, $token, $warehouse, $cookie] = $this->session();
+        [, $token, $warehouse, $cookie] = $this->actorSession();
         $source = $this->sourceFixture($warehouse);
         [$draft, $scan, $body, $key] = $this->linked($token, $warehouse, $source);
         $this->headers($token);
@@ -300,7 +300,7 @@ class P05OutboundContractTest extends TestCase
             ->assertJsonPath('data.document.business_status', 'POSTED')->assertJsonPath('data.response.data.status', 'SCANNING');
     }
 
-    private function session(): array
+    private function actorSession(): array
     {
         $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'P05 isolated test warehouse');
         $suffix = substr((string) Str::uuid(), 0, 8);
