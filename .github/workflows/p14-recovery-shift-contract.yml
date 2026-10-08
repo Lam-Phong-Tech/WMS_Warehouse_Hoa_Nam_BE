@@ -85,7 +85,7 @@ jobs:
         run: |
           files=(app/Http/Controllers/P14*.php app/Http/Middleware/P14*.php app/Support/P14*.php app/Console/Commands/P14*.php app/Providers/P14*.php config/p14.php routes/p14.php bootstrap/providers.php database/migrations/*p14*.php tests/Feature/P14*.php tests/Feature/AuthWarehouseContextTest.php Modules/Warehouse/app/Support/MiniAppWorkShiftService.php Modules/Warehouse/app/Support/P09WarrantyRequests.php Modules/Auth/app/Support/WarehouseContext.php Modules/Auth/app/Support/ApiAuthContext.php)
           for f in "${files[@]}"; do php -l "$f" || exit 1; done
-          vendor/bin/pint --test --format=json "${files[@]}"
+          vendor/bin/pint --test -v "${files[@]}"
       - name: Publish exact commit test evidence
         if: always()
         run: |
