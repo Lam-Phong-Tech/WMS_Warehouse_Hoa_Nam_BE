@@ -3,29 +3,30 @@
 namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
-use App\Traits\ApiResponse;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
+use Modules\Warehouse\Support\P06ReadSnapshot;
+use Modules\Warehouse\Support\P09WarrantyPage;
+use Modules\Warehouse\Support\P09WarrantyPolicy as Policy;
+use Modules\Warehouse\Support\P09WarrantyRequests;
+use Modules\Warehouse\Support\P09WarrantyScope as Scope;
+use Modules\Warehouse\Support\WarrantyWarehouseScope;
 
-/**
- * Mini App warranty adapter.
- *
- * Warranty case state remains canonical. This controller only adds the mobile
- * preflight resolve endpoint and delegates case mutations/reads to the WMS
- * warranty controllers so Mini App does not own a second warranty lifecycle.
- */
+/** P09 mobile transport; WMS remains the only warranty state-machine owner. */
 class MiniAppWarrantyController extends Controller
 {
-    use ApiResponse;
     use CachesReadPayload;
-
-    /**
-     * Máy quét đọc — TTL ngắn nhất và bám `stock:version` như hai adapter Mini App kia.
-     */
-    private const CACHE_VERSION_NS = 'stock:version';
 
     public function __construct(
         private readonly ProductQrPayloadParser $parser,
@@ -34,170 +35,288 @@ class MiniAppWarrantyController extends Controller
         private readonly CurrentBaselineWarrantyController $warranty,
     ) {}
 
-    public function resolveCode(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        $validated = $request->validate([
-            'raw_code' => ['required', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
-        ]);
-
-        $rawCode = trim((string) $validated['raw_code']);
-
-        // Endpoint POST nhưng thuần ĐỌC (stock_effect=NONE, không tạo bản ghi nào). Vì là
-        // POST, `raw_code` nằm trong body chứ không phải query string nên PHẢI đưa vào
-        // khoá thủ công — dùng readFiltersWithPaging() ở đây là để hai mã khác nhau dùng
-        // chung một entry. TTL 'stock_short' (20s) + `stock:version`: item_status đổi qua
-        // mutation tồn kho (đã bump), còn hồ sơ bảo hành tạo/sửa từ chính controller này
-        // cũng bump. Đây chỉ là gợi ý tiền kiểm — lệnh tạo hồ sơ thật vẫn validate lại
-        // trên dữ liệu tươi ở CurrentBaselineWarrantyController.
-        $payload = $this->cachedReadPayload(
-            'miniapp:warranty:resolve-code',
-            ['raw_code' => $rawCode],
-            fn (): array => $this->buildResolveCodePayload($rawCode),
-            'stock_short',
-            self::CACHE_VERSION_NS,
-        );
-
-        return $this->respondSuccess($payload, $payload['eligible_for_warranty']
-            ? 'Mã hợp lệ để tiếp nhận bảo hành định danh; chưa tạo hồ sơ WMS.'
-            : 'Không đủ điều kiện định danh tự động; Mini App có thể đi nhánh TEMP_ONLY nếu nghiệp vụ cho phép.');
+        $this->queryFields($request, ['warehouse_id', 'search', 'status', 'sort', 'cursor', 'page', 'per_page']);
+        $input = Validator::make($request->query(), ['search' => ['sometimes', 'string', 'max:200'],
+            'status' => ['sometimes', Rule::in(['ALL', ...Policy::STATUSES])],
+            'sort' => ['sometimes', Rule::in(['created_at_desc', 'created_at_asc'])]])->validate();
+        return P06ReadSnapshot::run(function (array $snapshot) use ($request, $input): JsonResponse {
+            $scope = Scope::resolve($request);
+            $q = Scope::cases($scope);
+            if (isset($input['status']) && $input['status'] !== 'ALL') {
+                $q->where('c.status', $input['status']);
+            }
+            if (isset($input['search']) && trim($input['search']) !== '') {
+                $pattern = Policy::pattern($input['search']);
+                $q->where(function (Builder $filter) use ($pattern, $scope): void {
+                    $filter->whereRaw("LOWER(c.warranty_case_code) LIKE LOWER(?) ESCAPE '!'", [$pattern])
+                        ->orWhereRaw("LOWER(c.temporary_item_code) LIKE LOWER(?) ESCAPE '!'", [$pattern])
+                        ->orWhereExists(function (Builder $item) use ($pattern, $scope): void {
+                            $item->selectRaw('1')->from('item_instances as i')->whereColumn('i.item_id', 'c.item_id')
+                                ->whereRaw("LOWER(i.serial_number) LIKE LOWER(?) ESCAPE '!'", [$pattern]);
+                            Scope::isolate($item, 'item_instances', 'i', $scope);
+                        });
+                });
+            }
+            [$ids, $page] = P09WarrantyPage::read($request, $q, $scope, 'c.warranty_case_id', 'c.created_at', ($input['sort'] ?? 'created_at_desc') === 'created_at_desc');
+            // Bounded to per_page, reuse canonical PII masking rather than a second serializer.
+            $rows = array_map(fn (string $id): array => $this->caseData($request, $scope, $id), $ids);
+            return $this->reply($rows, $scope, $page + ['snapshot' => $snapshot, 'search_fields' => ['warranty_case_code', 'temporary_item_code', 'serial_number']]);
+        });
     }
 
-    /** @return array<string, mixed> */
-    private function buildResolveCodePayload(string $rawCode): array
+    public function show(Request $request, string $id): JsonResponse
     {
-        $item = $this->resolveItem($rawCode);
-        $sku = $item !== null ? DB::table('sku')->where('sku_id', $item->sku_id)->first() : null;
-        $activeWarrantyExists = $item !== null && DB::table('warranty_case')
-            ->where('item_id', $item->item_id)
-            ->whereNotIn('status', ['RETURNED', 'CANCELLED'])
-            ->exists();
-        $eligible = $item !== null
-            && in_array((string) $item->item_status, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true)
-            && ! $activeWarrantyExists;
-
-        return [
-            'raw_code' => $rawCode,
-            'resolved' => $item !== null,
-            'item_id' => $item?->item_id,
-            'item_code' => $item?->serial_number,
-            'serial_number' => $item?->serial_number,
-            'item_status' => $item?->item_status,
-            'sku_id' => $sku?->sku_id,
-            'sku_code' => $sku?->sku_code,
-            'sku_name' => $sku?->sku_name,
-            'eligible_for_warranty' => $eligible,
-            'eligibility_code' => $this->eligibilityCode($item, $activeWarrantyExists),
-            'active_warranty_exists' => $activeWarrantyExists,
-            'recommended_flow' => $eligible ? 'IDENTIFIED' : 'TEMP_ONLY',
-            'stock_effect' => 'NONE',
-            'movement_created' => false,
-            'wms_case_created' => false,
-        ];
+        $this->queryFields($request, ['warehouse_id']);
+        return P06ReadSnapshot::run(function (array $snapshot) use ($request, $id): JsonResponse {
+            $scope = Scope::resolve($request);
+            $data = $this->caseData($request, $scope, $id);
+            return $this->reply($data, $scope, ['snapshot' => $snapshot])->header('ETag', '"'.$data['version'].'"');
+        });
     }
 
-    /**
-     * KHÔNG cache ở đây: bốn phương thức dưới chỉ uỷ quyền và nhận về một JsonResponse đã
-     * đóng gói envelope. Cache một response object là vi phạm quy tắc "chỉ cache mảng dữ
-     * liệu, không cache response" (request_id/timestamp sẽ bị đóng băng theo), và muốn
-     * cache đúng chỗ thì phải sửa CanonicalMvpController/CurrentBaselineWarrantyController
-     * — hai file nằm ngoài phạm vi thay đổi này.
-     */
-    public function index(Request $request)
+    private function caseData(Request $request, array $scope, string $id): array
     {
-        return $this->canonical->listWarrantyCases($request);
+        $case = Scope::requireCase($scope, $id);
+        $response = $this->warranty->showWarrantyCase($request, $case->warranty_case_id);
+        $data = Policy::safeCase($response->getData(true)['data'], $scope['pii']);
+        $data['capabilities'] = ['attachments_read' => $scope['documents'],
+            'attachments_download' => $scope['documents'] && $scope['pii'],
+            'posted_component_issues_read' => $scope['documents'] && $scope['component']];
+        return $data;
     }
 
-    public function store(Request $request)
+    public function events(Request $request, string $id): JsonResponse
     {
-        $response = $this->warranty->storeWarrantyCase($request);
-        // Hồ sơ mới làm `active_warranty_exists` của resolveCode() đổi ngay lập tức.
-        $this->invalidateAfterWrite();
-
-        return $response;
+        $this->queryFields($request, ['warehouse_id', 'sort', 'cursor', 'page', 'per_page']);
+        Validator::make($request->query(), ['sort' => ['sometimes', Rule::in(['event_at_asc', 'event_at_desc'])]])->validate();
+        return P06ReadSnapshot::run(function (array $snapshot) use ($request, $id): JsonResponse {
+            $scope = Scope::resolve($request);
+            $case = Scope::requireCase($scope, $id);
+            $q = DB::table('warranty_event as e')->where('e.warranty_case_id', $case->warranty_case_id);
+            Scope::isolate($q, 'warranty_event', 'e', $scope);
+            [$ids, $page] = P09WarrantyPage::read($request, clone $q, $scope, 'e.warranty_event_id', 'e.event_at', $request->query('sort', 'event_at_asc') === 'event_at_desc');
+            $events = $q->whereIn('e.warranty_event_id', $ids)->get(['e.warranty_event_id', 'e.warranty_case_id', 'e.event_type', 'e.from_status', 'e.to_status', 'e.note', 'e.created_by', 'e.event_at'])->keyBy('warranty_event_id');
+            $rows = array_map(function (string $eventId) use ($events, $scope): array {
+                $e = $events[$eventId];
+                return ['event_id' => $e->warranty_event_id, 'warranty_case_id' => $e->warranty_case_id,
+                    'event_type' => $e->event_type, 'from_status' => $e->from_status, 'status' => $e->to_status,
+                    'to_status' => $e->to_status, 'event_at' => $e->event_at,
+                    'actor' => ['user_id' => $e->created_by], 'message' => $scope['pii'] ? $e->note : null,
+                    'message_redacted' => ! $scope['pii'], 'time_status' => $e->event_at === null ? 'NOT_RECORDED' : 'SOURCE_TIMESTAMP'];
+            }, $ids);
+            return $this->reply($rows, $scope, $page + ['snapshot' => $snapshot, 'order' => $request->query('sort', 'event_at_asc')]);
+        });
     }
 
-    public function show(Request $request, string $id)
+    public function resolveCode(Request $request): JsonResponse
     {
-        return $this->warranty->showWarrantyCase($request, $id);
+        $this->queryFields($request, ['warehouse_id']);
+        $body = $this->body($request, ['warehouse_id', 'raw_code', 'item_id']);
+        $data = Validator::make($body, ['raw_code' => ['nullable', 'string', 'max:512'], 'item_id' => ['nullable', 'uuid']])->validate();
+        if ((empty($data['raw_code']) ? 0 : 1) + (empty($data['item_id']) ? 0 : 1) !== 1) {
+            ApiError::abort(422, 'WARRANTY_IDENTITY_REQUIRED', 'Gửi đúng một raw_code hoặc item_id.');
+        }
+        return P06ReadSnapshot::run(function (array $snapshot) use ($request, $data): JsonResponse {
+            $s = Scope::resolve($request);
+            $item = ! empty($data['item_id']) ? Scope::requireItem($s, strtolower($data['item_id'])) : $this->resolveItem(trim($data['raw_code']), $s);
+            $active = DB::table('warranty_case')->where('item_id', $item->item_id)->whereNotIn('status', ['RETURNED', 'CANCELLED'])->exists();
+            $eligible = in_array($item->item_status, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true) && ! $active;
+            return $this->reply(['resolved' => true, 'item_id' => $item->item_id, 'serial_number' => $item->serial_number,
+                'sku_id' => $item->sku_id, 'item_status' => $item->item_status, 'active_warranty_exists' => $active,
+                'eligible_for_warranty' => $eligible, 'eligibility_code' => $active ? 'ACTIVE_WARRANTY_EXISTS' : ($eligible ? 'ELIGIBLE' : 'ITEM_NOT_ISSUED'),
+                'stock_effect' => 'NONE', 'movement_created' => false, 'wms_case_created' => false], $s, ['snapshot' => $snapshot]);
+        });
     }
 
-    public function update(Request $request, string $id)
+    /** Exact identities only. Conflicting serial/code/assignment candidates are rejected. */
+    private function resolveItem(string $code, array $scope, bool $lock = false): object
     {
-        $response = $this->warranty->updateWarrantyCase($request, $id);
-        // Đổi status hồ sơ (vd. sang RETURNED/CANCELLED) làm đổi kết quả tiền kiểm.
-        $this->invalidateAfterWrite();
-
-        return $response;
+        if ($this->parser->looksComposite($code)) {
+            $p = $this->parser->parse($code);
+            if (! $p->isValid() || $p->skuCode === null || $p->itemUnique === null) {
+                ApiError::abort(422, 'WARRANTY_ITEM_NOT_FOUND', 'Không xác định được hiện vật từ mã.');
+            }
+            $sku = $this->identityResolver->requireActiveSkuByCode($p->skuCode);
+            $item = $this->identityResolver->findItemByUnique($p->itemUnique);
+            if ($item === null) {
+                ApiError::abort(404, 'WARRANTY_ITEM_NOT_FOUND', 'Không tìm thấy hiện vật.');
+            }
+            $this->identityResolver->assertItemMatchesSku($item, $sku, $p);
+            return Scope::requireItem($scope, (string) $item->item_id, $lock);
+        }
+        $ids = DB::table('item_instances')->where('serial_number', $code)->limit(2)->pluck('item_id')->all();
+        $codes = DB::table('physical_codes')->where('code_value', $code)->where('status', 'ACTIVE')->limit(2)->get();
+        foreach ($codes as $physical) {
+            if (! empty($physical->item_id)) {
+                $ids[] = (string) $physical->item_id;
+            }
+            if (($physical->assigned_object_type ?? null) === 'ITEM' && ! empty($physical->assigned_object_id)) {
+                $ids[] = (string) $physical->assigned_object_id;
+            }
+            if (Schema::hasColumn('item_instances', 'physical_code_id')) {
+                array_push($ids, ...DB::table('item_instances')->where('physical_code_id', $physical->physical_code_id)->limit(2)->pluck('item_id')->all());
+            }
+        }
+        $ids = array_values(array_unique($ids));
+        if (count($ids) !== 1) {
+            ApiError::abort(count($ids) > 1 ? 409 : 404, count($ids) > 1 ? 'WARRANTY_IDENTITY_AMBIGUOUS' : 'WARRANTY_ITEM_NOT_FOUND', 'Không xác định được duy nhất hiện vật trong phạm vi kho.');
+        }
+        return Scope::requireItem($scope, (string) $ids[0], $lock);
     }
 
-    public function events(Request $request, string $id)
+    public function store(Request $request): JsonResponse
     {
-        return $this->canonical->listWarrantyEvents($request, $id);
+        $this->queryFields($request, ['warehouse_id']);
+        $body = $this->body($request, Policy::CREATE_FIELDS);
+        $s = Scope::resolve($request, true);
+        return P09WarrantyRequests::execute($request, $s, 'CREATE', null, function (string $requestId) use ($request, $s, $body): JsonResponse {
+            $inner = $this->commandRequest($request, $requestId);
+            WarrantyWarehouseScope::prepareCreate($inner);
+            WarrantyWarehouseScope::lockCreate($inner);
+            $data = Validator::make($body, ['item_id' => ['nullable', 'uuid'], 'item_code' => ['nullable', 'string', 'max:512'], 'case_no' => ['nullable', 'string', 'max:80'], 'warranty_case_code' => ['nullable', 'string', 'max:80']])->validate();
+            $item = ! empty($data['item_id']) ? Scope::requireItem($s, strtolower($data['item_id']), true) : null;
+            if (! empty($data['item_code'])) {
+                $resolved = $this->resolveItem(trim($data['item_code']), $s, true);
+                if ($item !== null && (string) $item->item_id !== (string) $resolved->item_id) {
+                    ApiError::abort(422, 'WARRANTY_ITEM_IDENTITY_MISMATCH', 'item_id không khớp serial/mã đã cung cấp.');
+                }
+                $item = $resolved;
+            }
+            if (isset($body['case_no'], $body['warranty_case_code']) && trim($body['case_no']) !== trim($body['warranty_case_code'])) {
+                ApiError::abort(422, 'WARRANTY_CASE_CODE_MISMATCH', 'Hai mã phiếu không khớp nhau.');
+            }
+            if ($item !== null) {
+                if (DB::table('warranty_case')->where('item_id', $item->item_id)->whereNotIn('status', ['RETURNED', 'CANCELLED'])->exists()) {
+                    ApiError::abort(409, 'ACTIVE_WARRANTY_EXISTS', 'Hiện vật đã có hồ sơ bảo hành đang hoạt động.');
+                }
+                $inner->merge(['item_id' => (string) $item->item_id]);
+            }
+            $response = $this->warranty->storeWarrantyCase($inner);
+            $this->invalidateAfterWrite();
+            return $response;
+        });
     }
 
-    /**
-     * Lệnh uỷ quyền đã commit khi trả về nên callback của DB::afterCommit chạy ngay; nếu
-     * còn transaction mở thì nó tự chờ commit — không bao giờ nạp lại cache từ dữ liệu
-     * chưa commit.
-     */
+    public function update(Request $request, string $id): JsonResponse
+    {
+        $this->queryFields($request, ['warehouse_id']);
+        $body = $this->body($request, Policy::UPDATE_FIELDS);
+        $s = Scope::resolve($request, true);
+        $id = (string) Scope::requireCase($s, $id)->warranty_case_id;
+        if (! $request->hasHeader('If-Match')) {
+            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match là bắt buộc.');
+        }
+        try {
+            $version = Policy::version((string) $request->header('If-Match'));
+        } catch (\InvalidArgumentException) {
+            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là phiên bản số nguyên dương, ví dụ "1".');
+        }
+        return P09WarrantyRequests::execute($request, $s, 'UPDATE', strtolower($id), function (string $requestId) use ($request, $s, $id, $body, $version): JsonResponse {
+            $inner = $this->commandRequest($request, $requestId);
+            WarrantyWarehouseScope::assertCase($inner, $id, true);
+            $case = Scope::requireCase($s, $id, true);
+            // Canonical same-status handler previously indexed confirmed_defect when
+            // only note was sent. Keep notes append-only without changing intake text.
+            Validator::make($body, ['note' => ['nullable', 'string', 'max:2000']])->validate();
+            $sameStatus = ! isset($body['status']) || $body['status'] === $case->status;
+            if ($sameStatus && isset($body['note']) && trim((string) $body['note']) !== '') {
+                Validator::make($body, ['note' => ['required', 'string', 'max:2000']])->validate();
+                if ((int) $case->version !== $version) {
+                    ApiError::abort(412, 'STALE_VERSION', 'Hồ sơ vừa được cập nhật; tải lại trước khi sửa.');
+                }
+                if (in_array($case->status, ['RETURNED', 'CANCELLED'], true)) {
+                    ApiError::abort(409, 'STATE_CONFLICT', 'Hồ sơ đã đóng, không được cập nhật.');
+                }
+                $fields = $body;
+                unset($fields['note'], $fields['warehouse_id'], $fields['status']);
+                if ($fields === []) {
+                    DB::table('warranty_case')->where('warranty_case_id', $id)->update(['version' => $version + 1, 'updated_by' => $s['actor_id'], 'updated_at' => now()]);
+                } else {
+                    $inner->replace($fields);
+                    $this->warranty->updateWarrantyCase($inner, $id);
+                }
+                DB::table('warranty_event')->insert(['warranty_event_id' => (string) Str::uuid(), 'warranty_case_id' => $id,
+                    'event_type' => 'NOTE', 'from_status' => $case->status, 'to_status' => $case->status,
+                    'note' => $body['note'], 'created_by' => $s['actor_id'], 'event_at' => now()]);
+                AuditLogger::record(action: 'WARRANTY_NOTE_ADDED', objectType: 'warranty_case', objectId: $id,
+                    actorId: $s['actor_id'], requestId: $requestId, afterData: ['version' => $version + 1, 'stock_effect' => 'NONE']);
+                $response = $this->warranty->showWarrantyCase($inner, $id);
+            } else {
+                $response = $this->warranty->updateWarrantyCase($inner, $id);
+            }
+            $this->invalidateAfterWrite();
+            return $response;
+        });
+    }
+
+    public function reconcile(Request $request, string $requestId): JsonResponse
+    {
+        $this->queryFields($request, ['warehouse_id']);
+        return P09WarrantyRequests::reconcile(Scope::resolve($request), $requestId);
+    }
+
+    public function componentIssues(Request $request, string $id): JsonResponse
+    {
+        $this->queryFields($request, ['warehouse_id', 'cursor', 'page', 'per_page']);
+        return P06ReadSnapshot::run(function (array $snapshot) use ($request, $id): JsonResponse {
+            $s = Scope::resolve($request);
+            $case = Scope::requireCase($s, $id);
+            if (! $s['documents'] || ! $s['component']) {
+                ApiError::abort(403, 'COMPONENT_ISSUE_READ_FORBIDDEN', 'Cần documents.read và warranty.component_issue để đọc liên kết phiếu linh kiện.');
+            }
+            $required = ['id', 'warranty_case_id', 'warehouse_id', 'status', 'created_at'];
+            if (array_diff($required, Schema::getColumnListing('component_issue_documents')) !== []) {
+                ApiError::abort(503, 'COMPONENT_ISSUE_LINK_UNAVAILABLE', 'Nguồn liên kết linh kiện chưa khả dụng.');
+            }
+            $q = DB::table('component_issue_documents as d')->where('d.warranty_case_id', $case->warranty_case_id)
+                ->where('d.warehouse_id', $s['warehouse_id'])->where('d.status', 'POSTED');
+            Scope::isolate($q, 'component_issue_documents', 'd', $s);
+            [$ids, $page] = P09WarrantyPage::read($request, $q, $s, 'd.id', 'd.created_at');
+            return $this->reply(array_map(fn (string $document): array => ['component_issue_document_id' => $document,
+                'warranty_case_id' => $case->warranty_case_id, 'status' => 'POSTED', 'can_open' => true,
+                'detail_url' => '/api/v1/mini-app/warranty-component-issues/'.$document], $ids), $s, $page + ['snapshot' => $snapshot]);
+        });
+    }
+
+    private function commandRequest(Request $request, string $requestId): Request
+    {
+        $inner = Request::createFrom($request);
+        // P09 owns the receipt. The canonical callback must not persist a second PII snapshot.
+        $inner->headers->remove('Idempotency-Key');
+        $inner->attributes->set('request_id', $requestId);
+        return $inner;
+    }
+
+    private function body(Request $request, array $allowed): array
+    {
+        $body = $request->isJson() ? $request->json()->all() : $request->request->all();
+        if (array_diff(array_keys($body), $allowed) !== [] || $request->allFiles() !== []) {
+            ApiError::abort(422, 'WARRANTY_UNKNOWN_FIELD', 'Payload có trường ngoài contract P09.');
+        }
+        return $body;
+    }
+
+    private function queryFields(Request $request, array $allowed): void
+    {
+        if (array_diff(array_keys($request->query()), $allowed) !== []) {
+            ApiError::abort(422, 'WARRANTY_UNKNOWN_FILTER', 'Bộ lọc ngoài contract P09.');
+        }
+    }
+
     private function invalidateAfterWrite(): void
     {
-        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+        DB::afterCommit(function (): void {
+            $this->bumpReadCache('stock:version');
+            $this->bumpReadCache('warranty:version');
+        });
     }
 
-    private function resolveItem(string $rawCode): ?object
+    private function reply(mixed $data, array $scope, array $meta = []): JsonResponse
     {
-        if ($this->parser->looksComposite($rawCode)) {
-            $payload = $this->parser->parse($rawCode);
-            if (! $payload->isValid() || $payload->skuCode === null || $payload->itemUnique === null) {
-                return null;
-            }
-            $sku = $this->identityResolver->requireActiveSkuByCode($payload->skuCode);
-            $item = $this->identityResolver->findItemByUnique($payload->itemUnique);
-            if ($item === null) {
-                return null;
-            }
-            $this->identityResolver->assertItemMatchesSku($item, $sku, $payload);
-
-            return $item;
-        }
-
-        $normalized = strtoupper($rawCode);
-        $item = DB::table('item_instances')->where('serial_number', $rawCode)->first()
-            ?? DB::table('item_instances')->where('serial_number', $normalized)->first();
-        if ($item !== null) {
-            return $item;
-        }
-
-        $physical = DB::table('physical_codes')
-            ->where(function ($query) use ($rawCode, $normalized): void {
-                $query->where('code_value', $rawCode)->orWhere('code_value', $normalized);
-            })
-            ->where('status', 'ACTIVE')
-            ->first();
-        if ($physical === null) {
-            return null;
-        }
-
-        $itemId = ($physical->assigned_object_type ?? null) === 'ITEM' && ! empty($physical->assigned_object_id)
-            ? (string) $physical->assigned_object_id
-            : DB::table('item_instances')->where('physical_code_id', $physical->physical_code_id)->value('item_id');
-
-        return $itemId !== null ? DB::table('item_instances')->where('item_id', $itemId)->first() : null;
-    }
-
-    private function eligibilityCode(?object $item, bool $activeWarrantyExists): string
-    {
-        if ($item === null) {
-            return 'ITEM_NOT_FOUND';
-        }
-        if ($activeWarrantyExists) {
-            return 'ACTIVE_WARRANTY_EXISTS';
-        }
-        if (! in_array((string) $item->item_status, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true)) {
-            return 'ITEM_NOT_ISSUED';
-        }
-
-        return 'ELIGIBLE';
+        return response()->json(['success' => true, 'data' => $data,
+            'meta' => Scope::metadata($scope) + $meta + ['request_id' => request()->attributes->get('request_id'), 'timestamp' => now()->toIso8601String()]])
+            ->header('Cache-Control', 'private, no-store');
     }
 }
