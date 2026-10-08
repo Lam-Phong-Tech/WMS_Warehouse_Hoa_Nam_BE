@@ -1,0 +1,30 @@
+name: P12 Documents Read Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/**'
+      - 'tests/Feature/P12*Test.php'
+      - '.github/workflows/p12-documents-contract.yml'
+permissions:
+  contents: read
+jobs:
+  source-snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Archive exact tracked source for isolated review
+        run: |
+          mkdir -p /tmp/p12-source
+          git rev-parse HEAD > /tmp/p12-source/source-sha.txt
+          git archive --format=tar HEAD | gzip > /tmp/p12-source/source.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p12-source-${{ github.sha }}
+          path: /tmp/p12-source/
+          retention-days: 1
+          if-no-files-found: error
