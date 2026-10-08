@@ -13,7 +13,6 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\WarehouseContext;
-use Modules\Warehouse\Models\Warehouse;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 
