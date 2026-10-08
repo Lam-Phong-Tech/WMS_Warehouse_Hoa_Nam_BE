@@ -75,9 +75,6 @@ jobs:
                               'updated_at' => now(),
                           ]);
                   });'''
-          # Remove YAML/Python visual alignment from the literal, preserving PHP indent.
-          lines = new.splitlines()
-          new = '\n'.join([lines[0]] + [line[10:] for line in lines[1:]])
           text = text[:start] + new + text[end:]
           text = text.replace('không ghi đè giá trị đã có, và bỏ qua an toàn nếu bảng bị guard immutable.',
                               'không ghi đè giá trị đã có; không lấp dữ liệu lịch sử đã bất biến.')
@@ -90,8 +87,6 @@ jobs:
                           'Thay cả cụm theo khuyến cáo hãng',
                       ],
           """
-          lines = old.splitlines()
-          old = '\n'.join([lines[0]] + [line[10:] for line in lines[1:]])
           assert text.count(old) == 1, 'Expected component line note block exactly once'
           text = text.replace(old, '            // Component-issue line notes belong to initial DRAFT creation.\n'
                                    '            // Never backfill historical lines; their POSTED parent is immutable.\n', 1)
