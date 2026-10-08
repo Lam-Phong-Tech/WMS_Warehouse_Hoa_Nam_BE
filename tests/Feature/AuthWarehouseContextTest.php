@@ -23,7 +23,9 @@ class AuthWarehouseContextTest extends TestCase
     use RefreshDatabase;
 
     private const SWITCH = '/api/v1/auth/switch-context';
+
     private const CURRENT = '/api/v1/mini-app/work-shifts/current';
+
     private const START = '/api/v1/mini-app/work-shifts/start';
 
     public function test_existing_context_route_requires_authentication(): void
@@ -218,8 +220,10 @@ class AuthWarehouseContextTest extends TestCase
         [$token, $raw] = $this->login($user);
         $this->select($token, (string) $warehouse->id)->assertOk();
         app(RefreshTokenService::class)->revoke($raw);
-        $this->me($token)->assertOk()->assertJsonPath('data.active_warehouse_id', null)
-            ->assertJsonPath('data.warehouse_context.status', 'NO_SESSION');
+        // A revoked login must be rejected, not returned as a 200 profile with
+        // empty context. Keep the runtime auth gate; strengthen the stale test.
+        $this->me($token)->assertUnauthorized()->assertJsonPath('error.code', 'AUTH_SESSION_EXPIRED')
+            ->assertJsonMissingPath('data.active_warehouse_id')->assertJsonMissingPath('data.available_warehouses');
         $this->select($token, (string) $warehouse->id)->assertUnauthorized()->assertJsonPath('error.code', 'AUTH_SESSION_EXPIRED');
         $this->getJson(self::CURRENT, $this->headers($token))->assertUnauthorized();
     }
@@ -230,8 +234,8 @@ class AuthWarehouseContextTest extends TestCase
         [$token] = $this->login($user);
         $this->select($token, (string) $warehouse->id)->assertOk();
         RefreshToken::query()->where('user_id', $user->user_id)->update(['expires_at' => now()->subMinute()]);
-        $this->me($token)->assertOk()->assertJsonPath('data.active_warehouse_id', null)
-            ->assertJsonPath('data.warehouse_context.error_code', 'AUTH_SESSION_EXPIRED');
+        $this->me($token)->assertUnauthorized()->assertJsonPath('error.code', 'AUTH_SESSION_EXPIRED')
+            ->assertJsonMissingPath('data.active_warehouse_id')->assertJsonMissingPath('data.available_warehouses');
         $this->select($token, (string) $warehouse->id)->assertUnauthorized();
     }
 

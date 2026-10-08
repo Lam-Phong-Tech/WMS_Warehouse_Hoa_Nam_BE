@@ -12,11 +12,13 @@ on:
       - 'Modules/Warehouse/**'
       - 'routes/p14.php'
       - 'tests/Feature/P14*'
+      - 'tests/Feature/AuthWarehouseContextTest.php'
       - '.github/workflows/p14-recovery-shift-contract.yml'
 permissions:
   contents: read
 jobs:
   contract:
+    name: P14 recovery and shift gate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
@@ -71,17 +73,17 @@ jobs:
           php artisan key:generate
           php artisan config:clear
       - name: SQLite P14 and owner context regressions
-        run: php artisan test tests/Feature/P14RecoveryShiftContractTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/P03DraftContractTest.php --log-junit p14-sqlite.xml
+        run: php artisan test tests/Feature/P14*Test.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/P03DraftContractTest.php --log-junit p14-sqlite.xml
       - name: PostgreSQL P14 and owner context regressions
         if: success() || failure()
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p14_contract_test
-        run: php artisan test tests/Feature/P14RecoveryShiftContractTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/P03DraftContractTest.php --log-junit p14-pgsql.xml
+        run: php artisan test tests/Feature/P14*Test.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/P03DraftContractTest.php --log-junit p14-pgsql.xml
       - name: P14 syntax and style
         if: success() || failure()
         run: |
-          files=(app/Http/Controllers/P14*.php app/Http/Middleware/P14*.php app/Support/P14*.php app/Console/Commands/P14*.php app/Providers/P14*.php config/p14.php routes/p14.php bootstrap/providers.php database/migrations/*p14*.php tests/Feature/P14*.php Modules/Warehouse/app/Support/MiniAppWorkShiftService.php Modules/Auth/app/Support/WarehouseContext.php)
+          files=(app/Http/Controllers/P14*.php app/Http/Middleware/P14*.php app/Support/P14*.php app/Console/Commands/P14*.php app/Providers/P14*.php config/p14.php routes/p14.php bootstrap/providers.php database/migrations/*p14*.php tests/Feature/P14*.php tests/Feature/AuthWarehouseContextTest.php Modules/Warehouse/app/Support/MiniAppWorkShiftService.php Modules/Warehouse/app/Support/P09WarrantyRequests.php Modules/Auth/app/Support/WarehouseContext.php Modules/Auth/app/Support/ApiAuthContext.php)
           for f in "${files[@]}"; do php -l "$f" || exit 1; done
           vendor/bin/pint --test --format=json "${files[@]}"
       - name: Publish exact commit test evidence
@@ -98,9 +100,12 @@ jobs:
                   missing.append(name)
                   continue
               root = ET.parse(path).getroot()
+              cases = list(root.iter('testcase'))
+              if not cases:
+                  missing.append(name + ': empty test report')
               for suite in root.findall('./testsuite'):
                   report.append(name + ' ' + str(suite.attrib))
-              for case in root.iter('testcase'):
+              for case in cases:
                   failure = case.find('failure')
                   error = case.find('error')
                   status = 'FAIL' if failure is not None or error is not None else ('SKIP' if case.find('skipped') is not None else 'PASS')

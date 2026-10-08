@@ -56,6 +56,11 @@ final class ApiAuthContext
         'api/v1/auth/forgot-password',
         'api/v1/auth/verify-otp',
         'api/v1/auth/reset-password',
+        // P14 intake/reconcile authenticate only their own receipt capability.
+        // Stale account tokens must not disclose existence or block support.
+        // This never exempts /auth/me or any shift/document endpoint.
+        'api/v1/auth/recovery-requests',
+        'api/v1/auth/recovery-requests/operations/*',
         'api/v1/health',
         'api/v1/public',
         'api/v1/public/*',
