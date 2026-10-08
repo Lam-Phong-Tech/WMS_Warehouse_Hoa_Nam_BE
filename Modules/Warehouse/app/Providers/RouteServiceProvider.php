@@ -4,6 +4,8 @@ namespace Modules\Warehouse\Providers;
 
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Controllers\MiniAppNfcController;
+use Modules\Warehouse\Http\Controllers\P07NfcController;
 use Modules\Warehouse\Http\Middleware\MiniAppDraftHandoff;
 use Modules\Warehouse\Http\Middleware\P05OutboundSource;
 use Modules\Warehouse\Services\MiniAppDraftService;
@@ -14,6 +16,9 @@ class RouteServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Applies to existing and route-cached NFC endpoints without duplicate
+        // routes or changes to their permission middleware/canonical writer.
+        $this->app->bind(MiniAppNfcController::class, P07NfcController::class);
         parent::boot();
     }
 
@@ -30,6 +35,7 @@ class RouteServiceProvider extends ServiceProvider
         Route::middleware('api')->prefix('api')->name('api.p04.')->group(module_path($this->name, '/routes/p04_inbound.php'));
         Route::middleware('api')->prefix('api')->name('api.p05.')->group(module_path($this->name, '/routes/p05_outbound.php'));
         Route::middleware('api')->prefix('api')->name('api.p06.')->group(module_path($this->name, '/routes/p06_catalog.php'));
+        Route::middleware('api')->prefix('api')->name('api.p07.')->group(module_path($this->name, '/routes/p07_nfc.php'));
         foreach (Route::getRoutes() as $route) {
             if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()]) && in_array('POST', $route->methods(), true)) {
                 $route->middleware(MiniAppDraftHandoff::class);
