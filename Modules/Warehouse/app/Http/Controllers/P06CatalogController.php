@@ -40,15 +40,7 @@ final class P06CatalogController extends Controller
             return $this->respond([
                 'actor_id' => (string) $actor->user_id, 'auth_session_id' => $session, ...$context,
                 'warehouse_status' => $status, 'read_only' => true,
-                'permissions' => [
-                    'skus' => $actor->hasPermission('sku.view'),
-                    'items' => $actor->hasPermission('sku.view') && $actor->hasPermission('item_instance.view'),
-                    'stock' => $actor->hasPermission('sku.view') && $actor->hasPermission('inventory.view'),
-                    'ledger' => $actor->hasPermission('inventory.trace'),
-                    'warranty_view' => $actor->hasPermission('warranty.view') || $actor->hasPermission('warranty.manage'),
-                    'warranty_manage' => $actor->hasPermission('warranty.manage'),
-                    'label_print_permission' => $actor->hasPermission('label.print'),
-                ],
+                'permissions' => $this->permissions($actor),
                 'identity_types' => ['SKU', 'ITEM'],
                 'sku_scope' => 'GLOBAL_MASTER_WITH_SELECTED_WAREHOUSE_STOCK',
                 'item_scope' => 'SELECTED_WAREHOUSE_HISTORY_OR_PERMITTED_WARRANTY_NOT_CURRENT_LOCATION',
@@ -302,17 +294,33 @@ final class P06CatalogController extends Controller
         ];
     }
 
-    private function capabilities(User $actor, ?string $itemId): array
+    /** One named permission projection for context and detail; no role-name inference. */
+    private function permissions(User $actor): array
     {
         return [
+            'skus' => $actor->hasPermission('sku.view'),
+            'items' => $actor->hasPermission('sku.view') && $actor->hasPermission('item_instance.view'),
+            'stock' => $actor->hasPermission('sku.view') && $actor->hasPermission('inventory.view'),
+            'ledger' => $actor->hasPermission('inventory.trace'),
+            'warranty_view' => $actor->hasPermission('warranty.view') || $actor->hasPermission('warranty.manage'),
+            'warranty_manage' => $actor->hasPermission('warranty.manage'),
+            'label_print_permission' => $actor->hasPermission('label.print'),
+        ];
+    }
+
+    private function capabilities(User $actor, ?string $itemId): array
+    {
+        $permissions = $this->permissions($actor);
+
+        return [
             'warranty' => [
-                'view_permitted' => $actor->hasPermission('warranty.view') || $actor->hasPermission('warranty.manage'),
-                'manage_permitted' => $actor->hasPermission('warranty.manage'),
+                'view_permitted' => $permissions['warranty_view'],
+                'manage_permitted' => $permissions['warranty_manage'],
                 'target_type' => $itemId === null ? null : 'ITEM', 'target_id' => $itemId,
                 'action_exposed' => false, 'reason' => 'P06_READ_ONLY_OWNER_FLOW_REVALIDATES',
             ],
             'label_print' => [
-                'permission_granted' => $actor->hasPermission('label.print'), 'target_type' => 'LABEL_SNAPSHOT',
+                'permission_granted' => $permissions['label_print_permission'], 'target_type' => 'LABEL_SNAPSHOT',
                 'target_id' => null, 'action_exposed' => false, 'reason' => 'LABEL_TARGET_REQUIRED_NO_P06_PRINT_API',
             ],
         ];
