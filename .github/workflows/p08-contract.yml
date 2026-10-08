@@ -1,0 +1,104 @@
+name: P08 Read-only History Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'tests/Feature/P08*Test.php'
+      - 'tests/Unit/P08*Test.php'
+      - 'scripts/verify-p08-*.php'
+      - '.github/workflows/p08-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p08-disposable-ci-only
+          POSTGRES_DB: p08_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p08_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p08-disposable-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p08-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Verify syntax and pure contracts
+        run: |
+          find Modules/Warehouse -name '*P08*.php' -print0 | xargs -0 -n1 php -l
+          php -l Modules/Warehouse/routes/p08_history.php
+          php -l tests/Feature/P08HistoryContractTest.php
+          php -l tests/Unit/P08HistoryReadContractTest.php
+          php scripts/verify-p08-history-contract.php
+          php scripts/verify-p08-session-contract.php
+      - name: Prepare isolated application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: SQLite P08 HTTP and unit contract
+        run: php artisan test tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php --log-junit p08-sqlite.xml
+      - name: PostgreSQL P08 HTTP and unit contract
+        if: success() || failure()
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: p08_contract_test
+        run: php artisan test tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php --log-junit p08-pgsql.xml
+      - name: Verify route cache preserves the four read operations
+        if: success() || failure()
+        run: |
+          php artisan route:cache
+          php artisan route:list --path=api/v1/mini-app/history --json > /tmp/p08-routes.json
+          python3 - <<'PY'
+          import json
+          routes=json.load(open('/tmp/p08-routes.json'))
+          assert len(routes)==4, routes
+          assert all(set(r['method'].split('|')) <= {'GET','HEAD'} for r in routes)
+          assert all('export' not in r['uri'] for r in routes)
+          PY
+          php artisan route:clear
+      - name: Keep isolated test evidence (not DEV or production smoke)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p08-isolated-test-evidence
+          path: p08-*.xml
+          if-no-files-found: warn
+          retention-days: 7
