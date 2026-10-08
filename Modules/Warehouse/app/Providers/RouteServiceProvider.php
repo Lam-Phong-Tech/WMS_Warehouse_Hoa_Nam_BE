@@ -29,6 +29,7 @@ class RouteServiceProvider extends ServiceProvider
         Route::middleware('api')->prefix('api')->name('api.p03.')->group(module_path($this->name, '/routes/p03_drafts.php'));
         Route::middleware('api')->prefix('api')->name('api.p04.')->group(module_path($this->name, '/routes/p04_inbound.php'));
         Route::middleware('api')->prefix('api')->name('api.p05.')->group(module_path($this->name, '/routes/p05_outbound.php'));
+        Route::middleware('api')->prefix('api')->name('api.p06.')->group(module_path($this->name, '/routes/p06_catalog.php'));
         foreach (Route::getRoutes() as $route) {
             if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()]) && in_array('POST', $route->methods(), true)) {
                 $route->middleware(MiniAppDraftHandoff::class);
