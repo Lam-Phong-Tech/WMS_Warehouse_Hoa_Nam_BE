@@ -56,12 +56,12 @@ class P04InboundContractTest extends TestCase
         $this->getJson(self::BASE.'/types?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()
             ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', 'receipt')
             ->assertJsonPath('data.0.allowed', true)->assertJsonPath('meta.source', 'CANONICAL_RECORD_CAPABILITY');
-        $this->getJson(self::BASE.'/suppliers?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()
+        $this->getJson(self::BASE.'/suppliers', $this->headers($token))->assertOk()
             ->assertJsonPath('meta.total', 0)->assertJsonCount(0, 'data');
         $this->assertDatabaseCount('inbound_suppliers', 0);
     }
 
-    public function test_supplier_search_filters_scope_status_literal_query_and_sql_pagination(): void
+    public function test_supplier_search_is_global_with_status_literal_query_and_sql_pagination(): void
     {
         [, $token, , $warehouse] = $this->actor();
         $a = $this->supplierRow($warehouse, 'Alpha 100%');
@@ -69,11 +69,11 @@ class P04InboundContractTest extends TestCase
         $inactive = $this->supplierRow($warehouse, 'Alpha inactive', 'INACTIVE');
         $other = Warehouse::create(['code' => 'P04-OTHER', 'name' => 'Other isolated warehouse', 'status' => 'INACTIVE']);
         $this->supplierRow($other, 'Alpha foreign');
-        $url = self::BASE.'/suppliers?warehouse_id='.$warehouse->id;
+        $url = self::BASE.'/suppliers?status=ACTIVE';
         $this->getJson($url.'&q=Alpha&per_page=1&page=1', $this->headers($token))->assertOk()
-            ->assertJsonPath('meta.total', 2)->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $a);
+            ->assertJsonPath('meta.scope', 'GLOBAL')->assertJsonPath('meta.total', 3)->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $a);
         $this->getJson($url.'&q=100%25', $this->headers($token))->assertOk()->assertJsonPath('meta.total', 1);
-        $this->getJson($url.'&status=INACTIVE', $this->headers($token))->assertOk()->assertJsonPath('data.0.id', $inactive);
+        $this->getJson(self::BASE.'/suppliers?status=INACTIVE', $this->headers($token))->assertOk()->assertJsonPath('data.0.id', $inactive);
         $this->getJson($url.'&per_page=101', $this->headers($token))->assertStatus(422);
     }
 
@@ -125,7 +125,8 @@ class P04InboundContractTest extends TestCase
     public function test_record_replay_reconcile_and_p12_p22_reads_share_one_real_document(): void
     {
         [, $token, , $warehouse] = $this->actor();
-        $supplier = $this->supplierRow($warehouse, 'Isolated P04 supplier');
+        $supplierWarehouse = Warehouse::create(['code' => 'P04-GLOBAL-SUPPLIER', 'name' => 'Historical supplier origin', 'status' => 'INACTIVE']);
+        $supplier = $this->supplierRow($supplierWarehouse, 'Isolated P04 supplier');
         [$id, $body] = $this->save($token, $warehouse, ['supplier_id' => $supplier]);
         $key = (string) Str::uuid();
         $input = $this->identity($body) + ['client_request_id' => $key];

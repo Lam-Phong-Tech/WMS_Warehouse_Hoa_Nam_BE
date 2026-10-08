@@ -2,10 +2,10 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
+use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\ScanRequestFingerprint;
@@ -13,11 +13,14 @@ use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Modules\Warehouse\Models\StockDocument;
+use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
+use Modules\Warehouse\Support\P12DocumentReadContract;
 use Modules\Warehouse\Support\SkuInboundInfoRule;
 
 /**
@@ -61,7 +64,7 @@ class MiniAppInboundController extends Controller
     public function index(Request $request)
     {
         // Validate before a read-cache hit; retain the existing permission/scope middleware.
-        $request->validate(['warehouse_id' => ['nullable', 'uuid']]);
+        P12DocumentReadContract::validateList($request);
 
         // Kiểm tra tham số TRƯỚC cache: status sai phải trả 422 ngay, không phụ thuộc
         // việc khoá cache đã có entry hay chưa.
@@ -84,12 +87,12 @@ class MiniAppInboundController extends Controller
         // trong khoá qua readCacheScopeIds(), phân trang chạy TRONG SQL nên page/per_page
         // cũng phải nằm trong khoá.
         $cached = $this->cachedReadPayload(
-            'miniapp:inbound:list:p02-scope-sort-v1',
+            'miniapp:inbound:list:p12-read-v1',
             $this->readFiltersWithPaging($request),
             function () use ($request, $status, $readyFilter, $perPage): array {
                 $page = $this->indexQuery($request, $status, $readyFilter)
-                    ->orderByDesc('created_at')
-                    ->orderByDesc('id')
+                    ->orderBy('created_at', $request->query('sort_order', 'desc'))
+                    ->orderBy('id', $request->query('sort_order', 'desc'))
                     ->paginate($perPage);
 
                 return [
@@ -101,13 +104,13 @@ class MiniAppInboundController extends Controller
             self::CACHE_VERSION_NS,
         );
 
-        return $this->respondPaginated(new LengthAwarePaginator(
+        return P12DocumentReadContract::listResponse($this->respondPaginated(new LengthAwarePaginator(
             $cached['items'],
             $cached['total'],
             $perPage,
             $currentPage,
-            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
-        ));
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page', 'query' => $request->query()],
+        )), $request, 'INBOUND');
     }
 
     /** Truy vấn danh sách phiếu nhập Mini App — tách khỏi index() để nằm gọn trong closure cache. */
@@ -146,6 +149,8 @@ class MiniAppInboundController extends Controller
         }
 
         $this->applyKeyword($query, $request, ['doc_no', 'source_name', 'note']);
+
+        P12DocumentReadContract::applyCreatedRange($query, $request);
 
         return $query;
     }
@@ -370,6 +375,8 @@ class MiniAppInboundController extends Controller
 
     public function scanEntries(Request $request, string $id)
     {
+        P12DocumentReadContract::validateEvidence($request);
+
         // Phiếu không tồn tại phải trả 404 NGAY — kiểm tra TRƯỚC cache, nếu để sau thì
         // một cache hit sẽ nuốt mất 404.
         $document = DB::table('stock_documents')
@@ -391,29 +398,31 @@ class MiniAppInboundController extends Controller
         // TTL 'stock_short' (20s): đây là bằng chứng scan mà máy quét vừa ghi xong đọc lại
         // ngay; scan()/unscan() bên trên bump `stock:version` nên danh sách đổi tức thì.
         $cached = $this->cachedReadPayload(
-            'miniapp:inbound:scan-entries',
+            'miniapp:inbound:scan-entries:p12-v1',
             // array_merge chứ KHÔNG dùng `+`: `+` để vế trái thắng khi trùng khoá, nên
             // `?document_id=<phiếu khác>` sẽ ghi đè id thật của route và hai phiếu dùng
             // chung một entry.
             array_merge($this->readFiltersWithPaging($request), ['document_id' => $id]),
             function () use ($id, $statusFilter, $perPage): array {
-                $page = $this->scanEntriesQuery($id, $statusFilter)
+                $base = $this->scanEntriesQuery($id, $statusFilter);
+                $page = (clone $base)
                     ->orderByDesc('e.created_at')
+                    ->orderByDesc('e.id')
                     ->paginate($perPage);
 
-                return ['items' => $page->items(), 'total' => $page->total()];
+                return ['items' => $page->items(), 'total' => $page->total(), 'summary' => P12DocumentReadContract::evidenceSummary($base)];
             },
             'stock_short',
             self::CACHE_VERSION_NS,
         );
 
-        return $this->respondPaginated(new LengthAwarePaginator(
+        return P12DocumentReadContract::evidenceResponse($this->respondPaginated(new LengthAwarePaginator(
             $cached['items'],
             $cached['total'],
             $perPage,
             $currentPage,
-            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
-        ));
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page', 'query' => $request->query()],
+        )), $cached['summary'], $id, $statusFilter);
     }
 
     /** Truy vấn scan-entry của một phiếu nhập — tách khỏi scanEntries() để nằm gọn trong closure cache. */
@@ -430,8 +439,12 @@ class MiniAppInboundController extends Controller
             'e.created_at',
             'l.line_no',
             'l.product_id',
+            'l.product_id as sku_id',
+            'e.inbound_line_id as line_id',
             's.sku_code',
             's.sku_name',
+            's.unit',
+            'l.stock_document_id as document_id',
             'i.serial_number',
         ];
 
@@ -604,7 +617,7 @@ class MiniAppInboundController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<string,object>  $skus
+     * @param  Collection<string,object>  $skus
      * @param  list<array{sku_id:string, sku_code:string, sku_name:string, missing_fields:list<string>}>  $incompleteSkus
      * @return array<string,mixed>
      */
@@ -680,7 +693,7 @@ class MiniAppInboundController extends Controller
         ];
     }
 
-    /** @return \Illuminate\Support\Collection<int,\Modules\Warehouse\Models\StockDocumentLine> */
+    /** @return Collection<int,StockDocumentLine> */
     private function linesOf(StockDocument $document)
     {
         return $document->relationLoaded('lines') ? $document->lines : $document->lines()->get();
@@ -746,7 +759,7 @@ class MiniAppInboundController extends Controller
         }
         $expiresAt = empty($document->created_at)
             ? null
-            : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek();
+            : Carbon::parse($document->created_at)->addWeek();
         if ($expiresAt !== null && now()->greaterThanOrEqualTo($expiresAt)) {
             ApiError::abort(409, 'DRAFT_EXPIRED', 'Phiếu nháp đã hết hạn sau 07 ngày. Hãy hủy phiếu hoặc tạo phiếu mới.', [
                 'document_id' => (string) $document->id,

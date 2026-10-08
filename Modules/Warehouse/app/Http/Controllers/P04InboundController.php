@@ -54,7 +54,7 @@ final class P04InboundController extends Controller
         $data['scan_session_creation'] = 'WITH_DRAFT_SAVE';
         $data['scan_session_expiry_policy'] = 'AUTH_SESSION';
         $data['document_number_assignment'] = 'ON_RECORD';
-        $data['supplier_directory'] = ['scope' => 'WAREHOUSE', 'source' => 'inbound_suppliers', 'required' => false];
+        $data['supplier_directory'] = ['scope' => 'GLOBAL', 'source' => 'inbound_suppliers', 'required' => false];
 
         return $this->response($data);
     }
@@ -65,6 +65,7 @@ final class P04InboundController extends Controller
 
         return DB::transaction(function () use ($request, $input): JsonResponse {
             $this->scope($request, $input['warehouse_id'], 'read');
+
             // Capability catalogue, not business fixtures. No purchase/transfer/
             // return subtypes are invented over the sole canonical receipt flow.
             return $this->response([[
@@ -86,9 +87,15 @@ final class P04InboundController extends Controller
         ], false);
 
         return DB::transaction(function () use ($request, $input): JsonResponse {
-            $scope = $this->scope($request, $input['warehouse_id'], 'read');
-            $query = DB::table('inbound_suppliers')->where('warehouse_id', $scope['warehouse_id'])
-                ->where('status', $input['status'] ?? 'ACTIVE');
+            $actor = User::whereKey($request->user()->user_id)->lockForUpdate()->first();
+            if ($actor === null || $actor->status !== 'ACTIVE') {
+                ApiError::abort(403, 'ACCESS_DENIED', 'Tài khoản không còn hoạt động.');
+            }
+            app(StableAuthSession::class)->requireId($actor);
+            if (! $this->drafts->permissions($actor)['INBOUND']['read']) {
+                ApiError::abort(403, 'P04_OPERATION_DENIED', 'Không có quyền tra cứu nhà cung cấp.');
+            }
+            $query = DB::table('inbound_suppliers')->where('status', $input['status'] ?? 'ACTIVE');
             $term = trim((string) ($input['q'] ?? ''));
             if ($term !== '') {
                 $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($term)).'%';
@@ -103,7 +110,7 @@ final class P04InboundController extends Controller
             return $this->response($rows, 200, [
                 'page' => $page, 'per_page' => $perPage, 'total' => $total,
                 'last_page' => max(1, (int) ceil($total / $perPage)),
-                'warehouse_id' => $scope['warehouse_id'], 'source' => 'inbound_suppliers',
+                'scope' => 'GLOBAL', 'source' => 'inbound_suppliers',
             ]);
         });
     }
@@ -351,6 +358,9 @@ final class P04InboundController extends Controller
     private function input(Request $request, array $extra, bool $body = true): array
     {
         $rules = ['warehouse_id' => ['required', 'uuid']] + $extra;
+        if ($request->is('api/v1/mini-app/inbound/suppliers')) {
+            $rules = $extra; // GLOBAL lookup never accepts a warehouse_id query.
+        }
         if ($request->is('api/v1/mini-app/inbound/context')) {
             $rules = [];
         }
@@ -452,9 +462,9 @@ final class P04InboundController extends Controller
         if ($id === null) {
             return null;
         }
-        $supplier = DB::table('inbound_suppliers')->where('id', strtolower($id))->where('warehouse_id', $warehouseId)->lockForUpdate()->first();
+        $supplier = DB::table('inbound_suppliers')->where('id', strtolower($id))->lockForUpdate()->first();
         if ($supplier === null) {
-            ApiError::abort(422, 'SUPPLIER_NOT_AVAILABLE', 'Nhà cung cấp không tồn tại trong phạm vi kho này.');
+            ApiError::abort(422, 'SUPPLIER_NOT_AVAILABLE', 'Nhà cung cấp không tồn tại trong danh mục chung.');
         }
         if ($supplier->status !== 'ACTIVE') {
             ApiError::abort(409, 'SUPPLIER_INACTIVE', 'Nhà cung cấp đã ngừng sử dụng; chọn lại trước khi ghi nhận.');
@@ -488,6 +498,7 @@ final class P04InboundController extends Controller
             if ($validation->fails()) {
                 $rows[] = $row + ['errors' => $validation->errors()->toArray()];
                 $rows[array_key_last($rows)]['reason_code'] = 'INVALID_ITEM_FIELDS';
+
                 continue;
             }
             try {

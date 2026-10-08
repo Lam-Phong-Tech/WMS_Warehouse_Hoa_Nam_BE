@@ -64,8 +64,8 @@ final class P12DocumentReadContract
     {
         $base = DB::query()->fromSub((clone $query)->reorder(), 'p12_evidence');
         $counts = (clone $base)->selectRaw(
-            "COUNT(*) AS entry_count, COUNT(DISTINCT sku_id) AS sku_count, "
-            ."COUNT(DISTINCT item_id) AS item_count, "
+            'COUNT(*) AS entry_count, COUNT(DISTINCT sku_id) AS sku_count, '
+            .'COUNT(DISTINCT item_id) AS item_count, '
             ."COUNT(DISTINCT NULLIF(TRIM(serial_number), '')) AS resolved_serial_count"
         )->first();
         $byUnit = (clone $base)->select('unit')->selectRaw('SUM(quantity) AS quantity')

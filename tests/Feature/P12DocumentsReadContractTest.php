@@ -9,6 +9,8 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\StockDocument;
+use Modules\Warehouse\Models\StockDocumentLine;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\P12DocumentReadContract;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
@@ -115,6 +117,13 @@ class P12DocumentsReadContractTest extends TestCase
                 ->assertJsonStructure(['data' => [['created_at', 'matched_at', 'line_id', 'raw_code', 'scan_source', 'serial_number']]]);
             $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         }
+        DB::table('outbound_item_matches')->where('id', $ids[0])->update(['status' => 'REMOVED']);
+        $this->getJson(self::BASE.'outbound-documents/'.$id.'/scan-entries?status=ACTIVE&per_page=1', $this->headers($token))
+            ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('meta.summary.entry_count', 2)
+            ->assertJsonPath('meta.summary.quantity_total', 2);
+        $this->getJson(self::BASE.'outbound-documents/'.$id.'/scan-entries?status=REMOVED&per_page=1', $this->headers($token))
+            ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('meta.summary.entry_count', 1)
+            ->assertJsonPath('data.0.id', $ids[0]);
         $this->assertSame($count, DB::table('outbound_item_matches')->count());
         $this->assertSame($before, DB::table('stock_movements')->count());
         fwrite(STDOUT, "\nP12_ISOLATED_SAMPLE=".json_encode(['live_dev' => false, 'summary' => $response->json('meta.summary'), 'http' => 200])."\n");
@@ -170,6 +179,21 @@ class P12DocumentsReadContractTest extends TestCase
         $this->assertCount(2, $summary['quantity_by_unit']);
     }
 
+    public function test_attachment_reads_preserve_parent_metadata_and_failed_child_read_is_not_empty_parent(): void
+    {
+        [, $token, $warehouse] = $this->actorSession();
+        foreach (['inbound', 'outbound'] as $type) {
+            $id = $this->documentFixture($warehouse, $type);
+            $url = self::BASE.$type.'-documents/'.$id;
+            $this->getJson($url.'/attachments?per_page=1', $this->headers($token))->assertOk()
+                ->assertJsonPath('meta.document_id', $id)->assertJsonPath('meta.document_type', strtoupper($type))
+                ->assertJsonPath('meta.total', 0)->assertJsonCount(0, 'data');
+            $this->getJson($url.'/attachments?page=0', $this->headers($token))->assertStatus(422);
+            $this->getJson(self::BASE.'document-attachments/'.Str::uuid().'/download', $this->headers($token))->assertNotFound();
+            $this->getJson($url, $this->headers($token))->assertOk()->assertJsonPath('data.id', $id);
+        }
+    }
+
     private function actorSession(): array
     {
         $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'P12 isolated test warehouse');
@@ -194,13 +218,24 @@ class P12DocumentsReadContractTest extends TestCase
     private function documentFixture(object $warehouse, string $type): string
     {
         $sku = $this->productSkuFixture('P12-'.Str::upper(Str::random(10)));
+        if ($type === 'inbound') {
+            // Create the correct canonical type from the start. PostgreSQL mirrors
+            // forbid converting an issue with existing outbound lines to a receipt.
+            $actorId = User::query()->firstOrFail()->user_id;
+            $doc = StockDocument::create([
+                'doc_type' => 'receipt', 'doc_no' => 'P12-IN-'.Str::upper(Str::random(12)),
+                'doc_date' => '2026-10-08', 'status' => 'DRAFT', 'dst_warehouse_id' => $warehouse->id,
+                'created_by' => $actorId, 'updated_by' => $actorId,
+            ]);
+            StockDocumentLine::create([
+                'stock_document_id' => $doc->id, 'line_no' => 1, 'product_id' => $sku->sku_id,
+                'qty_planned' => 1, 'qty_actual' => 0, 'scanned_qty' => 0,
+            ]);
+
+            return (string) $doc->id;
+        }
         $request = $this->outboundRequestFixture($sku->sku_id, 1, 'P12-REQ-'.Str::upper(Str::random(10)));
         $doc = $this->outboundDocumentFixture($warehouse->id, $request);
-        if ($type === 'inbound') {
-            DB::table('stock_documents')->where('id', $doc['document_id'])->update([
-                'doc_type' => 'receipt', 'dst_warehouse_id' => $warehouse->id, 'src_warehouse_id' => null,
-            ]);
-        }
 
         return $doc['document_id'];
     }

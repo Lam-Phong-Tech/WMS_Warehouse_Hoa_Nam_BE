@@ -357,7 +357,10 @@ class DocumentAttachmentController extends Controller
             afterData: ['document_type' => (string) $row->document_type, 'document_id' => (string) $row->document_id],
         );
 
-        return Storage::disk($disk)->download($path, (string) $row->file_name);
+        return Storage::disk($disk)->download($path, (string) $row->file_name, [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     #[OA\Delete(
@@ -410,12 +413,19 @@ class DocumentAttachmentController extends Controller
 
     private function indexPayload(Request $request, string $documentType, string $documentId, array $extra)
     {
+        $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'between:1,200'],
+            'page_size' => ['sometimes', 'integer', 'between:1,200'],
+            'cursor' => ['prohibited'],
+        ]);
         $page = DB::table('document_attachments')
             ->where('document_type', $documentType)
             ->where('document_id', $documentId)
             ->where('status', '!=', 'DELETED')
             ->orderByDesc('created_at')
-            ->paginate($this->perPage($request));
+            ->orderByDesc('id')
+            ->paginate($this->perPage($request))->appends($request->query());
         $page->getCollection()->transform(fn (object $row): array => $this->payload($row));
 
         $hasEvidence = DocumentEvidenceGuard::hasActiveEvidence($documentType, $documentId);
@@ -425,8 +435,10 @@ class DocumentAttachmentController extends Controller
         $body = $response->getData(true);
         $body['meta']['evidence_status'] = $hasEvidence ? 'PROVIDED' : ($requiresEvidence ? 'PENDING' : 'NOT_REQUIRED');
         $body['meta']['requires_evidence'] = $requiresEvidence;
+        $body['meta']['document_id'] = $documentId;
+        $body['meta']['document_type'] = $documentType;
 
-        return $response->setData($body);
+        return $response->setData($body)->header('Cache-Control', 'private, no-store');
     }
 
     private function storeAttachment(Request $request, string $documentType, string $documentId)
