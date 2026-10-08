@@ -2077,7 +2077,7 @@ class WarehouseOperationsCoverageSeeder extends Seeder
     /**
      * Yêu cầu người dùng: "không cột nào được thiếu dữ liệu". Các seeder cũ để
      * trống vài cột vẫn hiện ra UI, nên điền nốt ở đây — chỉ ĐIỀN CHỖ TRỐNG,
-     * không ghi đè giá trị đã có, và bỏ qua an toàn nếu bảng bị guard immutable.
+     * không ghi đè giá trị đã có; không lấp dữ liệu lịch sử đã bất biến.
      */
     private function backfillDisplayGaps(): void
     {
@@ -2125,18 +2125,18 @@ class WarehouseOperationsCoverageSeeder extends Seeder
                 'updated_at' => now(),
             ]);
 
-        // 5. Ghi chú phiếu xuất linh kiện (bảng có thể bị guard immutable sau
-        //    POSTED tuỳ driver → bọc try/catch, thiếu ghi chú không phải lỗi chặn).
-        try {
+        // 5. Chỉ điền ghi chú khi phiếu còn DRAFT. POSTED/CANCELLED là lịch sử,
+        //    không được sửa để lấp ô trống. Điều kiện nằm ngay trong UPDATE.
+        //    Savepoint bảo vệ outer transaction; lỗi SQL phải nổi lên, không nuốt.
+        DB::transaction(function (): void {
             DB::table('component_issue_documents')
+                ->where('status', 'DRAFT')
                 ->whereNull('note')
                 ->update([
                     'note' => DB::raw("'Xuất linh kiện thay thế cho hồ sơ bảo hành — phiếu ' || component_issue_no"),
                     'updated_at' => now(),
                 ]);
-        } catch (Throwable $e) {
-            $this->command?->warn('  ghi chú phiếu xuất linh kiện: '.$this->describe($e));
-        }
+        });
     }
 
     // ==================================================================

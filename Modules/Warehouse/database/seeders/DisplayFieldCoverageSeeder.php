@@ -298,11 +298,8 @@ class DisplayFieldCoverageSeeder extends Seeder
                 'Khách yêu cầu đóng thêm lớp xốp chống va đập',
                 'Xuất kèm phiếu bảo hành bản cứng',
             ],
-            'component_issue_lines' => [
-                'Linh kiện thay theo kết quả kiểm tra bảo hành',
-                'Lấy từ hộp linh kiện đang mở, còn dư trả lại kho',
-                'Thay cả cụm theo khuyến cáo hãng',
-            ],
+            // Component-issue line notes belong to initial DRAFT creation.
+            // Never backfill historical lines; their POSTED parent is immutable.
             'outbound_request_lines' => [
                 'Ưu tiên giao trước cho đại lý khu vực',
                 'Chờ xác nhận số lượng cuối từ khách',
