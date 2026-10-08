@@ -22,9 +22,11 @@ def fixture(s):
         if ($type === 'inbound') {
             // Create the correct canonical type from the start. PostgreSQL mirrors
             // forbid converting an issue with existing outbound lines to a receipt.
+            $actorId = User::query()->firstOrFail()->user_id;
             $doc = \Modules\Warehouse\Models\StockDocument::create([
                 'doc_type' => 'receipt', 'doc_no' => 'P12-IN-'.Str::upper(Str::random(12)),
                 'doc_date' => '2026-10-08', 'status' => 'DRAFT', 'dst_warehouse_id' => $warehouse->id,
+                'created_by' => $actorId, 'updated_by' => $actorId,
             ]);
             \Modules\Warehouse\Models\StockDocumentLine::create([
                 'stock_document_id' => $doc->id, 'line_no' => 1, 'product_id' => $sku->sku_id,
