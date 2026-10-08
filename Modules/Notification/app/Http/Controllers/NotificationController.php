@@ -3,13 +3,16 @@
 namespace Modules\Notification\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Notification\Models\NotificationRecipient;
+use Modules\Notification\Support\P13NotificationCursor;
 use OpenApi\Attributes as OA;
 
 class NotificationController extends Controller
@@ -17,77 +20,61 @@ class NotificationController extends Controller
     use ApiResponse;
     use CachesReadPayload;
 
-    /**
-     * Thông báo là dữ liệu RIÊNG TỪNG NGƯỜI nên dùng namespace phiên bản riêng chứ
-     * không dùng chung `stock:version`: một lần đánh dấu đã đọc không được kéo theo
-     * invalidate toàn bộ cache tồn kho/báo cáo, và ngược lại một mutation tồn kho
-     * cũng không cần dựng lại danh sách thông báo.
-     */
     private const CACHE_VERSION_NS = 'notification:version';
 
     #[OA\Get(
         path: '/api/v1/notifications',
         operationId: 'notification_list',
-        summary: 'Danh sách thông báo của tôi (phân trang, filter unread/severity)',
+        summary: 'Danh sách thông báo của tôi (offset hoặc keyset)',
+        description: 'id là NotificationRecipient.id, không phải notification_id. Dùng cursor=start cho lượt keyset đầu, sau đó gửi nguyên next_cursor với cùng bộ lọc; không gửi page. Cursor hết hạn sau 900 giây. Unread là tập hiện tại, không phải snapshot bất biến.',
         security: [['bearerAuth' => []]],
         tags: ['16. Notifications'],
         parameters: [
-            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
-            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
+            new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 15)),
             new OA\Parameter(name: 'unread', in: 'query', schema: new OA\Schema(type: 'boolean')),
             new OA\Parameter(name: 'severity', in: 'query', schema: new OA\Schema(type: 'string', enum: ['info', 'warning', 'critical'])),
+            new OA\Parameter(name: 'cursor', in: 'query', schema: new OA\Schema(type: 'string')),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Danh sách thông báo của user hiện tại'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 409, description: 'NOTIFICATION_CURSOR_SCOPE_MISMATCH'),
+            new OA\Response(response: 410, description: 'NOTIFICATION_CURSOR_EXPIRED'),
+            new OA\Response(response: 422, description: 'Bộ lọc/cursor không hợp lệ hoặc kết hợp page và cursor'),
         ]
     )]
     public function index(Request $request)
     {
-        $perPage = (int) $request->input('per_page', 15);
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+        $input = P13NotificationCursor::validate($request);
+        $outer = DB::transactionLevel() === 0;
 
-        // TTL 'stock_short' (20s): danh sách thông báo phải bám sát thao tác của chính
-        // người đang xem. actorId BẮT BUỘC nằm trong khoá — thiếu nó là người này đọc
-        // được thông báo của người kia, lỗi nặng hơn hẳn dữ liệu cũ. Phân trang chạy
-        // TRONG SQL nên page/per_page phải nằm trong khoá (readFiltersWithPaging).
-        $cached = $this->cachedReadPayload(
-            'notification:list',
-            $this->readFiltersWithPaging($request),
-            function () use ($request, $perPage): array {
-                $recipients = NotificationRecipient::query()
-                    ->with('notification')
-                    ->where('user_id', $request->user()->user_id)
-                    ->when($request->boolean('unread'), fn ($q) => $q->whereNull('read_at'))
-                    ->when($request->filled('severity'), fn ($q) => $q->whereHas(
-                        'notification',
-                        fn ($n) => $n->where('severity', $request->input('severity'))
-                    ))
-                    ->orderByDesc('created_at')
-                    ->paginate($perPage);
-
-                return [
-                    'items' => collect($recipients->items())
-                        ->map(fn (NotificationRecipient $r): array => $this->present($r))
-                        ->all(),
-                    'total' => $recipients->total(),
+        return DB::transaction(function () use ($request, $input, $outer): JsonResponse {
+            // Count, page and projections share this response's snapshot, not a cross-request snapshot.
+            if ($outer && DB::getDriverName() === 'pgsql') {
+                DB::statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+            }
+            if ($input['cursor'] !== null) {
+                $page = P13NotificationCursor::read($request, $input);
+                $response = $this->respondSuccess($this->presentRows($request, $page['rows'])->all());
+                $meta = $page['meta'];
+            } else {
+                // Retain offset transport for existing clients, but never label it stable for mutable unread.
+                $page = P13NotificationCursor::query($request, $input)
+                    ->orderByDesc('created_at')->orderByDesc('id')
+                    ->paginate($input['per_page'], ['*'], 'page', $input['page']);
+                $page->appends($request->query());
+                $page->setCollection($this->presentRows($request, $page->getCollection()));
+                $response = $this->respondPaginated($page);
+                $meta = [
+                    'contract' => P13NotificationCursor::CONTRACT, 'pagination_mode' => 'offset',
+                    'sort' => ['created_at' => 'desc', 'id' => 'desc'], 'snapshot_consistent' => false,
+                    'mutable_unread_safe' => false, 'keyset_start' => 'start',
                 ];
-            },
-            'stock_short',
-            self::CACHE_VERSION_NS,
-            $this->readCacheActorId(),
-        );
+            }
 
-        // Dựng lại paginator để envelope (meta phân trang + links) giữ NGUYÊN hình dạng
-        // cũ — cùng path/pageName mà ->paginate() vẫn dùng. `meta.request_id`/`timestamp`
-        // do respondPaginated() sinh mới mỗi request nên không bị cache.
-        return $this->respondPaginated(new LengthAwarePaginator(
-            $cached['items'],
-            $cached['total'],
-            $perPage,
-            $currentPage,
-            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'pageName' => 'page'],
-        ));
+            return $this->withReadMeta($response, $meta);
+        });
     }
 
     #[OA\Get(
@@ -97,38 +84,23 @@ class NotificationController extends Controller
         security: [['bearerAuth' => []]],
         tags: ['16. Notifications'],
         responses: [
-            new OA\Response(response: 200, description: 'unread_count'),
+            new OA\Response(response: 200, description: 'data.unread_count là số thật, không giới hạn 9+/99+'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
         ]
     )]
     public function unreadCount(Request $request)
     {
-        // Badge chưa đọc: cùng TTL/namespace/actor với danh sách để hai chỗ không bao
-        // giờ lệch nhau, và cùng được bump ngay khi người dùng đánh dấu đã đọc.
-        $payload = $this->cachedReadPayload(
-            'notification:unread-count',
-            [],
-            fn (): array => [
-                'unread_count' => NotificationRecipient::query()
-                    ->where('user_id', $request->user()->user_id)
-                    ->whereNull('read_at')
-                    ->count(),
-            ],
-            'stock_short',
-            self::CACHE_VERSION_NS,
-            $this->readCacheActorId(),
-        );
-
-        return $this->respondSuccess($payload);
+        // One fresh SQL count: list and badge caches cannot establish a common snapshot.
+        return $this->withReadMeta($this->respondSuccess(['unread_count' => $this->liveUnreadCount($request)]), [
+            'count_scope' => 'CURRENT_USER_ALL_UNREAD', 'count_consistency' => 'LIVE_DATABASE_READ',
+        ]);
     }
 
     #[OA\Get(
         path: '/api/v1/notifications/{id}',
         operationId: 'notification_show',
         summary: 'Chi tiết 1 thông báo của tôi',
-        description: 'Chỉ ĐỌC, không tự đánh dấu đã đọc — muốn đánh dấu thì gọi PATCH /notifications/{id}/read. '
-            .'Thông báo của người khác trả 404 chứ không phải 403, để không lộ việc id đó có tồn tại. '
-            .'Trỏ tới đối tượng nghiệp vụ qua subject_type + subject_id.',
+        description: 'id là recipient UUID. GET không đánh dấu đã đọc. Recipient khác user hoặc không tồn tại đều trả 404. Thông báo không cấp quyền đọc subject.',
         security: [['bearerAuth' => []]],
         tags: ['16. Notifications'],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
@@ -140,59 +112,63 @@ class NotificationController extends Controller
     )]
     public function show(Request $request, string $id)
     {
-        // id không phải UUID thì trên PostgreSQL câu so sánh cột uuid ném 22P02 và
-        // biến một lỗi "không tìm thấy" thành 500. Chặn trước, trả đúng 404.
-        if (! Str::isUuid($id) && ! ctype_digit($id)) {
+        if (! Str::isUuid($id)) {
             return $this->respondNotFound('Không tìm thấy thông báo.');
         }
-
-        $recipient = NotificationRecipient::query()
-            ->with('notification')
-            ->where('user_id', $request->user()->user_id)
-            ->where('id', $id)
-            ->first();
-
+        $recipient = NotificationRecipient::query()->with('notification')
+            ->where('user_id', $request->user()->user_id)->where('id', strtolower($id))->first();
         if ($recipient === null) {
             return $this->respondNotFound('Không tìm thấy thông báo.');
         }
 
-        return $this->respondSuccess($this->present($recipient));
+        return $this->withReadMeta($this->respondSuccess($this->presentRows($request, collect([$recipient]))->first()));
     }
 
     #[OA\Patch(
         path: '/api/v1/notifications/{id}/read',
         operationId: 'notification_mark_read',
         summary: 'Đánh dấu 1 thông báo đã đọc',
+        description: 'Không gửi body/query. Ghi một chiều, idempotent và giữ read_at đầu tiên. Timeout: GET lại cùng recipient để đối chiếu; không tự trừ badge. Không cần và không mở quyền subject.',
         security: [['bearerAuth' => []]],
         tags: ['16. Notifications'],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
         responses: [
-            new OA\Response(response: 200, description: 'Đã đánh dấu đã đọc'),
+            new OA\Response(response: 200, description: 'Recipient, read_at; meta.changed và meta.unread_count sau thao tác'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 404, description: 'Không tìm thấy thông báo của bạn với id này'),
+            new OA\Response(response: 422, description: 'NOTIFICATION_READ_BODY_NOT_ALLOWED'),
         ]
     )]
     public function markRead(Request $request, string $id)
     {
-        $recipient = NotificationRecipient::query()
-            ->where('user_id', $request->user()->user_id)
-            ->where('id', $id)
-            ->first();
+        if (! Str::isUuid($id)) {
+            return $this->respondNotFound('Không tìm thấy thông báo.');
+        }
+        $input = $request->isJson() ? $request->json()->all() : $request->request->all();
+        if ($input !== [] || $request->query() !== [] || $request->allFiles() !== []) {
+            ApiError::abort(422, 'NOTIFICATION_READ_BODY_NOT_ALLOWED', 'Không gửi dữ liệu khi đánh dấu đã đọc.');
+        }
+        [$recipient, $changed] = DB::transaction(function () use ($request, $id): array {
+            $query = NotificationRecipient::query()->where('user_id', $request->user()->user_id)->where('id', strtolower($id));
+            $recipient = (clone $query)->lockForUpdate()->first();
+            if ($recipient === null) {
+                return [null, false];
+            }
+            $changed = (clone $query)->whereNull('read_at')->update(['read_at' => now()]) === 1;
+            if ($changed) {
+                DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+            }
 
+            return [$recipient->fresh('notification'), $changed];
+        }, 3);
         if ($recipient === null) {
             return $this->respondNotFound('Không tìm thấy thông báo.');
         }
 
-        if ($recipient->read_at === null) {
-            $recipient->read_at = now();
-            $recipient->save();
-        }
-
-        // Bump SAU commit: gọi trước commit thì một request khác có thể nạp lại cache từ
-        // dữ liệu CHƯA commit, và badge chưa đọc vẫn sai suốt phần đời còn lại của TTL.
-        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
-
-        return $this->respondSuccess($this->present($recipient->fresh('notification')), 'Đã đánh dấu đã đọc');
+        return $this->withReadMeta(
+            $this->respondSuccess($this->presentRows($request, collect([$recipient]))->first(), 'Đã đánh dấu đã đọc'),
+            ['changed' => $changed, 'unread_count' => $this->liveUnreadCount($request), 'count_consistency' => 'LIVE_AFTER_READ'],
+        );
     }
 
     #[OA\Post(
@@ -220,25 +196,45 @@ class NotificationController extends Controller
         return $this->respondSuccess(['updated_count' => $updated], 'Đã đánh dấu tất cả đã đọc');
     }
 
-    private function present(NotificationRecipient $recipient): array
+    private function liveUnreadCount(Request $request): int
     {
-        $notification = $recipient->notification;
+        return NotificationRecipient::query()->where('user_id', $request->user()->user_id)->whereNull('read_at')->count();
+    }
 
-        return [
-            'id' => $recipient->id,
-            'notification_id' => $notification?->id,
-            'event_key' => $notification?->event_key,
-            'title' => $notification?->title,
-            'body' => $notification?->body,
-            'severity' => $notification?->severity,
-            'source_module' => $notification?->source_module,
-            'subject_type' => $notification?->subject_type,
-            'subject_id' => $notification?->subject_id,
-            'actor_id' => $notification?->actor_id,
-            'actor_name' => $notification?->actor_name,
-            'payload' => $notification?->payload,
-            'read_at' => $recipient->read_at?->toIso8601String(),
-            'created_at' => $recipient->created_at?->toIso8601String(),
-        ];
+    private function presentRows(Request $request, Collection $recipients): Collection
+    {
+        return $recipients->map(function (NotificationRecipient $recipient): array {
+            $notification = $recipient->notification;
+
+            return [
+                'id' => $recipient->id,
+                'notification_id' => $notification?->id,
+                'event_key' => $notification?->event_key,
+                'title' => $notification?->title,
+                'body' => $notification?->body,
+                'severity' => $notification?->severity,
+                'source_module' => $notification?->source_module,
+                'subject_type' => $notification?->subject_type,
+                'subject_id' => $notification?->subject_id,
+                'actor_id' => $notification?->actor_id,
+                'actor_name' => $notification?->actor_name,
+                'payload' => $notification?->payload,
+                'read_at' => $recipient->read_at?->toIso8601String(),
+                'created_at' => $recipient->created_at?->toIso8601String(),
+                'payload_semantics' => 'EVENT_SNAPSHOT_NOT_AUTHORIZATION',
+                'subject' => [
+                    'requires_subject_revalidation' => true,
+                    'web_url' => null, 'web_url_status' => 'NOT_CONFIGURED',
+                ],
+            ];
+        })->values();
+    }
+
+    private function withReadMeta(JsonResponse $response, array $meta = []): JsonResponse
+    {
+        $body = $response->getData(true);
+        $body['meta'] = array_merge($body['meta'] ?? [], ['contract' => P13NotificationCursor::CONTRACT], $meta);
+
+        return $response->setData($body)->header('Cache-Control', 'private, no-store');
     }
 }
