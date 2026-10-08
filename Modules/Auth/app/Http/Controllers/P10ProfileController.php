@@ -16,6 +16,7 @@ use Modules\Auth\Models\User;
 use Modules\Auth\Support\AuthUserPayload;
 use Modules\Auth\Support\P10ProfilePolicy as Policy;
 use Modules\Auth\Support\P10SessionFamily as Family;
+use Modules\Auth\Support\P11SecurityContract as SecurityContract;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
 
@@ -91,6 +92,7 @@ final class P10ProfileController extends AuthController
                 $isCurrent = hash_equals($current, $family);
                 return [
                     'id' => (string) $row->id, 'auth_session_id' => $family,
+                    'session_id' => $family,
                     'is_current' => $isCurrent, 'can_revoke' => ! $isCurrent,
                     'device_label' => null, 'location' => null,
                     'user_agent' => $row->user_agent, 'ip_address' => $row->ip_address,
@@ -102,7 +104,10 @@ final class P10ProfileController extends AuthController
             }));
             $response = $this->respondPaginated($page);
             $payload = $response->getData(true);
+            // Available even when the current family is not on this page.
+            $payload['meta']['current_session_id'] = $current;
             $payload['meta']['session_contract'] = [
+                'version' => SecurityContract::VERSION, 'stable_session_id' => 'session_id',
                 'target_id' => 'id', 'target_id_kind' => 'REFRESH_TOKEN_ROW_UUID',
                 'stable_family_id' => 'auth_session_id', 'count_unit' => 'ACTIVE_AUTH_SESSION_FAMILY',
                 'revoke_scope' => 'ENTIRE_TARGET_FAMILY', 'current_family_protected' => true,
@@ -139,6 +144,7 @@ final class P10ProfileController extends AuthController
             }
             return $this->respondSuccess([
                 'id' => (string) $target->id, 'auth_session_id' => $family,
+                'session_id' => $family,
                 'revoked' => true, 'already_revoked' => $changed === 0, 'was_current' => false,
                 'revocation_scope' => 'AUTH_SESSION_FAMILY', 'request_receipt_supported' => false,
             ], 'Đã thu hồi phiên đăng nhập')->header('Cache-Control', 'private, no-store');
@@ -179,16 +185,25 @@ final class P10ProfileController extends AuthController
     {
         $this->noQuery($request);
         $body = $this->body($request, ['current_password', 'new_password', 'new_password_confirmation']);
-        $data = Validator::make($body, [
-            'current_password' => ['required', 'string', 'max:255'],
-            'new_password' => ['required', 'string', 'min:8', 'max:128', 'confirmed'],
-            'new_password_confirmation' => ['required', 'string', 'max:128'],
-        ])->validate();
+        $validator = Validator::make($body, SecurityContract::passwordRules());
+        $driver = (string) config('hashing.driver', 'bcrypt');
+        if ($validator->fails()) {
+            ApiError::abort(422, SecurityContract::validationCode($validator->failed()),
+                'Thông tin đổi mật khẩu không hợp lệ.', $validator->errors()->toArray(),
+                ['password_policy' => SecurityContract::passwordPolicy($driver)]);
+        }
+        $data = $validator->validated();
+        if (SecurityContract::unsafeEncoding($data['new_password'], $driver)) {
+            ApiError::abort(422, 'PASSWORD_POLICY_VIOLATION',
+                'Mật khẩu chứa ký tự không hỗ trợ hoặc vượt giới hạn byte của bộ mã hóa.',
+                ['new_password' => ['Mật khẩu không đáp ứng password_policy của server.']],
+                ['password_policy' => SecurityContract::passwordPolicy($driver)]);
+        }
         $newHash = Hash::make($data['new_password']);
-        DB::transaction(function () use ($request, $data, $newHash): void {
+        $changedAt = DB::transaction(function () use ($request, $data, $newHash): ?int {
             $user = $this->actor($request, true);
             if (! Hash::check($data['current_password'], $user->password_hash)) {
-                ApiError::abort(422, 'VALIDATION_ERROR', 'Mật khẩu hiện tại không đúng.', ['current_password' => ['Mật khẩu hiện tại không đúng.']]);
+                ApiError::abort(422, SecurityContract::WRONG_CURRENT, 'Mật khẩu hiện tại không đúng.', ['current_password' => ['Mật khẩu hiện tại không đúng.']]);
             }
             $user->forceFill(['password_hash' => $newHash, 'must_change_password' => false,
                 'version' => (int) $user->version + 1])->save();
@@ -198,10 +213,14 @@ final class P10ProfileController extends AuthController
                 objectId: (string) $user->user_id, actorId: (string) $user->user_id,
                 requestId: $request->attributes->get('request_id'),
                 afterData: ['session_policy' => 'RELOGIN_ALL_REFRESH_FAMILIES_REVOKED']);
+            // Return the persisted server timestamp, never a client clock or receipt.
+            return $user->fresh()->passwordChangedAtEpoch();
         }, 3);
         auth('api')->logout();
         return $this->authResult('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.', [
             'session_policy' => 'RELOGIN_ALL_REFRESH_FAMILIES_REVOKED', 'relogin_required' => true,
+            'password_changed_at' => $this->passwordTime($changedAt),
+            'password_policy_version' => SecurityContract::passwordPolicy($driver)['version'],
         ]);
     }
 
@@ -225,8 +244,15 @@ final class P10ProfileController extends AuthController
         $response = $this->respondSuccess(AuthUserPayload::full($user), $message ?? 'Thông tin tài khoản');
         $payload = $response->getData(true);
         $payload['meta']['profile_contract'] = Policy::contract();
+        $payload['meta']['security_contract'] = SecurityContract::contract((string) config('hashing.driver', 'bcrypt'));
+        $payload['data']['password_changed_at'] = $this->passwordTime($user->passwordChangedAtEpoch());
         return $response->setData($payload)->header('ETag', '"'.(int) $user->version.'"')
             ->header('Cache-Control', 'private, no-store');
+    }
+
+    private function passwordTime(?int $epoch): ?string
+    {
+        return $epoch === null ? null : Carbon::createFromTimestamp($epoch, 'UTC')->toIso8601String();
     }
 
     private function authResult(string $message, array $result): JsonResponse

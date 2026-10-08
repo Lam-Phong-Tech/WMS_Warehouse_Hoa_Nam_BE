@@ -1,0 +1,81 @@
+name: P11 Existing Security Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Auth/**'
+      - 'tests/Feature/P10ProfileContractTest.php'
+      - 'tests/Feature/P11SecurityReadContractTest.php'
+      - 'scripts/verify-p11-security-contract.php'
+      - '.github/workflows/p11-security-read-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-p11
+          POSTGRES_DB: p11_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p11_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p11_contract_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${{ github.run_id }}-isolated-p11
+      DB_SSLMODE: disable
+      DB_URL: ''
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Generate isolated signing material
+        run: echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Install locked dependencies
+        run: |
+          cp .env.example .env
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan key:generate
+          php artisan config:clear
+      - name: Validate executable policy
+        run: php scripts/verify-p11-security-contract.php
+      - name: P10 regression and P11 HTTP/database tests
+        run: |
+          php artisan test tests/Feature/P10ProfileContractTest.php
+          php artisan test tests/Feature/P11SecurityReadContractTest.php
+      - name: Verify route-cache behavior
+        run: |
+          php artisan route:cache
+          php artisan test tests/Feature/P10ProfileContractTest.php --filter=test_existing_routes_use_p10
+          php artisan test tests/Feature/P11SecurityReadContractTest.php --filter=test_contract_is_additive
+          php artisan route:clear
