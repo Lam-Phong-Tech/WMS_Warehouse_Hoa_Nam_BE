@@ -7,6 +7,11 @@ on:
       - 'Modules/Warehouse/**'
       - 'Modules/Auth/**'
       - 'tests/Feature/P06*Test.php'
+      - 'tests/Feature/P05OutboundContractTest.php'
+      - 'tests/Feature/P03Draft*Test.php'
+      - 'tests/Feature/P04*Test.php'
+      - 'tests/Feature/AuthWarehouseContextTest.php'
+      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
       - '.github/workflows/p06-contract.yml'
 permissions:
   contents: read
@@ -66,6 +71,7 @@ jobs:
           php -l Modules/Warehouse/routes/p06_catalog.php
           php -l tests/Feature/P06CatalogContractTest.php
           php -l tests/Feature/P06SnapshotTransactionTest.php
+          php -l tests/Feature/WarrantyWarehouseScopeTest.php
       - name: Prepare isolated application
         run: |
           cp .env.example .env
