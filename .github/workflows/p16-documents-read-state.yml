@@ -1,0 +1,126 @@
+name: P16 Owner Document Read States
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'contracts/p16/**'
+      - 'tests/Contracts/p16*'
+      - 'tests/Feature/P16*'
+      - 'tests/Feature/P12DocumentsReadContractTest.php'
+      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
+      - 'Modules/Warehouse/app/Support/SourceCountEvidence.php'
+      - 'Modules/Warehouse/app/Support/P12DocumentReadContract.php'
+      - 'Modules/Warehouse/app/Support/P09*.php'
+      - 'Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/MiniAppWarrantyController.php'
+      - 'Modules/Warehouse/routes/api.php'
+      - '.github/workflows/p16-documents-read-state.yml'
+permissions:
+  contents: read
+concurrency:
+  group: p16-documents-read-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  contract:
+    name: Owner lists (${{ matrix.database }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p16-disposable-ci-only
+          POSTGRES_DB: p16_owner_read_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p16_owner_read_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p16_owner_read_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p16-disposable-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p16-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate GET-only collection without network
+        run: node --test tests/Contracts/p16-postman-guard.test.cjs
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Assert disposable test target before application boot
+        run: |
+          python3 - <<'PY'
+          import os
+          assert os.environ['APP_ENV'] == 'testing'
+          assert os.environ['DB_HOST'] == '127.0.0.1' and os.environ['DB_URL'] == ''
+          assert (os.environ['DB_CONNECTION'], os.environ['DB_DATABASE']) in [('sqlite', ':memory:'), ('pgsql', 'p16_owner_read_test')]
+          PY
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p16-composer.log 2>&1 || { tail -60 /tmp/p16-composer.log; exit 1; }
+      - name: Syntax and isolated application setup
+        run: |
+          for file in Modules/Warehouse/app/Support/{SourceCountEvidence,P12DocumentReadContract,P09WarrantyPage}.php tests/Feature/P16DocumentsReadStateContractTest.php; do php -l "$file"; done
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: P16 and full selected owner regression files
+        run: |
+          php artisan test tests/Feature/P16DocumentsReadStateContractTest.php tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/P06SnapshotTransactionTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p16-${{ matrix.database }}.xml > /tmp/p16-tests.log 2>&1 || { tail -180 /tmp/p16-tests.log; exit 1; }
+          tail -8 /tmp/p16-tests.log
+      - name: Read-only style gate with diagnostic patch on failure
+        if: ${{ !cancelled() }}
+        run: |
+          files=(Modules/Warehouse/app/Support/{SourceCountEvidence,P12DocumentReadContract,P09WarrantyPage}.php tests/Feature/P16DocumentsReadStateContractTest.php)
+          if ! vendor/bin/pint --test "${files[@]}"; then
+            vendor/bin/pint "${files[@]}" >/tmp/p16-pint.log
+            git diff -- "${files[@]}"
+            exit 1
+          fi
+      - name: Publish bounded evidence, never live acceptance
+        if: ${{ !cancelled() }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          report = Path('p16-' + os.environ['DB_CONNECTION'] + '.xml')
+          if not report.is_file(): raise SystemExit('Missing test report; P16 NOT verified.')
+          cases = list(ET.parse(report).getroot().iter('testcase'))
+          counts = {'tests': len(cases), **{k: sum(len(list(c.iter(tag))) for c in cases) for k, tag in [('failures','failure'), ('errors','error'), ('skipped','skipped')]}}
+          own = [c for c in cases if 'P16DocumentsReadStateContractTest' in (c.get('class','') + c.get('classname',''))]
+          evidence = {'sha': os.environ['GITHUB_SHA'], 'database': os.environ['DB_CONNECTION'], 'counts': counts, 'p16_tests': len(own), 'document_sources': 3, 'auth_reads': 1, 'aggregate_verified': False, 'live_verified': False, 'ui_wiring_verified': False, 'production_activation': False, 'scope': 'P16 plus explicitly selected owner regression files only; not full release CI'}
+          print(json.dumps(evidence))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out: out.write('```json\n' + json.dumps(evidence, indent=2) + '\n```\n')
+          if len(own) != 9 or counts['failures'] or counts['errors'] or counts['skipped']: raise SystemExit('Incomplete or failed owner/P16 test evidence.')
+          PY

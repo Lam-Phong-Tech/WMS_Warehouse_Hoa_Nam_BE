@@ -111,6 +111,8 @@ final class P12DocumentReadContract
     {
         $body = $response->getData(true);
         $order = $request->query('sort_order', 'desc');
+        $body['meta']['count_evidence'] = SourceCountEvidence::make($request, (int) $body['meta']['total'],
+            ['warehouse_id', 'page', 'per_page', 'page_size', 'sort_order', 'timezone']);
         $body['meta']['read_contract'] = [
             'source' => $source,
             'date_field' => 'created_at',

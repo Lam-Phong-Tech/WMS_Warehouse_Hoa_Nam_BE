@@ -56,6 +56,8 @@ final class P09WarrantyPage
                 'expires' => $cursor['expires'] ?? time() + 900], JSON_THROW_ON_ERROR));
         }
         return [$rows->pluck('p09_id')->all(), ['total' => $total, 'per_page' => $size,
+            'count_evidence' => SourceCountEvidence::make($request, $total,
+                ['warehouse_id', 'page', 'per_page', 'cursor', 'sort'], ['status' => ['ALL']]),
             'page' => isset($input['page']) ? (int) $input['page'] : null, 'hasMore' => $more, 'nextCursor' => $next,
             'nextPage' => isset($input['page']) && $more ? (int) $input['page'] + 1 : null,
             'pagination' => isset($input['page']) ? 'OFFSET' : 'KEYSET', 'consistency' => 'LIVE_READ_NOT_FROZEN_CROSS_REQUEST']];
