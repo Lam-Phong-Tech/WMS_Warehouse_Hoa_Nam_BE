@@ -11,8 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
@@ -172,7 +172,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
             : WarrantyAttachmentScanner::assertContentType($file);
         $scan = WarrantyAttachmentScanner::scanForMalware($file);
 
-        $attachmentId = (string) Str::uuid();
+        $attachmentId = AttachmentUploadReceipts::attachmentId($request);
         $storageDisk = $mediaKind === 'VIDEO'
             ? (string) config('warranty.video_disk', 'local')
             : (string) config('warranty.photo_disk', self::DISK);
@@ -193,6 +193,7 @@ class CurrentBaselineWarrantyAttachmentController extends Controller
         // Disk để `throw => false`: ghi lỗi (R2 sai credential, mất mạng, bucket chưa có)
         // thì putFileAs trả false chứ không ném. Không chặn ở đây là client nhận 201, DB có
         // dòng ACTIVE nhưng tệp không tồn tại — chỉ lộ ra lúc mở hồ sơ.
+        AttachmentUploadReceipts::trackStorage($request, $storageDisk, $storageKey);
         $stored = Storage::disk($storageDisk)->putFileAs("warranty-attachments/{$id}", $file, "{$attachmentId}.{$extension}");
         if ($stored === false) {
             ApiError::abort(503, 'STORAGE_UNAVAILABLE', 'Không ghi được tệp đính kèm lên kho lưu trữ. Thử lại sau ít phút.');

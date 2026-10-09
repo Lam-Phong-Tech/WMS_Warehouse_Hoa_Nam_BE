@@ -208,6 +208,11 @@ class DocumentAttachmentTest extends TestCase
             'attachment_type' => 'DELIVERY_NOTE',
         ], $headers)->assertCreated()->assertJsonPath('data.document_type', 'OUTBOUND');
 
+        // Isolated posted-state fixture must satisfy the same full-quantity
+        // invariant enforced by PostgreSQL. Do not disable its trigger or alter
+        // the expected 409 on a late attachment upload. This is not a Post API test.
+        DB::table('stock_document_lines')->where('stock_document_id', $documentId)
+            ->update(['scanned_qty' => DB::raw('qty_planned')]);
         DB::table('stock_documents')->where('id', $documentId)->update(['status' => 'POSTED']);
         $this->post("/api/v1/outbound-documents/{$documentId}/attachments", [
             'file' => UploadedFile::fake()->image('too-late.jpg'),

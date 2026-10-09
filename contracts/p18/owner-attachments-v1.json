@@ -1,0 +1,185 @@
+{
+  "contract": "owner-attachment-upload-v1",
+  "date": "2026-10-09",
+  "reviewed_base": "ea7944e6b6e61b48edd8721419dabc816397a859",
+  "user_cited_revision": "b333a6b798eed52a2c19a1bd76500918bc301ec4",
+  "user_cited_revision_resolved": false,
+  "status": "PENDING_CONTRACT_AND_DEPLOYMENT",
+  "production_activation": false,
+  "live_verified": false,
+  "scope": "Opt-in receipt mode on existing Mini App owner uploads; only three new owner GET reconciliation routes. No P18 mutations, viewer, camera or location endpoints.",
+  "upload": {
+    "method": "POST",
+    "paths": [
+      "/api/v1/mini-app/inbound-documents/{parent_id}/attachments",
+      "/api/v1/mini-app/outbound-documents/{parent_id}/attachments",
+      "/api/v1/mini-app/warranty-cases/{parent_id}/attachments"
+    ],
+    "headers": {
+      "Authorization": "Bearer access token",
+      "X-Upload-Contract": "owner-attachment-upload-v1",
+      "Idempotency-Key": "stable UUID for exactly one user-approved upload",
+      "X-Upload-Warehouse-ID": "confirmed active warehouse UUID",
+      "X-Upload-SHA256": "lowercase SHA-256 of actual file bytes"
+    },
+    "body_transport": "multipart/form-data; let the client supply its boundary",
+    "identity": [
+      "actor",
+      "stable auth_session_id",
+      "warehouse",
+      "owner/parent_id",
+      "operation_key",
+      "file hash/size/original filename",
+      "owner form fields"
+    ],
+    "fields_document": [
+      "file",
+      "attachment_type (optional)",
+      "note (optional, max 500)"
+    ],
+    "fields_warranty": [
+      "file",
+      "attachment_type (optional)"
+    ],
+    "forbidden_fields": [
+      "actor_id",
+      "auth_session_id",
+      "client attachment ID",
+      "receiver/date/checked",
+      "note on warranty upload"
+    ],
+    "receipt_path": "meta.upload_receipt",
+    "success_status": 201,
+    "replay": "Same key plus identical fingerprint returns the stored owner HTTP status/body, after current authorization. No second attachment or scanner/storage call. Idempotent-Replay:true.",
+    "conflict": "409 IDEMPOTENCY_CONFLICT for changed file/parent/metadata under the same actor/key; 409 UPLOAD_SESSION_MISMATCH for reuse across new logins.",
+    "unknown_repeat": "409 UPLOAD_OUTCOME_UNKNOWN. CHECK_ONLY; do not upload again, even with the same key, while completion is unknown.",
+    "legacy": "No X-Upload-Contract retains existing owner behavior without durable upload receipt guarantees. Never apply new reconciliation as a fallback for a legacy attempt.",
+    "quota_concurrency": "Opt-in uploads serialize on the owner parent. Legacy uploads have not been migrated to this journal and mixed-mode quota concurrency is not certified. Production must not assume all clients opted in."
+  },
+  "reconcile": {
+    "method": "GET",
+    "paths": [
+      "/api/v1/mini-app/inbound-documents/{parent_id}/attachments/requests/{operation_key}",
+      "/api/v1/mini-app/outbound-documents/{parent_id}/attachments/requests/{operation_key}",
+      "/api/v1/mini-app/warranty-cases/{parent_id}/attachments/requests/{operation_key}"
+    ],
+    "query_required": [
+      "warehouse_id",
+      "file_sha256"
+    ],
+    "body": null,
+    "headers": {
+      "Authorization": "Bearer access token"
+    },
+    "outcomes": [
+      "SUCCEEDED",
+      "REJECTED",
+      "UNKNOWN"
+    ],
+    "request_states": [
+      "PENDING",
+      "SUCCEEDED",
+      "REJECTED",
+      "UNKNOWN",
+      null
+    ],
+    "pending_meaning": "Intent exists, but no terminal receipt. It is NOT evidence that a worker is still running; outward outcome remains UNKNOWN, no artificial TTL or failure inference.",
+    "response": [
+      "data.outcome",
+      "data.request_state",
+      "data.receipt",
+      "data.current_attachment",
+      "data.retry_policy",
+      "data.cancel_supported",
+      "data.observed_at"
+    ],
+    "rejected_semantics": "Durable owner rejection, NOT a universal NOT_RECORDED claim. It may reference a QUARANTINED audit row; inspect attachment_status_at_completion and current owner metadata.",
+    "unknown_semantics": "Absent receipt/current list/null/404/100% uploaded bytes/abort/hash match never prove success or rollback.",
+    "receipt_vs_current": "Receipt attachment ID/status/version/scan_result is historical; current_attachment is a fresh observation. Neither grants binary access without owner download ACL.",
+    "scope": "Exact actor+stable auth session+parent+warehouse+operation key+file hash. Changed identity returns 409 REQUEST_IDENTITY_MISMATCH; different actor/new session receives no old receipt.",
+    "permissions_document": {
+      "INBOUND": "inbound.view",
+      "OUTBOUND": "outbound.view"
+    },
+    "permissions_warranty": "(warranty.view OR warranty.manage) AND documents.read plus P09 persisted owner/organization scope",
+    "trace_identity": "meta.request_id / X-Request-ID is an HTTP trace, not this upload operation_key. P09 UPDATE receipts separately use the original X-Request-ID UUID, not Idempotency-Key."
+  },
+  "cancel_supported": false,
+  "abort_policy": "Client abort only stops waiting/transport. Server may complete later. P18 never calls DELETE as cancel and never sets server CANCELLED from a local button.",
+  "cleanup": {
+    "caught_failures": "Attachment row and receipt share a transaction. A tracked blob is removed only after checking the allocated attachment row is absent and no terminal receipt committed. Failed cleanup leaves operator work.",
+    "crash_or_database_outage": "PENDING/UNKNOWN plus the reserved attachment_id is retained. No automatic re-execution or blind deletion. Authorized operator reconciliation must inspect DB and owner storage prefix before orphan cleanup; no cleanup HTTP endpoint is added.",
+    "retention": "No automatic receipt purge in v1; operations capacity/retention policy remains an explicit deployment requirement. Do not purge an UNKNOWN request just to allow reuse."
+  },
+  "policies": {
+    "document": {
+      "mime": [
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+      ],
+      "max_bytes": 15728640,
+      "max_active": 20,
+      "attachment_type": [
+        "SOURCE_DOCUMENT",
+        "INVOICE",
+        "DELIVERY_NOTE",
+        "PHOTO",
+        "OTHER"
+      ],
+      "attachment_type_policy": "Business purpose enum, not MIME. Canonical controller remains authoritative; verify enum against deployment."
+    },
+    "warranty": {
+      "image_max_bytes": 10485760,
+      "image_max_active": 10,
+      "video_max_bytes": 314572800,
+      "video_max_seconds": 300,
+      "video_max_active": 1,
+      "attachment_type": [
+        "INTAKE",
+        "DIAGNOSTIC",
+        "RETURN",
+        "OTHER"
+      ],
+      "note_supported": false
+    },
+    "scanner": {
+      "native_results": [
+        "CLEAN",
+        "INFECTED",
+        "UNSCANNED"
+      ],
+      "unconfigured": "Existing owner returns UNSCANNED; not a malware pass. Production scanner policy/config must be verified before activation.",
+      "quarantined": "Native malware/scanner-failure rejection retains a QUARANTINED audit row and no downloadable byte content."
+    },
+    "infrastructure": "PHP upload_max_filesize/post_max_size, reverse proxy body/time limits, private storage credentials/capacity and scanner executable/timeouts need real operator evidence; application constants do not configure these systems."
+  },
+  "handover": {
+    "owner": "P09 existing UPDATE/receipt/current case",
+    "structured_fields": "PENDING_BA",
+    "do_not_send": [
+      "receiver",
+      "user handover date",
+      "checked checkbox"
+    ],
+    "rules": "Keep existing COMPLETED to RETURNED guard, exact owner permission/scope/version/component-posted validation and existing note field. Do not serialize missing structured fields into note. UI note200 is not proof of the owner storage limit. returned_at is server time, not a user-entered handover date."
+  },
+  "location": {
+    "breakdown": "NOT_TRACKED",
+    "hierarchy_capacity_occupancy": "PENDING_MODEL_AND_BA",
+    "rules": "No warehouse-stock/location_hint projection as pallet/tray/bin grid; no fabricated slots/capacity/free/units; no move API or select-as-write."
+  },
+  "binary_access": {
+    "owner_routes_reused": true,
+    "rules": "Only exact attachment ID under a permitted parent and ACTIVE content through owner download. QUARANTINED/DELETED or 401/403 must not fall back to cached bytes. Verify Content-Type/Disposition/nosniff/cache/size/checksum on actual deployment. Do not attach access tokens to arbitrary or redirected cross-host URLs. FE revokes object URLs and clears viewer cache at context/session change."
+  },
+  "remaining_gate": [
+    "Owner/BA approval for structured handover and location requirements",
+    "Exact-commit CI with SQLite and PostgreSQL",
+    "Release ancestry and upload journal migration evidence",
+    "Authenticated upload/read/deny/timeout/storage/scanner/limits smoke with explicitly authorized files/accounts",
+    "UI abort/late callback/session and viewer/device UAT"
+  ],
+  "test_policy": "CI uses disposable local databases and generated harmless files only. No tests/migrations/seed data on DEV to manufacture evidence. Do not weaken assertions or bypass Composer security audit."
+}

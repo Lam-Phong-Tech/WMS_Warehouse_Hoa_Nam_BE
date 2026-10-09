@@ -58,6 +58,8 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
     private function createTempOnlyCase(array $headers): string
     {
         $create = $this->postJson('/api/v1/warranty-cases', [
+            // Persist explicit owner scope through the canonical create contract.
+            'warehouse_id' => (string) $this->ensureActiveWarehouse('KHO-F04', 'Kho Flow04')->id,
             'customer_name' => 'Khach Flow04',
             'customer_phone' => '0933333333',
             'description' => 'May khong len nguon',
@@ -87,6 +89,8 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         ]);
 
         $create = $this->postJson('/api/v1/warranty-cases', [
+            // Persist explicit owner scope through the canonical create contract.
+            'warehouse_id' => (string) $this->ensureActiveWarehouse('KHO-F04', 'Kho Flow04')->id,
             'item_code' => 'SER-F04-001',
             'customer_name' => 'Nguyen Flow04',
             'customer_phone' => '0905555555',

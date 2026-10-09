@@ -10,6 +10,7 @@ use Modules\Warehouse\Http\Middleware\MiniAppDraftHandoff;
 use Modules\Warehouse\Http\Middleware\P05OutboundSource;
 use Modules\Warehouse\Http\Middleware\P07NfcReadbackGuard;
 use Modules\Warehouse\Http\Middleware\P09WarrantyAttachmentGuard;
+use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Modules\Warehouse\Services\MiniAppDraftService;
 
 class RouteServiceProvider extends ServiceProvider
@@ -40,10 +41,14 @@ class RouteServiceProvider extends ServiceProvider
         Route::middleware('api')->prefix('api')->name('api.p07.')->group(module_path($this->name, '/routes/p07_nfc.php'));
         Route::middleware('api')->prefix('api')->name('api.p08.')->group(module_path($this->name, '/routes/p08_history.php'));
         Route::middleware('api')->prefix('api')->name('api.p09.')->group(module_path($this->name, '/routes/p09_warranty.php'));
+        Route::middleware('api')->prefix('api')->name('api.upload-receipts.')->group(module_path($this->name, '/routes/attachment_upload_receipts.php'));
         foreach (Route::getRoutes() as $route) {
             if ($route->uri() === 'api/v1/mini-app/warranty-cases/{id}/attachments'
                 || str_starts_with($route->uri(), 'api/v1/mini-app/warranty-attachments/')) {
                 $route->middleware(P09WarrantyAttachmentGuard::class);
+            }
+            if (in_array('POST', $route->methods(), true) && isset(AttachmentUploadReceipts::UPLOAD_ROUTES[$route->uri()])) {
+                $route->middleware(AttachmentUploadReceipts::class);
             }
             if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()]) && in_array('POST', $route->methods(), true)) {
                 $route->middleware(MiniAppDraftHandoff::class);

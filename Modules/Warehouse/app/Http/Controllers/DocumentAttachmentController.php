@@ -10,9 +10,9 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\AuditLog\Services\DenyAuditRecorder;
+use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
@@ -466,7 +466,7 @@ class DocumentAttachmentController extends Controller
         ['extension' => $extension] = DocumentAttachmentScanner::assertContentType($file);
         $scan = DocumentAttachmentScanner::scanForMalware($file);
 
-        $attachmentId = (string) Str::uuid();
+        $attachmentId = AttachmentUploadReceipts::attachmentId($request);
         $storageDisk = (string) config('documents.disk', self::DISK);
         $storageKey = 'document-attachments/'.strtolower($documentType)."/{$documentId}/{$attachmentId}.{$extension}";
         $checksum = hash_file('sha256', $file->getRealPath()) ?: null;
@@ -482,6 +482,7 @@ class DocumentAttachmentController extends Controller
 
         // Disk để `throw => false`: ghi lỗi thì trả false chứ không ném — phải chặn trước
         // khi tạo dòng ACTIVE (xem CurrentBaselineWarrantyAttachmentController).
+        AttachmentUploadReceipts::trackStorage($request, $storageDisk, $storageKey);
         $stored = Storage::disk($storageDisk)->putFileAs(
             'document-attachments/'.strtolower($documentType)."/{$documentId}",
             $file,

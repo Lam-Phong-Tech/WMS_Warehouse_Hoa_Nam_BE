@@ -27,7 +27,9 @@ trait PreparesOutboundFixtures
      */
     private function authHeadersWithRole(string $roleCode): array
     {
-        if (DB::table('permission')->count() === 0) {
+        // Migrations may seed permissions without the role required by this
+        // fixture. Use the canonical IAM seeder only when that role is absent.
+        if (! Role::where('role_code', $roleCode)->exists()) {
             $this->seed(AuthDatabaseSeeder::class);
             Cache::flush();
         }
