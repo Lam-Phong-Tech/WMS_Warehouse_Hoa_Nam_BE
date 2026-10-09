@@ -95,11 +95,60 @@ jobs:
           edit(fixture, "        if (DB::table('permission')->count() === 0) {", "        // Migrations may seed permissions without the role required by this\n        // fixture. Use the canonical IAM seeder only when that role is absent.\n        if (! Role::where('role_code', $roleCode)->exists()) {")
           warranty_test = 'tests/Feature/WarrantyFlow04ApiSurfaceTest.php'
           edit(warranty_test, "$this->postJson('/api/v1/warranty-cases', [", "$this->postJson('/api/v1/warranty-cases', [\n            // Persist explicit owner scope through the canonical create contract.\n            'warehouse_id' => (string) $this->ensureActiveWarehouse('KHO-F04', 'Kho Flow04')->id,", count=2)
+          document_test = 'tests/Feature/DocumentAttachmentTest.php'
+          edit(document_test, "        DB::table('stock_documents')->where('id', $documentId)->update(['status' => 'POSTED']);", "        // Isolated posted-state fixture must satisfy the same full-quantity\n        // invariant enforced by PostgreSQL. Do not disable its trigger or alter\n        // the expected 409 on a late attachment upload. This is not a Post API test.\n        DB::table('stock_document_lines')->where('stock_document_id', $documentId)\n            ->update(['scanned_qty' => DB::raw('qty_planned')]);\n        DB::table('stock_documents')->where('id', $documentId)->update(['status' => 'POSTED']);")
+          test = 'tests/Feature/P18UploadReceiptTest.php'
+          edit(test, '    use BuildsScanDrivenInbound;', '    use BuildsScanDrivenInbound;\n    use \\Tests\\Feature\\Concerns\\PreparesOutboundFixtures;')
+          edit(test, '    private function actor(?Warehouse $warehouse = null): array', """    public function test_outbound_receipt_is_historical_and_does_not_restore_deleted_attachment(): void
+              {
+                  [, $token, $warehouse] = $this->actor();
+                  $sku = $this->productSkuFixture('P18-OUT-'.Str::upper(Str::random(8)));
+                  $requestId = $this->outboundRequestFixture($sku->sku_id, 1, 'P18-REQ-'.Str::upper(Str::random(8)));
+                  $document = $this->outboundDocumentFixture($warehouse->id, $requestId);
+                  $id = $document['document_id'];
+                  $file = UploadedFile::fake()->image('outbound.png');
+                  $key = (string) Str::uuid();
+                  $first = $this->post($this->path($id, 'OUTBOUND'), ['file' => $file], $this->uploadHeaders($token, $warehouse, $file, $key))
+                      ->assertCreated()->assertJsonPath('meta.upload_receipt.parent_type', 'OUTBOUND');
+                  $attachment = $first->json('data.id');
+                  // Simulate a later owner-authorized state change; P18 invokes no DELETE.
+                  DB::table('document_attachments')->where('id', $attachment)->update(['status' => 'DELETED', 'version' => 2]);
+                  $this->get($this->receiptUrl($id, $key, $warehouse, $file, 'OUTBOUND'), $this->headers($token))->assertOk()
+                      ->assertJsonPath('data.outcome', 'SUCCEEDED')->assertJsonPath('data.receipt.attachment_status_at_completion', 'ACTIVE')
+                      ->assertJsonPath('data.current_attachment.status', 'DELETED')->assertJsonPath('data.current_attachment.version', 2);
+                  $this->post($this->path($id, 'OUTBOUND'), ['file' => $file], $this->uploadHeaders($token, $warehouse, $file, $key))
+                      ->assertCreated()->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.id', $attachment);
+                  $this->get('/api/v1/mini-app/document-attachments/'.$attachment.'/download', $this->headers($token))->assertNotFound();
+                  $this->assertDatabaseCount('document_attachments', 1);
+                  $this->assertDatabaseCount('stock_movements', 0);
+              }
+
+              public function test_image_size_limits_stay_distinct_for_each_upload_owner(): void
+              {
+                  [, $token, $warehouse] = $this->actor();
+                  $inbound = $this->createInboundHeader($this->headers($token), $warehouse->id)['document_id'];
+                  $case = $this->postJson('/api/v1/warranty-cases', ['warehouse_id' => $warehouse->id, 'customer_name' => 'Isolated size test',
+                      'customer_phone' => '0900000000', 'description' => 'CI', 'missing_code_reason' => 'CI', 'manual_product_description' => 'CI'],
+                      $this->headers($token))->assertCreated()->json('data.warranty_case_id');
+                  foreach ([['INBOUND', $inbound, 15361], ['WARRANTY', $case, 10241]] as [$owner, $id, $kilobytes]) {
+                      $file = UploadedFile::fake()->image('over-limit.png')->size($kilobytes);
+                      $key = (string) Str::uuid();
+                      $this->post($this->path($id, $owner), ['file' => $file], $this->uploadHeaders($token, $warehouse, $file, $key))
+                          ->assertStatus(422)->assertJsonPath('meta.upload_receipt.outcome', 'REJECTED');
+                      $this->get($this->receiptUrl($id, $key, $warehouse, $file, $owner), $this->headers($token))->assertOk()
+                          ->assertJsonPath('data.outcome', 'REJECTED')->assertJsonPath('data.current_attachment', null);
+                  }
+                  $this->assertDatabaseCount('document_attachments', 0);
+                  $this->assertDatabaseCount('warranty_attachments', 0);
+                  $this->assertCount(0, Storage::disk('local')->allFiles());
+              }
+
+              private function actor(?Warehouse $warehouse = null): array""")
           contract = Path('contracts/p18/owner-attachments-v1.json')
           c = json.loads(contract.read_text())
           c['policies']['document']['attachment_type'] = ['SOURCE_DOCUMENT', 'INVOICE', 'DELIVERY_NOTE', 'PHOTO', 'OTHER']
           contract.write_text(json.dumps(c, ensure_ascii=False, indent=2)+'\n')
-          paths = [provider, *owners, service_path, 'Modules/Warehouse/routes/attachment_upload_receipts.php', 'database/migrations/2026_10_09_180000_create_attachment_upload_requests.php', 'tests/Feature/P18UploadReceiptTest.php', fixture, warranty_test]
+          paths = [provider, *owners, service_path, 'Modules/Warehouse/routes/attachment_upload_receipts.php', 'database/migrations/2026_10_09_180000_create_attachment_upload_requests.php', test, fixture, warranty_test, document_test]
           for p in paths: subprocess.run(['php', '-l', p], check=True)
           subprocess.run(['vendor/bin/pint', *paths], check=True)
           Path('/tmp/p18-reviewed-paths.json').write_text(json.dumps(paths+[str(contract)]))
@@ -148,7 +197,7 @@ jobs:
           for db in ['sqlite','pgsql']:
               root = ET.parse('p18-'+db+'.xml').getroot()
               assert not any(list(root.iter(tag)) for tag in ['failure','error','skipped'])
-              assert len([c for c in root.iter('testcase') if 'P18UploadReceiptTest' in (c.get('class','')+c.get('classname',''))]) == 11
+              assert len([c for c in root.iter('testcase') if 'P18UploadReceiptTest' in (c.get('class','')+c.get('classname',''))]) == 13
           repo = os.environ['GITHUB_REPOSITORY']
           assert repo == 'Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
           paths = json.load(open('/tmp/p18-reviewed-paths.json'))
