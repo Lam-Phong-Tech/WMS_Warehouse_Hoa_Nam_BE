@@ -114,12 +114,14 @@ final class P06CatalogReadModel
                 ->selectRaw("'LEDGER' AS source, m.id AS source_event_id, COALESCE(m.occurred_at,m.created_at) AS event_time, m.movement_type AS event_type, m.qty_delta AS signed_quantity, m.item_id, m.stock_document_id AS linked_id, d.doc_type AS linked_type, d.doc_no AS linked_no, d.status AS linked_status, CAST(NULL AS VARCHAR(40)) AS from_status, CAST(NULL AS VARCHAR(40)) AS to_status");
         }
         if ($sources['WARRANTY'] === 'INCLUDED') {
+            // warranty_event persists event_at, not created_at. Preserve an unknown
+            // event time as null rather than borrowing a case/observation timestamp.
             $queries[] = DB::table('warranty_event as e')->join('warranty_case as c', 'c.warranty_case_id', '=', 'e.warranty_case_id')
                 ->join(WarrantyWarehouseScope::TABLE.' as o', 'o.warranty_case_id', '=', 'c.warranty_case_id')
                 ->where('o.warehouse_id', $warehouse)->where('c.product_id', $skuId)
                 ->where('c.identification_status', 'IDENTIFIED')->whereNotNull('c.item_id')
                 ->when($itemId !== null, fn (Builder $q): Builder => $q->where('c.item_id', $itemId))
-                ->selectRaw("'WARRANTY' AS source, e.warranty_event_id AS source_event_id, COALESCE(e.event_at,e.created_at) AS event_time, e.event_type, CAST(NULL AS DECIMAL(18,3)) AS signed_quantity, c.item_id, c.warranty_case_id AS linked_id, 'WARRANTY_CASE' AS linked_type, c.warranty_case_code AS linked_no, c.status AS linked_status, e.from_status, e.to_status");
+                ->selectRaw("'WARRANTY' AS source, e.warranty_event_id AS source_event_id, e.event_at AS event_time, e.event_type, CAST(NULL AS DECIMAL(18,3)) AS signed_quantity, c.item_id, c.warranty_case_id AS linked_id, 'WARRANTY_CASE' AS linked_type, c.warranty_case_code AS linked_no, c.status AS linked_status, e.from_status, e.to_status");
         }
         $union = array_shift($queries);
         foreach ($queries as $query) {
