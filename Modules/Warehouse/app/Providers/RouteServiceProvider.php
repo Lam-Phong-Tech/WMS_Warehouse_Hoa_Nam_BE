@@ -9,6 +9,7 @@ use Modules\Warehouse\Http\Controllers\P07NfcController;
 use Modules\Warehouse\Http\Middleware\MiniAppDraftHandoff;
 use Modules\Warehouse\Http\Middleware\P05OutboundSource;
 use Modules\Warehouse\Http\Middleware\P07NfcReadbackGuard;
+use Modules\Warehouse\Http\Middleware\P07NfcRecoveryGuard;
 use Modules\Warehouse\Http\Middleware\P09WarrantyAttachmentGuard;
 use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Modules\Warehouse\Services\MiniAppDraftService;
@@ -60,6 +61,11 @@ class RouteServiceProvider extends ServiceProvider
             if (($route->uri() === 'api/v1/mini-app/nfc/resolve-tag' && in_array('POST', $route->methods(), true))
                 || ($route->uri() === 'api/v1/mini-app/items/{itemId}/nfc' && in_array('PATCH', $route->methods(), true))) {
                 $route->middleware(P07NfcReadbackGuard::class);
+            }
+            if (in_array($route->uri(), ['api/v1/mini-app/items/{itemId}/nfc',
+                'api/v1/mini-app/items/{itemId}/nfc/prepare', 'api/v1/mini-app/items/{itemId}/nfc/confirmation',
+                'api/v1/mini-app/items/{itemId}/nfc/release'], true)) {
+                $route->middleware(P07NfcRecoveryGuard::class);
             }
         }
     }

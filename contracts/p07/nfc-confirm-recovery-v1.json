@@ -1,0 +1,65 @@
+{
+  "contract": "nfc-confirm-recovery-v1",
+  "date": "2026-10-09",
+  "extends": "mini-app-p07-v1",
+  "production_activation": false,
+  "live_verified": false,
+  "hardware_verified": false,
+  "new_env_variables": [],
+  "new_routes": [],
+  "migration": "2026_10_09_190000_create_p07_nfc_rejections.php",
+  "scope": "Prevent prepare on inactive SKU; durably reject a newly observed SKU_INACTIVE at the explicit pre-mapping branch. Existing success writer/readback/ACL remains authoritative. This is not a generic negative-receipt implementation for every 4xx or legacy incident.",
+  "prepare": {
+    "method": "POST",
+    "path": "/api/v1/mini-app/items/{item_id}/nfc/prepare",
+    "body": "Existing owner body; warehouse_id optional but must match confirmed context. Do not submit actor/session or invented recovery fields.",
+    "inactive": "422 SKU_INACTIVE; no hold acquired/extended and no hardware write allowed.",
+    "first_attempt_headers": ["Authorization: Bearer <token>"],
+    "recovery_headers": {"X-NFC-Recovery-Contract": "nfc-confirm-recovery-v1", "X-NFC-Recovery-Key": "Idempotency-Key of the proven rejected confirm, not its HTTP trace UUID"},
+    "recovery": "Explicit user confirmation only after GET reports may_create_new_request=true. Rechecks active account/session/warehouse/SKU, item status, pending operations, no conflicting current tag and ownership of any remaining hold. Releases only matching rejected hold; replaces it with a fresh reservation. Never deletes a mapping or erases a physical chip.",
+    "repeat": "Before dispatch of confirm, repeated recovery prepare can resume the same live recovery reservation. Expiry/lost cache or an already-bound confirm does NOT grant another prepare permit."
+  },
+  "confirm": {
+    "method": "PATCH",
+    "path": "/api/v1/mini-app/items/{item_id}/nfc",
+    "headers": ["Authorization: Bearer <token>", "Idempotency-Key: <stable original key>"],
+    "body": ["hardware_uid", "written_payload", "reservation_token"],
+    "rejection_http": 422,
+    "rejection_code": "SKU_INACTIVE",
+    "rejection_receipt_path": "data.confirmation",
+    "rejection_receipt": ["receipt_id", "state=REJECTED", "operation=CONFIRM", "actor_id", "auth_session_id", "warehouse_id", "item_id", "sku_id", "hardware_uid", "request_key_sha256", "original_request_id|null", "payload_sha256", "reason_code=SKU_INACTIVE", "evidence_type=SERVER_PREWRITE_SKU_CHECK", "rejected_at", "mapping_created_by_request=false", "stock_effect=NONE"],
+    "same_key": "Same canonical request replays the immutable rejection even after SKU activation; changed identity/body conflicts. No shared IdempotencyStore behavior is changed for other modules.",
+    "new_attempt": "Requires explicit recovery prepare, a DIFFERENT physically verified blank chip/UID, a fresh confirm key and the new reservation. Old token and rejected UID are permanently fenced. The new confirm identity is durably bound before calling the writer; unexpected error/ambiguous commit keeps it blocked pending reconciliation, never automatic takeover.",
+    "physical_note": "Server cannot verify actual blank silicon or undo NDEF. Operator/approved device bridge must isolate old written chip and verify a new blank chip; CI is not hardware acceptance."
+  },
+  "confirmation": {
+    "method": "GET",
+    "path": "/api/v1/mini-app/items/{item_id}/nfc/confirmation",
+    "headers": {"Idempotency-Key": "original confirm key", "X-NFC-Recovery-Contract": "nfc-confirm-recovery-v1"},
+    "query": "warehouse_id optional, must match context; never search by display serial or HTTP trace instead of item/key.",
+    "body": null,
+    "states": ["SUCCEEDED", "PROCESSING", "UNKNOWN", "REJECTED"],
+    "legacy_client": "Without X-NFC-Recovery-Contract an existing rejection remains UNKNOWN / may_create_new_request=false and exposes recovery_contract_required. Existing success/processing/unknown schemas are unchanged.",
+    "rejected": "HTTP 200; data.state=REJECTED, data.http_status=422, data.response is original rejected response, data.receipt is immutable proof; data.recovery describes CURRENT eligibility. GET is read-only and never releases a reservation.",
+    "permission_to_begin": "data.may_create_new_request=true permits only the explicit recovery PREPARE step, NOT blind PATCH/retry. Once prepare permit consumed it is false even while that prepared flow may continue. Check data.recovery.prepare_allowed/permit_consumed/confirm_dispatched/completed.",
+    "unknown": "No rejection row means no inferred failure: delegate to the existing confirmation. null/404/current mapping/expiry/health/ACTIVE SKU are not terminal proof.",
+    "trace": "original_request_id is HTTP trace UUID or null. request_key_sha256 is SHA256 of trimmed original Idempotency-Key. Neither is a scan session ID."
+  },
+  "retention_and_sessions": {
+    "retention": "No automatic pruning or deletion of rejection/key/token/UID fences. Administrative data-retention policy must preserve dedup safety before any future cleanup.",
+    "refresh": "Same stable auth_session_id continues to read and recover under current ACL.",
+    "new_login": "No rebind: old actor/key with new auth_session_id returns NFC_CONFIRMATION_CONTEXT_MISMATCH. No password/token stored in checkpoints or rejection journal.",
+    "legacy_incident": "Pre-deployment failures with no durable receipt remain UNKNOWN. Source/HTTP422 alone cannot backfill proof. DEV must correlate exact deployed build, original key and full canonical request, actor/session/warehouse/item/UID, audit, idempotency row, all in-flight attempts and transaction outcome. This change does NOT authorize reuploading/reconfirming that old incident and does not synthesize its historical receipt.",
+    "legacy_resolution_gate": "When legacy failure is independently established, owner/DB operator must provide an explicitly approved fenced migration/recovery action for that exact operation before a new physical attempt. Do not direct-edit success, delete idempotency/mapping rows, flush Redis, auto release or reuse old chip to bypass UNKNOWN."
+  },
+  "errors": {
+    "409": ["NFC_RECOVERY_REQUIRED", "NFC_RECOVERY_NOT_PROVEN", "NFC_RECOVERY_BLOCKED", "NFC_RECOVERY_BUSY", "NFC_RECOVERY_ATTEMPT_LOCKED", "NFC_REJECTED_RESERVATION", "NFC_REJECTED_TAG_REUSE", "NFC_CONFIRMATION_UNKNOWN", "IDEMPOTENCY_CONFLICT", "NFC_CONFIRMATION_CONTEXT_MISMATCH"],
+    "422": ["SKU_INACTIVE", "SKU_NOT_FOUND", "NFC_RECOVERY_CONTRACT_REQUIRED", "NFC_RECOVERY_CONTRACT_UNSUPPORTED"],
+    "503": ["NFC_RECOVERY_MIGRATION_REQUIRED"],
+    "note": "Keep existing auth, SKU/item, UID/payload, reservation and validation errors. Malformed/proxy responses and 5xx are not definitive rejection receipts."
+  },
+  "acceptance": {
+    "test": "tests/Feature/P07NfcRecoveryTest.php plus unchanged P07/P15/P17/auth regressions; disposable SQLite/PostgreSQL only",
+    "live": "Verify released build ancestry, required schema, route-cache rebuild, permissions, timeout/replay, reservations and approved real hardware readback. No seed, live mutation, cache flush or .env bypass performed by this handoff."
+  }
+}

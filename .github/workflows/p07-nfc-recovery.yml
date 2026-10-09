@@ -11,9 +11,12 @@ on:
       - 'tests/Feature/P07*Test.php'
       - 'tests/Feature/P15OwnerReadContractTest.php'
       - 'tests/Feature/P17ScanExceptionReservationTest.php'
+      - 'tests/Feature/AuthWarehouseContextTest.php'
+      - 'tests/Feature/AuthSessionPersistenceTest.php'
+      - 'app/Support/IdempotencyStore.php'
       - '.github/workflows/p07-nfc-recovery.yml'
 permissions:
-  contents: write
+  contents: read
 jobs:
   recovery:
     runs-on: ubuntu-24.04
@@ -53,7 +56,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: e0b738a34da8b3814dd1c297dce170a1f78055d2
           persist-credentials: false
       - uses: shivammathur/setup-php@v2
         with:
@@ -61,27 +63,26 @@ jobs:
           extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Confirm isolated target
+      - name: Confirm isolated target and closed live gates
         run: |
           python3 - <<'PY'
-          import os, json
+          import os, json, subprocess
           assert os.environ['APP_ENV']=='testing' and os.environ['DB_HOST']=='127.0.0.1' and os.environ['DB_URL']==''
+          assert os.environ['DB_DATABASE']==':memory:'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==os.environ['GITHUB_SHA']
           c=json.load(open('contracts/p07/nfc-confirm-recovery-v1.json'))
-          assert c['production_activation'] is False and c['live_verified'] is False
+          assert c['production_activation'] is False and c['live_verified'] is False and c['hardware_verified'] is False
           assert c['new_routes']==[] and c['new_env_variables']==[]
           PY
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p07-install.log 2>&1 || { tail -60 /tmp/p07-install.log; exit 1; }
-      - name: Format reviewed candidate and verify syntax
+      - name: PHP syntax and read-only style gate
         run: |
           python3 - <<'PY'
-          import subprocess, json
-          from pathlib import Path
+          import subprocess
           paths=['Modules/Warehouse/app/Http/Middleware/P07NfcRecoveryGuard.php','Modules/Warehouse/app/Providers/RouteServiceProvider.php','database/migrations/2026_10_09_190000_create_p07_nfc_rejections.php','tests/Feature/P07NfcRecoveryTest.php']
           for path in paths: subprocess.run(['php','-l',path],check=True)
-          subprocess.run(['vendor/bin/pint',*paths],check=True)
           subprocess.run(['vendor/bin/pint','--test',*paths],check=True)
-          Path('/tmp/p07-reviewed-paths.json').write_text(json.dumps(paths))
           PY
       - name: Prepare disposable application
         run: |
@@ -100,38 +101,29 @@ jobs:
         run: |
           php artisan test tests/Feature/P07NfcRecoveryTest.php tests/Feature/P07NfcContractTest.php tests/Feature/P15OwnerReadContractTest.php tests/Feature/P17ScanExceptionReservationTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p07r-pgsql.xml > /tmp/p07r-pgsql.log 2>&1 || { tail -180 /tmp/p07r-pgsql.log; exit 1; }
           tail -8 /tmp/p07r-pgsql.log
-      - name: Publish exact test counts and errors
+      - name: Publish exact-commit evidence, not a live or release acceptance
         if: always()
         run: |
           python3 - <<'PY'
+          import os, json
           from pathlib import Path
-          import xml.etree.ElementTree as E, json
-          for path in Path('.').glob('p07r-*.xml'):
+          import xml.etree.ElementTree as E
+          failed=False
+          for database in ['sqlite','pgsql']:
+              path=Path('p07r-'+database+'.xml')
+              if not path.is_file():
+                  print('::error::Missing '+str(path)); failed=True; continue
               root=E.parse(path).getroot(); cases=list(root.iter('testcase'))
               counts={'tests':len(cases),'assertions':sum(int(x.get('assertions','0')) for x in cases),**{tag:len(list(root.iter(tag))) for tag in ['failure','error','skipped']}}
+              own=len([c for c in cases if 'P07NfcRecoveryTest' in (c.get('class','')+c.get('classname',''))])
+              evidence={'sha':os.environ['GITHUB_SHA'],'database':database,'counts':counts,'p07_recovery_tests':own,'live_verified':False,'hardware_verified':False,'production_activation':False,'scope':'P07 recovery and selected unchanged P07/P15/P17/auth regressions; not full release CI'}
+              print(json.dumps(evidence,sort_keys=True))
               print('::notice title='+path.name+'::'+json.dumps(counts))
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(evidence,indent=2)+'\n```\n')
+              failed=failed or own!=18 or any(counts[k] for k in ['failure','error','skipped'])
               for tag in ['failure','error']:
                   for node in root.iter(tag):
                       msg=(node.text or '')[:3000].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
                       print('::error title='+path.name+'::'+msg)
-          PY
-      - name: Publish verified tree only, no ref update
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          import os,json,pathlib,subprocess,urllib.request
-          import xml.etree.ElementTree as E
-          for filename in ['p07r-sqlite.xml','p07r-pgsql.xml']:
-              root=E.parse(filename).getroot()
-              assert not list(root.iter('failure')) and not list(root.iter('error')) and not list(root.iter('skipped'))
-              assert len([c for c in root.iter('testcase') if 'P07NfcRecoveryTest' in (c.get('class','')+c.get('classname',''))])==18
-          repo=os.environ['GITHUB_REPOSITORY']; assert repo=='Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
-          paths=json.load(open('/tmp/p07-reviewed-paths.json'))
-          entries=[{'path':p,'mode':'100644','type':'blob','content':pathlib.Path(p).read_text()} for p in paths]
-          base=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()
-          req=urllib.request.Request('https://api.github.com/repos/'+repo+'/git/trees',data=json.dumps({'base_tree':base,'tree':entries}).encode(),method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
-          with urllib.request.urlopen(req,timeout=60) as r: tree=json.load(r)['sha']
-          print('::notice title=P07_VERIFIED_TREE::'+tree)
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('Verified candidate tree `'+tree+'`; no branch/ref/server changed.\n')
+          if failed: raise SystemExit('P07 recovery evidence incomplete or failed')
           PY
