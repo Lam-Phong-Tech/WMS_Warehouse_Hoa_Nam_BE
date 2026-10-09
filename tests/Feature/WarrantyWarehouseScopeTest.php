@@ -32,19 +32,28 @@ class WarrantyWarehouseScopeTest extends TestCase
     {
         $warehouse = $this->ensureActiveWarehouse('OWNER-A');
         [$actor, $token] = $this->actor();
-        foreach ([self::BASE, self::MINI] as $path) {
-            $this->postJson($path, $this->body(), $this->headers($token))
+        $this->postJson(self::BASE, $this->body(), $this->headers($token))
+            ->assertStatus(409)->assertJsonPath('error.code', 'WAREHOUSE_CONTEXT_REQUIRED');
+        // P09 requires a persistent login before it can inspect warehouse context.
+        $this->postJson(self::MINI, $this->body(), $this->headers($token))
+            ->assertStatus(409)->assertJsonPath('error.code', 'AUTH_SESSION_REQUIRED');
+        $sessionToken = $this->sessionToken($actor);
+        foreach ([$this->body(), $this->body() + ['warehouse_id' => (string) $warehouse->id]] as $body) {
+            $this->postJson(self::MINI, $body, $this->headers($sessionToken))
                 ->assertStatus(409)->assertJsonPath('error.code', 'WAREHOUSE_CONTEXT_REQUIRED');
         }
         $this->assertDatabaseCount(WarrantyWarehouseScope::TABLE, 0);
         $this->assertSame(0, DB::table('warranty_case')->count());
+        $this->assertDatabaseCount('mini_app_work_shifts', 0);
     }
 
     public function test_explicit_creation_captures_real_metadata_without_a_shift(): void
     {
         $warehouse = $this->ensureActiveWarehouse('OWNER-A', 'Owner warehouse A');
-        [$actor, $token] = $this->actor((string) $warehouse->id);
-        $response = $this->postJson(self::MINI, $this->body() + ['warehouse_id' => (string) $warehouse->id], $this->headers($token))
+        [$actor] = $this->actor((string) $warehouse->id);
+        $token = $this->sessionToken($actor, $warehouse);
+        $response = $this->postJson(self::MINI, $this->body() + ['warehouse_id' => (string) $warehouse->id],
+            $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid(), 'X-Request-ID' => (string) Str::uuid()])
             ->assertCreated()->assertJsonPath('data.warehouse_id', (string) $warehouse->id)
             ->assertJsonPath('data.warehouse_code', 'OWNER-A')->assertJsonPath('data.warehouse_name', 'Owner warehouse A')
             ->assertJsonPath('data.warehouse_ownership', 'EXPLICIT_REQUEST')->assertJsonPath('data.identification_status', 'TEMP_ONLY')
@@ -107,19 +116,36 @@ class WarrantyWarehouseScopeTest extends TestCase
         DB::table('warranty_case')->whereIn('warranty_case_id', [$idA, $idA2, $idB])->update(['created_at' => '2026-01-15 08:00:00', 'updated_at' => '2026-01-15 08:00:00']);
         $ordered = [$idA, $idA2];
         rsort($ordered, SORT_STRING);
-        [, $scoped] = $this->actor((string) $a->id);
+        [$actor, $scoped] = $this->actor((string) $a->id);
+        $miniToken = $this->sessionToken($actor, $a);
         foreach ([self::BASE, self::MINI] as $path) {
+            $readToken = $path === self::MINI ? $miniToken : $scoped;
+            // Preserve legacy coverage without sending its filters to P09.
+            $filters = $path === self::BASE
+                ? ['identification_status' => 'TEMP_ONLY', 'status' => 'RECEIVED,CHECKING,REPAIRING,COMPLETED']
+                : ['status' => 'ALL'];
             foreach ($ordered as $page => $id) {
-                $this->getJson($path.'?'.http_build_query(['warehouse_id' => $a->id, 'identification_status' => 'TEMP_ONLY', 'status' => 'RECEIVED,CHECKING,REPAIRING,COMPLETED', 'per_page' => 1, 'page' => $page + 1]), $this->headers($scoped))
+                $response = $this->getJson($path.'?'.http_build_query(['warehouse_id' => $a->id, 'per_page' => 1, 'page' => $page + 1] + $filters), $this->headers($readToken))
                     ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonCount(1, 'data')
                     ->assertJsonPath('data.0.warranty_case_id', $id)->assertJsonPath('data.0.warehouse_id', (string) $a->id)
-                    ->assertJsonPath('data.0.pii_masked', true)->assertJsonPath('meta.warehouse_scope.contract', 'warranty-owner-v1')
-                    ->assertJsonPath('meta.warehouse_scope.ownership_complete', true);
+                    ->assertJsonPath('data.0.pii_masked', true)->assertJsonPath('data.0.identification_status', 'TEMP_ONLY')
+                    ->assertJsonPath('data.0.item_id', null)->assertJsonPath('data.0.product_id', null);
+                if ($path === self::BASE) {
+                    $response->assertJsonPath('meta.warehouse_scope.contract', 'warranty-owner-v1')
+                        ->assertJsonPath('meta.warehouse_scope.ownership_complete', true);
+                } else {
+                    $response->assertJsonPath('meta.contract', 'mini-app-p09-v1')->assertJsonPath('meta.warehouse_id', (string) $a->id)
+                        ->assertJsonPath('meta.scope_policy', 'PERSISTED_WARRANTY_OWNER_BEFORE_TOTAL');
+                }
             }
-            $this->getJson($path, $this->headers($scoped))->assertOk()->assertJsonPath('meta.total', 2);
-            $this->getJson($path.'?warehouse_id='.$b->id, $this->headers($scoped))->assertForbidden();
-            $this->getJson($path.'?warehouse_id=broken', $this->headers($token))->assertStatus(422);
+            $this->getJson($path, $this->headers($readToken))->assertOk()->assertJsonPath('meta.total', 2);
+            $this->getJson($path.'?warehouse_id='.$b->id, $this->headers($readToken))->assertForbidden();
+            $this->getJson($path.'?warehouse_id=broken', $this->headers($readToken))->assertStatus(422);
         }
+        $this->getJson(self::MINI.'?warehouse_id='.$a->id.'&identification_status=TEMP_ONLY', $this->headers($miniToken))
+            ->assertStatus(422)->assertJsonPath('error.code', 'WARRANTY_UNKNOWN_FILTER');
+        $this->getJson(self::MINI.'?warehouse_id='.$a->id.'&status=RECEIVED,CHECKING', $this->headers($miniToken))
+            ->assertStatus(422);
     }
 
     public function test_scope_blocks_detail_update_events_and_temp_only_before_idempotency_replay(): void
@@ -243,12 +269,26 @@ class WarrantyWarehouseScopeTest extends TestCase
         [$a, $b, $global, $idA, $idB] = $this->twoWarehouses();
         $second = $this->createCase($global, $a);
         DB::table('warranty_case')->where('warranty_case_id', $second)->update(['status' => 'COMPLETED', 'completed_at' => now()]);
-        [, $scoped] = $this->actor((string) $a->id);
-        $this->getJson('/api/v1/mini-app/dashboard/summary?warehouse_id='.$a->id, $this->headers($scoped))->assertOk()
+        [$actor, $scoped] = $this->actor((string) $a->id);
+        $summary = $this->getJson('/api/v1/mini-app/dashboard/summary?warehouse_id='.$a->id, $this->headers($scoped))->assertOk()
             ->assertJsonPath('data.warranty.open_count', 2)->assertJsonPath('data.warranty.open_statuses', WarrantyWarehouseScope::OPEN_STATUSES)
             ->assertJsonPath('data.pending_approval_count', 0)->assertJsonPath('data.warranty.warehouse_scope.warehouse_id', (string) $a->id);
-        $this->getJson(self::MINI.'?'.http_build_query(['warehouse_id' => $a->id, 'status' => implode(',', WarrantyWarehouseScope::OPEN_STATUSES), 'per_page' => 1]), $this->headers($scoped))
+        $this->getJson(self::BASE.'?'.http_build_query(['warehouse_id' => $a->id, 'status' => implode(',', WarrantyWarehouseScope::OPEN_STATUSES), 'per_page' => 1]), $this->headers($scoped))
             ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonCount(1, 'data');
+        $miniToken = $this->sessionToken($actor, $a);
+        $this->getJson(self::MINI.'?'.http_build_query(['warehouse_id' => $a->id, 'status' => 'ALL', 'per_page' => 1]), $this->headers($miniToken))
+            ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonCount(1, 'data');
+        // P09 supports one canonical status, not the legacy comma-separated set.
+        // Compare server totals for every open status, never the length of one page.
+        $openTotal = 0;
+        foreach (WarrantyWarehouseScope::OPEN_STATUSES as $status) {
+            $expected = in_array($status, ['RECEIVED', 'COMPLETED'], true) ? 1 : 0;
+            $page = $this->getJson(self::MINI.'?'.http_build_query(['warehouse_id' => $a->id, 'status' => $status, 'per_page' => 1]), $this->headers($miniToken))
+                ->assertOk()->assertJsonPath('meta.total', $expected)->assertJsonCount($expected, 'data');
+            $openTotal += $page->json('meta.total');
+        }
+        $this->assertSame(2, $openTotal);
+        $this->assertSame($summary->json('data.warranty.open_count'), $openTotal);
         [, $onlyWarranty] = $this->actor((string) $a->id, ['warranty.view']);
         $this->getJson('/api/v1/mini-app/dashboard/summary?warehouse_id='.$a->id, $this->headers($onlyWarranty))->assertOk()
             ->assertJsonPath('data.warranty.open_count', 2)->assertJsonPath('data.inbound', null)->assertJsonPath('data.outbound', null);
@@ -402,6 +442,20 @@ class WarrantyWarehouseScopeTest extends TestCase
         $this->resetAuthentication();
 
         return [$user, JWTAuth::fromUser($user)];
+    }
+
+    /** Exercise P09 through the existing login/context flow, without creating a shift. */
+    private function sessionToken(User $actor, ?Warehouse $warehouse = null): string
+    {
+        $this->resetAuthentication();
+        $login = $this->browserLogin($actor->email, 'secret123')->assertOk();
+        $token = $login->json('data.access_token');
+        if ($warehouse !== null) {
+            $token = $this->postJson('/api/v1/auth/switch-context', ['context_type' => 'WAREHOUSE', 'context_id' => (string) $warehouse->id], $this->headers($token))
+                ->assertOk()->json('data.access_token');
+        }
+
+        return $token;
     }
 
     private function headers(string $token): array
