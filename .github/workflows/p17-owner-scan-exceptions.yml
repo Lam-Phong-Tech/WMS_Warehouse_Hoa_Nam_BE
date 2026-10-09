@@ -1,0 +1,132 @@
+name: P17 Owner Scan Exceptions
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'contracts/p17/**'
+      - 'tests/Contracts/p17-reservation-projection.php'
+      - 'tests/Feature/P17*Test.php'
+      - 'tests/Feature/P15OwnerReadContractTest.php'
+      - 'tests/Feature/P03Draft*Test.php'
+      - 'tests/Feature/P04*Test.php'
+      - 'tests/Feature/P05*Test.php'
+      - 'tests/Feature/P06*Test.php'
+      - 'tests/Feature/P07*Test.php'
+      - 'tests/Feature/AuthWarehouseContextTest.php'
+      - 'tests/Feature/AuthSessionPersistenceTest.php'
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'app/Support/Idempotency*'
+      - 'database/migrations/**'
+      - 'composer.json'
+      - 'composer.lock'
+      - '.github/workflows/p17-owner-scan-exceptions.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    name: Scan exceptions (${{ matrix.database }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p17-disposable-ci-only
+          POSTGRES_DB: p17_owner_scan_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p17_owner_scan_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p17_owner_scan_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p17-disposable-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p17-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Validate matrix and disposable target before application boot
+        run: |
+          python3 - <<'PY'
+          import json, os
+          assert os.environ['APP_ENV'] == 'testing'
+          assert os.environ['DB_HOST'] == '127.0.0.1' and os.environ['DB_URL'] == ''
+          assert (os.environ['DB_CONNECTION'], os.environ['DB_DATABASE']) in [('sqlite', ':memory:'), ('pgsql', 'p17_owner_scan_test')]
+          c = json.load(open('contracts/p17/owner-scan-exceptions-v1.json'))
+          assert not c['new_routes'] and not c['new_mutations'] and not c['new_migrations']
+          assert c['production_activation'] is False and c['live_smoke_verified'] is False
+          assert c['recovery']['negative_receipt_supported'] is False
+          assert all(not o.get('collection_allowed') for o in c['operations'] if o['operation'] in ['SAVE', 'RECORD', 'CANCEL'])
+          assert all('Idempotency-Key' not in o.get('headers', {}) for o in c['operations'] if o['operation'] in ['VALIDATE', 'REVIEW', 'RESOLVE'])
+          PY
+      - name: PHP syntax and pure projection checks
+        run: |
+          for file in Modules/Warehouse/app/Http/Controllers/MiniAppOutboundStagingController.php Modules/Warehouse/app/Support/OutboundReservationProjection.php tests/Feature/P17ScanExceptionReservationTest.php tests/Contracts/p17-reservation-projection.php; do php -l "$file"; done
+          php tests/Contracts/p17-reservation-projection.php
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p17-composer.log 2>&1 || { tail -60 /tmp/p17-composer.log; exit 1; }
+      - name: Prepare disposable application only
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: P17 and full selected owner regression files
+        run: |
+          php artisan test tests/Feature/P17ScanExceptionReservationTest.php tests/Feature/P15OwnerReadContractTest.php tests/Feature/P03DraftContractTest.php tests/Feature/P03DraftJsonShapeTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P06CatalogContractTest.php tests/Feature/P06SnapshotTransactionTest.php tests/Feature/P07NfcContractTest.php tests/Feature/P07NfcRouteContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p17-${{ matrix.database }}.xml > /tmp/p17-tests.log 2>&1 || { tail -180 /tmp/p17-tests.log; exit 1; }
+          tail -8 /tmp/p17-tests.log
+      - name: Read-only style gate with diagnostic diff on failure
+        if: success() || failure()
+        run: |
+          files=(Modules/Warehouse/app/Http/Controllers/MiniAppOutboundStagingController.php Modules/Warehouse/app/Support/OutboundReservationProjection.php tests/Feature/P17ScanExceptionReservationTest.php tests/Contracts/p17-reservation-projection.php)
+          if ! vendor/bin/pint --test "${files[@]}"; then
+            vendor/bin/pint "${files[@]}" >/tmp/p17-pint.log
+            git diff -- "${files[@]}"
+            exit 1
+          fi
+      - name: Publish bounded CI evidence, never live or hardware acceptance
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          report = Path('p17-' + os.environ['DB_CONNECTION'] + '.xml')
+          if not report.is_file(): raise SystemExit('No report; P17 is NOT verified.')
+          cases = list(ET.parse(report).getroot().iter('testcase'))
+          counts = {'tests': len(cases), 'assertions': sum(int(c.get('assertions', '0')) for c in cases), **{k: sum(len(list(c.iter(tag))) for c in cases) for k, tag in [('failures','failure'), ('errors','error'), ('skipped','skipped')]}}
+          own = [c for c in cases if 'P17ScanExceptionReservationTest' in (c.get('class','') + c.get('classname',''))]
+          evidence = {'sha': os.environ['GITHUB_SHA'], 'database': os.environ['DB_CONNECTION'], 'counts': counts, 'p17_tests': len(own), 'live_verified': False, 'ui_wiring_verified': False, 'hardware_verified': False, 'production_activation': False, 'scope': 'P17 plus explicitly selected owner regressions, not full release CI'}
+          print(json.dumps(evidence))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f: f.write('```json\n' + json.dumps(evidence, indent=2) + '\n```\n')
+          if len(own) != 7 or counts['failures'] or counts['errors'] or counts['skipped']: raise SystemExit('Incomplete or failed P17/owner test evidence.')
+          PY

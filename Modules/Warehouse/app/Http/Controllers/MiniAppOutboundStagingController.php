@@ -12,9 +12,11 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Auth\Models\User;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\OutboundReservationProjection;
 use Modules\Warehouse\Support\ProductQrPayload;
 
 /**
@@ -44,6 +46,7 @@ class MiniAppOutboundStagingController extends Controller
     }
 
     private const MAX_BATCH_ITEMS = 1000;
+
     private const RECORD_FIELDS = [
         'name',
         'warehouse_id',
@@ -56,6 +59,7 @@ class MiniAppOutboundStagingController extends Controller
         'expected_total_qty',
         'items',
     ];
+
     private const RECORD_ITEM_FIELDS = [
         'raw_code',
         'scan_source',
@@ -93,7 +97,7 @@ class MiniAppOutboundStagingController extends Controller
             'wms_document_created' => false,
         ], $resolved['eligible_for_outbound']
             ? 'Mã hợp lệ để đưa vào batch xuất local; chưa tạo phiếu WMS.'
-            : 'Đã resolve mã nhưng item hiện chưa đủ điều kiện xuất; chưa tạo phiếu WMS.');
+            : 'Đã resolve mã nhưng item hiện chưa đủ điều kiện xuất; chưa tạo phiếu WMS.')->header('Cache-Control', 'private, no-store');
     }
 
     /**
@@ -310,7 +314,7 @@ class MiniAppOutboundStagingController extends Controller
         return $response;
     }
 
-    /** @param array<int,array<string,mixed>> $items */
+    /** @param  array<int,array<string,mixed>>  $items */
     private function prepareBatch(array $items, string $warehouseId): array
     {
         $prepared = [];
@@ -451,7 +455,7 @@ class MiniAppOutboundStagingController extends Controller
         ];
     }
 
-    /** @param array<string,int> $skuCounts */
+    /** @param  array<string,int>  $skuCounts */
     private function assertAggregateAvailability(string $warehouseId, array $skuCounts): void
     {
         foreach ($skuCounts as $skuId => $requiredQty) {
@@ -522,16 +526,31 @@ class MiniAppOutboundStagingController extends Controller
                 'd.doc_no',
                 'd.status',
                 'd.outbound_request_id',
+                'd.src_warehouse_id',
             ])
             ->first();
 
-        return $row === null ? null : [
+        if ($row === null) {
+            return null;
+        }
+
+        // Resolve permission is outbound.scan, not permission to read the holder.
+        // Reuse the read permission and warehouse scope of the owner document GET.
+        // Re-read the actor to avoid trusting previously loaded role relations.
+        $presented = auth('api')->user();
+        $actor = $presented instanceof User ? User::whereKey($presented->user_id)->first() : null;
+        $canRead = $actor !== null && $actor->status === 'ACTIVE'
+            && $actor->hasPermission('outbound.view')
+            && is_string($row->src_warehouse_id) && $row->src_warehouse_id !== ''
+            && $actor->canAccessWarehouse($row->src_warehouse_id);
+
+        return OutboundReservationProjection::make([
             'match_id' => (string) $row->match_id,
             'document_id' => (string) $row->document_id,
             'doc_no' => (string) $row->doc_no,
             'status' => (string) $row->status,
             'outbound_request_id' => $row->outbound_request_id !== null ? (string) $row->outbound_request_id : null,
-        ];
+        ], $canRead);
     }
 
     private function assertActiveWarehouse(string $warehouseId): void
@@ -590,7 +609,10 @@ class MiniAppOutboundStagingController extends Controller
             ->all();
     }
 
-    /** @param array<string,mixed> $payload @param array<string,string> $headers */
+    /**
+     * @param  array<string,mixed>  $payload
+     * @param  array<string,string>  $headers
+     */
     private function childRequest(Request $parent, array $payload, array $headers = []): Request
     {
         $child = Request::create(
@@ -626,5 +648,4 @@ class MiniAppOutboundStagingController extends Controller
             ],
         ];
     }
-
 }

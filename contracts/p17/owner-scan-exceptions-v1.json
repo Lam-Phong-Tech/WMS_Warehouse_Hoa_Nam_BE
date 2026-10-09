@@ -1,0 +1,143 @@
+{
+  "contract": "p17-owner-scan-exceptions-v1",
+  "date": "2026-10-09",
+  "source_revision": "073ea02503287adcbfb76ef1edd2f23d52572aa2",
+  "status": "PENDING_OWNER_CONTRACT_AND_LIVE_TEST",
+  "patch_publication": "REPOSITORY_SOURCE_WITH_DEDICATED_CI_GATE",
+  "ci_evidence_policy": "Use completed workflow p17-owner-scan-exceptions.yml on the exact commit. File presence is not test evidence.",
+  "owner_approval_verified": false,
+  "live_smoke_verified": false,
+  "ui_wiring_verified": false,
+  "device_uat_verified": false,
+  "production_activation": false,
+  "new_routes": [],
+  "new_mutations": [],
+  "new_migrations": [],
+  "scope": "Owner operation/header/identity contract and least-privilege reservation projection. No P17 endpoint or writer; UI, live and hardware acceptance remain separate.",
+  "transport": {
+    "authorization": "Bearer access token through the existing owner auth transport",
+    "trace_request_id": "HTTP trace only, not Idempotency-Key or client_event_id",
+    "no_secrets_in_checkpoints": true
+  },
+  "operations": [
+    {
+      "owner": "P04", "operation": "SAVE", "method": "PUT",
+      "path": "/api/v1/mini-app/inbound/drafts/{draft_id}",
+      "headers": {"Idempotency-Key": "original operation UUID", "If-Match": "quoted 0 for creation; quoted observed version for update"},
+      "collection_allowed": false
+    },
+    {
+      "owner": "P04", "operation": "VALIDATE", "method": "POST",
+      "path": "/api/v1/mini-app/inbound/drafts/{draft_id}/validate-code",
+      "headers": {"If-Match": "quoted verified draft version"},
+      "idempotency_key_required": false,
+      "body": ["warehouse_id", "scan_session_id", "client_event_id", "item"],
+      "stock_effect": "NONE", "event_persisted": false,
+      "version_policy": "Returns inspected draft version; does not increment for a check.",
+      "collection_allowed": true
+    },
+    {
+      "owner": "P04", "operation": "REVIEW", "method": "POST",
+      "path": "/api/v1/mini-app/inbound/drafts/{draft_id}/review",
+      "headers": {"If-Match": "quoted verified draft version"},
+      "idempotency_key_required": false,
+      "body": ["warehouse_id", "scan_session_id"],
+      "version_policy": "No new version for inspection.",
+      "collection_allowed": true
+    },
+    {
+      "owner": "P04", "operation": "RECORD", "method": "POST",
+      "path": "/api/v1/mini-app/inbound/drafts/{draft_id}/record",
+      "headers": {"Idempotency-Key": "original request UUID", "If-Match": "quoted saved draft version"},
+      "body": ["warehouse_id", "scan_session_id", "client_request_id (optional; must equal key)"],
+      "collection_allowed": false
+    },
+    {
+      "owner": "P04", "operation": "RECONCILE", "method": "GET",
+      "path": "/api/v1/mini-app/inbound/drafts/{draft_id}/requests/{original_key}",
+      "query": ["warehouse_id", "scan_session_id", "command"],
+      "collection_allowed": true
+    },
+    {
+      "owner": "P05", "operation": "RESOLVE", "method": "POST",
+      "path": "/api/v1/mini-app/outbound/resolve-code",
+      "headers": {}, "idempotency_key_required": false, "if_match_required": false,
+      "body": ["warehouse_id", "raw_code"], "collection_allowed": true
+    },
+    {
+      "owner": "P03/P05", "operation": "SAVE", "method": "PUT",
+      "path": "/api/v1/mini-app/drafts/{draft_id}",
+      "headers": {"Idempotency-Key": "original SAVE UUID", "If-Match": "quoted 0 for creation; quoted observed version for update"},
+      "collection_allowed": false
+    },
+    {
+      "owner": "P05/P03", "operation": "RECORD", "method": "POST",
+      "path": "/api/v1/mini-app/outbound/record",
+      "headers": {"Idempotency-Key": "original RECORD UUID", "X-Draft-ID": "saved draft UUID", "X-Draft-Scan-Session-ID": "saved scan UUID", "X-Draft-Version": "saved draft version"},
+      "body": ["warehouse_id", "source_document_id", "source_version", "expected_total_qty", "items"],
+      "if_match_blanket": false, "collection_allowed": false
+    },
+    {
+      "owner": "P03", "operation": "RECONCILE", "method": "GET",
+      "path": "/api/v1/mini-app/drafts/{draft_id}/requests/{original_key}",
+      "query": ["warehouse_id", "operation", "scan_session_id", "command"],
+      "collection_allowed": true
+    },
+    {
+      "owner": "P07", "operation": "TAG_DETAIL", "method": "GET",
+      "path": "/api/v1/mini-app/nfc-tags/{physical_code_id}",
+      "query": ["warehouse_id"], "collection_allowed": true
+    }
+  ],
+  "validation_projection": {
+    "outcomes": ["ACCEPTED", "DUPLICATE", "REJECTED"],
+    "reason_code": "nullable",
+    "resolved": "optional; never manufacture IDs for unresolved rows",
+    "message": "optional; do not require a message on every reason-coded row",
+    "accepted_set": "Rejected/duplicate events must not overwrite previously accepted entries."
+  },
+  "outbound": {
+    "eligible_field": "eligible_for_outbound",
+    "business_denial": "HTTP 200 with eligible_for_outbound=false is not acceptance.",
+    "errors": ["ITEM_NOT_AVAILABLE", "ITEM_ALREADY_MATCHED", "INSUFFICIENT_STOCK", "SKU_INACTIVE", "PHYSICAL_CODE_NOT_FOUND"],
+    "alias_warning": "ALREADY_MATCHED is not the observed owner response code; use ITEM_ALREADY_MATCHED.",
+    "unknown_identity": "Keep 4xx error separate; do not fabricate item identity or available_qty=0."
+  },
+  "related_document": {
+    "implemented_patch": "Hide reservation identity unless a fresh ACTIVE actor has outbound.view and access to the RESERVING document warehouse.",
+    "can_open_target": "/api/v1/mini-app/outbound-documents/{document_id}",
+    "can_open_policy": "Observed read capability, not a guarantee a later GET succeeds. Recheck owner GET before opening; do not reuse across actor/session/warehouse changes.",
+    "redacted_reservation": "Non-null object with redacted=true, can_open=false; still blocks eligibility.",
+    "no_reservation": "null only when database query found no reservation.",
+    "cache": "private, no-store on successful resolve responses",
+    "error_path": "The same projection is used in owner strict rejection details.reserved_by; hidden holds remain non-null.",
+    "rbac_invalidation": "Existing AuthCache per-user version invalidation remains authoritative; reread the ACTIVE actor before projection."
+  },
+  "nfc": {
+    "identity_fields": ["physical_code_id", "hardware_uid", "item_id", "sku_id"],
+    "source_fields": ["raw_status", "tab_status", "status_label", "linker", "assigned_warehouse", "assigned_warehouse_source"],
+    "provenance": "Nullable historical provenance must not be replaced by current warehouse/actor.",
+    "forbidden_in_S03": ["prepare", "confirm", "replace", "deactivate", "release"]
+  },
+  "recovery": {
+    "outcomes_observed": ["SUCCEEDED", "UNKNOWN"],
+    "negative_receipt_supported": false,
+    "null_404_policy": "Never infer definitive NOT_RECORDED from null/404.",
+    "identity": ["original_key", "draft_id", "scan_session_id", "actor", "auth_session", "warehouse_id", "operation", "command"],
+    "receipt_vs_current": "Historical receipt/response status and version are distinct from current document status/version.",
+    "timeout": "Check original owner receipt only; do not send a new RECORD request or key automatically.",
+    "mode_policy": "P04 typed scoped and P05 P03-linked only; no P03 reconcile fallback for standalone/legacy record.",
+    "reauth_policy": "Refresh preserves auth_session_id. A new login creates a new auth_session_id and never automatically rebinds an old receipt, even for the same actor/warehouse."
+  },
+  "collection_policy": {
+    "allowed": "Owner read/validate only, explicitly authorized. No P17 collection may record, save, cancel, prepare, confirm, release or post stock.",
+    "live_authorization_required": true, "hardware_verified": false
+  },
+  "remaining": [
+    "Owner/FE acceptance of integration wiring; no automatic approval from source/CI",
+    "Successful dedicated workflow on the exact release commit, separate from full release gates",
+    "Release/schema evidence and authorized live read/validate smoke",
+    "FE callback/cache/session isolation and device bridge/UAT",
+    "Owner-approved retry proof/policy if negative receipts are needed"
+  ]
+}
