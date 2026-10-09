@@ -217,17 +217,22 @@ class P06CatalogContractTest extends TestCase
     {
         [$user, $token, $warehouse] = $this->actorSession();
         $sku = $this->skuFixture('P06-INTEGER', 'COMPONENT');
-        // Canonical qty_delta is BIGINT. Do not invent decimal stock support by
-        // relying on SQLite accepting 0.5 in an integer column, or alter schema.
+        // Canonical qty_delta is BIGINT and movements have a nonzero magnitude.
+        // Test a real zero aggregate with 3 - 1 - 2, not an invalid quantity=0
+        // movement that only SQLite's less strict schema used to accept.
         $positive = $this->movement($user, $warehouse, $sku, 3);
         $negative = $this->movement($user, $warehouse, $sku, -1);
-        $zero = $this->movement($user, $warehouse, $sku, 0);
+        $closing = $this->movement($user, $warehouse, $sku, -2, before: 2);
         $response = $this->catalogGet($this->url('skus/'.$sku->sku_id.'/timeline', $warehouse, ['source' => 'LEDGER']), $this->headers($token))
             ->assertOk()->assertJsonPath('meta.total', 3)->assertJsonPath('meta.sources.WARRANTY', 'NOT_REQUESTED');
         $events = collect($response->json('data'))->keyBy('source_event_id');
         $this->assertSame(3, $events[$positive]['signed_quantity']);
         $this->assertSame(-1, $events[$negative]['signed_quantity']);
-        $this->assertSame(0, $events[$zero]['signed_quantity']);
+        $this->assertSame(-2, $events[$closing]['signed_quantity']);
+        $this->assertSame(0, $events->sum('signed_quantity'));
+        // A known zero ledger is not a confirmed zero stock projection.
+        $this->catalogGet($this->url('skus/'.$sku->sku_id.'/stock', $warehouse), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.ledger_total', 0)->assertJsonPath('data.total_qty', null)->assertJsonPath('data.status', 'INCOMPLETE');
     }
 
     public function test_timeline_excludes_unpermitted_source_instead_of_fabricating_zero_total(): void
@@ -363,12 +368,13 @@ class P06CatalogContractTest extends TestCase
         return Sku::create(['sku_code' => $code, 'sku_name' => 'Same P06 card name', 'sku_type' => $type, 'unit' => 'cai', 'is_serial_tracked' => $type === 'PRODUCT', 'status' => $status]);
     }
 
-    private function movement(User $user, object $warehouse, Sku $sku, int $delta, ?string $item = null): string
+    private function movement(User $user, object $warehouse, Sku $sku, int $delta, ?string $item = null, ?int $before = null): string
     {
         $id = (string) Str::uuid();
+        $before ??= $delta < 0 ? 3 : 0;
         $row = ['id' => $id, 'movement_no' => 'P06-'.Str::random(12), 'business_key' => 'P06-'.$id,
             'movement_type' => $delta < 0 ? 'ISSUE' : 'OPENING', 'warehouse_id' => $warehouse->id, 'product_id' => $sku->sku_id,
-            'stock_status' => 'AVAILABLE', 'qty_before' => $delta < 0 ? 3 : 0, 'qty_delta' => $delta, 'qty_after' => $delta < 0 ? 3 + $delta : $delta,
+            'stock_status' => 'AVAILABLE', 'qty_before' => $before, 'qty_delta' => $delta, 'qty_after' => $before + $delta,
             'created_by' => $user->user_id, 'occurred_at' => now()->subHour(), 'created_at' => now()->subHour()];
         foreach (['item_id' => $item, 'sku_id' => $sku->sku_id, 'quantity' => abs($delta), 'source_type' => 'OPENING', 'source_id' => $id] as $field => $value) {
             if (Schema::hasColumn('stock_movements', $field)) {
