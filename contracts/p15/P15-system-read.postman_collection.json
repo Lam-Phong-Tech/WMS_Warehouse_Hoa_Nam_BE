@@ -15,7 +15,7 @@
       "if (pm.request.method !== 'GET' || pm.request.body) stop();",
       "if (v('live_read_authorized') !== 'true' || v('owner_gate_authorized') !== 'true') stop();",
       "const origin = v('api_origin');",
-      "if (!/^https:\/\/[a-z0-9.-]+(?::[0-9]+)?$/i.test(origin) || origin !== v('approved_api_origin')) stop();",
+      "if (!new RegExp('^https:' + '/' + '/[a-z0-9.-]+(?::[0-9]+)?$', 'i').test(origin) || origin !== v('approved_api_origin')) stop();",
       "const target = pm.variables.replaceIn(pm.request.url.toString());",
       "if (!target.startsWith(origin + '/api/v1/') || /[{}]/.test(target)) stop();",
       "if (!v('access_token') || !/^[1-5][0-9]{2}$/.test(v('expected_http_status'))) stop();",
