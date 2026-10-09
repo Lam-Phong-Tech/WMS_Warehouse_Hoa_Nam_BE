@@ -74,13 +74,14 @@ jobs:
           python3 - <<'PY'
           import json, subprocess
           from pathlib import Path
-          def edit(path, old, new):
+          def edit(path, old, new, count=1):
               p = Path(path)
               text = p.read_text()
-              assert text.count(old) == 1, (path, old, text.count(old))
+              assert text.count(old) == count, (path, old, text.count(old))
               p.write_text(text.replace(old, new))
           provider = 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
           service = '\\Modules\\Warehouse\\Services\\AttachmentUploadReceipts'
+          service_path = 'Modules/Warehouse/app/Services/AttachmentUploadReceipts.php'
           edit(provider, '        foreach (Route::getRoutes() as $route) {', "        Route::middleware('api')->prefix('api')->name('api.upload-receipts.')->group(module_path($this->name, '/routes/attachment_upload_receipts.php'));\n        foreach (Route::getRoutes() as $route) {")
           anchor = "            if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()])"
           edit(provider, anchor, "            if (in_array('POST', $route->methods(), true) && isset("+service+"::UPLOAD_ROUTES[$route->uri()])) {\n                $route->middleware("+service+"::class);\n            }\n"+anchor)
@@ -88,11 +89,17 @@ jobs:
           for p in owners:
               edit(p, '$attachmentId = (string) Str::uuid();', '$attachmentId = '+service+'::attachmentId($request);')
               edit(p, '        $stored = Storage::disk($storageDisk)->putFileAs(', '        '+service+'::trackStorage($request, $storageDisk, $storageKey);\n        $stored = Storage::disk($storageDisk)->putFileAs(')
+          edit(service_path, "        $body->meta->request_id = request()->attributes->get('request_id');", "        $body->meta->request_id = request()->attributes->get('request_id');\n        $body->meta->timestamp = now()->toIso8601String();\n        if (! $response->isSuccessful()) {\n            $body->message ??= 'Tệp không được owner chấp nhận.';\n            $body->error_code = $body->error->code ?? $body->error_code ?? 'BUSINESS_RULE_ERROR';\n            $body->errors ??= [];\n        }")
+          edit(service_path, "return $response->setData($body)->header('Idempotent-Replay', $replay ? 'true' : 'false')->header('Cache-Control', 'private, no-store');", "// The existing convention middleware consumes this internal marker,\n        // preserving the canonical error metadata and its durable upload receipt.\n        return $response->setData($body)->header('X-WMS-Envelope-Ready', '1')->header('Idempotent-Replay', $replay ? 'true' : 'false')->header('Cache-Control', 'private, no-store');")
+          fixture = 'tests/Feature/Concerns/PreparesOutboundFixtures.php'
+          edit(fixture, "        if (DB::table('permission')->count() === 0) {", "        // Migrations may seed permissions without the role required by this\n        // fixture. Use the canonical IAM seeder only when that role is absent.\n        if (! Role::where('role_code', $roleCode)->exists()) {")
+          warranty_test = 'tests/Feature/WarrantyFlow04ApiSurfaceTest.php'
+          edit(warranty_test, "$this->postJson('/api/v1/warranty-cases', [", "$this->postJson('/api/v1/warranty-cases', [\n            // Persist explicit owner scope through the canonical create contract.\n            'warehouse_id' => (string) $this->ensureActiveWarehouse('KHO-F04', 'Kho Flow04')->id,", count=2)
           contract = Path('contracts/p18/owner-attachments-v1.json')
           c = json.loads(contract.read_text())
           c['policies']['document']['attachment_type'] = ['SOURCE_DOCUMENT', 'INVOICE', 'DELIVERY_NOTE', 'PHOTO', 'OTHER']
           contract.write_text(json.dumps(c, ensure_ascii=False, indent=2)+'\n')
-          paths = [provider, *owners, 'Modules/Warehouse/app/Services/AttachmentUploadReceipts.php', 'Modules/Warehouse/routes/attachment_upload_receipts.php', 'database/migrations/2026_10_09_180000_create_attachment_upload_requests.php', 'tests/Feature/P18UploadReceiptTest.php']
+          paths = [provider, *owners, service_path, 'Modules/Warehouse/routes/attachment_upload_receipts.php', 'database/migrations/2026_10_09_180000_create_attachment_upload_requests.php', 'tests/Feature/P18UploadReceiptTest.php', fixture, warranty_test]
           for p in paths: subprocess.run(['php', '-l', p], check=True)
           subprocess.run(['vendor/bin/pint', *paths], check=True)
           Path('/tmp/p18-reviewed-paths.json').write_text(json.dumps(paths+[str(contract)]))
