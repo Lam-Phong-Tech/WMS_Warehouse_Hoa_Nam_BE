@@ -1,0 +1,154 @@
+name: P18 Owner Attachment Receipts
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'app/Support/*AttachmentScanner.php'
+      - 'contracts/p18/**'
+      - 'database/migrations/**'
+      - 'tests/Feature/P18*Test.php'
+      - '.github/workflows/p18-owner-attachments.yml'
+permissions:
+  contents: write
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p18-isolated-ci-only
+          POSTGRES_DB: p18_upload_receipt_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p18_upload_receipt_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p18-isolated-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p18-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 7320089d1fe2f54a1c8418e5eca6ec9a64296a85
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Guard disposable database and install locked dependencies
+        run: |
+          python3 - <<'PY'
+          import os
+          assert os.environ['APP_ENV'] == 'testing'
+          assert os.environ['DB_HOST'] == '127.0.0.1' and os.environ['DB_URL'] == ''
+          assert os.environ['DB_DATABASE'] == ':memory:'
+          PY
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p18-composer.log 2>&1 || { tail -60 /tmp/p18-composer.log; exit 1; }
+      - name: Apply exact owner hooks and format candidate
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          def edit(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              assert text.count(old) == 1, (path, old, text.count(old))
+              p.write_text(text.replace(old, new))
+          provider = 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
+          service = '\\Modules\\Warehouse\\Services\\AttachmentUploadReceipts'
+          edit(provider, '        foreach (Route::getRoutes() as $route) {', "        Route::middleware('api')->prefix('api')->name('api.upload-receipts.')->group(module_path($this->name, '/routes/attachment_upload_receipts.php'));\n        foreach (Route::getRoutes() as $route) {")
+          anchor = "            if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()])"
+          edit(provider, anchor, "            if (in_array('POST', $route->methods(), true) && isset("+service+"::UPLOAD_ROUTES[$route->uri()])) {\n                $route->middleware("+service+"::class);\n            }\n"+anchor)
+          owners = ['Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php', 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyAttachmentController.php']
+          for p in owners:
+              edit(p, '$attachmentId = (string) Str::uuid();', '$attachmentId = '+service+'::attachmentId($request);')
+              edit(p, '        $stored = Storage::disk($storageDisk)->putFileAs(', '        '+service+'::trackStorage($request, $storageDisk, $storageKey);\n        $stored = Storage::disk($storageDisk)->putFileAs(')
+          contract = Path('contracts/p18/owner-attachments-v1.json')
+          c = json.loads(contract.read_text())
+          c['policies']['document']['attachment_type'] = ['SOURCE_DOCUMENT', 'INVOICE', 'DELIVERY_NOTE', 'PHOTO', 'OTHER']
+          contract.write_text(json.dumps(c, ensure_ascii=False, indent=2)+'\n')
+          paths = [provider, *owners, 'Modules/Warehouse/app/Services/AttachmentUploadReceipts.php', 'Modules/Warehouse/routes/attachment_upload_receipts.php', 'database/migrations/2026_10_09_180000_create_attachment_upload_requests.php', 'tests/Feature/P18UploadReceiptTest.php']
+          for p in paths: subprocess.run(['php', '-l', p], check=True)
+          subprocess.run(['vendor/bin/pint', *paths], check=True)
+          Path('/tmp/p18-reviewed-paths.json').write_text(json.dumps(paths+[str(contract)]))
+          PY
+      - name: Prepare isolated application only
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: SQLite P18 and attachment owner regressions
+        run: |
+          php artisan test tests/Feature/P18UploadReceiptTest.php tests/Feature/DocumentAttachmentTest.php tests/Feature/WarrantyFlow04ApiSurfaceTest.php tests/Feature/P15OwnerReadContractTest.php tests/Feature/P17ScanExceptionReservationTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p18-sqlite.xml > /tmp/p18-sqlite.log 2>&1 || { tail -180 /tmp/p18-sqlite.log; exit 1; }
+          tail -8 /tmp/p18-sqlite.log
+      - name: PostgreSQL P18 and attachment owner regressions
+        if: success() || failure()
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: p18_upload_receipt_test
+        run: |
+          php artisan test tests/Feature/P18UploadReceiptTest.php tests/Feature/DocumentAttachmentTest.php tests/Feature/WarrantyFlow04ApiSurfaceTest.php tests/Feature/P15OwnerReadContractTest.php tests/Feature/P17ScanExceptionReservationTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p18-pgsql.xml > /tmp/p18-pgsql.log 2>&1 || { tail -180 /tmp/p18-pgsql.log; exit 1; }
+          tail -8 /tmp/p18-pgsql.log
+      - name: Publish counts and failures separately from deployment
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for f in Path('.').glob('p18-*.xml'):
+              cases = list(ET.parse(f).getroot().iter('testcase'))
+              counts = {'tests':len(cases), 'assertions':sum(int(c.get('assertions','0')) for c in cases), **{k:sum(len(list(c.iter(k))) for c in cases) for k in ['failure','error','skipped']}}
+              print(f.name, json.dumps(counts))
+              for c in cases:
+                  for k in ['failure','error']:
+                      for e in c.iter(k):
+                          text = (e.text or '')[:3000].replace('%','%25').replace('\n','%0A').replace('\r','%0D')
+                          print('::error title='+f.name+'::'+text)
+          PY
+      - name: Export verified source tree only, never deploy or move a branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import os, json, pathlib, subprocess, urllib.request
+          import xml.etree.ElementTree as ET
+          for db in ['sqlite','pgsql']:
+              root = ET.parse('p18-'+db+'.xml').getroot()
+              assert not any(list(root.iter(tag)) for tag in ['failure','error','skipped'])
+              assert len([c for c in root.iter('testcase') if 'P18UploadReceiptTest' in (c.get('class','')+c.get('classname',''))]) == 11
+          repo = os.environ['GITHUB_REPOSITORY']
+          assert repo == 'Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
+          paths = json.load(open('/tmp/p18-reviewed-paths.json'))
+          entries = [{'path':p,'mode':'100644','type':'blob','content':pathlib.Path(p).read_text()} for p in paths]
+          base = subprocess.check_output(['git','rev-parse','HEAD^{tree}'], text=True).strip()
+          req = urllib.request.Request('https://api.github.com/repos/'+repo+'/git/trees', method='POST', data=json.dumps({'base_tree':base,'tree':entries}).encode(), headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
+          with urllib.request.urlopen(req, timeout=60) as r: tree = json.load(r)['sha']
+          print('::notice title=Verified P18 source tree::'+tree)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('Verified source tree: `'+tree+'`; no branch update, no live test/deployment.\n')
+          PY
