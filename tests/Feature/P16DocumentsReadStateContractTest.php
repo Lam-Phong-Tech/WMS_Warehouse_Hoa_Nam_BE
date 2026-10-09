@@ -80,8 +80,10 @@ class P16DocumentsReadStateContractTest extends TestCase
         $evidence = SourceCountEvidence::make(Request::create('/', 'GET', ['status' => 'ALL']), 0, $transport, ['status' => ['ALL']]);
         $this->assertTrue($evidence['source_empty']);
         $this->assertFalse($evidence['all_sources_aggregate']);
-        $withBody = Request::create('/', 'GET', [], [], [], [], '{"keyword":"missing"}');
-        $this->assertNull(SourceCountEvidence::make($withBody, 0, $transport)['source_empty']);
+        foreach (['[]', '{}', '{"keyword":"missing"}'] as $body) {
+            $withBody = Request::create('/', 'GET', [], [], [], [], $body);
+            $this->assertNull(SourceCountEvidence::make($withBody, 0, $transport)['source_empty']);
+        }
     }
 
     public function test_four_read_entries_require_authentication_and_do_not_create_business_data(): void
@@ -89,7 +91,7 @@ class P16DocumentsReadStateContractTest extends TestCase
         $before = $this->domainSnapshot();
         foreach (['/api/v1/auth/me', self::BASE.'inbound-documents', self::BASE.'outbound-documents', self::BASE.'warranty-cases'] as $path) {
             $this->resetAuthentication();
-            $this->getJson($path)->assertUnauthorized();
+            $this->get($path, ['Accept' => 'application/json'])->assertUnauthorized();
         }
         $this->assertSame($before, $this->domainSnapshot());
     }
@@ -99,7 +101,7 @@ class P16DocumentsReadStateContractTest extends TestCase
         [, $token, $warehouse] = $this->actorSession();
         $before = $this->domainSnapshot();
         foreach (['inbound-documents', 'outbound-documents', 'warranty-cases'] as $source) {
-            $this->getJson(self::BASE.$source.'?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()
+            $this->get(self::BASE.$source.'?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()
                 ->assertJsonCount(0, 'data')->assertJsonPath('meta.total', 0)
                 ->assertJsonPath('meta.count_evidence.unfiltered_authorized_total', 0)
                 ->assertJsonPath('meta.count_evidence.source_empty', true)
@@ -115,16 +117,16 @@ class P16DocumentsReadStateContractTest extends TestCase
             $id = $this->documentFixture($warehouse, $source);
             $url = self::BASE.$source.'-documents?warehouse_id='.$warehouse->id;
             $before = $this->domainSnapshot();
-            $this->getJson($url.'&keyword=P16-NO-MATCH', $this->headers($token))->assertOk()
+            $this->get($url.'&keyword=P16-NO-MATCH', $this->headers($token))->assertOk()
                 ->assertJsonCount(0, 'data')->assertJsonPath('meta.total', 0)
                 ->assertJsonPath('meta.count_evidence.unfiltered_request', false)
                 ->assertJsonPath('meta.count_evidence.unfiltered_authorized_total', null)
                 ->assertJsonPath('meta.count_evidence.source_empty', null);
-            $this->getJson($url.'&page=1&per_page=1', $this->headers($token))->assertOk()
+            $this->get($url.'&page=1&per_page=1', $this->headers($token))->assertOk()
                 ->assertJsonPath('data.0.id', $id)->assertJsonPath('meta.total', 1)
                 ->assertJsonPath('meta.count_evidence.unfiltered_authorized_total', 1)
                 ->assertJsonPath('meta.count_evidence.source_empty', false);
-            $this->getJson($url.'&page=9&per_page=1', $this->headers($token))->assertOk()
+            $this->get($url.'&page=9&per_page=1', $this->headers($token))->assertOk()
                 ->assertJsonCount(0, 'data')->assertJsonPath('meta.total', 1)
                 ->assertJsonPath('meta.count_evidence.source_empty', false);
             $this->assertSame($before, $this->domainSnapshot());
@@ -137,15 +139,15 @@ class P16DocumentsReadStateContractTest extends TestCase
         $id = $this->warrantyFixture($token, $warehouse);
         $url = self::BASE.'warranty-cases?warehouse_id='.$warehouse->id;
         $before = $this->domainSnapshot();
-        $this->getJson($url.'&status=ALL', $this->headers($token))->assertOk()
+        $this->get($url.'&status=ALL', $this->headers($token))->assertOk()
             ->assertJsonPath('data.0.warranty_case_id', $id)->assertJsonPath('data.0.warehouse_id', (string) $warehouse->id)
             ->assertJsonPath('data.0.pii_masked', true)->assertJsonPath('data.0.free_text_redacted', true)
             ->assertJsonPath('meta.total', 1)->assertJsonPath('meta.count_evidence.source_empty', false);
-        $this->getJson($url.'&search=P16-NO-MATCH', $this->headers($token))->assertOk()
+        $this->get($url.'&search=P16-NO-MATCH', $this->headers($token))->assertOk()
             ->assertJsonCount(0, 'data')->assertJsonPath('meta.total', 0)
             ->assertJsonPath('meta.count_evidence.unfiltered_authorized_total', null)
             ->assertJsonPath('meta.count_evidence.source_empty', null);
-        $this->getJson($url.'&page=9&per_page=1', $this->headers($token))->assertOk()
+        $this->get($url.'&page=9&per_page=1', $this->headers($token))->assertOk()
             ->assertJsonCount(0, 'data')->assertJsonPath('meta.total', 1)
             ->assertJsonPath('meta.count_evidence.source_empty', false);
         $this->assertSame($before, $this->domainSnapshot());
@@ -156,11 +158,11 @@ class P16DocumentsReadStateContractTest extends TestCase
         [, $token, $warehouse] = $this->actorSession();
         $url = self::BASE.'warranty-cases?warehouse_id='.$warehouse->id;
         foreach (['date_from=2026-10-01', 'date_to=2026-10-09', 'customer_name=x', 'keyword=x', 'status=WAITING_APPROVAL'] as $query) {
-            $this->getJson($url.'&'.$query, $this->headers($token))->assertStatus(422);
+            $this->get($url.'&'.$query, $this->headers($token))->assertStatus(422);
         }
-        $this->getJson($url.'&page=1&cursor=x', $this->headers($token))->assertStatus(422)
+        $this->get($url.'&page=1&cursor=x', $this->headers($token))->assertStatus(422)
             ->assertJsonPath('error.code', 'WARRANTY_PAGING_CONFLICT');
-        $this->getJson($url.'&cursor=invalid', $this->headers($token))->assertStatus(422)
+        $this->get($url.'&cursor=invalid', $this->headers($token))->assertStatus(422)
             ->assertJsonPath('error.code', 'WARRANTY_CURSOR_INVALID');
     }
 
@@ -170,17 +172,17 @@ class P16DocumentsReadStateContractTest extends TestCase
         $this->warrantyFixture($token, $warehouse);
         $this->warrantyFixture($token, $warehouse);
         $url = self::BASE.'warranty-cases?warehouse_id='.$warehouse->id.'&per_page=1';
-        $first = $this->getJson($url, $this->headers($token))->assertOk()->assertJsonPath('meta.total', 2);
+        $first = $this->get($url, $this->headers($token))->assertOk()->assertJsonPath('meta.total', 2);
         $cursor = $first->json('meta.nextCursor');
         $this->assertIsString($cursor);
         $this->assertNotSame('', $cursor);
-        $second = $this->getJson($url.'&cursor='.urlencode($cursor), $this->headers($token))->assertOk()
+        $second = $this->get($url.'&cursor='.urlencode($cursor), $this->headers($token))->assertOk()
             ->assertJsonPath('meta.total', 2)->assertJsonPath('meta.count_evidence.unfiltered_authorized_total', 2);
         $this->assertNotSame($first->json('data.0.warranty_case_id'), $second->json('data.0.warranty_case_id'));
-        $this->getJson($url.'&cursor='.urlencode($cursor).'&search=x', $this->headers($token))->assertStatus(422)
+        $this->get($url.'&cursor='.urlencode($cursor).'&search=x', $this->headers($token))->assertStatus(422)
             ->assertJsonPath('error.code', 'WARRANTY_CURSOR_SCOPE_MISMATCH');
         [, $other] = $this->actorSession(['warranty.view']);
-        $this->getJson($url.'&cursor='.urlencode($cursor), $this->headers($other))->assertStatus(422)
+        $this->get($url.'&cursor='.urlencode($cursor), $this->headers($other))->assertStatus(422)
             ->assertJsonPath('error.code', 'WARRANTY_CURSOR_SCOPE_MISMATCH');
     }
 
@@ -188,11 +190,11 @@ class P16DocumentsReadStateContractTest extends TestCase
     {
         [, $token, $warehouse] = $this->actorSession();
         foreach (['inbound-documents', 'outbound-documents', 'warranty-cases'] as $source) {
-            $this->getJson(self::BASE.$source.'?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk();
+            $this->get(self::BASE.$source.'?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk();
         }
         [, $limited] = $this->actorSession(['warehouse.view']);
         foreach (['inbound-documents', 'outbound-documents', 'warranty-cases'] as $source) {
-            $this->getJson(self::BASE.$source.'?warehouse_id='.$warehouse->id, $this->headers($limited))->assertForbidden();
+            $this->get(self::BASE.$source.'?warehouse_id='.$warehouse->id, $this->headers($limited))->assertForbidden();
         }
     }
 
@@ -247,7 +249,8 @@ class P16DocumentsReadStateContractTest extends TestCase
     {
         $this->resetAuthentication();
 
-        return ['Authorization' => 'Bearer '.$token];
+        // Bodyless GET plus Accept mirrors the read-only collection. getJson adds [] as a body.
+        return ['Authorization' => 'Bearer '.$token, 'Accept' => 'application/json'];
     }
 
     private function resetAuthentication(): void

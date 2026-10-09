@@ -55,6 +55,7 @@ final class P09WarrantyPage
                 'time' => $last->p09_time, 'id' => $last->p09_id,
                 'expires' => $cursor['expires'] ?? time() + 900], JSON_THROW_ON_ERROR));
         }
+
         return [$rows->pluck('p09_id')->all(), ['total' => $total, 'per_page' => $size,
             'count_evidence' => SourceCountEvidence::make($request, $total,
                 ['warehouse_id', 'page', 'per_page', 'cursor', 'sort'], ['status' => ['ALL']]),
