@@ -50,7 +50,17 @@ class WarrantyWarehouseScopeTest extends TestCase
     public function test_explicit_creation_captures_real_metadata_without_a_shift(): void
     {
         $warehouse = $this->ensureActiveWarehouse('OWNER-A', 'Owner warehouse A');
-        [$actor] = $this->actor((string) $warehouse->id);
+        [$actor, $legacyToken] = $this->actor((string) $warehouse->id);
+        // Without a selected session, the existing Web route records explicit ownership.
+        $explicit = $this->postJson(self::BASE, $this->body() + ['warehouse_id' => (string) $warehouse->id], $this->headers($legacyToken))
+            ->assertCreated()->assertJsonPath('data.warehouse_id', (string) $warehouse->id)
+            ->assertJsonPath('data.warehouse_code', 'OWNER-A')->assertJsonPath('data.warehouse_name', 'Owner warehouse A')
+            ->assertJsonPath('data.warehouse_ownership', 'EXPLICIT_REQUEST')->assertJsonPath('data.identification_status', 'TEMP_ONLY')
+            ->assertJsonPath('data.item_id', null)->assertJsonPath('data.product_id', null);
+        $this->assertDatabaseHas(WarrantyWarehouseScope::TABLE, [
+            'warranty_case_id' => $explicit->json('data.warranty_case_id'), 'warehouse_id' => (string) $warehouse->id,
+            'source' => 'EXPLICIT_REQUEST', 'actor_id' => (string) $actor->user_id, 'auth_session_id' => null,
+        ]);
         $token = $this->sessionToken($actor, $warehouse);
         $requestId = (string) Str::uuid();
         // P09 commands return a PII-free durable receipt, not the case projection.
@@ -64,15 +74,18 @@ class WarrantyWarehouseScopeTest extends TestCase
         $this->assertTrue(Str::isUuid((string) $id));
         $response->assertJsonPath('data.receipt.warranty_case_id', $id);
         $this->assertStringNotContainsString('0900000000', $response->getContent());
+        // resolveCreate prefers the confirmed session even when the body repeats its warehouse.
         $this->getJson(self::MINI.'/'.$id, $this->headers($token))->assertOk()
             ->assertJsonPath('data.warranty_case_id', $id)->assertJsonPath('data.warehouse_id', (string) $warehouse->id)
             ->assertJsonPath('data.warehouse_code', 'OWNER-A')->assertJsonPath('data.warehouse_name', 'Owner warehouse A')
-            ->assertJsonPath('data.warehouse_ownership', 'EXPLICIT_REQUEST')->assertJsonPath('data.identification_status', 'TEMP_ONLY')
+            ->assertJsonPath('data.warehouse_ownership', 'CURRENT_CONTEXT')->assertJsonPath('data.identification_status', 'TEMP_ONLY')
             ->assertJsonPath('data.item_id', null)->assertJsonPath('data.product_id', null);
         $this->assertDatabaseHas(WarrantyWarehouseScope::TABLE, [
             'warranty_case_id' => $id, 'warehouse_id' => (string) $warehouse->id,
-            'source' => 'EXPLICIT_REQUEST', 'actor_id' => (string) $actor->user_id,
+            'source' => 'CURRENT_CONTEXT', 'actor_id' => (string) $actor->user_id,
         ]);
+        $this->assertTrue(Str::isUuid((string) DB::table(WarrantyWarehouseScope::TABLE)->where('warranty_case_id', $id)->value('auth_session_id')));
+        $this->assertDatabaseCount(WarrantyWarehouseScope::TABLE, 2);
         $this->assertDatabaseCount('mini_app_work_shifts', 0);
     }
 
