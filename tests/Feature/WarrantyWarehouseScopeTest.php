@@ -52,14 +52,25 @@ class WarrantyWarehouseScopeTest extends TestCase
         $warehouse = $this->ensureActiveWarehouse('OWNER-A', 'Owner warehouse A');
         [$actor] = $this->actor((string) $warehouse->id);
         $token = $this->sessionToken($actor, $warehouse);
+        $requestId = (string) Str::uuid();
+        // P09 commands return a PII-free durable receipt, not the case projection.
         $response = $this->postJson(self::MINI, $this->body() + ['warehouse_id' => (string) $warehouse->id],
-            $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid(), 'X-Request-ID' => (string) Str::uuid()])
-            ->assertCreated()->assertJsonPath('data.warehouse_id', (string) $warehouse->id)
+            $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid(), 'X-Request-ID' => $requestId])
+            ->assertCreated()->assertJsonPath('meta.contract', 'mini-app-p09-v1')
+            ->assertJsonPath('meta.warehouse_id', (string) $warehouse->id)
+            ->assertJsonPath('data.receipt.request_id', $requestId)->assertJsonPath('data.receipt.state', 'SUCCEEDED')
+            ->assertJsonPath('data.receipt.stock_effect', 'NONE')->assertJsonPath('data.receipt.movement_created', false);
+        $id = $response->json('data.warranty_case_id');
+        $this->assertTrue(Str::isUuid((string) $id));
+        $response->assertJsonPath('data.receipt.warranty_case_id', $id);
+        $this->assertStringNotContainsString('0900000000', $response->getContent());
+        $this->getJson(self::MINI.'/'.$id, $this->headers($token))->assertOk()
+            ->assertJsonPath('data.warranty_case_id', $id)->assertJsonPath('data.warehouse_id', (string) $warehouse->id)
             ->assertJsonPath('data.warehouse_code', 'OWNER-A')->assertJsonPath('data.warehouse_name', 'Owner warehouse A')
             ->assertJsonPath('data.warehouse_ownership', 'EXPLICIT_REQUEST')->assertJsonPath('data.identification_status', 'TEMP_ONLY')
             ->assertJsonPath('data.item_id', null)->assertJsonPath('data.product_id', null);
         $this->assertDatabaseHas(WarrantyWarehouseScope::TABLE, [
-            'warranty_case_id' => $response->json('data.warranty_case_id'), 'warehouse_id' => (string) $warehouse->id,
+            'warranty_case_id' => $id, 'warehouse_id' => (string) $warehouse->id,
             'source' => 'EXPLICIT_REQUEST', 'actor_id' => (string) $actor->user_id,
         ]);
         $this->assertDatabaseCount('mini_app_work_shifts', 0);
@@ -139,7 +150,13 @@ class WarrantyWarehouseScopeTest extends TestCase
                 }
             }
             $this->getJson($path, $this->headers($readToken))->assertOk()->assertJsonPath('meta.total', 2);
-            $this->getJson($path.'?warehouse_id='.$b->id, $this->headers($readToken))->assertForbidden();
+            $foreign = $this->getJson($path.'?warehouse_id='.$b->id, $this->headers($readToken));
+            if ($path === self::MINI) {
+                $foreign->assertStatus(409)->assertJsonPath('error.code', 'WAREHOUSE_CONTEXT_MISMATCH');
+            } else {
+                $foreign->assertForbidden();
+            }
+            $this->assertStringNotContainsString($idB, $foreign->getContent());
             $this->getJson($path.'?warehouse_id=broken', $this->headers($readToken))->assertStatus(422);
         }
         $this->getJson(self::MINI.'?warehouse_id='.$a->id.'&identification_status=TEMP_ONLY', $this->headers($miniToken))
@@ -289,10 +306,13 @@ class WarrantyWarehouseScopeTest extends TestCase
         }
         $this->assertSame(2, $openTotal);
         $this->assertSame($summary->json('data.warranty.open_count'), $openTotal);
-        [, $onlyWarranty] = $this->actor((string) $a->id, ['warranty.view']);
+        // Each limited actor uses its own real session after the browser flow.
+        [$warrantyActor] = $this->actor((string) $a->id, ['warranty.view']);
+        $onlyWarranty = $this->sessionToken($warrantyActor, $a);
         $this->getJson('/api/v1/mini-app/dashboard/summary?warehouse_id='.$a->id, $this->headers($onlyWarranty))->assertOk()
             ->assertJsonPath('data.warranty.open_count', 2)->assertJsonPath('data.inbound', null)->assertJsonPath('data.outbound', null);
-        [, $onlyStock] = $this->actor((string) $a->id, ['inbound.view']);
+        [$stockActor] = $this->actor((string) $a->id, ['inbound.view']);
+        $onlyStock = $this->sessionToken($stockActor, $a);
         $this->getJson('/api/v1/mini-app/dashboard/summary?warehouse_id='.$a->id, $this->headers($onlyStock))->assertOk()->assertJsonPath('data.warranty', null);
     }
 
