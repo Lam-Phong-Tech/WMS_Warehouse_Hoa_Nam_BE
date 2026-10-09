@@ -8,6 +8,7 @@ on:
       - 'Modules/Auth/**'
       - 'app/Support/*AttachmentScanner.php'
       - 'contracts/p18/**'
+      - 'tests/Contracts/p18-postman-guard.test.cjs'
       - 'database/migrations/**'
       - 'tests/Feature/P18*Test.php'
       - 'tests/Feature/DocumentAttachmentTest.php'
@@ -67,6 +68,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate GET-only collection and receipt identity offline
+        run: node --test tests/Contracts/p18-postman-guard.test.cjs
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -85,6 +91,12 @@ jobs:
           assert contract['cancel_supported'] is False
           assert contract['handover']['structured_fields'] == 'PENDING_BA'
           assert contract['location']['breakdown'] == 'NOT_TRACKED'
+          integration = json.load(open('contracts/p18/integration-decisions-v1.json'))
+          assert integration['owner_upload_contract'] == contract['contract']
+          assert integration['production_activation'] is False and integration['live_verified'] is False
+          assert not integration['new_routes'] and not integration['new_mutations'] and not integration['new_migrations']
+          assert integration['checklist']['P18-04']['fields_enabled'] is False
+          assert integration['checklist']['P18-06']['source'] == 'NOT_TRACKED'
           PY
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p18-composer.log 2>&1 || { tail -60 /tmp/p18-composer.log; exit 1; }
