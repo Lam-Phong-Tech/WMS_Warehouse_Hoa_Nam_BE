@@ -1,0 +1,72 @@
+{
+  "contract": "p15-owner-read-v1",
+  "date": "2026-10-09",
+  "source_revision": "47636e0a3fc688be07071e2d2af5508b226e8805",
+  "status": "PENDING_OWNER_CONTRACT_AND_LIVE_TEST",
+  "production_activation": false,
+  "live_test_verified": false,
+  "ui_wiring_verified": false,
+  "hardware_verified": false,
+  "purpose": "Source-verified BE integration handoff. P15 reads existing owner results; it never owns a business command. This file is not deployment evidence or an activation switch.",
+  "methods": ["GET"],
+  "new_api_routes": [],
+  "fallbacks": [],
+  "reads": {
+    "P01_ME": {"owner": "P01", "path": "/api/v1/auth/me", "query": [], "identity_vars": [], "kind": "session"},
+    "P03_CONTEXT": {"owner": "P03", "path": "/api/v1/mini-app/p03/context", "query": [], "identity_vars": [], "kind": "support"},
+    "P04_RECONCILE": {"owner": "P04", "mode": "SCOPED", "path": "/api/v1/mini-app/inbound/drafts/{id}/requests/{requestId}", "path_vars": {"id": "draft_id", "requestId": "operation_key"}, "query": ["warehouse_id", "scan_session_id", "command"], "identity_vars": ["draft_id", "operation_key", "warehouse_id", "scan_session_id"], "commands": ["SAVE", "CANCEL", "RECORD"], "kind": "reconcile", "native_outcome_path": "data.outcome", "native_outcomes": ["SUCCEEDED", "UNKNOWN"], "receipt_path": "data.receipt", "current_document_path": "data.document", "original_response_path": "data.response", "current_state_path": "data.state", "meta_contract": "mini-app-p04-v1", "permission": "inbound.view"},
+    "P04_CURRENT_DRAFT": {"owner": "P04", "mode": "SCOPED", "path": "/api/v1/mini-app/inbound/drafts/{id}", "path_vars": {"id": "draft_id"}, "query": ["warehouse_id", "scan_session_id"], "identity_vars": ["draft_id", "warehouse_id", "scan_session_id"], "kind": "current_document", "meta_contract": "mini-app-p04-v1"},
+    "P04_CURRENT_DOCUMENT": {"owner": "P04", "mode": "SCOPED", "path": "/api/v1/mini-app/inbound/documents/{id}", "path_vars": {"id": "business_document_id"}, "query": ["warehouse_id"], "identity_vars": ["business_document_id", "warehouse_id"], "kind": "current_document", "meta_contract": "mini-app-p04-v1"},
+    "P05_RECONCILE": {"owner": "P05", "mode": "SOURCE_LINKED", "transport_owner": "P03", "path": "/api/v1/mini-app/drafts/{id}/requests/{requestId}", "path_vars": {"id": "draft_id", "requestId": "operation_key"}, "query": ["warehouse_id", "operation", "scan_session_id", "command"], "fixed_query": {"operation": "OUTBOUND"}, "identity_vars": ["draft_id", "operation_key", "warehouse_id", "scan_session_id"], "commands": ["SAVE", "CANCEL", "RECORD"], "kind": "reconcile", "native_outcome_path": "data.outcome", "native_outcomes": ["SUCCEEDED", "UNKNOWN"], "receipt_path": "data.receipt", "current_document_path": "data.document", "original_response_path": "data.response", "meta_contract": "mini-app-p03-v1", "permission": "outbound.view"},
+    "P05_CURRENT_DRAFT": {"owner": "P05", "mode": "SOURCE_LINKED", "transport_owner": "P03", "path": "/api/v1/mini-app/drafts/{id}", "path_vars": {"id": "draft_id"}, "query": ["warehouse_id", "operation", "scan_session_id"], "fixed_query": {"operation": "OUTBOUND"}, "identity_vars": ["draft_id", "warehouse_id", "scan_session_id"], "kind": "current_document", "meta_contract": "mini-app-p03-v1"},
+    "P05_CURRENT_DOCUMENT": {"owner": "P05", "mode": "SOURCE_LINKED", "path": "/api/v1/mini-app/outbound/documents/{id}", "path_vars": {"id": "business_document_id"}, "query": ["warehouse_id"], "identity_vars": ["business_document_id", "warehouse_id"], "kind": "current_document"},
+    "P07_CONFIRMATION": {"owner": "P07", "mode": "CONFIRM", "path": "/api/v1/mini-app/items/{itemId}/nfc/confirmation", "path_vars": {"itemId": "item_id"}, "query": ["warehouse_id"], "identity_vars": ["item_id", "warehouse_id"], "headers": {"Idempotency-Key": "operation_key"}, "kind": "reconcile", "native_outcome_path": "data.state", "native_outcomes": ["SUCCEEDED", "PROCESSING", "UNKNOWN"], "receipt_path": "data.response.data.confirmation", "original_response_path": "data.response", "meta_contract": "mini-app-p07-v1", "permission": "physical_code.assign_rfid", "receipt_key_echo_path": null, "committed_version_path": null},
+    "P07_CURRENT_TAG": {"owner": "P07", "mode": "CONFIRM", "path": "/api/v1/mini-app/nfc-tags/{physicalCodeId}", "path_vars": {"physicalCodeId": "physical_code_id"}, "query": ["warehouse_id"], "identity_vars": ["physical_code_id", "warehouse_id"], "kind": "current_mapping", "meta_contract": "mini-app-p07-v1"}
+  },
+  "operation_identity": {
+    "P04_P03": "requestId in the URL is the original command Idempotency-Key UUID, not the current HTTP trace. Compare request_id, draft document_id, scan_session_id, warehouse_id, operation and command in both data and receipt. Compare receipt.version with the original successful command, not automatically with the current document version.",
+    "P05_SOURCE_LINKED": "Require caller evidence for the source-linked mode and the original source_document_id. A generic OUTBOUND draft alone does not prove P05 linkage. After RECORD, compare the owner's business_document_id with the original selected source; never create a replacement on mismatch.",
+    "P07": "Send the exact original PATCH Idempotency-Key. Compare nested confirmation actor_id, auth_session_id, warehouse_id, item_id and physical_code_id with the caller's known identity; compare hardware_uid in the original response when known. The current GET trace is not the original PATCH trace, and P07 does not echo the key as a receipt request ID.",
+    "trace": {"header": "X-Request-ID", "response_path": "meta.request_id", "rule": "New UUID per HTTP read; keep separate from the stable operation_key. Preserve original trace only as correlation evidence."},
+    "server_scope": ["actor from authentication", "stable auth_session_id", "confirmed active warehouse", "current effective owner permission"],
+    "forbidden_substitutions": ["display document number for UUID", "auth_session_id for scan_session_id", "latest receipt for the requested command", "current mapping or events for an operation receipt"]
+  },
+  "request_rules": {
+    "body": null,
+    "P04_operation_query": "Do not send operation; P04 supplies INBOUND internally and rejects unknown fields.",
+    "P05_operation_query": "Always OUTBOUND, only SOURCE_LINKED mode.",
+    "If-Match": "Do not copy a write If-Match header onto reconciliation. Owner draft detail may optionally check If-Match; a 412 means a version conflict, not operation failure.",
+    "retry": "P15 never replays writes. Native SAME_REQUEST_ONLY and SAME_KEY_SAME_PAYLOAD_ONLY_AFTER_RECONCILIATION remain owner policies, not permission for P15 to write.",
+    "current_reads": "Read only a known immutable UUID from the verified caller or a validated owner response; never auto-select or search by a displayed number. Current reads do not resolve a missing operation receipt."
+  },
+  "blocked_cases": [
+    {"case": "P04_LEGACY", "reason": "No approved P15 recovery identity/owner contract; do not route into P04 SCOPED."},
+    {"case": "P05_STANDALONE", "reason": "P03 OUTBOUND reconciliation in this integration is SOURCE_LINKED only."},
+    {"case": "DEFINITIVE_NOT_RECORDED_OR_NEW_REJECTION_OUTCOME", "reason": "Requires owner schema and evidence. Do not infer from DRAFT, null, 404, elapsed time or 5xx."},
+    {"case": "REAUTH_OLD_RECEIPT_RECOVERY", "reason": "No approved cross-session recovery/retention policy; never rebind using only the same actor and warehouse."},
+    {"case": "P07_UNKNOWN_DEVICE_RESULT", "reason": "Do not prepare, release, link or write from P15; require the P07 owner and its existing gates."}
+  ],
+  "session": {
+    "refresh": "P01 auth lifecycle preserves stable session; revalidate through the owner. P15 does not create or refresh sessions itself.",
+    "new_login": "New auth session; drop late responses, do not reuse the old session as current or rebind its receipts.",
+    "retention": "PENDING_OWNER_POLICY; no retention duration is invented.",
+    "checkpoint_allowlist": ["owner", "mode", "command", "operation_key", "actor_id", "auth_session_id", "warehouse_id", "scan_session_id", "draft_id", "original_version", "business_document_id", "source_document_id", "item_id", "physical_code_id", "caller", "scroll_offset", "outcome"],
+    "checkpoint_forbidden": ["password", "access_token", "refresh_token", "Authorization", "Cookie", "customer PII", "raw request/response bodies"]
+  },
+  "errors": {
+    "preserve": ["raw HTTP status", "error.code", "owner error_code when present", "trace Request-ID"],
+    "401": "Hand off to P01; do not turn session expiry into business failure.",
+    "403": "Only a trusted owner JSON error supports a business permission explanation; HTML/edge/proxy 403 remains unclassified transport error.",
+    "409": "Preserve identity/context/state conflict codes; do not retry a write.",
+    "412": "STALE_VERSION is separate from request outcome.",
+    "422_428": "Validation/precondition errors remain distinct and preserve the owner code.",
+    "5xx_timeout_malformed": "No definitive operation outcome. Preserve caller UNKNOWN and lock writes; no receipt/success fixture.",
+    "unknown_native_outcome": "Do not coerce to SUCCEEDED, FAILED or NOT_RECORDED; require owner schema review."
+  },
+  "support": {"read": "P03_CONTEXT", "status_path": "data.admin_contact.status", "channels_path": "data.admin_contact.channels", "source_status": "NOT_CONFIGURED", "channels": [], "send_from_p15": false, "future_configuration": "Owner must approve channel type/label/value/URL allowlist/scope. No fallback phone, email or endpoint."},
+  "device": {"permission_api": null, "status_api": null, "nfc_write_owner": "P07", "hardware_pass_from_source_or_ci": false, "requirements": ["distinguish browser and Android capabilities", "release camera resources on exit", "Android NFC normal permission is not an invented runtime permission API", "actual disabled/unsupported/readback states require device evidence", "contact or hardware side effects require an explicit click at the correct owner"]},
+  "ui_acceptance_pending": ["one GET for a double-click while checking", "drop stale response by caller generation and auth session", "Back preserves caller/scroll/UNKNOWN", "no write retry after timeout", "reauth never reuses the old session", "no automatic contact, camera or NFC action"],
+  "release_evidence_required": ["owner and mode and command", "approved case-specific definitive/reauth policy where needed", "deployed build SHA and ancestry", "owner schema/migration state without running migrations just for evidence", "authenticated live GET request with trace and timestamp", "redacted raw response without tokens or PII", "deny/session/identity/version semantics", "P15 UI integration evidence", "P07/P06 owner gates remain independent"],
+  "evidence_exclusions": ["health check is not authenticated smoke", "owner CI is not live evidence", "software bridge is not hardware PASS", "this contract does not approve P17 reconciliation endpoints"],
+  "source_files": ["Modules/Warehouse/routes/p04_inbound.php", "Modules/Warehouse/app/Http/Controllers/P04InboundController.php", "Modules/Warehouse/routes/p03_drafts.php", "Modules/Warehouse/app/Services/MiniAppDraftService.php", "Modules/Warehouse/routes/p05_outbound.php", "Modules/Warehouse/app/Http/Controllers/P07NfcController.php"]
+}

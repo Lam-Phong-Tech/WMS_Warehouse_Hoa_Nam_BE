@@ -1,0 +1,135 @@
+name: P15 Existing Owner Read Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'contracts/p15/**'
+      - 'tests/Contracts/p15-postman-guard.test.cjs'
+      - 'tests/Feature/P15OwnerReadContractTest.php'
+      - 'tests/Feature/P03Draft*Test.php'
+      - 'tests/Feature/P04*Test.php'
+      - 'tests/Feature/P05*Test.php'
+      - 'tests/Feature/P06*Test.php'
+      - 'tests/Feature/P07*Test.php'
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'app/Support/Idempotency*'
+      - 'database/migrations/**'
+      - 'composer.json'
+      - 'composer.lock'
+      - '.github/workflows/p15-owner-read-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    name: Owner reads (${{ matrix.database }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p15-disposable-ci-only
+          POSTGRES_DB: p15_owner_read_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p15_owner_read_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p15_owner_read_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p15-disposable-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p15-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate GET-only collection preflight without network
+        run: node --test tests/Contracts/p15-postman-guard.test.cjs
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p15-composer.log 2>&1 || { tail -60 /tmp/p15-composer.log; exit 1; }
+      - name: Validate syntax and isolated database target
+        run: |
+          php -l tests/Feature/P15OwnerReadContractTest.php
+          python3 - <<'PY'
+          import os
+          assert os.environ['APP_ENV'] == 'testing'
+          assert os.environ['DB_HOST'] == '127.0.0.1'
+          assert (os.environ['DB_CONNECTION'], os.environ['DB_DATABASE']) in [('sqlite', ':memory:'), ('pgsql', 'p15_owner_read_test')]
+          PY
+      - name: Prepare disposable application only
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: P15 read integration and existing owner regressions
+        run: >-
+          php artisan test
+          tests/Feature/P15OwnerReadContractTest.php
+          tests/Feature/P03DraftContractTest.php
+          tests/Feature/P03DraftJsonShapeTest.php
+          tests/Feature/P04InboundContractTest.php
+          tests/Feature/P05OutboundContractTest.php
+          tests/Feature/P06CatalogContractTest.php
+          tests/Feature/P06SnapshotTransactionTest.php
+          tests/Feature/P07NfcContractTest.php
+          tests/Feature/P07NfcRouteContractTest.php
+          tests/Feature/AuthWarehouseContextTest.php
+          tests/Feature/AuthSessionPersistenceTest.php
+          --log-junit p15-${{ matrix.database }}.xml
+      - name: Read-only P15 style gate
+        if: success() || failure()
+        run: vendor/bin/pint --test tests/Feature/P15OwnerReadContractTest.php
+      - name: Publish bounded CI evidence, never live or hardware acceptance
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          report = Path('p15-' + os.environ['DB_CONNECTION'] + '.xml')
+          if not report.is_file():
+              raise SystemExit('No test report; P15 is NOT verified.')
+          root = ET.parse(report).getroot()
+          cases = list(root.iter('testcase'))
+          counts = {'tests': len(cases), 'failures': sum(len(list(c.iter('failure'))) for c in cases), 'errors': sum(len(list(c.iter('error'))) for c in cases), 'skipped': sum(len(list(c.iter('skipped'))) for c in cases)}
+          own = [c for c in cases if 'P15OwnerReadContractTest' in (c.get('class', '') + c.get('classname', ''))]
+          evidence = {'sha': os.environ['GITHUB_SHA'], 'database': os.environ['DB_CONNECTION'], 'counts': counts, 'p15_tests': len(own), 'live_dev': False, 'hardware_verified': False, 'production_activation': False, 'scope': 'P15 contract plus the owner regressions explicitly listed in this job; not full release CI'}
+          print(json.dumps(evidence, sort_keys=True))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('```json\n' + json.dumps(evidence, indent=2) + '\n```\n')
+          if len(own) != 9 or counts['failures'] or counts['errors'] or counts['skipped']:
+              raise SystemExit('P15/owner test evidence incomplete or failed; inspect failed test steps.')
+          PY
