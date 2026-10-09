@@ -1,0 +1,137 @@
+name: P07 NFC Rejection Recovery
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'database/migrations/**'
+      - 'contracts/p07/**'
+      - 'tests/Feature/P07*Test.php'
+      - 'tests/Feature/P15OwnerReadContractTest.php'
+      - 'tests/Feature/P17ScanExceptionReservationTest.php'
+      - '.github/workflows/p07-nfc-recovery.yml'
+permissions:
+  contents: write
+jobs:
+  recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p07-disposable-recovery-ci
+          POSTGRES_DB: p07_recovery_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p07_recovery_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p07-disposable-recovery-ci
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: isolated-p07-recovery-not-production
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: e0b738a34da8b3814dd1c297dce170a1f78055d2
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Confirm isolated target
+        run: |
+          python3 - <<'PY'
+          import os, json
+          assert os.environ['APP_ENV']=='testing' and os.environ['DB_HOST']=='127.0.0.1' and os.environ['DB_URL']==''
+          c=json.load(open('contracts/p07/nfc-confirm-recovery-v1.json'))
+          assert c['production_activation'] is False and c['live_verified'] is False
+          assert c['new_routes']==[] and c['new_env_variables']==[]
+          PY
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p07-install.log 2>&1 || { tail -60 /tmp/p07-install.log; exit 1; }
+      - name: Format reviewed candidate and verify syntax
+        run: |
+          python3 - <<'PY'
+          import subprocess, json
+          from pathlib import Path
+          paths=['Modules/Warehouse/app/Http/Middleware/P07NfcRecoveryGuard.php','Modules/Warehouse/app/Providers/RouteServiceProvider.php','database/migrations/2026_10_09_190000_create_p07_nfc_rejections.php','tests/Feature/P07NfcRecoveryTest.php']
+          for path in paths: subprocess.run(['php','-l',path],check=True)
+          subprocess.run(['vendor/bin/pint',*paths],check=True)
+          subprocess.run(['vendor/bin/pint','--test',*paths],check=True)
+          Path('/tmp/p07-reviewed-paths.json').write_text(json.dumps(paths))
+          PY
+      - name: Prepare disposable application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: SQLite recovery and unchanged owner regressions
+        run: |
+          php artisan test tests/Feature/P07NfcRecoveryTest.php tests/Feature/P07NfcContractTest.php tests/Feature/P15OwnerReadContractTest.php tests/Feature/P17ScanExceptionReservationTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p07r-sqlite.xml > /tmp/p07r-sqlite.log 2>&1 || { tail -180 /tmp/p07r-sqlite.log; exit 1; }
+          tail -8 /tmp/p07r-sqlite.log
+      - name: PostgreSQL recovery and unchanged owner regressions
+        if: success() || failure()
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: p07_recovery_test
+        run: |
+          php artisan test tests/Feature/P07NfcRecoveryTest.php tests/Feature/P07NfcContractTest.php tests/Feature/P15OwnerReadContractTest.php tests/Feature/P17ScanExceptionReservationTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p07r-pgsql.xml > /tmp/p07r-pgsql.log 2>&1 || { tail -180 /tmp/p07r-pgsql.log; exit 1; }
+          tail -8 /tmp/p07r-pgsql.log
+      - name: Publish exact test counts and errors
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as E, json
+          for path in Path('.').glob('p07r-*.xml'):
+              root=E.parse(path).getroot(); cases=list(root.iter('testcase'))
+              counts={'tests':len(cases),'assertions':sum(int(x.get('assertions','0')) for x in cases),**{tag:len(list(root.iter(tag))) for tag in ['failure','error','skipped']}}
+              print('::notice title='+path.name+'::'+json.dumps(counts))
+              for tag in ['failure','error']:
+                  for node in root.iter(tag):
+                      msg=(node.text or '')[:3000].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+                      print('::error title='+path.name+'::'+msg)
+          PY
+      - name: Publish verified tree only, no ref update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import os,json,pathlib,subprocess,urllib.request
+          import xml.etree.ElementTree as E
+          for filename in ['p07r-sqlite.xml','p07r-pgsql.xml']:
+              root=E.parse(filename).getroot()
+              assert not list(root.iter('failure')) and not list(root.iter('error')) and not list(root.iter('skipped'))
+              assert len([c for c in root.iter('testcase') if 'P07NfcRecoveryTest' in (c.get('class','')+c.get('classname',''))])==18
+          repo=os.environ['GITHUB_REPOSITORY']; assert repo=='Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
+          paths=json.load(open('/tmp/p07-reviewed-paths.json'))
+          entries=[{'path':p,'mode':'100644','type':'blob','content':pathlib.Path(p).read_text()} for p in paths]
+          base=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()
+          req=urllib.request.Request('https://api.github.com/repos/'+repo+'/git/trees',data=json.dumps({'base_tree':base,'tree':entries}).encode(),method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
+          with urllib.request.urlopen(req,timeout=60) as r: tree=json.load(r)['sha']
+          print('::notice title=P07_VERIFIED_TREE::'+tree)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('Verified candidate tree `'+tree+'`; no branch/ref/server changed.\n')
+          PY
