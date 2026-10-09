@@ -114,6 +114,10 @@ class P15OwnerReadContractTest extends TestCase
         [$values, $body] = $this->saveInbound($token, (string) $warehouse->id);
         $this->putJson('/api/v1/mini-app/inbound/drafts/'.$values['draft_id'], $body,
             $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"1"'])->assertOk();
+        // The P03 projection used by reconcile intentionally omits actor_id.
+        // Check persisted ownership and another actor's denial instead of inventing a JSON field.
+        $this->assertDatabaseHas('mini_app_drafts', ['document_id' => $values['draft_id'], 'actor_id' => (string) $actor->user_id, 'auth_session_id' => $session]);
+        $this->assertDatabaseHas('mini_app_draft_receipts', ['request_id' => $values['operation_key'], 'actor_id' => (string) $actor->user_id, 'auth_session_id' => $session]);
         $before = $this->domainSnapshot();
         for ($click = 0; $click < 2; $click++) {
             $this->readOwner('P04_RECONCILE', $values, $token)->assertOk()
@@ -121,7 +125,7 @@ class P15OwnerReadContractTest extends TestCase
                 ->assertJsonPath('data.receipt.request_id', $values['operation_key'])
                 ->assertJsonPath('data.receipt.command', 'SAVE')->assertJsonPath('data.receipt.version', 1)
                 ->assertJsonPath('data.document.version', 2)->assertJsonPath('data.state', 'DRAFT')
-                ->assertJsonPath('data.document.actor_id', (string) $actor->user_id)
+                ->assertJsonMissingPath('data.document.actor_id')
                 ->assertJsonPath('data.document.auth_session_id', $session)->assertJsonPath('data.cancel_allowed', false);
         }
         $this->readOwner('P04_RECONCILE', [...$values, 'command' => 'RECORD'], $token)
@@ -133,6 +137,12 @@ class P15OwnerReadContractTest extends TestCase
             ->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
         $this->getJson($this->readUrl('P04_RECONCILE', $values).'&operation=INBOUND', $this->headers($token))
             ->assertStatus(422)->assertJsonPath('error.code', 'UNEXPECTED_FIELD');
+        $this->assertSame($before, $this->domainSnapshot());
+        [, $otherToken] = $this->actorSession();
+        $before = $this->domainSnapshot();
+        $this->readOwner('P04_RECONCILE', $values, $otherToken)->assertOk()
+            ->assertJsonPath('data.outcome', 'UNKNOWN')->assertJsonPath('data.receipt', null)->assertJsonPath('data.document', null);
+        $this->readOwner('P04_CURRENT_DRAFT', $values, $otherToken)->assertNotFound();
         $this->assertSame($before, $this->domainSnapshot());
     }
 
@@ -185,7 +195,10 @@ class P15OwnerReadContractTest extends TestCase
         $this->readOwner('P07_CONFIRMATION', $values, $token)->assertOk()
             ->assertJsonPath('data.state', 'UNKNOWN')->assertJsonPath('data.response', null)
             ->assertJsonPath('data.may_create_new_request', false);
-        $this->getJson($this->readUrl('P07_CONFIRMATION', $values), $this->headers($token))->assertStatus(422);
+        $this->getJson($this->readUrl('P07_CONFIRMATION', $values), $this->headers($token))
+            ->assertStatus(428)->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
+        $this->readOwner('P07_CONFIRMATION', [...$values, 'operation_key' => 'bad'], $token)
+            ->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_ERROR');
         $this->readOwner('P07_CONFIRMATION', [...$values, 'warehouse_id' => (string) Str::uuid()], $token)
             ->assertConflict()->assertJsonPath('error.code', 'WAREHOUSE_CONTEXT_MISMATCH');
         $this->assertSame($before, $this->domainSnapshot());

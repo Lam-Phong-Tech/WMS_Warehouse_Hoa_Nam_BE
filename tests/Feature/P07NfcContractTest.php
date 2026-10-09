@@ -87,7 +87,8 @@ class P07NfcContractTest extends TestCase
         unset($bad['written_payload']);
         $this->patchJson($url, $bad, $this->headers($token, (string) Str::uuid()))->assertUnprocessable();
         $this->patchJson($url, [...$body, 'written_payload' => $body['written_payload'].'-WRONG'], $this->headers($token, (string) Str::uuid()))->assertUnprocessable();
-        $this->patchJson($url, $body, $this->headers($token))->assertUnprocessable();
+        $this->patchJson($url, $body, $this->headers($token))
+            ->assertStatus(428)->assertJsonPath('error.code', 'PRECONDITION_REQUIRED');
         $this->assertSame(0, DB::table('physical_codes')->where('carrier_type', 'NFC')->count());
     }
 
