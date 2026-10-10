@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\AuditLog\Models\AuditOutbox;
+use Modules\Warehouse\Support\P22NfcAuditSnapshot;
 use RuntimeException;
 use Throwable;
 
@@ -57,7 +58,7 @@ class AuditLogger
     ): void {
         // NFC-only, trusted owner snapshot BEFORE sanitization and outbox fallback.
         // No new event, mutation, receipt, historical backfill or current-tag read fallback.
-        $afterData = \Modules\Warehouse\Support\P22NfcAuditSnapshot::enrich(
+        $afterData = P22NfcAuditSnapshot::enrich(
             $action, $objectType, $objectId, $actorId, $afterData,
         );
         $payload = self::payload(
