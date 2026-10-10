@@ -74,6 +74,7 @@ final class P22NfcHistory
                 'warehouseId' => $scope['warehouse_id'], 'timezone' => config('app.timezone'), 'asOf' => $asOf,
                 'snapshot' => $snapshot, 'sources' => ['NFC' => ['status' => 'INCLUDED']],
                 'coveragePolicy' => 'ONLY_PERSISTED_EVENT_SNAPSHOTS', 'legacyPolicy' => 'EXCLUDE_UNPROVEN_EVENT_WAREHOUSE',
+                'resultPolicy' => 'OWNER_RESULT_SNAPSHOT_NO_STORAGE_DEFAULTS',
                 'paginationConsistency' => 'KEYSET_UPPER_BOUND_NOT_FROZEN_SNAPSHOT', 'exportAvailable' => false,
                 'currentTagLookupPerformed' => false, 'isConfirmationReceipt' => false];
             if ($request->route('recordId') !== null) {
@@ -242,12 +243,17 @@ final class P22NfcHistory
         }
         $type = "CASE WHEN e.action = 'REVOKE_ITEM_NFC' THEN 'REVOKE' WHEN ".$this->boolean('replacement_requested', false)." THEN 'ASSIGN' WHEN "
             .$this->boolean('replacement_verified', true).' AND '.$this->boolean('replacement_requested', true)
+            .' AND '.$this->notBlank('previous_physical_code_id').' AND '.$this->notBlank('previous_hardware_uid')
+            .' AND '.$this->notBlank('hardware_uid').' AND '.$this->notBlank('item_id')
             .' AND '.$this->json('previous_physical_code_id').' <> '.$this->json('physical_code_id')
             .' AND '.$this->json('previous_hardware_uid').' <> '.$this->json('hardware_uid')
             .' AND '.$this->json('previous_item_id').' = '.$this->json('item_id')
             .' AND '.$this->json('previous_warehouse_id').' = '.$this->json('warehouse_id')." THEN 'REPLACE' ELSE 'UNKNOWN' END";
+        // The PostgreSQL compatibility writer defaults e.result NULL to SUCCESS.
+        // Only the original, trusted owner snapshot can prove a P22 result.
+        // Older snapshots without result remain unknown; never infer or backfill.
         $q->selectRaw('CAST(e.id AS VARCHAR(150)) AS event_id, CAST(e.object_id AS VARCHAR(150)) AS owner_id, e.created_at AS event_time, '
-            ."COALESCE(CAST(e.created_at AS VARCHAR(60)), '') AS sort_time, e.action, e.result AS status, e.reason, ".$type.' AS event_type');
+            ."COALESCE(CAST(e.created_at AS VARCHAR(60)), '') AS sort_time, e.action, ".$this->json('result').' AS status, e.reason, '.$type.' AS event_type');
         foreach ($fields as $field) {
             $q->selectRaw($this->json($field).' AS '.$field);
         }
@@ -277,6 +283,11 @@ final class P22NfcHistory
         return "(CASE WHEN json_valid(e.after_data) THEN json_type(e.after_data, '$.nfc_history_v1.{$field}') END) = '{$literal}'";
     }
 
+    private function notBlank(string $field): string
+    {
+        return 'NULLIF(TRIM('.$this->json($field)."), '') IS NOT NULL";
+    }
+
     private function event(object $row, array $scope): array
     {
         $detail = $scope['audit_details'];
@@ -285,6 +296,7 @@ final class P22NfcHistory
         return ['recordId' => 'NFC:'.$row->owner_id, 'activityId' => 'NFC:'.$row->event_id, 'eventId' => $row->event_id,
             'physical_code_id' => $row->owner_id, 'source' => 'NFC', 'action' => $row->action,
             'type' => $row->event_type, 'type_label' => $names[$row->event_type], 'status' => $row->status,
+            'status_source' => $row->status === null ? 'NOT_RECORDED' : 'PERSISTED_OWNER_RESULT',
             'time' => $row->event_time, 'timeStatus' => $row->event_time === null ? 'NOT_RECORDED' : 'AUDIT_CREATED_AT',
             'hardware_uid' => $row->hardware_uid, 'previous_hardware_uid' => $row->previous_hardware_uid,
             'previous_physical_code_id' => $row->previous_physical_code_id,
