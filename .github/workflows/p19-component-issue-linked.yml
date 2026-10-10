@@ -1,0 +1,101 @@
+name: P19 Linked Component Issue
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/p19-component-issue-linked.yml']
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-p19
+          POSTGRES_DB: p19_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p19_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p19_contract_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${{ github.run_id }}-isolated-p19
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      P19_TEST_SHA: c25221bdbdeea80f395c57a3df62ed3b25f71464
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ env.P19_TEST_SHA }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Verify isolated target
+        run: |
+          test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
+          test "$(git rev-parse HEAD)" = "$P19_TEST_SHA"
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+      - name: Install dependencies
+        run: |
+          cp .env.example .env
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p19-install.log 2>&1 || { tail -60 /tmp/p19-install.log; exit 1; }
+          php artisan key:generate
+          php artisan config:clear
+      - name: Syntax and style
+        run: |
+          php -l Modules/Warehouse/app/Services/P19LinkedComponentIssue.php
+          php -l Modules/Warehouse/app/Http/Middleware/MiniAppDraftHandoff.php
+          php -l tests/Feature/P19LinkedComponentIssueTest.php
+          vendor/bin/pint --test Modules/Warehouse/app/Services/P19LinkedComponentIssue.php Modules/Warehouse/app/Http/Middleware/MiniAppDraftHandoff.php tests/Feature/P19LinkedComponentIssueTest.php
+      - name: P19 and owner tests
+        if: success() || failure()
+        run: php artisan test tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/MiniAppComponentIssueStagingTest.php tests/Feature/P03DraftContractTest.php tests/Feature/P03DraftJsonShapeTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/AuthWarehouseContextTest.php --log-junit p19-${{ matrix.database }}.xml
+      - name: Publish exact candidate evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,json,pathlib,xml.etree.ElementTree as E
+          p=pathlib.Path('p19-'+os.environ['DB_CONNECTION']+'.xml')
+          if not p.exists(): raise SystemExit('Missing test report')
+          root=E.parse(p).getroot(); cases=list(root.iter('testcase'))
+          counts={'tests':len(cases),'assertions':sum(int(x.get('assertions','0')) for x in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+          report={'tested_sha':os.environ['P19_TEST_SHA'],'workflow_sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'counts':counts,'live_verified':False}
+          print(json.dumps(report,sort_keys=True))
+          for case in cases:
+              for tag in ['failure','error']:
+                  e=case.find(tag)
+                  if e is not None:
+                      print('FAILED_CASE '+case.get('name',''))
+                      print('::error title=P19 assertion::'+(e.text or '')[:3000].replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
+          if any(counts[k] for k in ['failure','error','skipped']): raise SystemExit('Tests failed')
+          PY
