@@ -79,14 +79,29 @@ jobs:
               p=Path(path); text=p.read_text(); assert text.count(old)==1,(path,old,text.count(old)); p.write_text(text.replace(old,new))
           p='tests/Feature/P19LinkedComponentIssueTest.php'
           edit(p, "        User::findOrFail($f['actor_id'])->roles()->detach();", "        // Match the IAM/P03 revocation contract: grants are cached by user.version.\n        $user = User::findOrFail($f['actor_id']);\n        $user->roles()->detach();\n        $user->forceFill(['version' => (int) $user->version + 1])->save();")
+          edit(p, "        $this->unchanged($f);\n    }\n\n    public function test_box_aliases_cannot_withdraw_more_than_one_container_total", """        $this->unchanged($f);
+                  // A successful historical receipt also cannot bypass later revocation.
+                  $g = $this->fixture();
+                  $posted = $this->save($g);
+                  $key = (string) Str::uuid();
+                  $this->postJson(self::RECORD, $this->body($g), $this->recordHeaders($g, $posted, $key))->assertCreated();
+                  $user = User::findOrFail($g['actor_id']);
+                  $user->roles()->detach();
+                  $user->forceFill(['version' => (int) $user->version + 1])->save();
+                  $this->postJson(self::RECORD, $this->body($g), $this->recordHeaders($g, $posted, $key))->assertForbidden();
+                  $this->assertSame(4, $this->balance($g));
+                  $this->assertDatabaseCount('component_issue_documents', 1);
+              }
+
+              public function test_box_aliases_cannot_withdraw_more_than_one_container_total""")
           p='tests/Feature/MiniAppComponentIssueStagingTest.php'
           edit(p, 'use Illuminate\\Support\\Facades\\DB;', 'use Illuminate\\Support\\Facades\\DB;\nuse Illuminate\\Support\\Facades\\Hash;\nuse Modules\\Auth\\Models\\User;\nuse Tests\\Feature\\Concerns\\InteractsWithBrowserSession;')
-          edit(p, '    use PreparesOutboundFixtures;', '    use InteractsWithBrowserSession;\n    use PreparesOutboundFixtures {\n        superAdminHeaders as private legacySuperAdminHeaders;\n    }')
-          edit(p, '    private function warrantyCase(array $headers, bool $checking): string', '''    // The owner now requires a stable login family and an explicitly confirmed
-              // warehouse. Use the normal browser login/context flow on this test DB.
-              private function superAdminHeaders(): array
+          edit(p, '    use PreparesOutboundFixtures;', '    use InteractsWithBrowserSession;\n    use PreparesOutboundFixtures {\n        authHeadersWithRole as private legacyAuthHeadersWithRole;\n    }')
+          edit(p, '    private function warrantyCase(array $headers, bool $checking): string', '''    // Use real isolated login families for each role, not a token carrying
+              // custom sid claims left by another actor in this PHPUnit process.
+              private function authHeadersWithRole(string $roleCode): array
               {
-                  $auth = $this->legacySuperAdminHeaders();
+                  $auth = $this->legacyAuthHeadersWithRole($roleCode);
                   $user = User::findOrFail($auth['__user_id']);
                   $secret = bin2hex(random_bytes(16));
                   $user->forceFill(['email' => 'component-'.Str::uuid().'@example.test',
