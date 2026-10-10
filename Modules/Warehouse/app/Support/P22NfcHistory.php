@@ -67,8 +67,8 @@ final class P22NfcHistory
                 $from = $input['date_mode'] === 'DATE' ? $input['date'] : $input['from'];
                 $to = $input['date_mode'] === 'DATE' ? $input['date'] : $input['to'];
                 $timezone = config('app.timezone', 'Asia/Ho_Chi_Minh');
-                $query->where('event_time', '>=', $this->databaseTime(Carbon::createFromFormat('!Y-m-d', $from, $timezone)))
-                    ->where('event_time', '<', $this->databaseTime(Carbon::createFromFormat('!Y-m-d', $to, $timezone)->addDay()));
+                $query->where('event_time', '>=', $this->calendarBoundary(Carbon::createFromFormat('!Y-m-d', $from, $timezone)))
+                    ->where('event_time', '<', $this->calendarBoundary(Carbon::createFromFormat('!Y-m-d', $to, $timezone)->addDay()));
             }
             $meta = ['contract' => self::CONTRACT, 'owner' => 'P08', 'source' => 'NFC', 'countUnit' => 'EVENT',
                 'warehouseId' => $scope['warehouse_id'], 'timezone' => config('app.timezone'), 'asOf' => $asOf,
@@ -322,6 +322,16 @@ final class P22NfcHistory
         } catch (\InvalidArgumentException) {
         }
         ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'ID phải là NFC:UUID của đúng đối tượng.');
+    }
+
+    private function calendarBoundary(Carbon $time): string
+    {
+        // SQLite compares stored timestamp text lexically. A fractional-zero
+        // suffix would exclude midnight at the start and include the next day.
+        // Keep the existing asOf/cursor precision unchanged.
+        return DB::getDriverName() === 'sqlite'
+            ? $time->copy()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s')
+            : $this->databaseTime($time);
     }
 
     private function databaseTime(Carbon $time): string
