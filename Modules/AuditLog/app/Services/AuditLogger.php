@@ -59,7 +59,7 @@ class AuditLogger
         // NFC-only, trusted owner snapshot BEFORE sanitization and outbox fallback.
         // No new event, mutation, receipt, historical backfill or current-tag read fallback.
         $afterData = P22NfcAuditSnapshot::enrich(
-            $action, $objectType, $objectId, $actorId, $afterData,
+            $action, $objectType, $objectId, $actorId, $afterData, $result,
         );
         $payload = self::payload(
             $action,
