@@ -47,7 +47,7 @@ class P21ComponentResumeTest extends TestCase
         $result = $this->record($f, $first, $key)->assertCreated();
         $business = $result->json('data.component_issue_document_id');
         $before = $this->snapshot();
-        $list = $this->getJson($this->listUrl($f), $this->headers($f['token']))->assertOk()
+        $list = $this->read($this->listUrl($f), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('meta.resume_contract', P21::CONTRACT)->assertJsonPath('meta.total', 2)
             ->assertJsonPath('meta.status_totals.DRAFT', 1)->assertJsonPath('meta.status_totals.RECORDED', 1)
             ->assertJsonPath('meta.status_totals.CANCELLED', 1)->assertJsonCount(2, 'data');
@@ -61,11 +61,11 @@ class P21ComponentResumeTest extends TestCase
         $this->assertFalse($row['codes_validated']);
         $this->assertSame('NONE', $row['stock_effect']);
         $this->assertSame('RECORD', $row['last_command']);
-        $this->getJson($this->listUrl($f, ['status' => 'DRAFT']), $this->headers($f['token']))->assertOk()
+        $this->read($this->listUrl($f, ['status' => 'DRAFT']), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.document_id', $second['id']);
-        $this->getJson($this->listUrl($f, ['status' => 'CANCELLED']), $this->headers($f['token']))->assertOk()
+        $this->read($this->listUrl($f, ['status' => 'CANCELLED']), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.0.resume_policy', 'READ_ONLY_CANCELLED');
-        $check = $this->getJson($this->receiptUrl($f, $first, $key, 'RECORD'), $this->headers($f['token']))->assertOk()
+        $check = $this->read($this->receiptUrl($f, $first, $key, 'RECORD'), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.outcome', 'SUCCEEDED')->assertJsonPath('data.document.business_document_id', $business)
             ->assertJsonPath('data.response.data.p19_result.stock_effect', 'DECREASE')->assertJsonPath('data.p21_recovery_policy', 'CHECK_ONLY');
         $this->assertSame($result->json('data.p19_result'), $check->json('data.response.data.p19_result'));
@@ -78,7 +78,7 @@ class P21ComponentResumeTest extends TestCase
         $codes = [['raw_code' => 'Unknown|Original-MixedCase', 'quantity' => 5, 'scan_source' => 'SCANNER']];
         $d = $this->save($f, $codes);
         $before = $this->snapshot();
-        $this->getJson($this->detailUrl($f, $d), $this->headers($f['token']))->assertOk()->assertHeader('ETag', '"1"')
+        $this->read($this->detailUrl($f, $d), $this->headers($f['token']))->assertOk()->assertHeader('ETag', '"1"')
             ->assertJsonPath('data.codes', $codes)->assertJsonPath('data.codes_validated', false)
             ->assertJsonPath('data.scan_evidence_persisted', false)->assertJsonPath('data.summary.quantity_total', 5)
             ->assertJsonPath('data.summary.basis', 'UNVALIDATED_PERSONAL_SNAPSHOT')
@@ -93,10 +93,10 @@ class P21ComponentResumeTest extends TestCase
     {
         $f = $this->fixture();
         $empty = $this->save($f, []);
-        $this->getJson($this->detailUrl($f, $empty), $this->headers($f['token']))->assertOk()
+        $this->read($this->detailUrl($f, $empty), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.summary.quantity_total', 0)->assertJsonPath('data.business_document_id', null);
         $incomplete = $this->save($f, [['raw_code' => 'legacy-input-without-explicit-quantity']]);
-        $this->getJson($this->detailUrl($f, $incomplete), $this->headers($f['token']))->assertOk()
+        $this->read($this->detailUrl($f, $incomplete), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.summary.quantity_total', null)->assertJsonPath('data.snapshot_shape_valid', false)
             ->assertJsonPath('data.resume_policy', 'READ_ONLY_INCOMPLETE_SNAPSHOT');
     }
@@ -107,11 +107,11 @@ class P21ComponentResumeTest extends TestCase
         $d = $this->save($f);
         DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'COMPLETED']);
         $before = $this->snapshot();
-        $this->getJson($this->detailUrl($f, $d), $this->headers($f['token']))->assertOk()
+        $this->read($this->detailUrl($f, $d), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.case_status', 'COMPLETED')->assertJsonPath('data.case_allows_issue', false)
             ->assertJsonPath('data.resume_policy', 'READ_ONLY_CASE_STATE');
-        $this->getJson($this->listUrl($f), $this->headers($f['token']))->assertOk()->assertJsonPath('meta.total', 1);
-        $this->getJson($this->receiptUrl($f, $d, $d['key'], 'SAVE'), $this->headers($f['token']))->assertOk()->assertJsonPath('data.outcome', 'SUCCEEDED');
+        $this->read($this->listUrl($f), $this->headers($f['token']))->assertOk()->assertJsonPath('meta.total', 1);
+        $this->read($this->receiptUrl($f, $d, $d['key'], 'SAVE'), $this->headers($f['token']))->assertOk()->assertJsonPath('data.outcome', 'SUCCEEDED');
         $this->assertSame($before, $this->snapshot());
         $this->record($f, $d, (string) Str::uuid())->assertUnprocessable()->assertJsonPath('error.code', 'WARRANTY_CASE_STATUS_NOT_ALLOWED');
         $this->assertDatabaseCount('component_issue_documents', 0);
@@ -123,10 +123,10 @@ class P21ComponentResumeTest extends TestCase
         $own = $this->save($f);
         $g = $this->fixture();
         $foreign = $this->save($g);
-        $this->getJson($this->listUrl($f, ['per_page' => 1]), $this->headers($f['token']))->assertOk()
+        $this->read($this->listUrl($f, ['per_page' => 1]), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('meta.total', 1)->assertJsonPath('meta.has_more', false)->assertJsonPath('data.0.document_id', $own['id']);
-        $this->getJson($this->detailUrl($f, $foreign), $this->headers($f['token']))->assertNotFound();
-        $this->getJson($this->receiptUrl($f, $foreign, $foreign['key'], 'SAVE'), $this->headers($f['token']))->assertOk()
+        $this->read($this->detailUrl($f, $foreign), $this->headers($f['token']))->assertNotFound();
+        $this->read($this->receiptUrl($f, $foreign, $foreign['key'], 'SAVE'), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.outcome', 'UNKNOWN')->assertJsonPath('data.receipt', null);
     }
 
@@ -136,10 +136,10 @@ class P21ComponentResumeTest extends TestCase
         $d = $this->save($f);
         $other = Warehouse::create(['code' => 'P21-OTHER-'.Str::random(6), 'name' => 'Isolated other warehouse', 'status' => 'INACTIVE']);
         DB::table('warranty_case_warehouse_owners')->where('warranty_case_id', $f['case_id'])->update(['warehouse_id' => $other->id]);
-        $this->getJson($this->listUrl($f), $this->headers($f['token']))->assertOk()->assertJsonPath('meta.total', 0);
-        $this->getJson($this->detailUrl($f, $d), $this->headers($f['token']))->assertNotFound();
-        $this->getJson($this->receiptUrl($f, $d, $d['key'], 'SAVE'), $this->headers($f['token']))->assertNotFound();
-        $this->getJson($this->listUrl($f, ['warranty_case_id' => $f['case_id']]), $this->headers($f['token']))->assertNotFound();
+        $this->read($this->listUrl($f), $this->headers($f['token']))->assertOk()->assertJsonPath('meta.total', 0);
+        $this->read($this->detailUrl($f, $d), $this->headers($f['token']))->assertNotFound();
+        $this->read($this->receiptUrl($f, $d, $d['key'], 'SAVE'), $this->headers($f['token']))->assertNotFound();
+        $this->read($this->listUrl($f, ['warranty_case_id' => $f['case_id']]), $this->headers($f['token']))->assertNotFound();
     }
 
     public function test_new_login_cannot_reuse_old_tasks_or_receipts(): void
@@ -152,11 +152,11 @@ class P21ComponentResumeTest extends TestCase
         $selected = $this->postJson('/api/v1/auth/switch-context', ['context_type' => 'WAREHOUSE', 'context_id' => $f['warehouse_id']],
             $this->headers($login->json('data.access_token'), false))->assertOk();
         $new = $selected->json('data.access_token');
-        $this->getJson($this->listUrl($f), $this->headers($new))->assertOk()->assertJsonPath('meta.total', 0);
-        $this->getJson($this->detailUrl($f, $d), $this->headers($new))->assertNotFound();
-        $this->getJson($this->receiptUrl($f, $d, $d['key'], 'SAVE'), $this->headers($new))->assertOk()
+        $this->read($this->listUrl($f), $this->headers($new))->assertOk()->assertJsonPath('meta.total', 0);
+        $this->read($this->detailUrl($f, $d), $this->headers($new))->assertNotFound();
+        $this->read($this->receiptUrl($f, $d, $d['key'], 'SAVE'), $this->headers($new))->assertOk()
             ->assertJsonPath('data.outcome', 'UNKNOWN')->assertJsonPath('data.may_create_new_request', false);
-        $this->getJson($this->detailUrl($f, $d), $this->headers($f['token']))->assertOk();
+        $this->read($this->detailUrl($f, $d), $this->headers($f['token']))->assertOk();
     }
 
     public function test_unknown_never_recreates_or_increases_box_quantity(): void
@@ -166,13 +166,13 @@ class P21ComponentResumeTest extends TestCase
         $before = $this->snapshot();
         $key = (string) Str::uuid();
         for ($i = 0; $i < 2; $i++) {
-            $this->getJson($this->receiptUrl($f, $d, $key, 'RECORD'), $this->headers($f['token']))->assertOk()
+            $this->read($this->receiptUrl($f, $d, $key, 'RECORD'), $this->headers($f['token']))->assertOk()
                 ->assertJsonPath('data.outcome', 'UNKNOWN')->assertJsonPath('data.receipt', null)
                 ->assertJsonPath('data.cancel_allowed', false)->assertJsonPath('data.new_document_allowed', false)
                 ->assertJsonPath('data.may_create_new_request', false)->assertJsonPath('data.document.codes.0.quantity', 3);
         }
         $missing = ['id' => (string) Str::uuid(), 'scan_id' => (string) Str::uuid()];
-        $this->getJson($this->receiptUrl($f, $missing, (string) Str::uuid(), 'SAVE'), $this->headers($f['token']))->assertOk()
+        $this->read($this->receiptUrl($f, $missing, (string) Str::uuid(), 'SAVE'), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.outcome', 'UNKNOWN')->assertJsonPath('data.document', null);
         $this->assertSame($before, $this->snapshot());
     }
@@ -186,10 +186,10 @@ class P21ComponentResumeTest extends TestCase
         $this->putJson(self::DRAFT.'/'.$d['id'], $body, $this->headers($f['token'], false) + [
             'If-Match' => '"1"', 'Idempotency-Key' => (string) Str::uuid(),
         ])->assertOk();
-        $this->getJson($this->receiptUrl($f, $d, $d['key'], 'SAVE'), $this->headers($f['token']))->assertOk()
+        $this->read($this->receiptUrl($f, $d, $d['key'], 'SAVE'), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.receipt.version', 1)->assertJsonPath('data.document.version', 2)
             ->assertJsonPath('data.response.data.document.codes.0.quantity', 3)->assertJsonPath('data.document.codes.0.quantity', 2);
-        $this->getJson($this->receiptUrl($f, $d, $d['key'], 'RECORD'), $this->headers($f['token']))->assertConflict()
+        $this->read($this->receiptUrl($f, $d, $d['key'], 'RECORD'), $this->headers($f['token']))->assertConflict()
             ->assertJsonPath('error.code', 'REQUEST_IDENTITY_MISMATCH');
     }
 
@@ -199,9 +199,9 @@ class P21ComponentResumeTest extends TestCase
         $d = $this->save($f);
         $bad = $d;
         $bad['scan_id'] = (string) Str::uuid();
-        $this->getJson($this->detailUrl($f, $bad), $this->headers($f['token']))->assertNotFound();
-        $this->getJson($this->listUrl($f, ['warehouse_id' => (string) Str::uuid()]), $this->headers($f['token']))->assertConflict();
-        $this->getJson($this->detailUrl($f, $d). '&case_id='.$f['case_id'], $this->headers($f['token']))->assertUnprocessable();
+        $this->read($this->detailUrl($f, $bad), $this->headers($f['token']))->assertNotFound();
+        $this->read($this->listUrl($f, ['warehouse_id' => (string) Str::uuid()]), $this->headers($f['token']))->assertConflict();
+        $this->read($this->detailUrl($f, $d).'&case_id='.$f['case_id'], $this->headers($f['token']))->assertUnprocessable();
     }
 
     public function test_legacy_source_is_not_aliased_and_native_get_contract_is_unchanged(): void
@@ -210,10 +210,10 @@ class P21ComponentResumeTest extends TestCase
         $d = $this->save($f);
         $legacy = $this->save($f);
         DB::table(P03::TABLE)->where('document_id', $legacy['id'])->update(['form' => '{}']);
-        $this->getJson($this->listUrl($f), $this->headers($f['token']))->assertOk()
+        $this->read($this->listUrl($f), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.document_id', $d['id']);
-        $this->getJson($this->detailUrl($f, $legacy), $this->headers($f['token']))->assertNotFound();
-        $this->getJson($this->listUrl($f), $this->headers($f['token'], false))->assertOk()
+        $this->read($this->detailUrl($f, $legacy), $this->headers($f['token']))->assertNotFound();
+        $this->read($this->listUrl($f), $this->headers($f['token'], false))->assertOk()
             ->assertJsonPath('meta.contract', P03::CONTRACT)->assertJsonPath('meta.total', 2);
     }
 
@@ -222,9 +222,9 @@ class P21ComponentResumeTest extends TestCase
         $f = $this->fixture();
         $d = $this->save($f);
         $before = $this->snapshot();
-        $this->getJson($this->listUrl($f, ['limit' => 20]), $this->headers($f['token']))->assertUnprocessable();
-        $this->getJson($this->listUrl($f), $this->headers($f['token'], false) + [P21::HEADER => 'invented-v2'])->assertUnprocessable();
-        $this->getJson($this->detailUrl($f, $d), $this->headers($f['token']) + ['If-Match' => '"1"'])->assertUnprocessable();
+        $this->read($this->listUrl($f, ['limit' => 20]), $this->headers($f['token']))->assertUnprocessable();
+        $this->read($this->listUrl($f), $this->headers($f['token'], false) + [P21::HEADER => 'invented-v2'])->assertUnprocessable();
+        $this->read($this->detailUrl($f, $d), $this->headers($f['token']) + ['If-Match' => '"1"'])->assertUnprocessable();
         $this->json('GET', $this->listUrl($f), ['actor_id' => $f['actor_id']], $this->headers($f['token']))->assertUnprocessable();
         $this->putJson(self::DRAFT.'/'.$d['id'], $d['body'], $this->headers($f['token']) + [
             'If-Match' => '"1"', 'Idempotency-Key' => (string) Str::uuid(),
@@ -238,13 +238,13 @@ class P21ComponentResumeTest extends TestCase
         $d = $this->save($f);
         $this->record($f, $d, (string) Str::uuid())->assertCreated();
         $this->grantOnly($f['actor_id'], ['warranty.view', 'warranty.component_issue']);
-        $this->getJson($this->detailUrl($f, $d), $this->headers($f['token']))->assertOk()
+        $this->read($this->detailUrl($f, $d), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.business_link_present', true)->assertJsonPath('data.business_document_id', null)
             ->assertJsonPath('data.business_status', null)->assertJsonPath('data.can_open_business', false)
             ->assertJsonPath('data.resume_policy', 'RECORDED_RESULT_UNAVAILABLE');
         $this->grantOnly($f['actor_id'], ['warranty.component_issue']);
-        $this->getJson($this->detailUrl($f, $d), $this->headers($f['token']))->assertForbidden();
-        $this->getJson($this->listUrl($f), $this->headers($f['token']))->assertForbidden();
+        $this->read($this->detailUrl($f, $d), $this->headers($f['token']))->assertForbidden();
+        $this->read($this->listUrl($f), $this->headers($f['token']))->assertForbidden();
     }
 
     public function test_unresolved_tenant_dimension_fails_closed_before_totals(): void
@@ -253,7 +253,7 @@ class P21ComponentResumeTest extends TestCase
         $this->save($f);
         Schema::table(P03::TABLE, fn ($table) => $table->string('tenant_id')->nullable());
         try {
-            $this->getJson($this->listUrl($f), $this->headers($f['token']))->assertStatus(503)
+            $this->read($this->listUrl($f), $this->headers($f['token']))->assertStatus(503)
                 ->assertJsonPath('error.code', 'WARRANTY_TENANCY_UNRESOLVED');
         } finally {
             Schema::table(P03::TABLE, fn ($table) => $table->dropColumn('tenant_id'));
@@ -268,12 +268,12 @@ class P21ComponentResumeTest extends TestCase
         DB::table(P03::TABLE)->whereIn('document_id', [$a['id'], $b['id']])->update(['updated_at' => '2026-10-10T00:00:00.000000Z']);
         $expected = [$a['id'], $b['id']];
         rsort($expected, SORT_STRING);
-        $first = $this->getJson($this->listUrl($f, ['per_page' => 1, 'page' => 1]), $this->headers($f['token']))->assertOk()
+        $first = $this->read($this->listUrl($f, ['per_page' => 1, 'page' => 1]), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('meta.total', 2)->assertJsonPath('meta.has_more', true)->assertJsonPath('data.0.document_id', $expected[0]);
         $this->assertSame(1, $first->json('meta.page'));
-        $this->getJson($this->listUrl($f, ['per_page' => 1, 'page' => 2]), $this->headers($f['token']))->assertOk()
+        $this->read($this->listUrl($f, ['per_page' => 1, 'page' => 2]), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.0.document_id', $expected[1])->assertJsonPath('meta.has_more', false);
-        $this->getJson($this->listUrl($f, ['per_page' => 1, 'page' => 3]), $this->headers($f['token']))->assertOk()
+        $this->read($this->listUrl($f, ['per_page' => 1, 'page' => 3]), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('meta.total', 2)->assertJsonCount(0, 'data');
     }
 
@@ -289,7 +289,7 @@ class P21ComponentResumeTest extends TestCase
         $selected = $this->postJson('/api/v1/auth/switch-context', ['context_type' => 'WAREHOUSE', 'context_id' => (string) $warehouse->id],
             $this->headers($login->json('data.access_token'), false))->assertOk();
         $token = $selected->json('data.access_token');
-        $me = $this->getJson('/api/v1/auth/me', $this->headers($token, false))->assertOk();
+        $me = $this->read('/api/v1/auth/me', $this->headers($token, false))->assertOk();
         $sku = $this->componentSkuFixture('HN-P21-'.Str::upper(Str::random(8)), serialTracked: false);
         $raw = 'BOX-'.$sku->sku_code.'-0001';
         $headers = $this->headers($token, false);
@@ -324,6 +324,12 @@ class P21ComponentResumeTest extends TestCase
                 P19::HEADER => P19::VERSION, 'Idempotency-Key' => $key, 'X-Draft-ID' => $d['id'],
                 'X-Draft-Scan-Session-ID' => $d['scan_id'], 'X-Draft-Version' => '1',
             ]);
+    }
+
+    /** Laravel getJson serializes [] as a body; P21 deliberately forbids GET bodies. */
+    private function read(string $url, array $headers)
+    {
+        return $this->get($url, ['Accept' => 'application/json', ...$headers]);
     }
 
     private function listUrl(array $f, array $extra = []): string
