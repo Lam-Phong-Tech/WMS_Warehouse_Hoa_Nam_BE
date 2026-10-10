@@ -12,7 +12,7 @@ final class P22NfcAuditSnapshot
 {
     public const FIELD = 'nfc_history_v1';
 
-    public static function enrich(string $action, string $objectType, ?string $objectId, ?string $actorId, array $after): array
+    public static function enrich(string $action, string $objectType, ?string $objectId, ?string $actorId, array $after, ?string $result = null): array
     {
         if ($objectType !== 'physical_code' || ! in_array($action, ['ASSIGN_ITEM_NFC', 'REVOKE_ITEM_NFC'], true)) {
             return $after;
@@ -78,6 +78,9 @@ final class P22NfcAuditSnapshot
             'warehouse_name' => $warehouse->name,
             'actor_id' => $actorId,
             'actor_name' => $actor->display_name,
+            // Preserve the owner's actual result before the PostgreSQL legacy
+            // view can default a missing result to SUCCESS. Null stays unknown.
+            'result' => $result,
             'hardware_uid' => $tag->hardware_uid,
             'item_id' => $tag->item_id,
             'serial_number' => $item?->serial_number,
