@@ -57,10 +57,8 @@ class P20ComponentHistoryTest extends TestCase
     public function test_posted_sort_and_keyset_are_explicit_and_legacy_cursor_cannot_cross_contract(): void
     {
         $f = $this->fixture();
-        $a = $this->postBatch($f, 1);
-        $b = $this->postBatch($f, 1);
-        DB::table('component_issue_documents')->where('id', $a)->update(['created_at' => now()->subDays(5), 'posted_at' => now()->subHour()]);
-        DB::table('component_issue_documents')->where('id', $b)->update(['created_at' => now()->subDay(), 'posted_at' => now()->subHours(2)]);
+        $a = $this->historicalDocument($f, now()->subDays(5)->toDateTimeString(), now()->subHour()->toDateTimeString());
+        $b = $this->historicalDocument($f, now()->subDay()->toDateTimeString(), now()->subHours(2)->toDateTimeString());
         $first = $this->getJson($this->listUrl($f, ['per_page' => 1]), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.0.component_issue_document_id', $a)->assertJsonPath('meta.total', 2)->assertJsonPath('meta.hasMore', true);
         $cursor = $first->json('meta.nextCursor');
@@ -98,8 +96,7 @@ class P20ComponentHistoryTest extends TestCase
     public function test_unknown_post_time_stays_null_instead_of_created_at(): void
     {
         $f = $this->fixture();
-        $id = $this->postBatch($f, 1);
-        DB::table('component_issue_documents')->where('id', $id)->update(['posted_at' => null]);
+        $id = $this->historicalDocument($f, now()->subDay()->toDateTimeString(), null);
         $this->getJson($this->listUrl($f), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.0.posted_at', null)->assertJsonPath('data.0.posted_time_status', 'NOT_RECORDED');
         $this->getJson($this->detailUrl($f, $id), $this->headers($f['token']))->assertOk()
@@ -162,20 +159,11 @@ class P20ComponentHistoryTest extends TestCase
         $this->getJson($this->detailUrl($f, $id), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.lines.0.issued_qty', null)->assertJsonPath('data.lines.0.removed_item_count', 1)
             ->assertJsonCount(0, 'data.lines.0.items')->assertJsonPath('data.history.quantity_total', null);
-        // Inconsistent persisted selection evidence, not an UPDATE of the
-        // append-only ledger. Its original movement must remain exactly -3.
+        // Inconsistent selection evidence, never an UPDATE or DELETE of ledger.
         DB::table('component_issue_items')->where('id', $item->id)->update(['status' => 'POSTED', 'quantity' => 1]);
         $this->getJson($this->detailUrl($f, $id), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.lines.0.quantity_status', 'MISMATCH')->assertJsonPath('data.lines.0.issued_qty', null);
-        // Independent isolated legacy-document fixture lacking a movement.
-        // No DELETE, disabled trigger or fabricated ledger rollback is used.
-        $document = (array) DB::table('component_issue_documents')->where('id', $id)->first();
-        $line = (array) DB::table('component_issue_lines')->where('id', $item->component_issue_line_id)->first();
-        $missingId = (string) Str::uuid();
-        $missingLine = (string) Str::uuid();
-        DB::table('component_issue_documents')->insert(array_replace($document, ['id' => $missingId, 'component_issue_no' => 'P20-MISSING-'.$missingId]));
-        DB::table('component_issue_lines')->insert(array_replace($line, ['id' => $missingLine, 'component_issue_document_id' => $missingId]));
-        DB::table('component_issue_items')->insert(array_replace((array) $item, ['id' => (string) Str::uuid(), 'component_issue_line_id' => $missingLine, 'scan_event_id' => null]));
+        $missingId = $this->historicalDocument($f, now()->subDay()->toDateTimeString(), now()->subHour()->toDateTimeString());
         $this->getJson($this->detailUrl($f, $missingId), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.lines.0.quantity_status', 'INCOMPLETE')->assertJsonPath('data.history.quantity_total', null);
         $this->assertSame($ledgerBefore, $this->snapshot()['stock_movements']);
@@ -213,9 +201,7 @@ class P20ComponentHistoryTest extends TestCase
     public function test_notes_are_redacted_and_previous_admin_response_is_not_reused(): void
     {
         $f = $this->fixture();
-        $id = $this->postBatch($f, 1);
-        DB::table('component_issue_documents')->where('id', $id)->update(['note' => 'Private customer note']);
-        DB::table('component_issue_lines')->where('component_issue_document_id', $id)->update(['note' => 'Private line note']);
+        $id = $this->historicalDocument($f, now()->subDay()->toDateTimeString(), now()->subHour()->toDateTimeString(), 'Private customer note');
         $this->getJson($this->detailUrl($f, $id), $this->headers($f['token']))->assertOk()->assertJsonPath('data.document.note', 'Private customer note');
         $token = $this->reader($f['warehouse_id'], ['warranty.view', 'documents.read', 'warranty.component_issue']);
         $this->getJson($this->detailUrl($f, $id), $this->headers($token))->assertOk()
@@ -249,6 +235,31 @@ class P20ComponentHistoryTest extends TestCase
         $this->getJson($this->listUrl($f, ['per_page' => 1, 'cursor' => $first->json('meta.nextCursor')]), $this->headers($token))
             ->assertUnprocessable()->assertJsonPath('error.code', 'WARRANTY_CURSOR_SCOPE_MISMATCH');
         $this->getJson($this->detailUrl($f, $id), $this->headers($token))->assertOk();
+    }
+
+    /**
+     * Isolated imported-history fixture, intentionally without stock movements.
+     * Establish metadata while mutable, satisfy N/N, then transition to POSTED.
+     * Never disable an invariant or modify an already posted document/ledger.
+     */
+    private function historicalDocument(array $f, string $createdAt, ?string $postedAt, ?string $note = null): string
+    {
+        $create = $this->postJson('/api/v1/mini-app/warranty-component-issues', [
+            'warehouse_id' => $f['warehouse_id'], 'warranty_case_id' => $f['case_id'], 'note' => $note,
+            'lines' => [['sku_id' => $f['sku_id'], 'required_qty' => 1, 'note' => 'Private line note']],
+        ], $this->headers($f['token'], false))->assertCreated();
+        $id = $create->json('data.document.id');
+        $line = DB::table('component_issue_lines')->where('component_issue_document_id', $id)->first();
+        DB::table('component_issue_documents')->where('id', $id)->update(['created_at' => $createdAt]);
+        $this->postJson('/api/v1/mini-app/warranty-component-issues/'.$id.'/scan', [
+            'line_id' => $line->id, 'code_value' => $f['raw_code'], 'quantity' => 1,
+        ], $this->headers($f['token'], false) + ['If-Match' => '"1"'])->assertOk();
+        DB::table('component_issue_items')->where('component_issue_line_id', $line->id)->update(['status' => 'POSTED']);
+        DB::table('component_issue_documents')->where('id', $id)->update([
+            'status' => 'POSTED', 'posted_at' => $postedAt, 'posted_by' => $f['actor_id'],
+        ]);
+
+        return $id;
     }
 
     private function fixture(): array
