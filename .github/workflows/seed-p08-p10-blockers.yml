@@ -70,22 +70,36 @@ jobs:
           php artisan config:clear
           sudo apt-get update -qq > /tmp/blockers-apt.log 2>&1
           sudo apt-get install -y nginx >> /tmp/blockers-apt.log 2>&1
-      - name: Reproduce old source failures on synthetic isolated rows
+      - name: Align isolated fixtures with canonical schema without weakening assertions
         run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/Feature/P08DocumentHistoryTest.php'); s=p.read_text()
+          old="            'dst_warehouse_id' => $destination, 'created_by' => $user->user_id,"
+          assert s.count(old)==1
+          p.write_text(s.replace(old, old+"\n            'recipient_name' => 'Isolated P08 recipient', 'recipient_address' => 'Isolated P08 address',"))
+          PY
+      - name: Reproduce old source failures on isolated rows
+        run: |
+          files=(tests/Feature/P08DocumentHistoryTest.php)
+          # Catalog aliases are writable PostgreSQL views but read-only SQLite
+          # views. Exercise the reported deletion on the real PostgreSQL schema,
+          # not fake INSTEAD OF triggers or a fabricated replacement schema.
+          if [ "$DB_CONNECTION" = pgsql ]; then files+=(tests/Feature/CatalogRetirementSafetyTest.php); fi
           set +e
-          php artisan test tests/Feature/CatalogRetirementSafetyTest.php tests/Feature/P08DocumentHistoryTest.php --filter='retirement_preserves_two|document_records_summary' --log-junit baseline-${{ matrix.database }}.xml > /tmp/blockers-baseline.log 2>&1
+          php artisan test "${files[@]}" --filter='retirement_preserves_two|document_records_summary' --log-junit baseline-${{ matrix.database }}.xml > /tmp/blockers-baseline.log 2>&1
           status=$?
           set -e
           test "$status" -ne 0
           python3 - <<'PY'
           import os,xml.etree.ElementTree as E
           root=E.parse('baseline-'+os.environ['DB_CONNECTION']+'.xml').getroot()
-          cases=list(root.iter('testcase'))
+          cases=list(root.iter('testcase')); expected=2 if os.environ['DB_CONNECTION']=='pgsql' else 1
           for c in cases:
               print('BASELINE '+c.get('name',''))
               for e in list(c):
                   if e.tag in ['failure','error']: print((e.text or '')[:3000])
-          assert len(cases)==2 and len(list(root.iter('failure')))==2 and not list(root.iter('error')), 'Baseline must reproduce the two assertion failures, not a broken fixture'
+          assert len(cases)==expected and len(list(root.iter('failure')))==expected and not list(root.iter('error')), 'Baseline must reproduce assertions, not fixture errors'
           PY
       - name: Construct reviewed candidate changes
         run: |
@@ -100,8 +114,12 @@ jobs:
           assert 'private, no-store, no-transform' in p
           PY
       - name: Candidate application and existing owner regressions
-        run: php artisan test tests/Feature/CatalogRetirementSafetyTest.php tests/Feature/P08DocumentHistoryTest.php tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php tests/Feature/P10ProfileContractTest.php tests/Feature/P10Revision2MetadataTest.php tests/Unit/DockerNginxBackendUnavailableTest.php --log-junit blockers-${{ matrix.database }}.xml
+        run: |
+          files=(tests/Feature/P08DocumentHistoryTest.php tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php tests/Feature/P10ProfileContractTest.php tests/Feature/P10Revision2MetadataTest.php tests/Unit/DockerNginxBackendUnavailableTest.php)
+          if [ "$DB_CONNECTION" = pgsql ]; then files+=(tests/Feature/CatalogRetirementSafetyTest.php); fi
+          php artisan test "${files[@]}" --log-junit blockers-${{ matrix.database }}.xml
       - name: Real nginx compression regression on both templates
+        if: success() || failure()
         run: python3 scripts/test-p10-nginx-etag.py
       - name: Print exact candidate and outcome counts
         if: always()
@@ -112,7 +130,7 @@ jobs:
           if not p.exists(): raise SystemExit('Missing test evidence')
           root=E.parse(p).getroot(); cases=list(root.iter('testcase'))
           counts={'tests':len(cases),'assertions':sum(int(x.get('assertions','0')) for x in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
-          report={'candidate_sha':os.environ['CANDIDATE_SHA'],'workflow_sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'counts':counts,'live_verified':False,'full_seed_run':False}
+          report={'candidate_sha':os.environ['CANDIDATE_SHA'],'workflow_sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'counts':counts,'catalog_preservation_tested':os.environ['DB_CONNECTION']=='pgsql','live_verified':False,'full_seed_run':False}
           print(json.dumps(report,sort_keys=True))
           for c in cases:
               for e in list(c):
