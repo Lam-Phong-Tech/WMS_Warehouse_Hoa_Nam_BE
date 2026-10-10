@@ -1,0 +1,75 @@
+{
+  "contract": "auth-profile-p10-v1",
+  "handoff_revision": 2,
+  "date": "2026-10-10",
+  "fe_report_source": "4f6bc5257ee86c3573508110f211676b6cfa7a45",
+  "reviewed_dev_source": "048d0df67d6df21e556aea0484c1419d9f092f5c",
+  "status": "PENDING_TEST_AND_DEPLOYMENT",
+  "production_activation": false,
+  "frontend_wired": false,
+  "live_verified": false,
+  "new_routes": [],
+  "new_migrations": [],
+  "reference_adapter": "contracts/p10/fe-adapter-reference.mjs",
+  "reference_adapter_scope": "Pure mapping and validation, not a network client, production FE integration or recovery writer. Existing owner authorization remains authoritative.",
+  "profile": {
+    "read": "GET /api/v1/auth/me",
+    "update": "PATCH /api/v1/auth/me",
+    "auth": "Bearer access token; no query on read/update",
+    "metadata": "Preserve data and meta.profile_contract, meta.security_contract when supplied, meta.request_id and actual response ETag together.",
+    "context": "Read warehouse_context.status/error_code; do not replace null active_warehouse_id or infer warehouse selection. Profile ETag is not an authorization snapshot.",
+    "editable": ["display_name", "phone"],
+    "ui_name_maps_to": "display_name",
+    "sparse_body": true,
+    "display_name": {"trim": true, "min_length": 1, "max_length": 255, "nullable": false},
+    "phone": {"nullable": true, "pattern": "^0[0-9]{9}$", "clear_value": null, "omit_if_unchanged": true},
+    "precondition": "Use exact strong quoted ETag from the matching canonical profile. Reject weak/missing/mismatched ETag in FE; do not fabricate an old version. Numeric If-Match remains backend compatibility, not FE fallback.",
+    "result": "200: replace profile and metadata atomically with data/meta plus new ETag. 428 missing version; 412 STALE_VERSION; 422 INVALID_VERSION/PROFILE_FIELD_NOT_EDITABLE/PROFILE_EMPTY_UPDATE or validator code. Do not automatically replay writes."
+  },
+  "logout": {
+    "method": "POST", "path": "/api/v1/auth/logout", "auth": "Bearer access token required by current owner route",
+    "native": "Only with approved existing body transport: X-WMS-Token-Transport: body and JSON refresh_token from this same family. Missing native refresh or unapproved transport must not silently fall back to another mode.",
+    "web": "HttpOnly refresh cookie, browser credentials enabled and JSON {}. Never put refresh_token in browser JS/body.",
+    "result": "200 success=true, data=null, meta.auth_result.state=SUCCEEDED; read scope CURRENT_AUTH_SESSION_FAMILY or CURRENT_ACCESS_TOKEN_ONLY explicitly. The scope is not inferred from local storage cleanup.",
+    "scope_caveat": "Server can determine a family from a valid signed sid without a presented refresh token. This does not authorize FE to replace its selected native transport contract silently.",
+    "work_shift_ended": false, "business_drafts_deleted": false
+  },
+  "change_password": {
+    "method": "POST", "path": "/api/v1/auth/change-password",
+    "body_fields": ["current_password", "new_password", "new_password_confirmation"],
+    "auth": "Bearer access token; no If-Match or idempotency semantics invented for this operation",
+    "policy": "Read meta.security_contract.password_policy when supplied. Current P11 adds max_utf8_bytes (72 for bcrypt) and NUL rejection to 8-128 Unicode characters/confirmation; do not silently normalize or truncate passwords.",
+    "wrong_current": "422 CURRENT_PASSWORD_INCORRECT; does not end the session",
+    "result": "200 success=true/data=null plus meta.auth_result.state=SUCCEEDED, relogin_required=true and session_policy=RELOGIN_ALL_REFRESH_FAMILIES_REVOKED. Clear authentication only for the matching current caller generation; never clear a newer login from a late response.",
+    "keep_sessions_supported": false,
+    "sensitive_storage": "No passwords/tokens in checkpoint, logs, test evidence or automatic retry queues. No account mutation smoke on live without explicit approved accounts/operation."
+  },
+  "sessions": {
+    "list": "GET /api/v1/auth/sessions?page=1&per_page=20",
+    "pagination": {"current_page": "meta.current_page", "per_page": "meta.per_page", "total": "meta.total", "last_page": "meta.last_page", "max_per_page": 100, "count_unit": "ACTIVE_AUTH_SESSION_FAMILY", "snapshot": "PAGE_LIVE_NOT_FROZEN"},
+    "rows": "Preserve data[]/meta/links; latest source also exposes session_id alias and meta.current_session_id even when current family is off-page. Never infer total from one page.",
+    "revoke": "DELETE /api/v1/auth/sessions/{id}; no body fields or query. Target id is returned refresh-row UUID, NOT auth_session_id/session_id. Require is_current=false and can_revoke=true; server rechecks ownership and whole-family policy.",
+    "errors": "409 CURRENT_SESSION_PROTECTED; foreign/missing target 404 RESOURCE_NOT_FOUND. Readback absence is not an operation receipt; no automatic mutation replay after UNKNOWN.",
+    "metadata": "device_label/location remain null when absent. user_agent/ip_address are stored unverified headers, not proven device or geographic location. last_active_at is login/refresh time, not each API request."
+  },
+  "pending": {
+    "avatar": "supported=false; no upload URL or file policy is authorized",
+    "permission_groups": "groups=null, BA_MAPPING_REQUIRED; no role/prefix inference for six UI groups or action grants",
+    "request_reconciliation": "unsupported; X-Request-ID is correlation only. GET me/sessions cannot prove an earlier mutation outcome. Do not reuse P09 receipt IDs/paths/keys or expose invented retry/status endpoints.",
+    "end_shift": "P14 owner dependency; logout does not end a shift, delete drafts or authorize clearing all storage",
+    "deployment": "Requires release SHA/ancestry/schema and approved native/browser smoke and deny evidence. Source/CI/health alone do not prove deployment."
+  },
+  "fe_integration": {
+    "order": ["Canonical profile and metadata/ETag", "Sparse display_name/nullable phone mapping", "Canonical auth_result parsing", "Paged sessions and row-id revoke target", "Caller/auth-generation/request-sequence stale-response checks"],
+    "reference_only": true,
+    "callback_guard": "Invalidate caller ticket on navigation, new request, logout/new login; refresh retains stable family but FE must compare its current auth generation. Reject stale callbacks before modifying auth/store/UI.",
+    "unknown": "Separate HTTP/domain errors from timeout/malformed response. Missing success metadata is not server-confirmed completion. No auto retry of profile/password/logout/revoke. Local sign-out is not proof of remote revocation."
+  },
+  "evidence_policy": {
+    "historical_run": 37745130878,
+    "historical_observation": "PostgreSQL log: 12 tests/162 assertions passed and cached-route check passed; workflow failed publishing artifacts due storage quota. Not a whole-workflow PASS or live acceptance.",
+    "current_run": "Workflow prints exact SHA, per-case redacted results and totals for both databases before retaining the existing mandatory artifact upload step. Artifact delivery failure remains a reported failure; no test/production gate is bypassed.",
+    "live_status": "NOT_RUN",
+    "no_runtime_or_auth_schema_change": true
+  }
+}

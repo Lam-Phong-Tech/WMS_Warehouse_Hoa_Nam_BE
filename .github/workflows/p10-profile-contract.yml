@@ -5,8 +5,13 @@ on:
     branches: [dev]
     paths:
       - 'Modules/Auth/**'
+      - 'contracts/p10/**'
       - 'tests/Feature/P10ProfileContractTest.php'
+      - 'tests/Feature/P10Revision2MetadataTest.php'
+      - 'tests/Feature/AuthWarehouseContextTest.php'
+      - 'tests/Feature/AuthSessionPersistenceTest.php'
       - 'scripts/verify-p10-profile-contract.php'
+      - 'scripts/test-p10-fe-adapter.mjs'
       - '.github/workflows/p10-profile-contract.yml'
 permissions:
   contents: read
@@ -40,6 +45,7 @@ jobs:
       DB_PASSWORD: ${{ github.run_id }}-isolated-p10
       DB_SSLMODE: disable
       DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
       CACHE_STORE: array
       SESSION_DRIVER: array
       QUEUE_CONNECTION: sync
@@ -52,34 +58,84 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Generate isolated signing material
-        run: echo "JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Verify isolated target and mask disposable signing material
+        run: |
+          python3 - <<'PY'
+          import os, subprocess, json
+          assert os.environ['APP_ENV']=='testing' and os.environ['DB_HOST']=='127.0.0.1' and os.environ['DB_URL']==''
+          assert os.environ['DB_DATABASE'] in [':memory:', 'p10_contract_test']
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==os.environ['GITHUB_SHA']
+          contract=json.load(open('contracts/p10/integration-r2.json'))
+          assert not contract['production_activation'] and not contract['live_verified'] and not contract['frontend_wired']
+          assert contract['new_routes']==[] and contract['new_migrations']==[]
+          PY
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
       - name: Install locked dependencies
         run: |
           cp .env.example .env
-          composer install --no-interaction --prefer-dist --no-progress
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p10-install.log 2>&1 || { tail -60 /tmp/p10-install.log; exit 1; }
           php artisan key:generate
           php artisan config:clear
-      - name: Validate profile contract policy
-        run: php scripts/verify-p10-profile-contract.php
+      - name: Validate profile policy and reference adapter
+        run: |
+          php scripts/verify-p10-profile-contract.php
+          node --test scripts/test-p10-fe-adapter.mjs
+      - name: Syntax and new regression style
+        run: |
+          php -l tests/Feature/P10Revision2MetadataTest.php
+          php -l Modules/Auth/app/Http/Controllers/P10ProfileController.php
+          php -l Modules/Auth/app/Support/P10ProfilePolicy.php
+          php -l Modules/Auth/app/Support/P10SessionFamily.php
+          vendor/bin/pint --test tests/Feature/P10Revision2MetadataTest.php
       - name: Isolated HTTP and database contract tests
-        run: php artisan test tests/Feature/P10ProfileContractTest.php --log-junit p10-${{ matrix.database }}.xml
+        run: |
+          php artisan test tests/Feature/P10ProfileContractTest.php tests/Feature/P10Revision2MetadataTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p10-${{ matrix.database }}.xml
       - name: Verify cached routes use the same policy
         run: |
           php artisan route:cache
-          php artisan test tests/Feature/P10ProfileContractTest.php --filter=test_existing_routes_use_p10
+          php artisan test tests/Feature/P10ProfileContractTest.php tests/Feature/P10Revision2MetadataTest.php --log-junit p10-cached-${{ matrix.database }}.xml
           php artisan route:clear
+      - name: Publish exact-commit redacted evidence before artifact delivery
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, json, hashlib, pathlib, xml.etree.ElementTree as E
+          database=os.environ['DB_CONNECTION']; failed=False
+          for mode in ['', 'cached-']:
+              path=pathlib.Path('p10-'+mode+database+'.xml')
+              if not path.is_file():
+                  print('::error::Missing report '+path.name); failed=True; continue
+              root=E.parse(path).getroot(); cases=list(root.iter('testcase'))
+              counts={'tests':len(cases), 'assertions':sum(int(x.get('assertions','0')) for x in cases), **{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+              own=sum('P10Revision2MetadataTest' in (x.get('class','')+x.get('classname','')) for x in cases)
+              original=sum('P10ProfileContractTest' in (x.get('class','')+x.get('classname','')) for x in cases)
+              evidence={'sha':os.environ['GITHUB_SHA'],'database':database,'mode':mode or 'uncached','report_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'counts':counts,'original_p10_tests':original,'revision2_tests':own,'live_verified':False,'frontend_wired':False,'production_activation':False,'artifact_delivery':'SEPARATE_STEP_NOT_INFERRED'}
+              print(json.dumps(evidence,sort_keys=True))
+              safe_cases=[{'class':x.get('classname',x.get('class','')),'name':x.get('name'),'outcome':'FAIL' if x.find('failure') is not None or x.find('error') is not None else 'SKIPPED' if x.find('skipped') is not None else 'PASS'} for x in cases]
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as out:
+                  out.write('```json\n'+json.dumps(evidence,indent=2)+'\n```\n')
+                  out.write('```json\n'+json.dumps(safe_cases,indent=2)+'\n```\n')
+              failed=failed or original!=12 or own!=5 or any(counts[k] for k in ['failure','error','skipped'])
+          if failed: raise SystemExit('P10 evidence missing or contract tests failed')
+          PY
+      # Retain mandatory artifact publication. Quota errors remain visible failures;
+      # printed test evidence above must not be mistaken for artifact/release success.
       - name: Publish isolated test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: p10-contract-${{ matrix.database }}
           path: p10-*.xml
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
