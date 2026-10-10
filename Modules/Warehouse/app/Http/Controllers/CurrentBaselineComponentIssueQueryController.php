@@ -48,6 +48,13 @@ class CurrentBaselineComponentIssueQueryController extends Controller
     )]
     public function show(string $id)
     {
+        // Mini App history/details must enforce the persisted case ownership,
+        // session context and PII policy of the P09 link, before any cache read.
+        // Removing the P20 header must not bypass these read protections.
+        if (request()->is('api/v1/mini-app/warranty-component-issues/*')) {
+            return app(P20ComponentHistoryController::class)->show(request(), $id);
+        }
+
         // Quyền `warranty.component_issue` + EnforceComponentIssueWarehouseScope chạy
         // ở tầng route (routes/api.php + mini_app.php) nên 403 luôn xảy ra TRƯỚC cache
         // — một cache hit không thể nuốt mất 403 của phiếu ngoài data scope.

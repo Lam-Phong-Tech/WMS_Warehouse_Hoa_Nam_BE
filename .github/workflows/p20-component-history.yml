@@ -1,0 +1,142 @@
+name: P20 Component History Read Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/app/Http/Controllers/P20ComponentHistoryController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentIssueQueryController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/MiniAppWarrantyController.php'
+      - 'Modules/Warehouse/app/Support/P09Warranty*'
+      - 'Modules/Warehouse/app/Support/P06ReadSnapshot.php'
+      - 'Modules/Warehouse/routes/p09_warranty.php'
+      - 'Modules/Auth/**'
+      - 'tests/Feature/P20*Test.php'
+      - 'contracts/p20/**'
+      - '.github/workflows/p20-component-history.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-p20
+          POSTGRES_DB: p20_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p20_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p20_contract_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${{ github.run_id }}-isolated-p20
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Guard exact SHA and isolated environment
+        run: |
+          test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          case "$DB_DATABASE" in ':memory:'|p20_contract_test) ;; *) exit 1 ;; esac
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json
+          c=json.load(open('contracts/p20/component-history-v1.json'))
+          assert c['production_activation'] is False and c['new_routes']==[] and c['new_migrations']==[]
+          assert all(x['method']=='GET' for x in c['requests'])
+          PY
+      - name: Install locked dependencies
+        run: |
+          cp .env.example .env
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p20-install.log 2>&1 || { tail -40 /tmp/p20-install.log; exit 1; }
+          php artisan key:generate
+          php artisan config:clear
+      - name: Verify resolved database before test writes
+        run: |
+          php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          $db = Illuminate\Support\Facades\DB::connection();
+          $isolated = $db->getDriverName() === 'sqlite' ? $db->getDatabaseName() === ':memory:'
+              : $db->getDriverName() === 'pgsql' && $db->getDatabaseName() === 'p20_contract_test' && $db->getConfig('host') === '127.0.0.1';
+          if (! $app->environment('testing') || ! $isolated || getenv('DB_URL') !== '') {
+              fwrite(STDERR, 'Rejected non-isolated database.'); exit(1);
+          }
+          echo 'Disposable database verified; no live seed or stock mutation authorized.'.PHP_EOL;
+          PHP
+      - name: Syntax and style
+        run: |
+          paths=(Modules/Warehouse/app/Http/Controllers/P20ComponentHistoryController.php Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentIssueQueryController.php Modules/Warehouse/routes/p09_warranty.php tests/Feature/P20ComponentHistoryTest.php)
+          for path in "${paths[@]}"; do php -l "$path"; done
+          vendor/bin/pint --test "${paths[@]}"
+      - name: P20 plus P09 P19 and warehouse ownership regressions
+        run: |
+          shopt -s nullglob
+          files=(tests/Feature/P20ComponentHistoryTest.php tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/P09*Test.php tests/Feature/WarrantyWarehouseScopeTest.php)
+          test "${#files[@]}" -ge 4
+          php artisan test "${files[@]}" --log-junit p20-${{ matrix.database }}.xml
+      - name: Route-cache P20 regression
+        run: |
+          php artisan route:cache
+          php artisan test tests/Feature/P20ComponentHistoryTest.php --log-junit p20-cached-${{ matrix.database }}.xml
+          php artisan route:clear
+      - name: Publish exact commit counts without token or PII artifacts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,json,pathlib,xml.etree.ElementTree as E,hashlib
+          good=True
+          for prefix in ['p20-','p20-cached-']:
+              p=pathlib.Path(prefix+os.environ['DB_CONNECTION']+'.xml')
+              if not p.is_file():
+                  print('Missing test report '+p.name); good=False; continue
+              root=E.parse(p).getroot(); cases=list(root.iter('testcase'))
+              counts={'tests':len(cases),'assertions':sum(int(c.get('assertions','0')) for c in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+              own=sum('P20ComponentHistoryTest' in (c.get('class','')+c.get('classname','')) for c in cases)
+              report={'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'suite':prefix,'p20_tests':own,'counts':counts,'report_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'live_verified':False,'full_release_verified':False}
+              print(json.dumps(report,sort_keys=True))
+              for c in cases:
+                  for e in c:
+                      if e.tag in ['failure','error']: print(c.get('name','')+'\n'+(e.text or '')[:2400])
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
+              good=good and own>=12 and not any(counts[k] for k in ['failure','error','skipped'])
+          if not good: raise SystemExit('Missing or failed P20 evidence')
+          PY
+      - name: Assert tests did not rewrite source
+        run: git diff --exit-code

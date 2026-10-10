@@ -1,0 +1,48 @@
+{
+  "contract": "p20-component-history-v1",
+  "date": "2026-10-10",
+  "status": "PENDING_CONTRACT_AND_LIVE_TEST",
+  "production_activation": false,
+  "new_routes": [],
+  "new_mutations": [],
+  "new_migrations": [],
+  "source_base_sha": "48c7f8fe1fd5c66003b79eb06e84dc65b07c599b",
+  "requests": [
+    {"owner": "P09", "method": "GET", "path": "/api/v1/mini-app/warranty-cases/{case_id}", "query": {"warehouse_id": "confirmed UUID"}, "response": "Keep canonical data/context/capabilities and PII masking; closed case does not mean unreadable. Do not manufacture customer fields."},
+    {"owner": "P09/P20", "method": "GET", "path": "/api/v1/mini-app/warranty-cases/{case_id}/component-issues", "headers": {"X-Component-History-Contract": "p20-component-history-v1"}, "query": {"warehouse_id": "required confirmed UUID", "per_page": "optional integer 1..100; default 20", "page": "optional integer 1..100000; mutually exclusive with cursor", "cursor": "optional opaque P20 nextCursor"}, "response": "data[] link rows; meta.total/per_page/page/hasMore/nextCursor/nextPage/pagination/consistency/snapshot; rows have component_issue_document_id, document_no, warranty_case_id, warehouse_id, status, version, posted_at, posted_time_status, created_at, can_open, detail_url. No lines in list."},
+    {"owner": "COMPONENT_ISSUE/P20", "method": "GET", "path": "/api/v1/mini-app/warranty-component-issues/{document_id}", "headers": {"X-Component-History-Contract": "p20-component-history-v1"}, "query": {"warehouse_id": "required confirmed UUID"}, "response": "data.document + sibling data.lines + data.history. Each lines[].items[] contains only POSTED selection evidence, not REMOVED. Immutable document ID is not a display number."}
+  ],
+  "transport": {"authorization": "Bearer access token", "body": "NONE for all GETs", "mutation_headers": "No Idempotency-Key or If-Match needed for these reads", "request_trace": "meta.request_id is HTTP trace, never an operation receipt key", "cache": "private, no-store; no cross-user/shared detail cache; Vary: X-Component-History-Contract"},
+  "permissions": {
+    "case": "warranty.view OR warranty.manage, stable auth session, confirmed ACTIVE warehouse and persisted case ownership",
+    "links_and_mini_app_detail": "(warranty.view OR warranty.manage) AND documents.read AND warranty.component_issue plus the same P09 session/warehouse/case/tenant protections",
+    "pii": "warranty.pii.view controls document/line notes and actor identifiers; otherwise null with redaction flags. Case customer data remains the P09 canonical projection.",
+    "security_compatibility_change": "Mini App detail now applies the P09 link ACL even without the new header. Stripping header is not a read-scope bypass. Canonical non-mini routes retain their existing owner policy. No permission or warehouse is inferred from role labels or a client case ID.",
+    "tenant": "Reuse P09 isolate for document, line, item, SKU, movement, scan event and batch. Tenant columns without a trusted dimension fail closed. Existing schema with no tenant dimensions requires single-tenant database isolation."
+  },
+  "sort_and_paging": {
+    "p20": "posted_at DESC NULLS LAST, id DESC; missing posted_at remains null, never created_at fallback",
+    "legacy_no_header": "P09 link list remains created_at DESC,id DESC for compatibility. P20 must send the header.",
+    "cursor": "P09 opaque encrypted cursor bound to path/case/query/actor/stable-session/warehouse/rights/tenant dimensions plus P20 contract/sort; 900 seconds fixed chain expiry. Never reuse legacy cursor in P20.",
+    "consistency": "LIVE_READ_NOT_FROZEN_CROSS_REQUEST. Per-response snapshot is consistent; list/detail or multiple pages are not one frozen snapshot.",
+    "frontend": "Hydrate by owner detail URL and immutable ID, verify returned case/kho/POSTED. Preserve link metadata separately; failed/403 detail is partial hydration not empty. Follow hasMore/nextCursor/nextPage, not rows.length; reject loops, deduplicate document IDs, discard stale-caller responses. Read retries repeat the same query/cursor. Expired cursor restarts from first page, not a new mutation."
+  },
+  "scan_evidence": {
+    "source": "component_issue_items.scan_event_id -> scan_event -> scan_batch; batch must belong to this component document, warehouse and tenant. Event resolved target/type and VALID status must match persisted selected item/container.",
+    "fields": "lines[].items[]: id,line_id,sku_id,item_id,container_id,target_type ITEM|BOX|null,status POSTED,quantity,scan_event_id,scan_batch_id,raw_code,raw_code_status,scan_result_status,scanned_at",
+    "raw_code_status": ["RECORDED", "NOT_RECORDED", "UNAVAILABLE", "IDENTITY_MISMATCH"],
+    "raw_code": "Exact string stored in original scan_event; no trim/reformat, no current physical-code/SKU/item-ID fallback. This does not claim the upstream scanner preserved bytes it never stored. Missing source/identity returns null, not a fabricated code.",
+    "removed": "REMOVED rows excluded from history items and issued calculations; removed_item_count is diagnostic. scan_event_count/posted_item_count are counts of evidence, NOT issued quantity.",
+    "unit": "lines[].unit comes from current permitted sku.unit, labeled CURRENT_SKU_CATALOG, not a historical unit snapshot. Missing metadata stays null. Inactive SKU remains readable in historical evidence."
+  },
+  "quantity": {
+    "issued_qty": "CONFIRMED only when negative COMPONENT_ISSUE movements with source_type COMPONENT_ISSUE_DOCUMENT and this document/line/kho/SKU match POSTED item quantities and scanned_qty. ITEM quantity must equal 1; BOX quantity uses stored selection, not box count. required_qty is display-only planned data, never fallback.",
+    "statuses": ["CONFIRMED", "INCOMPLETE", "MISMATCH"],
+    "unknown": "lines[].issued_qty and history.quantity_total are null on incomplete/mismatched evidence, not zero/planned or items.length.",
+    "total": "history.quantity_total sums native line quantities, not distinct codes or rows. Do not treat a mixed-unit total as one physical unit; history.totals_by_unit is grouped from current catalog units. Missing unit is not invented.",
+    "read_effect": "data.stock_effect describes historical document state; data.history.read_stock_effect=NONE. No read creates stock, scan events, business documents or request receipts."
+  },
+  "errors": {"401": "Auth expired/missing; P01/P10 lifecycle", "403": "Missing exact permissions or existing warehouse data-scope guard; do not turn into empty", "404": "Missing/out-of-scope case or document; do not use as mutation outcome", "409": "WAREHOUSE_CONTEXT_REQUIRED/MISMATCH/INACTIVE or COMPONENT_HISTORY_NOT_POSTED", "422": "Unknown filters/header, invalid query, WARRANTY_PAGING_CONFLICT, WARRANTY_CURSOR_INVALID or WARRANTY_CURSOR_SCOPE_MISMATCH", "503": "COMPONENT_HISTORY_SOURCE_UNAVAILABLE or WARRANTY_TENANCY_UNRESOLVED; not a zero total"},
+  "dependencies": "Navigate P09/P19/P21/P23 owners only. A new login may re-read authorized public business history after context confirmation but cannot reuse the old session cursor or take over a draft/operation receipt. P20 never reconciles/retries a mutation, Posts, cancels or switches context.",
+  "acceptance": {"ci": "Isolated SQLite/PostgreSQL with synthetic records; owner P09/P19 regressions and route-cache rerun. Test code alone is not PASS evidence.", "live": "Still required: release/build ancestry, schema/route guards, authenticated read/deny/cursor/partial-detail smoke with allowed account/case. No live create/seed/Post to manufacture history.", "ba": "Confirm posted-at semantics and UI use of incomplete raw/quantity/unit metadata before production activation."}
+}
