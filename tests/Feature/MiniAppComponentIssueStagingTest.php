@@ -4,9 +4,12 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -26,8 +29,11 @@ use Tests\TestCase;
 class MiniAppComponentIssueStagingTest extends TestCase
 {
     use BuildsScanDrivenInbound;
+    use InteractsWithBrowserSession;
     use OpensWarrantyCaseForComponentIssue;
-    use PreparesOutboundFixtures;
+    use PreparesOutboundFixtures {
+        authHeadersWithRole as private legacyAuthHeadersWithRole;
+    }
     use RefreshDatabase;
 
     private const RESOLVE = '/api/v1/mini-app/warranty-component-issues/resolve-code';
@@ -110,6 +116,32 @@ class MiniAppComponentIssueStagingTest extends TestCase
             'code_value' => $codeValue,
             'case_id' => $this->warrantyCase($headers, checking: true),
         ];
+    }
+
+    // Use real isolated login families for each role, not a token carrying
+    // custom sid claims left by another actor in this PHPUnit process.
+    private function authHeadersWithRole(string $roleCode): array
+    {
+        $auth = $this->legacyAuthHeadersWithRole($roleCode);
+        $user = User::findOrFail($auth['__user_id']);
+        $secret = bin2hex(random_bytes(16));
+        $user->forceFill(['email' => 'component-'.Str::uuid().'@example.test',
+            'password_hash' => Hash::make($secret), 'must_change_password' => false])->save();
+        $reset = function (): void {
+            $this->app['auth']->forgetGuards();
+            $this->app['tymon.jwt']->unsetToken();
+            $this->app['tymon.jwt.auth']->unsetToken();
+        };
+        $reset();
+        $login = $this->browserLogin($user->email, $secret)->assertOk();
+        $warehouse = $this->warehouseFixture();
+        $reset();
+        $selected = $this->postJson('/api/v1/auth/switch-context', [
+            'context_type' => 'WAREHOUSE', 'context_id' => (string) $warehouse->id,
+        ], ['Authorization' => 'Bearer '.$login->json('data.access_token')])->assertOk();
+        $reset();
+
+        return ['Authorization' => 'Bearer '.$selected->json('data.access_token'), '__user_id' => $user->user_id];
     }
 
     private function warrantyCase(array $headers, bool $checking): string
@@ -808,7 +840,7 @@ class MiniAppComponentIssueStagingTest extends TestCase
     // Danh sách hồ sơ cho màn xuất linh kiện
     // ------------------------------------------------------------------
 
-    public function test_loc_ho_so_bao_hanh_theo_hai_trang_thai_trong_mot_lan_goi(): void
+    public function test_loc_ho_so_bao_hanh_theo_tung_status_da_cong_bo_cua_p09(): void
     {
         $auth = $this->superAdminHeaders();
         $headers = ['Authorization' => $auth['Authorization']];
@@ -824,15 +856,19 @@ class MiniAppComponentIssueStagingTest extends TestCase
             'status' => 'REPAIRING',
         ], $headers + ['If-Match' => (string) $version, 'Idempotency-Key' => 'ci-rep-'.(string) Str::uuid()])->assertOk();
 
-        $response = $this->getJson('/api/v1/mini-app/warranty-cases?status=CHECKING,REPAIRING&per_page=50', $headers)->assertOk();
+        // P09 publishes one status per request; do not revive the removed CSV filter.
+        $responses = array_map(fn (string $status) => $this->getJson('/api/v1/mini-app/warranty-cases?'.http_build_query([
+            'warehouse_id' => (string) $this->warehouseFixture()->id, 'status' => $status, 'per_page' => 50,
+        ]), $headers)->assertOk(), ['CHECKING', 'REPAIRING']);
 
-        $ids = collect($response->json('data'))->pluck('warranty_case_id')->all();
+        $ids = collect($responses)->flatMap(fn ($response) => $response->json('data'))->pluck('warranty_case_id')->all();
         sort($ids);
         $expected = [$checkingId, $repairingId];
         sort($expected);
 
         $this->assertSame($expected, $ids, 'Chỉ hồ sơ Đang kiểm tra + Đang sửa chữa được trả về.');
-        $this->assertSame(2, (int) $response->json('meta.pagination.total') ?: 2);
+        // Keep the expected total 2; remove the old fallback that could hide missing metadata.
+        $this->assertSame(2, array_sum(array_map(fn ($response) => $response->json('meta.total'), $responses)));
     }
 
     public function test_loc_mot_trang_thai_van_giu_nguyen_hanh_vi_cu(): void
@@ -844,7 +880,7 @@ class MiniAppComponentIssueStagingTest extends TestCase
         $this->warrantyCase($headers, checking: false);
         $checkingId = $this->warrantyCase($headers, checking: true);
 
-        $response = $this->getJson('/api/v1/mini-app/warranty-cases?status=CHECKING', $headers)->assertOk();
+        $response = $this->getJson('/api/v1/mini-app/warranty-cases?'.http_build_query(['warehouse_id' => (string) $this->warehouseFixture()->id, 'status' => 'CHECKING']), $headers)->assertOk();
 
         $this->assertSame([$checkingId], collect($response->json('data'))->pluck('warranty_case_id')->all());
     }

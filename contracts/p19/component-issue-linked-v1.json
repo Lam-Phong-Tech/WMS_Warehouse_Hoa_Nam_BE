@@ -1,0 +1,83 @@
+{
+  "contract": "p19-component-issue-linked-v1",
+  "date": "2026-10-10",
+  "reviewed_dev_source": "a55ee4aed42be956153ea0585ceab190be7b5c67",
+  "fe_reported_snapshot": "05941f3e1287b22de17b90b1c96db3a64ac454d4",
+  "fe_snapshot_comparison": "NOT_RESOLVED_BY_CONNECTED_GITHUB_COMPARE_404; implementation based on verified dev source, not a claim of equivalence",
+  "status": "PENDING_CONTRACT_AND_LIVE_TEST",
+  "production_activation": false,
+  "new_routes": [],
+  "new_migrations": [],
+  "mode": "P03_LINKED_LOCAL_BATCH_ATOMIC_POST",
+  "permission": "warranty.component_issue AND active actor/stable auth session/confirmed ACTIVE warehouse; persisted case ownership must match warehouse",
+  "case_statuses": ["CHECKING", "REPAIRING"],
+  "tenant": "No client tenant identity is accepted or fabricated. Use the existing deployment/auth/warehouse boundaries; cross-tenant recovery is not offered.",
+  "save": {
+    "method": "PUT", "path": "/api/v1/mini-app/drafts/{draft_id}",
+    "headers": ["Authorization: Bearer", "Content-Type: application/json", "Idempotency-Key: operation UUID", "If-Match: quoted draft version; 0 on first SAVE"],
+    "body": "Existing P03 body: warehouse_id, operation=COMPONENT_ISSUE, scan_session_id, codes, form.p19. Client creates and retains lowercase draft/scan UUIDs once.",
+    "form_p19_fields": ["contract", "warranty_case_id", "document_date", "note"],
+    "form_contract_value": "p19-component-issue-linked-v1",
+    "optional_metadata": "document_date YYYY-MM-DD or null, note max2000 or null; omitted/null must match record. No manual component_issue_no in this mode.",
+    "codes": "List of raw_code, explicit integer quantity 1..100000 and scan_source CAMERA/SCANNER/HARDWARE/MANUAL. At most1000 rows. Preserve exact strings, order, quantity and source on record.",
+    "duplicate_box_input": "P03 disallows repeated exact raw_code. Sum repeated user withdrawals into the same local BOX row before SAVE; separate aliases of one container still share its availability and are revalidated by owner.",
+    "stock_effect": "NONE", "business_document_id_before_record": null,
+    "recovery": "SAVE replay uses its original key/body/If-Match; read receipt with command=SAVE. No canonical CREATE/SCAN retry is implied. Snapshot is not validated stock/scan evidence."
+  },
+  "resolve": {
+    "method": "POST", "path": "/api/v1/mini-app/warranty-component-issues/resolve-code",
+    "body": "warehouse_id, raw_code, warranty_case_id; existing owner contract",
+    "headers": ["Authorization: Bearer", "Content-Type: application/json"],
+    "stock_effect": "NONE", "key_required": false,
+    "rules": "ITEM quantity1, available_qty may be null (not 0/1); BOX requires explicit quantity and container availability. Only resolved eligible component plus case_allows_issue=true permits confirmation. Resolver does not reserve or prove future availability; record revalidates."
+  },
+  "record": {
+    "method": "POST", "path": "/api/v1/mini-app/warranty-component-issues/record",
+    "alias": "/api/v1/mini-app/component-issue-documents/record",
+    "headers": ["Authorization: Bearer", "Content-Type: application/json", "X-Component-Issue-Contract: p19-component-issue-linked-v1", "Idempotency-Key: new RECORD UUID", "X-Draft-ID", "X-Draft-Scan-Session-ID", "X-Draft-Version: current draft integer version"],
+    "if_match": "DO_NOT_SEND; this batch command binds X-Draft-Version, not a pre-existing business document version",
+    "body_fields": ["warehouse_id", "warranty_case_id", "post_immediately", "items", "document_date", "note"],
+    "post_immediately": "Explicit JSON true required. false is not SAVE. Do not call separate canonical Post afterward.",
+    "snapshot_match": "items correspond exactly to saved codes including quantity/order/scan_source; form.p19 metadata must match, ownership/status rechecked under locks",
+    "response_status": 201,
+    "result": "data.component_issue_document_id is the business ID. data.p19_result is a durable historical Post projection included before P03 receipt commits.",
+    "p19_result": ["contract", "result_kind=HISTORICAL_POST_RESULT", "draft_id", "scan_session_id", "actor_id", "auth_session_id", "warehouse_id", "warranty_case_id", "business_document_id", "document_no", "document_version", "status=POSTED", "posted_at", "posted_by", "stock_effect=DECREASE", "quantity_total", "operation_key", "trace_request_id", "lines", "movements", "current_state_read"],
+    "lines": "line_id/line_no/sku_id/required_qty/scanned_qty/version from persisted lines; quantity_total is summed quantity, never number of rows",
+    "movements": "movement_id/line_id/sku_id/item_id nullable/negative qty_delta/occurred_at from actual COMPONENT_ISSUE ledger rows; never created_at as posted_at",
+    "receipt": "meta.p03_draft.receipt.command=RECORD; request_id equals ORIGINAL Idempotency-Key. Receipt version is draft version; document_version is business version. trace_request_id is separate HTTP correlation.",
+    "atomicity": "Owner document, scans, container consumption, inventory movements, P03 RECORDED mapping and receipt share one transaction. Replay returns historical result, no second decrement.",
+    "stock_effect_distinction": "P03 staging document.stock_effect=NONE describes the draft only. The business record/Post in data.p19_result has DECREASE. Never infer neutral business stock from staging NONE."
+  },
+  "reconcile": {
+    "method": "GET", "path": "/api/v1/mini-app/drafts/{draft_id}/requests/{operation_key}",
+    "query": ["warehouse_id", "operation=COMPONENT_ISSUE", "scan_session_id", "command=SAVE|RECORD|CANCEL"],
+    "headers": ["Authorization: Bearer"],
+    "outcomes": ["SUCCEEDED", "UNKNOWN"],
+    "receipt": "data.receipt and data.response describe the earlier command; data.document/business_status are current readback. Do not overwrite current state with historical response.",
+    "unknown": "P19 UI only checks; preserves original key/body/draft/scan/version. P03 SAME_REQUEST_ONLY is an owner restriction, not permission for automatic write retries. No new document, no key rotation and no cancellation as a workaround.",
+    "unsupported": "No dedicated receipt for historical canonical create/scans/post or standalone/unlinked record. No definitive NOT_POSTED/NOT_RECORDED from null/404/DRAFT. Do not apply other owners' receipt URLs."
+  },
+  "resume": {
+    "draft": "GET /api/v1/mini-app/drafts/{draft_id}?warehouse_id=...&operation=COMPONENT_ISSUE&scan_session_id=...",
+    "business": "GET /api/v1/mini-app/warranty-component-issues/{business_document_id}; existing owner permission and warehouse ACL",
+    "decision": "DRAFT resumes the private saved batch without business CREATE/SCAN. RECORDED opens its existing business_document_id and reads document.posted_at/status/lines. Back/reload/GET do not create events/documents. Do not convert an existing canonical SCANNING document into this batch mode.",
+    "session": "Refresh retains stable family. New login/other actor cannot take over old P03 receipts or drafts. Local logout remains available; preserve private scoped evidence but do not replay under a new session. No credentials in checkpoint.",
+    "mutation": "No P19 unscan/delete/cancel API. Existing P03 cancellation is only for confirmed DRAFT under its owner rules; never delete posted evidence or cancel UNKNOWN."
+  },
+  "errors": {
+    "P19_CONTRACT_INVALID": 422, "P19_LINKED_DRAFT_REQUIRED": 409, "P19_CONTRACT_REQUIRED": 409,
+    "P19_DRAFT_SNAPSHOT_REQUIRED": 409, "P19_VERSION_HEADER_INVALID": 422, "P19_UNEXPECTED_FIELD": 422,
+    "P19_POST_CONFIRMATION_REQUIRED": 422, "P19_DRAFT_METADATA_MISMATCH": 409, "P19_DRAFT_ITEMS_MISMATCH": 409,
+    "WARRANTY_CASE_NOT_FOUND": 404, "WARRANTY_CASE_STATUS_NOT_ALLOWED": 422, "P19_POST_RESULT_INVALID": 502,
+    "STALE_VERSION": 412, "IDEMPOTENCY_CONFLICT": 409, "DRAFT_STATE_CONFLICT": 409,
+    "COMPONENT_BOX_INSUFFICIENT": 422, "DUPLICATE_COMPONENT_ITEM": 409, "SERIAL_QUANTITY_MUST_BE_ONE": 422
+  },
+  "release": {
+    "ci": "Run P19 plus unchanged owner tests on isolated SQLite/PostgreSQL; exact SHA/counts/style are reported separately",
+    "concurrency": "Competing saved batches and transactional rollback/replay tests are not a claim of physical-device or production load/race certification; live concurrency remains a release gate",
+    "schema": "No P19 migration; existing P03 drafts/receipts, warranty ownership and canonical stock/container schema must already be deployed",
+    "live_verified": false, "frontend_wired": false,
+    "remaining": ["DEV/BA review of selected P19 mode", "deployment build/ancestry/schema/tier proof", "authorized native/device UAT", "live stock/deny/limits/timeout/resume/concurrency evidence"],
+    "prohibited": "No live Post without explicit approved test account/case/item/box/balance. No seed/migration/test writes on DEV to fabricate evidence. No production customer stock, new camera/torch/scanner APIs or fixture fallback."
+  }
+}

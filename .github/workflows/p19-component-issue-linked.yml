@@ -3,9 +3,24 @@ on:
   workflow_dispatch:
   push:
     branches: [dev]
-    paths: ['.github/workflows/p19-component-issue-linked.yml']
+    paths:
+      - 'Modules/Warehouse/app/Services/P19LinkedComponentIssue.php'
+      - 'Modules/Warehouse/app/Http/Middleware/MiniAppDraftHandoff.php'
+      - 'Modules/Warehouse/app/Services/MiniAppDraftService.php'
+      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
+      - 'Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php'
+      - 'Modules/Warehouse/app/Http/Controllers/MiniAppComponentIssueStagingController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php'
+      - 'Modules/Auth/**'
+      - 'contracts/p19/**'
+      - 'tests/Feature/P19*Test.php'
+      - 'tests/Feature/MiniAppComponentIssueStagingTest.php'
+      - 'tests/Feature/P03Draft*Test.php'
+      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
+      - 'tests/Feature/AuthWarehouseContextTest.php'
+      - '.github/workflows/p19-component-issue-linked.yml'
 permissions:
-  contents: write
+  contents: read
 jobs:
   contract:
     runs-on: ubuntu-24.04
@@ -45,91 +60,35 @@ jobs:
       CORS_ALLOWED_ORIGINS: http://localhost:5173
       CORS_SUPPORTS_CREDENTIALS: 'true'
       REFRESH_TOKEN_COOKIE_SECURE: 'false'
-      P19_TEST_SHA: c25221bdbdeea80f395c57a3df62ed3b25f71464
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: ${{ env.P19_TEST_SHA }}
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Verify isolated target
+      - name: Verify isolated database and mask signing material
         run: |
-          test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
-          test "$(git rev-parse HEAD)" = "$P19_TEST_SHA"
+          python3 - <<'PY'
+          import os, subprocess, json
+          assert os.environ['APP_ENV']=='testing' and os.environ['DB_HOST']=='127.0.0.1' and os.environ['DB_URL']==''
+          assert os.environ['DB_DATABASE'] in [':memory:', 'p19_contract_test']
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==os.environ['GITHUB_SHA']
+          contract=json.load(open('contracts/p19/component-issue-linked-v1.json'))
+          assert contract['production_activation'] is False and contract['new_routes']==[] and contract['new_migrations']==[]
+          PY
           secret="$(openssl rand -hex 32)"
           echo "::add-mask::$secret"
           echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
-      - name: Install dependencies
+      - name: Install locked dependencies
         run: |
           cp .env.example .env
           composer install --no-interaction --prefer-dist --no-progress > /tmp/p19-install.log 2>&1 || { tail -60 /tmp/p19-install.log; exit 1; }
           php artisan key:generate
           php artisan config:clear
-      - name: Prepare reviewed fixture prerequisites without weakening assertions
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import subprocess
-          def edit(path, old, new):
-              p=Path(path); text=p.read_text(); assert text.count(old)==1,(path,old,text.count(old)); p.write_text(text.replace(old,new))
-          p='tests/Feature/P19LinkedComponentIssueTest.php'
-          edit(p, "        User::findOrFail($f['actor_id'])->roles()->detach();", "        // Match the IAM/P03 revocation contract: grants are cached by user.version.\n        $user = User::findOrFail($f['actor_id']);\n        $user->roles()->detach();\n        $user->forceFill(['version' => (int) $user->version + 1])->save();")
-          edit(p, "        $this->unchanged($f);\n    }\n\n    public function test_box_aliases_cannot_withdraw_more_than_one_container_total", """        $this->unchanged($f);
-                  // A successful historical receipt also cannot bypass later revocation.
-                  $g = $this->fixture();
-                  $posted = $this->save($g);
-                  $key = (string) Str::uuid();
-                  $this->postJson(self::RECORD, $this->body($g), $this->recordHeaders($g, $posted, $key))->assertCreated();
-                  $user = User::findOrFail($g['actor_id']);
-                  $user->roles()->detach();
-                  $user->forceFill(['version' => (int) $user->version + 1])->save();
-                  $this->postJson(self::RECORD, $this->body($g), $this->recordHeaders($g, $posted, $key))->assertForbidden();
-                  $this->assertSame(4, $this->balance($g));
-                  $this->assertDatabaseCount('component_issue_documents', 1);
-              }
-
-              public function test_box_aliases_cannot_withdraw_more_than_one_container_total""")
-          p='tests/Feature/MiniAppComponentIssueStagingTest.php'
-          edit(p, 'use Illuminate\\Support\\Facades\\DB;', 'use Illuminate\\Support\\Facades\\DB;\nuse Illuminate\\Support\\Facades\\Hash;\nuse Modules\\Auth\\Models\\User;\nuse Tests\\Feature\\Concerns\\InteractsWithBrowserSession;')
-          edit(p, '    use PreparesOutboundFixtures;', '    use InteractsWithBrowserSession;\n    use PreparesOutboundFixtures {\n        authHeadersWithRole as private legacyAuthHeadersWithRole;\n    }')
-          edit(p, '    private function warrantyCase(array $headers, bool $checking): string', '''    // Use real isolated login families for each role, not a token carrying
-              // custom sid claims left by another actor in this PHPUnit process.
-              private function authHeadersWithRole(string $roleCode): array
-              {
-                  $auth = $this->legacyAuthHeadersWithRole($roleCode);
-                  $user = User::findOrFail($auth['__user_id']);
-                  $secret = bin2hex(random_bytes(16));
-                  $user->forceFill(['email' => 'component-'.Str::uuid().'@example.test',
-                      'password_hash' => Hash::make($secret), 'must_change_password' => false])->save();
-                  $reset = function (): void {
-                      $this->app['auth']->forgetGuards();
-                      $this->app['tymon.jwt']->unsetToken();
-                      $this->app['tymon.jwt.auth']->unsetToken();
-                  };
-                  $reset();
-                  $login = $this->browserLogin($user->email, $secret)->assertOk();
-                  $warehouse = $this->warehouseFixture();
-                  $reset();
-                  $selected = $this->postJson('/api/v1/auth/switch-context', [
-                      'context_type' => 'WAREHOUSE', 'context_id' => (string) $warehouse->id,
-                  ], ['Authorization' => 'Bearer '.$login->json('data.access_token')])->assertOk();
-                  $reset();
-                  return ['Authorization' => 'Bearer '.$selected->json('data.access_token'), '__user_id' => $user->user_id];
-              }
-
-              private function warrantyCase(array $headers, bool $checking): string''')
-          edit(p, 'public function test_loc_ho_so_bao_hanh_theo_hai_trang_thai_trong_mot_lan_goi(): void', 'public function test_loc_ho_so_bao_hanh_theo_tung_status_da_cong_bo_cua_p09(): void')
-          edit(p, "        $response = $this->getJson('/api/v1/mini-app/warranty-cases?status=CHECKING,REPAIRING&per_page=50', $headers)->assertOk();\n\n        $ids = collect($response->json('data'))->pluck('warranty_case_id')->all();", "        // P09 publishes one status per request; do not revive the removed CSV filter.\n        $responses = array_map(fn (string $status) => $this->getJson('/api/v1/mini-app/warranty-cases?'.http_build_query([\n            'warehouse_id' => (string) $this->warehouseFixture()->id, 'status' => $status, 'per_page' => 50,\n        ]), $headers)->assertOk(), ['CHECKING', 'REPAIRING']);\n\n        $ids = collect($responses)->flatMap(fn ($response) => $response->json('data'))->pluck('warranty_case_id')->all();")
-          edit(p, "        $this->assertSame(2, (int) $response->json('meta.pagination.total') ?: 2);", "        // Keep the expected total 2; remove the old fallback that could hide missing metadata.\n        $this->assertSame(2, array_sum(array_map(fn ($response) => $response->json('meta.total'), $responses)));")
-          edit(p, "$this->getJson('/api/v1/mini-app/warranty-cases?status=CHECKING', $headers)", "$this->getJson('/api/v1/mini-app/warranty-cases?'.http_build_query(['warehouse_id' => (string) $this->warehouseFixture()->id, 'status' => 'CHECKING']), $headers)")
-          paths=['tests/Feature/P19LinkedComponentIssueTest.php',p]
-          subprocess.run(['vendor/bin/pint',*paths],check=True)
-          PY
       - name: Syntax and style
         run: |
           php -l Modules/Warehouse/app/Services/P19LinkedComponentIssue.php
@@ -137,42 +96,28 @@ jobs:
           php -l tests/Feature/P19LinkedComponentIssueTest.php
           php -l tests/Feature/MiniAppComponentIssueStagingTest.php
           vendor/bin/pint --test Modules/Warehouse/app/Services/P19LinkedComponentIssue.php Modules/Warehouse/app/Http/Middleware/MiniAppDraftHandoff.php tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/MiniAppComponentIssueStagingTest.php
-      - name: P19 and owner tests
+      - name: P19 and owner regressions
         if: success() || failure()
         run: php artisan test tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/MiniAppComponentIssueStagingTest.php tests/Feature/P03DraftContractTest.php tests/Feature/P03DraftJsonShapeTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/AuthWarehouseContextTest.php --log-junit p19-${{ matrix.database }}.xml
-      - name: Publish exact candidate evidence
+      - name: Publish exact SHA and test outcomes
         if: always()
         run: |
           python3 - <<'PY'
-          import os,json,pathlib,xml.etree.ElementTree as E
-          p=pathlib.Path('p19-'+os.environ['DB_CONNECTION']+'.xml')
-          if not p.exists(): raise SystemExit('Missing test report')
-          root=E.parse(p).getroot(); cases=list(root.iter('testcase'))
+          import os, json, pathlib, hashlib, xml.etree.ElementTree as E
+          path=pathlib.Path('p19-'+os.environ['DB_CONNECTION']+'.xml')
+          if not path.is_file(): raise SystemExit('Missing P19 test evidence')
+          root=E.parse(path).getroot(); cases=list(root.iter('testcase'))
           counts={'tests':len(cases),'assertions':sum(int(x.get('assertions','0')) for x in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
-          report={'base_candidate':os.environ['P19_TEST_SHA'],'workflow_sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'counts':counts,'live_verified':False}
+          own=sum('P19LinkedComponentIssueTest' in (x.get('class','')+x.get('classname','')) for x in cases)
+          report={'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'counts':counts,'p19_tests':own,'report_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'live_verified':False,'production_activation':False}
           print(json.dumps(report,sort_keys=True))
           for case in cases:
-              for tag in ['failure','error']:
-                  e=case.find(tag)
-                  if e is not None:
-                      print('FAILED_CASE '+case.get('name',''))
-                      print('::error title=P19 assertion::'+(e.text or '')[:3000].replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
+              failure=case.find('failure'); error=case.find('error')
+              if failure is not None or error is not None:
+                  print('FAILED_CASE '+case.get('name',''))
+                  element=failure if failure is not None else error
+                  text=(element.text or '')[:3500].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+                  print('::error title=P19 assertion::'+text)
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
-          if len(cases)!=117 or any(counts[k] for k in ['failure','error','skipped']): raise SystemExit('Tests failed')
-          PY
-      - name: Publish tested source tree only without changing any branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          import os,json,pathlib,urllib.request,subprocess
-          repo=os.environ['GITHUB_REPOSITORY']; assert repo=='Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
-          paths=['tests/Feature/P19LinkedComponentIssueTest.php','tests/Feature/MiniAppComponentIssueStagingTest.php']
-          base=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()
-          nodes=[{'path':p,'mode':'100644','type':'blob','content':pathlib.Path(p).read_text()} for p in paths]
-          req=urllib.request.Request('https://api.github.com/repos/'+repo+'/git/trees',data=json.dumps({'base_tree':base,'tree':nodes}).encode(),method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
-          with urllib.request.urlopen(req,timeout=60) as r: tree=json.load(r)['sha']
-          print('VERIFIED_P19_TREE='+tree)
-          print('::notice title=Tested P19 source tree::'+tree)
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('Verified tree: `'+tree+'`; no branch/ref changed.\n')
+          if own!=16 or any(counts[k] for k in ['failure','error','skipped']): raise SystemExit('P19 or owner regressions failed')
           PY
