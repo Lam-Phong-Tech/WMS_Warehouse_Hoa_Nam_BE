@@ -1,6 +1,7 @@
 {
   "contract": "p22-nfc-history-v1",
   "date": "2026-10-10",
+  "revision": "result-provenance-and-evidence",
   "owner": "P08",
   "status": "PENDING_CONTRACT_AND_LIVE_TEST",
   "production_activation": false,
@@ -39,11 +40,19 @@
   "filters": {
     "source": "NFC only in opt-in mode; omitted defaults NFC",
     "type": ["ALL", "ASSIGN", "REPLACE", "REVOKE", "UNKNOWN"],
-    "replacement": "ASSIGN_ITEM_NFC with captured verified distinct old/new tag UUID+UID and identical item+event warehouse. No inference from prefix or current status. P07 replacement remains disabled.",
-    "status": "Exact audit result, ALL skips filter, UNKNOWN selects SQL null. Result remains distinct from action/type/tag status. Existing writer may leave result null; do not synthesize SUCCESS.",
+    "replacement": "ASSIGN_ITEM_NFC with captured verified distinct old/new tag UUID+UID and identical item+event warehouse. Identity strings must be nonblank. No inference from prefix or current status. P07 replacement remains disabled.",
+    "status": "Exact original owner result captured in after_data.nfc_history_v1.result, not the compatibility view result. ALL skips filtering; UNKNOWN selects missing/null/non-string snapshot result. Action/type/tag status are separate. No synthesized SUCCESS.",
     "date_mode": "ALL default: no date fields; DATE: date; RANGE: from/to inclusive local calendar days using app timezone and exclusive next-day boundary",
     "timezone": "Response meta.timezone is authoritative; app timezone normally Asia/Ho_Chi_Minh",
     "unsupported": ["page", "per_page", "tenant_id", "actor_id", "warehouse switch", "export", "hardware actions"]
+  },
+  "result_provenance": {
+    "source": "Authenticated owner result argument captured before audit sanitization, legacy storage normalization and outbox fallback",
+    "status_source": ["PERSISTED_OWNER_RESULT", "NOT_RECORDED"],
+    "storage_default": "The existing PostgreSQL audit_log compatibility trigger maps NULL result to SUCCESS. P22 must not treat that default as proof of a successful physical operation.",
+    "legacy": "Older snapshots without original result remain status=null/NOT_RECORDED even when audit_log.result is SUCCESS; no backfill and no SQL-trigger changes.",
+    "meta_policy": "OWNER_RESULT_SNAPSHOT_NO_STORAGE_DEFAULTS",
+    "not_receipt": "Even an explicitly recorded SUCCESS is an audit result, not P07 confirmation or hardware readback evidence."
   },
   "pagination": {
     "count_unit": "EVENT",
@@ -59,7 +68,7 @@
     "list": "data[]; canonical recordId/activityId/eventId and whitelisted event snapshot only",
     "detail": "data.recordId + data.selectedActivity + data.events containing exactly the selected event",
     "summary": "data.grandTotal/availableTotal/typeTotals/statusTotals; countUnit EVENT within supported authorized persisted snapshot scope",
-    "snapshot_fields": ["hardware_uid", "previous_hardware_uid", "previous_physical_code_id", "item_id", "serial_number", "sku", "warehouse", "actor", "reason", "time", "tag_status_at_event"],
+    "snapshot_fields": ["hardware_uid", "previous_hardware_uid", "previous_physical_code_id", "item_id", "serial_number", "sku", "warehouse", "actor", "reason", "time", "tag_status_at_event", "status", "status_source"],
     "null_policy": "Missing fields remain null; no current user/product/tag/warehouse fallback",
     "raw_content": "Always null NOT_EXPOSED_MAY_CONTAIN_SECRETS; never whole audit JSON, written_payload, request bodies, idempotency keys or auth identifiers",
     "copy": "Only actual returned UID, previous UID and serial; plain-text UI, not executable HTML",
@@ -69,13 +78,29 @@
   },
   "p07_dependency": {
     "snapshot": "nfc-audit-snapshot-v1 under audit.after_data.nfc_history_v1",
-    "capture": "Additive logging only inside existing authenticated ASSIGN_ITEM_NFC/REVOKE_ITEM_NFC owner transaction, before audit sanitization and outbox fallback; exact actor, current confirmed warehouse and persisted tag/item relationships. No new event or writer endpoint.",
+    "capture": "Additive logging only inside existing authenticated ASSIGN_ITEM_NFC/REVOKE_ITEM_NFC owner transaction, before audit sanitization and outbox fallback; exact actor, current confirmed warehouse and persisted tag/item relationships. Original result argument is captured without defaulting. No new event or writer endpoint.",
     "legacy": "Do not backfill history from current tags. Old audit rows without event-level snapshot are excluded even if P08 legacy previously included them. P22 total can therefore differ from P08 legacy NFC count.",
     "outbox": "Snapshot retained in outbox payload; P22 reads only published audit_log entries, not pending outbox or P07 receipts. Coverage is not a claim that all physical operations were published.",
     "replacement": "Read support only when historical snapshot has proof; no enabling P07 replace_existing or hardware workflow",
     "receipt": "Use original P07 confirmation contract for unknown writes; P22 list/current mapping never substitutes for it"
   },
-  "acceptance_pending": ["BA field/type/privacy and legacy coverage approval", "Owner snapshot/outbox fault and concurrency acceptance", "Release artifact and runtime-overlay reconciliation", "Authenticated read/deny/tenant/cursor/event smoke on allowed real data", "Native UI paging/copy/scroll/IME/session and partial-detail UAT"],
+  "error_mapping": {
+    "200_total_zero": "Verified empty authorized snapshot scope only; not a source outage",
+    "503_HISTORY_SOURCE_UNAVAILABLE": "Missing source schema; do not map to empty or zero totals",
+    "401": "Owner authentication/session recovery; clear protected snapshot",
+    "403": "Owner history/source/warehouse permissions; do not retry a forbidden source as another owner",
+    "409": "Confirmed warehouse context inactive/mismatch; follow owner context recovery",
+    "404_RESOURCE_NOT_FOUND": "Missing/foreign event or wrong parent binding; no first-event fallback",
+    "422": "Invalid/unsupported query, body on GET, or invalid/expired/scope-mismatched cursor",
+    "network": "Transport failure is a client offline/error state, not a successful response or source 503"
+  },
+  "client_integration": {
+    "transport": "GET query parameters only, no JSON body; attach the opt-in header to each P22 request and verify response meta.contract",
+    "paging": "Paged adapter using server total/hasMore/nextCursor; reset cursor on supported filter changes; no full-array fixture, fan-out, local page filtering or guessed IDs",
+    "state": "Keep copy/reader/scroll/IME behavior; key state to actor/auth session/warehouse/query and discard superseded responses",
+    "pending_controls": "Disable or omit uncontracted raw JSON/export/hardware/mutation controls; missing or redacted fields remain explicit partial data"
+  },
+  "acceptance_pending": ["BA field/type/privacy and legacy coverage approval", "Owner snapshot/outbox fault and concurrency acceptance", "Release artifact and runtime-overlay reconciliation including timestamp storage/timezone", "Authenticated read/deny/tenant/cursor/event smoke on allowed real data", "Native UI paging/copy/scroll/IME/session and partial-detail UAT"],
   "live_prohibitions": ["No seed or assignment/revocation to manufacture evidence", "No migration", "No production activation", "No hardware calls from P22", "Do not remove existing owner gates"],
-  "test_scope": "New P22 HTTP read tests with synthetic isolated audit fixtures plus unchanged owner regressions; not live/hardware evidence"
+  "test_scope": "Fourteen P22 HTTP/provenance tests with synthetic isolated audit fixtures plus unchanged P07/P08 owner regressions; both SQLite/PostgreSQL and route-cached reads. CI results are not live/hardware or full-release evidence."
 }
