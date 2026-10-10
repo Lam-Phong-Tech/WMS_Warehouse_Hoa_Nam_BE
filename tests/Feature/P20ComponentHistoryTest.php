@@ -157,17 +157,43 @@ class P20ComponentHistoryTest extends TestCase
         $f = $this->fixture();
         $id = $this->postBatch($f, 3);
         $item = DB::table('component_issue_items')->first();
+        $ledgerBefore = $this->snapshot()['stock_movements'];
         DB::table('component_issue_items')->where('id', $item->id)->update(['status' => 'REMOVED']);
         $this->getJson($this->detailUrl($f, $id), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.lines.0.issued_qty', null)->assertJsonPath('data.lines.0.removed_item_count', 1)
             ->assertJsonCount(0, 'data.lines.0.items')->assertJsonPath('data.history.quantity_total', null);
-        DB::table('component_issue_items')->where('id', $item->id)->update(['status' => 'POSTED']);
-        DB::table('stock_movements')->where('source_type', 'COMPONENT_ISSUE_DOCUMENT')->where('source_id', $id)->update(['qty_delta' => -1]);
+        // Inconsistent persisted selection evidence, not an UPDATE of the
+        // append-only ledger. Its original movement must remain exactly -3.
+        DB::table('component_issue_items')->where('id', $item->id)->update(['status' => 'POSTED', 'quantity' => 1]);
         $this->getJson($this->detailUrl($f, $id), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.lines.0.quantity_status', 'MISMATCH')->assertJsonPath('data.lines.0.issued_qty', null);
-        DB::table('stock_movements')->where('source_type', 'COMPONENT_ISSUE_DOCUMENT')->where('source_id', $id)->delete();
-        $this->getJson($this->detailUrl($f, $id), $this->headers($f['token']))->assertOk()
+        // Independent isolated legacy-document fixture lacking a movement.
+        // No DELETE, disabled trigger or fabricated ledger rollback is used.
+        $document = (array) DB::table('component_issue_documents')->where('id', $id)->first();
+        $line = (array) DB::table('component_issue_lines')->where('id', $item->component_issue_line_id)->first();
+        $missingId = (string) Str::uuid();
+        $missingLine = (string) Str::uuid();
+        DB::table('component_issue_documents')->insert(array_replace($document, ['id' => $missingId, 'component_issue_no' => 'P20-MISSING-'.$missingId]));
+        DB::table('component_issue_lines')->insert(array_replace($line, ['id' => $missingLine, 'component_issue_document_id' => $missingId]));
+        DB::table('component_issue_items')->insert(array_replace((array) $item, ['id' => (string) Str::uuid(), 'component_issue_line_id' => $missingLine, 'scan_event_id' => null]));
+        $this->getJson($this->detailUrl($f, $missingId), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.lines.0.quantity_status', 'INCOMPLETE')->assertJsonPath('data.history.quantity_total', null);
+        $this->assertSame($ledgerBefore, $this->snapshot()['stock_movements']);
+    }
+
+    public function test_get_body_parameters_are_rejected_without_stock_or_document_changes(): void
+    {
+        $f = $this->fixture();
+        $id = $this->postBatch($f, 1);
+        $before = $this->snapshot();
+        foreach ([$this->listUrl($f), $this->detailUrl($f, $id)] as $url) {
+            foreach ([['warehouse_id' => $f['warehouse_id']], ['status' => 'POSTED'], ['command' => 'POST']] as $body) {
+                $this->json('GET', $url, $body, $this->headers($f['token']))->assertUnprocessable()
+                    ->assertJsonPath('error.code', 'COMPONENT_HISTORY_UNKNOWN_FILTER');
+            }
+            $this->getJson($url, $this->headers($f['token']))->assertOk();
+        }
+        $this->assertSame($before, $this->snapshot());
     }
 
     public function test_detail_requires_every_link_permission_even_without_contract_header(): void
