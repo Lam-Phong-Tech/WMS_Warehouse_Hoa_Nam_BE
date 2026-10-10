@@ -5,20 +5,38 @@ on:
     branches: [dev]
     paths:
       - 'Modules/Warehouse/app/Support/P22*'
+      - 'Modules/Warehouse/app/Support/P0[678]*'
       - 'Modules/Warehouse/app/Http/Middleware/P22*'
+      - 'Modules/Warehouse/app/Http/Middleware/P07*'
       - 'Modules/Warehouse/routes/p08_history.php'
       - 'Modules/AuditLog/app/Services/AuditLogger.php'
+      - 'Modules/AuditLog/app/Models/AuditLog.php'
+      - 'Modules/AuditLog/database/migrations/**'
+      - 'Modules/Auth/app/Support/StableAuthSession.php'
+      - 'Modules/Auth/app/Support/WarehouseContext.php'
       - 'contracts/p22/**'
       - 'tests/Feature/P22*'
+      - 'tests/Feature/P07Nfc*'
+      - 'tests/Feature/P08*'
+      - 'tests/Unit/P08*'
       - '.github/workflows/p22-nfc-history.yml'
   pull_request:
     paths:
       - 'Modules/Warehouse/app/Support/P22*'
+      - 'Modules/Warehouse/app/Support/P0[678]*'
       - 'Modules/Warehouse/app/Http/Middleware/P22*'
+      - 'Modules/Warehouse/app/Http/Middleware/P07*'
       - 'Modules/Warehouse/routes/p08_history.php'
       - 'Modules/AuditLog/app/Services/AuditLogger.php'
+      - 'Modules/AuditLog/app/Models/AuditLog.php'
+      - 'Modules/AuditLog/database/migrations/**'
+      - 'Modules/Auth/app/Support/StableAuthSession.php'
+      - 'Modules/Auth/app/Support/WarehouseContext.php'
       - 'contracts/p22/**'
       - 'tests/Feature/P22*'
+      - 'tests/Feature/P07Nfc*'
+      - 'tests/Feature/P08*'
+      - 'tests/Unit/P08*'
       - '.github/workflows/p22-nfc-history.yml'
 permissions:
   contents: read
@@ -135,8 +153,19 @@ jobs:
                   for e in c:
                       if e.tag in ['failure','error']: print(c.get('name','')+'\n'+(e.text or '')[:2000])
               with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
-              good=good and own==8 and not any(counts[k] for k in ['failure','error','skipped'])
+              minimum=57 if prefix=='p22-' else 14
+              good=good and own==14 and counts['tests']>=minimum and not any(counts[k] for k in ['failure','error','skipped'])
           if not good: raise SystemExit('Incomplete or failed evidence')
           PY
+      - name: Retain isolated JUnit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p22-evidence-${{ matrix.database }}-${{ github.sha }}
+          path: |
+            p22-${{ matrix.database }}.xml
+            p22-cached-${{ matrix.database }}.xml
+          if-no-files-found: error
+          retention-days: 14
       - name: No source rewrites during tests
         run: git diff --exit-code
