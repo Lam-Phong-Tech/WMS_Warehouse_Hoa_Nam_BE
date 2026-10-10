@@ -104,6 +104,29 @@ jobs:
           paths=(Modules/Warehouse/app/Services/P21ComponentResume.php Modules/Warehouse/app/Http/Middleware/P21ResumeRead.php Modules/Warehouse/routes/p03_drafts.php tests/Feature/P21ComponentResumeTest.php)
           for path in "${paths[@]}"; do php -l "$path"; done
           vendor/bin/pint --test "${paths[@]}"
+      - name: Owner timestamp and null semantics
+        run: |
+          php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          config(['app.timezone' => 'Asia/Ho_Chi_Minh']);
+          $service = new Modules\Warehouse\Services\P21ComponentResume;
+          $method = new ReflectionMethod($service, 'instant');
+          $cases = [
+              [null, null],
+              ['2026-10-10 08:30:00', '2026-10-10T01:30:00.000000Z'],
+              ['2026-10-10T01:30:00.123456Z', '2026-10-10T01:30:00.123456Z'],
+              ['2026-10-10T08:30:00+07:00', '2026-10-10T01:30:00.000000Z'],
+          ];
+          foreach ($cases as [$input, $expected]) {
+              if ($method->invoke($service, $input) !== $expected) {
+                  throw new RuntimeException('P21 timestamp normalization failed.');
+              }
+          }
+          echo 'P21_TIME_CASES=4 PASS; no database write or live request.'.PHP_EOL;
+          PHP
       - name: P21 and unchanged P03 P19 P20 owner regressions
         if: success() || (failure() && steps.runtime.outcome == 'success')
         run: |
