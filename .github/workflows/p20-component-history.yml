@@ -12,6 +12,10 @@ on:
       - 'Modules/Warehouse/routes/p09_warranty.php'
       - 'Modules/Auth/**'
       - 'tests/Feature/P20*Test.php'
+      - 'tests/Feature/P19LinkedComponentIssueTest.php'
+      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
+      - 'tests/Feature/WarrantyCaseCanonicalReturnTest.php'
+      - 'tests/Feature/WarrantyCaseListCompatibilityTest.php'
       - 'contracts/p20/**'
       - '.github/workflows/p20-component-history.yml'
 permissions:
@@ -105,11 +109,10 @@ jobs:
           paths=(Modules/Warehouse/app/Http/Controllers/P20ComponentHistoryController.php Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentIssueQueryController.php Modules/Warehouse/routes/p09_warranty.php tests/Feature/P20ComponentHistoryTest.php)
           for path in "${paths[@]}"; do php -l "$path"; done
           vendor/bin/pint --test "${paths[@]}"
-      - name: P20 plus P09 P19 and warehouse ownership regressions
+      - name: P20 plus existing component and warranty owner regressions
         run: |
-          shopt -s nullglob
-          files=(tests/Feature/P20ComponentHistoryTest.php tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/P09*Test.php tests/Feature/WarrantyWarehouseScopeTest.php)
-          test "${#files[@]}" -ge 4
+          files=(tests/Feature/P20ComponentHistoryTest.php tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/WarrantyWarehouseScopeTest.php tests/Feature/WarrantyCaseCanonicalReturnTest.php tests/Feature/WarrantyCaseListCompatibilityTest.php)
+          for path in "${files[@]}"; do test -f "$path"; done
           php artisan test "${files[@]}" --log-junit p20-${{ matrix.database }}.xml
       - name: Route-cache P20 regression
         run: |
