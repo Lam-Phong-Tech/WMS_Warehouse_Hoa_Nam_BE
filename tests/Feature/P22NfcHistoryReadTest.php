@@ -30,8 +30,8 @@ class P22NfcHistoryReadTest extends TestCase
         foreach ($routes as $route) {
             $this->assertSame(['GET', 'HEAD'], $route->methods());
         }
-        $this->getJson($this->url($w), $this->headers($token, false))->assertOk()->assertJsonPath('meta.contract', 'mini-app-p08-v1');
-        $this->getJson($this->url($w, ['type' => 'ASSIGN']), $this->headers($token, false))->assertUnprocessable();
+        $this->get($this->url($w), $this->headers($token, false))->assertOk()->assertJsonPath('meta.contract', 'mini-app-p08-v1');
+        $this->get($this->url($w, ['type' => 'ASSIGN']), $this->headers($token, false))->assertUnprocessable();
     }
 
     public function test_snapshot_search_and_type_filter_apply_before_total(): void
@@ -43,12 +43,12 @@ class P22NfcHistoryReadTest extends TestCase
             'replacement_requested' => true, 'replacement_verified' => true, 'previous_physical_code_id' => (string) Str::uuid()]);
         $this->audit($u, $w, ['warehouse_id' => (string) Str::uuid(), 'hardware_uid' => 'AA%_!END']);
         foreach (['%_!' => $one, 'serial-snapshot' => $one, 'old-snapshot' => $old] as $keyword => $event) {
-            $this->getJson($this->url($w, ['keyword' => $keyword, 'limit' => 1]), $this->headers($token))
+            $this->get($this->url($w, ['keyword' => $keyword, 'limit' => 1]), $this->headers($token))
                 ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.eventId', $event->id);
-            $this->getJson($this->url($w, ['keyword' => $keyword], 'summary'), $this->headers($token))
+            $this->get($this->url($w, ['keyword' => $keyword], 'summary'), $this->headers($token))
                 ->assertOk()->assertJsonPath('data.availableTotal', 1);
         }
-        $this->getJson($this->url($w, ['type' => 'REPLACE']), $this->headers($token))
+        $this->get($this->url($w, ['type' => 'REPLACE']), $this->headers($token))
             ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.type', 'REPLACE');
     }
 
@@ -58,13 +58,13 @@ class P22NfcHistoryReadTest extends TestCase
         $e = $this->audit($u, $w);
         $other = $this->audit($u, $w);
         $path = 'records/NFC:'.$e->object_id;
-        $this->getJson($this->url($w, ['activityId' => 'NFC:'.$e->id], $path), $this->headers($token))
+        $this->get($this->url($w, ['activityId' => 'NFC:'.$e->id], $path), $this->headers($token))
             ->assertOk()->assertJsonPath('data.selectedActivity.eventId', $e->id);
-        $this->getJson($this->url($w, ['event_id' => $e->id]), $this->headers($token))
+        $this->get($this->url($w, ['event_id' => $e->id]), $this->headers($token))
             ->assertOk()->assertJsonPath('data.0.recordId', 'NFC:'.$e->object_id);
-        $this->getJson($this->url($w, [], $path), $this->headers($token))->assertUnprocessable();
-        $this->getJson($this->url($w, ['activityId' => 'NFC:'.$other->id], $path), $this->headers($token))->assertNotFound();
-        $this->getJson($this->url($w, ['event_id' => (string) Str::uuid()]), $this->headers($token))->assertNotFound();
+        $this->get($this->url($w, [], $path), $this->headers($token))->assertUnprocessable();
+        $this->get($this->url($w, ['activityId' => 'NFC:'.$other->id], $path), $this->headers($token))->assertNotFound();
+        $this->get($this->url($w, ['event_id' => (string) Str::uuid()]), $this->headers($token))->assertNotFound();
     }
 
     public function test_unproven_legacy_foreign_and_mismatched_snapshots_are_not_visible(): void
@@ -76,7 +76,7 @@ class P22NfcHistoryReadTest extends TestCase
             $this->audit($u, $w, [$field => (string) Str::uuid()]);
         }
         $before = DB::table('audit_log')->count();
-        $this->getJson($this->url($w), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 0);
+        $this->get($this->url($w), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 0);
         $this->assertSame($before, DB::table('audit_log')->count());
     }
 
@@ -84,7 +84,7 @@ class P22NfcHistoryReadTest extends TestCase
     {
         [$u, $token, $w] = $this->reader();
         $this->audit($u, $w, ['serial_number' => null, 'actor_name' => 'Historical actor', 'sku_name' => 'Historical product']);
-        $r = $this->getJson($this->url($w), $this->headers($token))->assertOk()
+        $r = $this->get($this->url($w), $this->headers($token))->assertOk()
             ->assertJsonPath('data.0.actor', null)->assertJsonPath('data.0.reason', null)
             ->assertJsonPath('data.0.serial_number', null)->assertJsonPath('data.0.sku.sku_name', 'Historical product')
             ->assertJsonPath('data.0.status', null)->assertJsonPath('data.0.current_tag_status', null)
@@ -100,37 +100,41 @@ class P22NfcHistoryReadTest extends TestCase
         for ($i = 0; $i < 3; $i++) {
             $expected[] = $this->audit($u, $w)->id;
         }
-        $r = $this->getJson($this->url($w, ['limit' => 1]), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 3);
+        $r = $this->get($this->url($w, ['limit' => 1]), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 3);
         $original = $cursor = $r->json('meta.nextCursor');
         $ids = [$r->json('data.0.eventId')];
         for ($i = 0; $cursor !== null && $i < 3; $i++) {
-            $r = $this->getJson($this->url($w, ['limit' => 1, 'cursor' => $cursor]), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 3);
+            $r = $this->get($this->url($w, ['limit' => 1, 'cursor' => $cursor]), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 3);
             $ids[] = $r->json('data.0.eventId');
             $cursor = $r->json('meta.nextCursor');
         }
         $this->assertNull($cursor);
         $this->assertEqualsCanonicalizing($expected, $ids);
-        $this->getJson($this->url($w, ['limit' => 1, 'cursor' => $original, 'type' => 'REVOKE']), $this->headers($token))->assertUnprocessable();
+        $this->get($this->url($w, ['limit' => 1, 'cursor' => $original, 'type' => 'REVOKE']), $this->headers($token))->assertUnprocessable();
         [, $other] = $this->reader();
-        $this->getJson($this->url($w, ['limit' => 1, 'cursor' => $original]), $this->headers($other))->assertUnprocessable();
+        $this->get($this->url($w, ['limit' => 1, 'cursor' => $original]), $this->headers($other))->assertUnprocessable();
         $payload = json_decode(Crypt::decryptString($original), true);
         $payload['expires'] = time() - 1;
         $expired = Crypt::encryptString(json_encode($payload, JSON_THROW_ON_ERROR));
-        $this->getJson($this->url($w, ['limit' => 1, 'cursor' => $expired]), $this->headers($token))->assertUnprocessable();
+        $this->get($this->url($w, ['limit' => 1, 'cursor' => $expired]), $this->headers($token))->assertUnprocessable();
     }
 
     public function test_date_summary_and_identity_controls_are_strict(): void
     {
         [$u, $token, $w] = $this->reader();
         $this->audit($u, $w);
-        $this->getJson($this->url($w, ['date_mode' => 'DATE', 'date' => now()->subDay()->toDateString()]), $this->headers($token))
+        $this->get($this->url($w, ['date_mode' => 'DATE', 'date' => now()->subDay()->toDateString()]), $this->headers($token))
             ->assertOk()->assertJsonPath('meta.total', 1);
         foreach ([['date_mode' => 'ALL', 'date' => '2026-10-10'], ['page' => 1], ['type' => 'ACTIVE'], ['source' => 'ALL']] as $filter) {
-            $this->getJson($this->url($w, $filter), $this->headers($token))->assertUnprocessable();
+            $this->get($this->url($w, $filter), $this->headers($token))->assertUnprocessable();
         }
-        $this->getJson($this->url($w, ['limit' => 1], 'summary'), $this->headers($token))->assertUnprocessable();
-        $this->getJson($this->url($w, ['status' => 'UNKNOWN']), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 1);
-        $this->getJson($this->url($w, ['status' => 'ACTIVE']), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 0);
+        $this->get($this->url($w, ['limit' => 1], 'summary'), $this->headers($token))->assertUnprocessable();
+        $this->get($this->url($w, ['status' => 'UNKNOWN']), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 1);
+        $this->get($this->url($w, ['status' => 'ACTIVE']), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 0);
+        // getJson serializes [] even for GET. Production P22 requires no body;
+        // retain the rejection and send bodyless get() above, never weaken it.
+        $this->getJson($this->url($w), $this->headers($token))->assertUnprocessable()->assertJsonPath('error.code', 'NFC_HISTORY_READ_ONLY');
+        $this->json('GET', $this->url($w), ['write' => true], $this->headers($token))->assertUnprocessable()->assertJsonPath('error.code', 'NFC_HISTORY_READ_ONLY');
     }
 
     public function test_read_permission_and_snapshot_details_permission_are_independent(): void
@@ -138,11 +142,11 @@ class P22NfcHistoryReadTest extends TestCase
         $this->getJson('/api/v1/mini-app/history/records')->assertUnauthorized();
         [$u, $token, $w] = $this->reader(['history.read', 'inventory.trace', 'audit_log.view']);
         $this->audit($u, $w);
-        $this->getJson($this->url($w), $this->headers($token))->assertOk()->assertJsonPath('data.0.audit_details_status', 'PERMITTED');
+        $this->get($this->url($w), $this->headers($token))->assertOk()->assertJsonPath('data.0.audit_details_status', 'PERMITTED');
         [, $none] = $this->reader(['history.read']);
-        $this->getJson($this->url($w), $this->headers($none))->assertForbidden();
+        $this->get($this->url($w), $this->headers($none))->assertForbidden();
         [, $noHistory] = $this->reader(['inventory.trace']);
-        $this->getJson($this->url($w), $this->headers($noHistory))->assertForbidden();
+        $this->get($this->url($w), $this->headers($noHistory))->assertForbidden();
     }
 
     private function reader(array $rights = ['history.read', 'inventory.trace']): array
@@ -196,6 +200,6 @@ class P22NfcHistoryReadTest extends TestCase
         $this->app['tymon.jwt']->unsetToken();
         $this->app['tymon.jwt.auth']->unsetToken();
 
-        return ['Authorization' => 'Bearer '.$token] + ($optIn ? [P22NfcHistory::HEADER => P22NfcHistory::CONTRACT] : []);
+        return ['Authorization' => 'Bearer '.$token, 'Accept' => 'application/json'] + ($optIn ? [P22NfcHistory::HEADER => P22NfcHistory::CONTRACT] : []);
     }
 }
