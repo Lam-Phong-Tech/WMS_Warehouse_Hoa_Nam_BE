@@ -251,7 +251,7 @@ class P20ComponentHistoryTest extends TestCase
         $id = $create->json('data.document.id');
         $line = DB::table('component_issue_lines')->where('component_issue_document_id', $id)->first();
         DB::table('component_issue_documents')->where('id', $id)->update(['created_at' => $createdAt]);
-        $this->postJson('/api/v1/mini-app/warranty-component-issues/'.$id.'/scan', [
+        $this->postJson('/api/v1/mini-app/warranty-component-issues/'.$id.'/scans', [
             'line_id' => $line->id, 'code_value' => $f['raw_code'], 'quantity' => 1,
         ], $this->headers($f['token'], false) + ['If-Match' => '"1"'])->assertOk();
         DB::table('component_issue_items')->where('component_issue_line_id', $line->id)->update(['status' => 'POSTED']);
