@@ -258,15 +258,19 @@ class P22NfcHistoryReadTest extends TestCase
     {
         [$u, $token, $w] = $this->reader();
         $start = now()->subDay()->startOfDay();
+        $events = [];
         foreach ([$start->copy()->subSecond(), $start->copy(), $start->copy()->endOfDay()->startOfSecond(), $start->copy()->addDay()] as $time) {
             $stored = DB::getDriverName() === 'pgsql' ? $time->copy()->utc() : $time;
-            $this->audit($u, $w, [], ['created_at' => $stored]);
+            $events[] = $this->audit($u, $w, [], ['created_at' => $stored])->id;
         }
         $this->get($this->url($w), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 4);
         foreach ([['date_mode' => 'DATE', 'date' => $start->toDateString()],
             ['date_mode' => 'RANGE', 'from' => $start->toDateString(), 'to' => $start->toDateString()]] as $query) {
-            $this->get($this->url($w, $query), $this->headers($token))->assertOk()
+            $response = $this->get($this->url($w, $query), $this->headers($token))->assertOk()
                 ->assertJsonPath('meta.total', 2)->assertJsonPath('meta.timezone', config('app.timezone'));
+            // A total of two alone can hide exclusion of the first midnight
+            // combined with accidental inclusion of the next day's midnight.
+            $this->assertEqualsCanonicalizing([$events[1], $events[2]], array_column($response->json('data'), 'eventId'));
         }
     }
 
