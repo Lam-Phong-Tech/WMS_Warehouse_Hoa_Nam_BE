@@ -270,6 +270,9 @@ final class P21ComponentResume
 
     private function instant(?string $value): ?string
     {
-        return $value === null ? null : Carbon::parse($value, 'UTC')->utc()->format('Y-m-d\TH:i:s.u\Z');
+        // P03 stores explicit UTC offsets; business owner timestamps can be
+        // unqualified local SQL values. Match the P19 owner interpretation,
+        // then normalize to UTC without replacing a missing time with created_at.
+        return $value === null ? null : Carbon::parse($value, (string) config('app.timezone', 'UTC'))->utc()->format('Y-m-d\TH:i:s.u\Z');
     }
 }
