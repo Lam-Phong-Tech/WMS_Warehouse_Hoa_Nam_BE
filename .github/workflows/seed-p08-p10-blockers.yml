@@ -1,0 +1,101 @@
+name: Seed P08 P10 safety regression
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/seed-p08-p10-blockers.yml']
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-blockers
+          POSTGRES_DB: p08_p10_seed_regression_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p08_p10_seed_regression_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p08_p10_seed_regression_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${{ github.run_id }}-isolated-blockers
+      DB_SSLMODE: disable
+      DB_URL: ''
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Guard disposable database and prepare runtime
+        run: |
+          test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          case "$DB_DATABASE" in ':memory:'|p08_p10_seed_regression_test) ;; *) exit 1 ;; esac
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          cp .env.example .env
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/blockers-install.log 2>&1 || { tail -40 /tmp/blockers-install.log; exit 1; }
+          php artisan key:generate
+          php artisan config:clear
+      - name: Inspect current source schema without seeding
+        run: |
+          php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          $db = Illuminate\Support\Facades\DB::connection();
+          if (! $app->environment('testing') || $db->getConfig('host') !== '127.0.0.1' || ! in_array($db->getDatabaseName(), [':memory:', 'p08_p10_seed_regression_test'], true)) {
+              throw new RuntimeException('Non-isolated database rejected');
+          }
+          Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+          foreach (['stock_documents', 'document_status_history', 'stock_document', 'sku', 'pv_product_profiles', 'pv_product_images'] as $table) {
+              echo json_encode(['schema' => $table, 'driver' => $db->getDriverName(), 'columns' => Illuminate\Support\Facades\Schema::getColumnListing($table)], JSON_THROW_ON_ERROR).PHP_EOL;
+          }
+          PHP
+          git grep -n 'document_status_history' -- app/Support Modules/Warehouse/database/migrations | head -80
+      - name: Existing P08 and P10 tests
+        run: php artisan test tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php tests/Feature/P10ProfileContractTest.php tests/Feature/P10Revision2MetadataTest.php --log-junit blockers-${{ matrix.database }}.xml
+      - name: Print exact source and outcome counts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,json,pathlib,xml.etree.ElementTree as E
+          p=pathlib.Path('blockers-'+os.environ['DB_CONNECTION']+'.xml')
+          if not p.exists(): raise SystemExit('Missing test evidence')
+          root=E.parse(p).getroot(); cases=list(root.iter('testcase'))
+          counts={'tests':len(cases),'assertions':sum(int(x.get('assertions','0')) for x in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+          report={'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'counts':counts,'live_verified':False,'full_seed_run':False}
+          print(json.dumps(report,sort_keys=True))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
+          if not cases or any(counts[k] for k in ['failure','error','skipped']): raise SystemExit('Test failure')
+          PY
