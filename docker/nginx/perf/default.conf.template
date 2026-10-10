@@ -117,6 +117,70 @@ server {
         text/css
         text/plain;
 
+    # P10 only; all other API and asset responses retain gzip.
+    location = /api/v1/auth/me {
+        # Preserve the strong profile If-Match validator through compression.
+        gzip off;
+        fastcgi_param HTTP_ACCEPT_ENCODING "";
+        fastcgi_pass wms_php;
+        fastcgi_index index.php;
+        # Không dùng $document_root: php-fpm phục vụ bản chép mã trong container
+        # (WMS_PHP_DOCROOT, xem docker-compose.perf.yml), còn root của nginx vẫn là
+        # bind mount public/ để trả file tĩnh.
+        fastcgi_param SCRIPT_FILENAME ${WMS_PHP_DOCROOT}/index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_NAME /index.php;
+
+        # WWHN-SEC-03, phòng thủ nhiều lớp (giống default.conf.template): không để
+        # phiên bản PHP lọt ra ngoài dù php-fpm còn expose_php=On.
+        fastcgi_hide_header X-Powered-By;
+
+        # Bắt buộc để keepalive tới upstream có tác dụng.
+        fastcgi_keep_conn on;
+
+        fastcgi_param HTTP_X_FORWARDED_FOR   $proxy_add_x_forwarded_for;
+        fastcgi_param HTTP_X_FORWARDED_PROTO $wms_forwarded_proto;
+        fastcgi_param HTTP_X_FORWARDED_HOST  $wms_forwarded_host;
+        fastcgi_param HTTP_X_FORWARDED_PORT  $wms_forwarded_port;
+
+        fastcgi_buffering on;
+        fastcgi_buffer_size 32k;
+        fastcgi_buffers 32 16k;
+        fastcgi_busy_buffers_size 64k;
+
+        fastcgi_connect_timeout 5s;
+        fastcgi_send_timeout ${WMS_NGINX_FASTCGI_TIMEOUT}s;
+        fastcgi_read_timeout ${WMS_NGINX_FASTCGI_TIMEOUT}s;
+
+        # PHÁT LẠI CÓ PHÂN LOẠI THEO PHƯƠNG THỨC — thay cho `off` trước đây.
+        #
+        # Lý do đổi: với nhiều backend, `off` nghĩa là một node chết làm hỏng cả
+        # những request CHỈ ĐỌC, dù node còn lại đang rảnh và trả lời đúng được.
+        # Đó là đánh mất phần lớn giá trị của việc chạy nhiều node.
+        #
+        # Vì sao an toàn: nginx MẶC ĐỊNH không bao giờ phát lại phương thức
+        # không idempotent (POST, PATCH, LOCK) — chỉ phát lại khi có thêm cờ
+        # `non_idempotent`, và cờ đó CỐ Ý KHÔNG được khai ở đây. Toàn bộ đường
+        # ghi nguy hiểm của WMS (post-receipt, post-issue, reversal) là POST/PATCH:
+        # 134 route POST + 31 route PATCH, không route nào được phát lại.
+        #
+        # Phần được phát lại là GET/HEAD (thuần đọc) và 2 route PUT + 8 route
+        # DELETE. Đã rà từng cái: PUT là "gán RFID cho hiện vật" và "đồng bộ
+        # permission của vai trò" — cả hai là gán-giá-trị, chạy hai lần cho cùng
+        # kết quả; DELETE là xoá tài nguyên theo id, lần hai trả 404 chứ không
+        # hỏng dữ liệu.
+        #
+        # `tries 2` + `timeout 10s`: chặn dây chuyền phát lại kéo dài khi nhiều
+        # node cùng hỏng — thà trả lỗi sớm còn hơn giữ kết nối của người dùng.
+        fastcgi_next_upstream error timeout;
+        fastcgi_next_upstream_tries 2;
+        fastcgi_next_upstream_timeout 10s;
+
+        # Lỗi do CHÍNH nginx sinh ra (hết node, không kết nối được) → JSON + CORS.
+        error_page 502 503 = @wms_backend_unavailable;
+        error_page 504 = @wms_backend_timeout;
+    }
+
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }

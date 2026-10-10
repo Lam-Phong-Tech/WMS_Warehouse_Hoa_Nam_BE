@@ -14,7 +14,6 @@ use Modules\Warehouse\Database\Seeders\HoaNamBulkDemoSeeder;
 use Modules\Warehouse\Database\Seeders\InventoryStockStatusMixSeeder;
 use Modules\Warehouse\Database\Seeders\MasterCatalogCoverageSeeder;
 use Modules\Warehouse\Database\Seeders\OperationalReportRangeSeeder;
-use Modules\Warehouse\Database\Seeders\RetireDemoCatalogSeeder;
 use Modules\Warehouse\Database\Seeders\SkuAttributeBackfillSeeder;
 use Modules\Warehouse\Database\Seeders\SkuStockThresholdSeeder;
 use Modules\Warehouse\Database\Seeders\WarehouseBusinessDataSeeder;
@@ -59,8 +58,7 @@ class DatabaseSeeder extends Seeder
      *    + 20 linh kiện), kèm ẢNH SẢN PHẨM thật, thông số kỹ thuật, ngành nghề
      *    & nhãn lọc của App PV. Thay hoàn toàn bộ SKU demo bịa tên đời trước;
      *    mọi seeder nghiệp vụ phía sau neo vào đây qua DongChengAnchorSkus.
-     *  - RetireDemoCatalogSeeder (bước cuối) — dọn mã/hãng/dòng máy demo còn sót
-     *    trên CSDL đã seed từ trước.
+     *  - Không tự dọn danh mục sau seed: mã ngoài catalog không chứng minh là demo.
      *  - WarehouseOperationsCoverageSeeder — chứng từ nhập/xuất/xuất linh kiện/
      *    điều chỉnh trải đều 4 tháng và đủ mọi trạng thái; kèm yêu cầu xuất,
      *    container, sự cố đối soát, batch import, nhật ký in nhãn, cất hàng,
@@ -129,12 +127,8 @@ class DatabaseSeeder extends Seeder
                 //     của lô import, sku/item của nhãn in, lý do huỷ chứng từ, ghi
                 //     chú dòng. PHẢI chạy CUỐI vì nó rà theo tồn/chứng từ đã có.
                 DisplayFieldCoverageSeeder::class,
-                // 8e. Dọn danh mục DEMO đời trước trên CSDL đã seed từ lâu (mã
-                //     không có trong dongcheng_catalog.json + hãng/dòng máy/nhóm
-                //     hàng không còn SKU nào). Trên CSDL mới `migrate:fresh --seed`
-                //     đây là no-op. PHẢI chạy SAU cùng: các bước trên còn tạo
-                //     chứng từ tham chiếu SKU, dọn sớm sẽ xoá nhầm.
-                RetireDemoCatalogSeeder::class,
+                // Never infer demo provenance from catalog absence or remove
+                // existing SKU/image/master data as a side effect of seeding.
             ]);
         }
     }

@@ -3,9 +3,35 @@ on:
   workflow_dispatch:
   push:
     branches: [dev]
-    paths: ['.github/workflows/seed-p08-p10-blockers.yml']
+    paths:
+      - 'Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php'
+      - 'database/seeders/DatabaseSeeder.php'
+      - 'Modules/Warehouse/app/Support/P08HistoryReadModel.php'
+      - 'Modules/Warehouse/app/Http/Controllers/P08HistoryController.php'
+      - 'Modules/Auth/app/Http/Controllers/P10ProfileController.php'
+      - 'docker/nginx/**'
+      - 'tests/Feature/CatalogRetirementSafetyTest.php'
+      - 'tests/Feature/P08DocumentHistoryTest.php'
+      - 'tests/Feature/P08HistoryContractTest.php'
+      - 'tests/Feature/P10*Test.php'
+      - 'scripts/test-p10-nginx-etag.py'
+      - '.github/workflows/seed-p08-p10-blockers.yml'
+  pull_request:
+    paths:
+      - 'Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php'
+      - 'database/seeders/DatabaseSeeder.php'
+      - 'Modules/Warehouse/app/Support/P08HistoryReadModel.php'
+      - 'Modules/Warehouse/app/Http/Controllers/P08HistoryController.php'
+      - 'Modules/Auth/app/Http/Controllers/P10ProfileController.php'
+      - 'docker/nginx/**'
+      - 'tests/Feature/CatalogRetirementSafetyTest.php'
+      - 'tests/Feature/P08DocumentHistoryTest.php'
+      - 'tests/Feature/P08HistoryContractTest.php'
+      - 'tests/Feature/P10*Test.php'
+      - 'scripts/test-p10-nginx-etag.py'
+      - '.github/workflows/seed-p08-p10-blockers.yml'
 permissions:
-  contents: write
+  contents: read
 jobs:
   isolated:
     runs-on: ubuntu-24.04
@@ -44,22 +70,20 @@ jobs:
       CORS_ALLOWED_ORIGINS: http://localhost:5173
       CORS_SUPPORTS_CREDENTIALS: 'true'
       REFRESH_TOKEN_COOKIE_SECURE: 'false'
-      CANDIDATE_SHA: 5b4fac122987ca5f5b2b76e601e2c4976e8c923c
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          ref: ${{ env.CANDIDATE_SHA }}
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Guard disposable database and prepare runtime
+      - name: Prepare exact-commit disposable runtime
         run: |
           test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
-          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           case "$DB_DATABASE" in ':memory:'|p08_p10_seed_regression_test) ;; *) exit 1 ;; esac
           secret="$(openssl rand -hex 32)"
           echo "::add-mask::$secret"
@@ -70,90 +94,60 @@ jobs:
           php artisan config:clear
           sudo apt-get update -qq > /tmp/blockers-apt.log 2>&1
           sudo apt-get install -y nginx >> /tmp/blockers-apt.log 2>&1
-      - name: Align isolated fixtures with canonical schema without weakening assertions
+      - name: Verify resolved connection before any test database writes
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('tests/Feature/P08DocumentHistoryTest.php'); s=p.read_text()
-          old="            'dst_warehouse_id' => $destination, 'created_by' => $user->user_id,"
-          assert s.count(old)==1
-          p.write_text(s.replace(old, old+"\n            'recipient_name' => 'Isolated P08 recipient', 'recipient_address' => 'Isolated P08 address',"))
-          PY
-      - name: Reproduce old source failures on isolated rows
+          php <<'PHP'
+          <?php
+          try {
+              require 'vendor/autoload.php';
+              $app = require 'bootstrap/app.php';
+              $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+              $db = Illuminate\Support\Facades\DB::connection();
+              $driver = $db->getDriverName();
+              $isolated = $driver === 'sqlite'
+                  ? $db->getDatabaseName() === ':memory:'
+                  : $driver === 'pgsql' && $db->getDatabaseName() === 'p08_p10_seed_regression_test'
+                      && $db->getConfig('host') === '127.0.0.1';
+              if (! $app->environment('testing') || ! $isolated || getenv('DB_URL') !== '') {
+                  throw new RuntimeException('Non-isolated target rejected');
+              }
+              echo 'Verified disposable '.$driver.' target; no live seed authorized.'.PHP_EOL;
+          } catch (Throwable $e) {
+              fwrite(STDERR, 'Isolation check failed; no database test may run.'.PHP_EOL);
+              exit(1);
+          }
+          PHP
+      - name: Syntax and scoped PHP style
         run: |
-          files=(tests/Feature/P08DocumentHistoryTest.php)
-          # Catalog aliases are writable PostgreSQL views but read-only SQLite
-          # views. Exercise the reported deletion on the real PostgreSQL schema,
-          # not fake INSTEAD OF triggers or a fabricated replacement schema.
-          if [ "$DB_CONNECTION" = pgsql ]; then files+=(tests/Feature/CatalogRetirementSafetyTest.php); fi
-          set +e
-          php artisan test "${files[@]}" --filter='retirement_preserves_two|document_records_summary' --log-junit baseline-${{ matrix.database }}.xml > /tmp/blockers-baseline.log 2>&1
-          status=$?
-          set -e
-          test "$status" -ne 0
-          python3 - <<'PY'
-          import os,xml.etree.ElementTree as E
-          root=E.parse('baseline-'+os.environ['DB_CONNECTION']+'.xml').getroot()
-          cases=list(root.iter('testcase')); expected=2 if os.environ['DB_CONNECTION']=='pgsql' else 1
-          for c in cases:
-              print('BASELINE '+c.get('name',''))
-              for e in list(c):
-                  if e.tag in ['failure','error']: print((e.text or '')[:3000])
-          assert len(cases)==expected and len(list(root.iter('failure')))==expected and not list(root.iter('error')), 'Baseline must reproduce assertions, not fixture errors'
-          PY
-      - name: Construct reviewed candidate changes
-        run: |
-          python3 scripts/apply-seed-p08-p10-candidate.py
-          vendor/bin/pint Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php database/seeders/DatabaseSeeder.php Modules/Warehouse/app/Support/P08HistoryReadModel.php tests/Feature/CatalogRetirementSafetyTest.php tests/Feature/P08DocumentHistoryTest.php
-          php -l Modules/Auth/app/Http/Controllers/P10ProfileController.php
+          for path in Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php database/seeders/DatabaseSeeder.php Modules/Warehouse/app/Support/P08HistoryReadModel.php Modules/Auth/app/Http/Controllers/P10ProfileController.php tests/Feature/CatalogRetirementSafetyTest.php tests/Feature/P08DocumentHistoryTest.php; do php -l "$path"; done
           vendor/bin/pint --test Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php database/seeders/DatabaseSeeder.php Modules/Warehouse/app/Support/P08HistoryReadModel.php tests/Feature/CatalogRetirementSafetyTest.php tests/Feature/P08DocumentHistoryTest.php
           python3 - <<'PY'
           from pathlib import Path
-          s=Path('Modules/Auth/app/Http/Controllers/P10ProfileController.php').read_text()
-          p=s[s.index('private function profile('):s.index('private function passwordTime(')]
-          assert 'private, no-store, no-transform' in p
+          text=Path('Modules/Auth/app/Http/Controllers/P10ProfileController.php').read_text()
+          profile=text[text.index('private function profile('):text.index('private function passwordTime(')]
+          assert 'private, no-store, no-transform' in profile
           PY
-      - name: Candidate application and existing owner regressions
+      - name: Exact source owner and data-preservation regressions
         run: |
-          files=(tests/Feature/P08DocumentHistoryTest.php tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php tests/Feature/P10ProfileContractTest.php tests/Feature/P10Revision2MetadataTest.php tests/Unit/DockerNginxBackendUnavailableTest.php)
-          if [ "$DB_CONNECTION" = pgsql ]; then files+=(tests/Feature/CatalogRetirementSafetyTest.php); fi
-          php artisan test "${files[@]}" --log-junit blockers-${{ matrix.database }}.xml
+          php artisan test tests/Feature/CatalogRetirementSafetyTest.php tests/Feature/P08DocumentHistoryTest.php tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php tests/Feature/P10ProfileContractTest.php tests/Feature/P10Revision2MetadataTest.php tests/Unit/DockerNginxBackendUnavailableTest.php --log-junit blockers-${{ matrix.database }}.xml
       - name: Real nginx compression regression on both templates
-        if: success() || failure()
         run: python3 scripts/test-p10-nginx-etag.py
-      - name: Print exact candidate and outcome counts
+      - name: Publish redacted exact-commit test counts
         if: always()
         run: |
           python3 - <<'PY'
           import os,json,pathlib,xml.etree.ElementTree as E
-          p=pathlib.Path('blockers-'+os.environ['DB_CONNECTION']+'.xml')
-          if not p.exists(): raise SystemExit('Missing test evidence')
-          root=E.parse(p).getroot(); cases=list(root.iter('testcase'))
-          counts={'tests':len(cases),'assertions':sum(int(x.get('assertions','0')) for x in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
-          report={'candidate_sha':os.environ['CANDIDATE_SHA'],'workflow_sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'counts':counts,'catalog_preservation_tested':os.environ['DB_CONNECTION']=='pgsql','live_verified':False,'full_seed_run':False}
+          path=pathlib.Path('blockers-'+os.environ['DB_CONNECTION']+'.xml')
+          if not path.is_file(): raise SystemExit('Missing test evidence')
+          root=E.parse(path).getroot(); cases=list(root.iter('testcase'))
+          counts={'tests':len(cases),'assertions':sum(int(c.get('assertions','0')) for c in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+          report={'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'counts':counts,'catalog_preservation_tested':True,'live_verified':False,'full_seed_run':False,'deployment_authorized':False}
           print(json.dumps(report,sort_keys=True))
           for c in cases:
               for e in list(c):
-                  if e.tag in ['failure','error']: print(c.get('name','')+'\n'+(e.text or '')[:4000])
+                  if e.tag in ['failure','error']: print(c.get('name','')+'\n'+(e.text or '')[:3000])
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
-          if not cases or any(counts[k] for k in ['failure','error','skipped']): raise SystemExit('Test failure')
+          if len(cases)<38 or any(counts[k] for k in ['failure','error','skipped']): raise SystemExit('Regression failed or cases missing')
           PY
-      - name: Publish verified source tree without updating any branch
-        if: success()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          import os,json,pathlib,urllib.request,subprocess
-          repo=os.environ['GITHUB_REPOSITORY']; assert repo=='Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
-          paths=['Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php','database/seeders/DatabaseSeeder.php','Modules/Warehouse/app/Support/P08HistoryReadModel.php','Modules/Auth/app/Http/Controllers/P10ProfileController.php','docker/nginx/default.conf.template','docker/nginx/perf/default.conf.template','tests/Feature/CatalogRetirementSafetyTest.php','tests/Feature/P08DocumentHistoryTest.php','scripts/test-p10-nginx-etag.py']
-          changed=subprocess.check_output(['git','diff','--name-only'],text=True).splitlines()
-          assert set(changed)<=set(paths), changed
-          base=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()
-          nodes=[{'path':p,'mode':'100644','type':'blob','content':pathlib.Path(p).read_text()} for p in paths]
-          nodes.append({'path':'scripts/apply-seed-p08-p10-candidate.py','mode':'100644','type':'blob','sha':None})
-          req=urllib.request.Request('https://api.github.com/repos/'+repo+'/git/trees',data=json.dumps({'base_tree':base,'tree':nodes}).encode(),method='POST',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
-          with urllib.request.urlopen(req,timeout=60) as r: tree=json.load(r)['sha']
-          print('VERIFIED_BLOCKERS_TREE='+tree)
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('Verified tree: `'+tree+'`; no branch/ref changed.\n')
-          PY
+      - name: Assert verification did not rewrite source
+        run: git diff --exit-code

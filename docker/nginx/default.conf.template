@@ -123,6 +123,50 @@ server {
         text/css
         text/plain;
 
+    # P10 only; all other API and asset responses retain gzip.
+    location = /api/v1/auth/me {
+        # Preserve the strong profile If-Match validator through compression.
+        gzip off;
+        fastcgi_param HTTP_ACCEPT_ENCODING "";
+        fastcgi_pass $php_upstream;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_NAME /index.php;
+
+        # WWHN-SEC-03, phòng thủ nhiều lớp: không để phiên bản PHP lọt ra ngoài kể
+        # cả khi image php-fpm cũ còn expose_php=On (production từng trả
+        # `X-Powered-By: PHP/8.3.33`) hay request lỗi trước middleware
+        # SecurityHeaders. Lớp PHP tương ứng: docker/php/security.ini.
+        fastcgi_hide_header X-Powered-By;
+
+        # Chuỗi forwarded gửi xuống PHP. $proxy_add_x_forwarded_for nối
+        # $remote_addr vào cuối chuỗi client gửi lên, đúng thứ tự trái->phải mà
+        # Symfony/Laravel duyệt ngược để loại các hop đã tin
+        # (config/trustedproxy.php). IP giả do client tự đặt nằm bên trái một IP
+        # không được tin nên bị bỏ qua.
+        fastcgi_param HTTP_X_FORWARDED_FOR   $proxy_add_x_forwarded_for;
+        fastcgi_param HTTP_X_FORWARDED_PROTO $wms_forwarded_proto;
+        fastcgi_param HTTP_X_FORWARDED_HOST  $wms_forwarded_host;
+        fastcgi_param HTTP_X_FORWARDED_PORT  $wms_forwarded_port;
+
+        # Keep medium/large JSON responses in memory instead of spilling to a
+        # temporary file before nginx forwards them to the browser.
+        fastcgi_buffering on;
+        fastcgi_buffer_size 32k;
+        fastcgi_buffers 16 16k;
+        fastcgi_busy_buffers_size 64k;
+
+        # Backend đang khởi động lại phải lỗi NHANH: mặc định 60 s giữ request treo
+        # tới một phút khi cache DNS còn trỏ IP container cũ (hồ sơ perf cũng 5 s).
+        fastcgi_connect_timeout 5s;
+
+        # Lỗi do CHÍNH nginx sinh ra → JSON + CORS (xem khối ở đầu file). 5xx do PHP
+        # trả vẫn đi nguyên vẹn vì fastcgi_intercept_errors giữ mặc định (tắt).
+        error_page 502 503 = @wms_backend_unavailable;
+        error_page 504 = @wms_backend_timeout;
+    }
+
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }

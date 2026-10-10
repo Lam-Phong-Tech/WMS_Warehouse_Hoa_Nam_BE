@@ -55,10 +55,12 @@ final class P08HistoryReadModel
                 if ($requested === $source) {
                     ApiError::abort(403, 'HISTORY_SOURCE_FORBIDDEN', 'Không có quyền đọc nguồn lịch sử này.');
                 }
+
                 continue;
             }
             if ($requested !== 'ALL' && $requested !== $source) {
                 $sources[$source] = ['status' => 'NOT_REQUESTED'];
+
                 continue;
             }
             $parts = match ($source) {
@@ -96,12 +98,21 @@ final class P08HistoryReadModel
     private function documents(array $s): array
     {
         if (! $this->supports('document_status_history', ['id', 'stock_document_id', 'created_at', 'to_status', 'action'])
-            || ! $this->supports('stock_documents', ['id', 'warehouse_id', 'doc_type', 'doc_no'])) {
+            || ! $this->supports('stock_documents', ['id', 'src_warehouse_id', 'dst_warehouse_id', 'doc_type', 'doc_no'])) {
             return [];
         }
-        $types = array_keys(array_filter($s['documentRights']));
+        // Canonical stock documents have directional warehouse ownership, not
+        // warehouse_id. Do not OR both sides indiscriminately: a receipt belongs
+        // to its destination and an issue belongs to its source warehouse.
         $q = DB::table('document_status_history as e')->join('stock_documents as d', 'd.id', '=', 'e.stock_document_id')
-            ->where('d.warehouse_id', $s['warehouse_id'])->whereIn('d.doc_type', $types);
+            ->where(function (Builder $owned) use ($s): void {
+                $owned->whereRaw('1 = 0');
+                foreach (['receipt' => 'dst_warehouse_id', 'issue' => 'src_warehouse_id'] as $type => $column) {
+                    if (($s['documentRights'][$type] ?? false) === true) {
+                        $owned->orWhere(fn (Builder $part): Builder => $part->where('d.doc_type', $type)->where('d.'.$column, $s['warehouse_id']));
+                    }
+                }
+            });
         $this->isolate($q, 'document_status_history', 'e', $s);
         $this->isolate($q, 'stock_documents', 'd', $s);
 

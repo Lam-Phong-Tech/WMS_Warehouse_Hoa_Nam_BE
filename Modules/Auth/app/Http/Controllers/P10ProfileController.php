@@ -247,7 +247,7 @@ final class P10ProfileController extends AuthController
         $payload['meta']['security_contract'] = SecurityContract::contract((string) config('hashing.driver', 'bcrypt'));
         $payload['data']['password_changed_at'] = $this->passwordTime($user->passwordChangedAtEpoch());
         return $response->setData($payload)->header('ETag', '"'.(int) $user->version.'"')
-            ->header('Cache-Control', 'private, no-store');
+            ->header('Cache-Control', 'private, no-store, no-transform');
     }
 
     private function passwordTime(?int $epoch): ?string

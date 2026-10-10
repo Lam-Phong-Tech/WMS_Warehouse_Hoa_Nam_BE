@@ -1,0 +1,37 @@
+{
+  "revision": "seed-p08-p10-fixes-v1",
+  "date": "2026-10-10",
+  "status": "CODE_FIX_PENDING_RELEASE_AND_LIVE_VALIDATION",
+  "production_activation": false,
+  "live_verified": false,
+  "real_database_seed_authorized": false,
+  "new_routes": [],
+  "new_migrations": [],
+  "seed": {
+    "cause": "RetireDemoCatalogSeeder classified every SKU absent from dongcheng_catalog.json as demo, removed images/profiles and deleted or deactivated SKUs without provenance.",
+    "fix": "Remove retirement from DatabaseSeeder and retain a non-mutating compatibility entrypoint, including explicit direct invocation. No environment flag enables this destructive cleanup.",
+    "regression": "Two non-catalog SKUs, two image rows, image file checksums, profiles and masters must remain identical across two retirement invocations. This is not certification of the entire seed chain.",
+    "deployment_policy": "Do not run db:seed, migrate:fresh, truncate, cleanup or data restoration on an existing environment as part of this fix. Full approved seed-command dry run and before/after reconciliation on an isolated copy are still required before separately authorized seeding."
+  },
+  "p08": {
+    "contract": "mini-app-p08-v1",
+    "cause": "DOCUMENT required stock_documents.warehouse_id, absent from the canonical schema.",
+    "fix": "Filter receipt by persisted dst_warehouse_id plus inbound.view; issue by persisted src_warehouse_id plus outbound.view, before union/count/pagination. Do not OR both directions indiscriminately.",
+    "unchanged": "Existing GET history records/summary/detail, request identity, cursor isolation, source permissions and tenant guards. Schema truly absent remains 503; authorized empty source remains empty, never synthesized evidence. History is not a mutation receipt."
+  },
+  "p10": {
+    "contract": "auth-profile-p10-v1",
+    "fix": "Exact /api/v1/auth/me FastCGI location disables gzip on default and perf templates while preserving request method, URI, query, If-Match, forwarding and error policies; Laravel profile responses add private, no-store, no-transform.",
+    "unchanged": "Use the actual strong response ETag for If-Match. Weak ETags remain rejected; no prefix stripping, numeric fallback or automatic PATCH replay.",
+    "edge_dependency": "Any external proxy/CDN outside this repository must also preserve the profile response validator; verify actual browser/native response with Accept-Encoding:gzip and identity after release. Do not disable compression globally.",
+    "transport_test": "scripts/test-p10-nginx-etag.py uses checked-in nginx templates and synthetic local FastCGI, not a live account or authenticated end-to-end environment."
+  },
+  "evidence": {
+    "candidate_run": 38035479087,
+    "candidate_workflow_sha": "f0efb1ddb414007ed13092ceea4e85437f6215cb",
+    "candidate_verified_tree": "fd1320013c1b79e177ddf6ce5f3e1a2a0ef10781",
+    "candidate_scope": "PostgreSQL reproduced deletion and DOCUMENT 503, then passed 38 tests/513 assertions; nginx transport passed 12 cases. Candidate success is not a release claim.",
+    "final_sha_tests": "The source-only workflow checks out the triggering SHA and must pass both database jobs and transport checks without editing code or writing git refs.",
+    "pending": ["Release build and schema ancestry", "Authenticated P08 DOCUMENT and P10 compressed-path smoke", "Full approved seed command non-destructive reconciliation on an isolated copy"]
+  }
+}
