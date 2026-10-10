@@ -1,0 +1,83 @@
+{
+  "record_type": "USER_REPORTED_VERIFICATION_NOT_RUNTIME_CONFIGURATION",
+  "reported_date": "2026-10-10",
+  "raw_http_and_clone_evidence_reviewed_in_this_change": false,
+  "independent_live_reverification_in_this_change": false,
+  "reported_status": "DEV_TEST_DEPLOYED_AUTHENTICATED_P08_P10_READ_PASS_FULL_SEED_BLOCKED_PRODUCTION_OFF",
+  "reported_deployment": {
+    "branch": "dev",
+    "upstream_sha": "48c7f8fe1fd5c66003b79eb06e84dc65b07c599b",
+    "build_ref": "dev@48c7f8fe+preserved-runtime-hotfixes",
+    "domain": "https://khohoanamdev.lptech.info.vn",
+    "project": "hoa_nam_green",
+    "artifact_sha256": "3fc0f44163687bfa5adf8ffff9f623649858e5b9b6ad927f2a1e45390fb665b0",
+    "retained_runtime_overlays": 14,
+    "bare_source_equivalence": false,
+    "overlay_sources_imported_by_this_change": false,
+    "migration_status": {"ran": 215, "pending": 0, "migrations_executed_by_reported_deploy": false}
+  },
+  "reported_p08": {
+    "authenticated_read_routes_pass": true,
+    "metric": "HISTORY_ACTIVITIES_NOT_DOCUMENT_OR_STOCK_COUNTS",
+    "document_activities": 1286,
+    "inbound_activities": 805,
+    "outbound_activities": 481,
+    "all_activities": 7480,
+    "warranty_activities": 2,
+    "scan_activities": 6192,
+    "nfc_activities_in_supported_scope": 0,
+    "coverage": "COMPLETE_FOR_AUTHORIZED_SUPPORTED_SCOPE",
+    "legacy_nfc_without_persisted_warehouse_included": false,
+    "native_device_negative_permission_cross_warehouse_acceptance": false
+  },
+  "reported_p10": {
+    "public_https_identity_and_gzip_request_checks_pass": true,
+    "observed_strong_etag": "\"1\"",
+    "observed_profile_version": 1,
+    "hardcode_observed_validator": false,
+    "content_encoding_absent": true,
+    "cache_control": "private, no-store, no-transform",
+    "container_and_dev_host_exact_profile_location_fixed": true,
+    "live_profile_patch_password_change_or_timeout_write_tested": false,
+    "verification_sessions_logged_out_only_within_own_families": true
+  },
+  "reported_full_seed": {
+    "command": "php artisan db:seed --force --no-interaction",
+    "target": "DISPOSABLE_ISOLATED_REAL_DB_AND_STORAGE_CLONE",
+    "outcome": "FAILED_AT_AUTH_MISSING_WMS_FIXTURE_PASSWORD",
+    "full_chain_pass": false,
+    "catalogue_and_later_seeders_reached": false,
+    "physical_tables_compared": 111,
+    "storage_files_compared": 25,
+    "permission_rows_changed": 6,
+    "role_permission_rows_changed": 2,
+    "log_changed": true,
+    "whole_command_rollback_must_not_be_assumed": true,
+    "uncached_runtime_coverage_days": 0,
+    "earlier_cached_env_preflight_fallback_days": 14,
+    "live_seed_executed": false,
+    "live_seed_guard_enabled": true,
+    "persistent_seed_permission_enabled": false
+  },
+  "reported_preservation": {
+    "business_table_fingerprints_matching": 14,
+    "existing_component_immutability_triggers_unchanged": true,
+    "sku": 1155,
+    "published": 933,
+    "profiles": 1154,
+    "media": 974,
+    "in_stock_items": 1520,
+    "p05_catalogue_two_passes": {"pages_each": 20, "total": 958, "rows": 958, "unique": 958},
+    "general_smoke_checks": 29,
+    "database_backup_sha256": "4a36f485b39e6e8cc5dba453acff28843546e94ce1166b6bab3bc91a0e2a5fbf",
+    "rollback_rehearsal_or_database_restore_claimed": false
+  },
+  "source_change_boundary": {
+    "base_dev_sha": "7a63571f2cf399ba0de7151475e72f37ffdc1822",
+    "default_full_command": "Validate existing fixture credential policy before any child seeder. Preserve the complete original sequence. This is not a guarantee for arbitrary --class invocations or later failures.",
+    "preflight": "wms:seed-preflight --expected-mode=<approved existing policy> --expected-coverage-days=<approved integer>; configuration only, no seed or permission change. Runtime HN_DAILY_COVERAGE_DAYS must be explicit. No implicit 0 or 14.",
+    "unchanged": ["P08 source and authorization", "P10 source and strong validator", "nginx templates", "seed account policy", "live seed guard", "entire child seeder chain", "frontend", "P21"],
+    "not_performed": ["secret provisioning", "VPS deployment", "runtime overlay replacement", "live seed", "full isolated seed-chain rerun", "profile PATCH", "schema change", "production activation"],
+    "remaining": ["approve fixture account mode and privately supply WMS_FIXTURE_PASSWORD", "pin coverage and exact complete command sequence in the same isolated runtime", "repeat the full isolated chain and compare every DB/storage change", "review retained runtime overlays before a newer source deployment", "native app and write-flow UAT", "separate release and production approval"]
+  }
+}

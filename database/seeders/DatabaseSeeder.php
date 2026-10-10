@@ -6,6 +6,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Database\Seeders\AuditLogDatabaseSeeder;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
+use Modules\Auth\Support\SeedEnvironment;
 use Modules\Notification\Database\Seeders\NotificationDatabaseSeeder;
 use Modules\Warehouse\Database\Seeders\DailySkuCoverageSeeder;
 use Modules\Warehouse\Database\Seeders\DisplayFieldCoverageSeeder;
@@ -71,6 +72,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Fail before Auth updates any permission or role. This is only a
+        // credential precondition, not proof that the full seed is atomic/safe.
+        // Keep the existing fixture policy and the entire seeder sequence.
+        if (SeedEnvironment::allowsFixtureAccounts()) {
+            SeedEnvironment::fixturePassword();
+        }
+
         $this->call([
             AuthDatabaseSeeder::class,
             WarehouseDatabaseSeeder::class,

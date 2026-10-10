@@ -6,6 +6,9 @@ on:
     paths:
       - 'Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php'
       - 'database/seeders/DatabaseSeeder.php'
+      - 'app/Console/Commands/SeedPreflightCommand.php'
+      - 'Modules/Auth/app/Support/SeedEnvironment.php'
+      - 'tests/Feature/SeedPreflightTest.php'
       - 'Modules/Warehouse/app/Support/P08HistoryReadModel.php'
       - 'Modules/Warehouse/app/Http/Controllers/P08HistoryController.php'
       - 'Modules/Auth/app/Http/Controllers/P10ProfileController.php'
@@ -20,6 +23,9 @@ on:
     paths:
       - 'Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php'
       - 'database/seeders/DatabaseSeeder.php'
+      - 'app/Console/Commands/SeedPreflightCommand.php'
+      - 'Modules/Auth/app/Support/SeedEnvironment.php'
+      - 'tests/Feature/SeedPreflightTest.php'
       - 'Modules/Warehouse/app/Support/P08HistoryReadModel.php'
       - 'Modules/Warehouse/app/Http/Controllers/P08HistoryController.php'
       - 'Modules/Auth/app/Http/Controllers/P10ProfileController.php'
@@ -127,11 +133,18 @@ jobs:
           profile=text[text.index('private function profile('):text.index('private function passwordTime(')]
           assert 'private, no-store, no-transform' in profile
           PY
+      - name: Preflight syntax and style
+        run: |
+          php -l app/Console/Commands/SeedPreflightCommand.php
+          php -l tests/Feature/SeedPreflightTest.php
+          vendor/bin/pint --test app/Console/Commands/SeedPreflightCommand.php tests/Feature/SeedPreflightTest.php
       - name: Exact source owner and data-preservation regressions
         run: |
           php artisan test tests/Feature/CatalogRetirementSafetyTest.php tests/Feature/P08DocumentHistoryTest.php tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php tests/Feature/P10ProfileContractTest.php tests/Feature/P10Revision2MetadataTest.php tests/Unit/DockerNginxBackendUnavailableTest.php --log-junit blockers-${{ matrix.database }}.xml
       - name: Real nginx compression regression on both templates
         run: python3 scripts/test-p10-nginx-etag.py
+      - name: Full-command early failure and read-only preflight regressions
+        run: php artisan test tests/Feature/SeedPreflightTest.php --log-junit seed-preflight-${{ matrix.database }}.xml
       - name: Publish redacted exact-commit test counts
         if: always()
         run: |
@@ -149,5 +162,22 @@ jobs:
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
           if len(cases)<38 or any(counts[k] for k in ['failure','error','skipped']): raise SystemExit('Regression failed or cases missing')
           PY
+      - name: Publish separate preflight counts without claiming full seed success
+        if: always()
+        run: |
+          python3 - <<'PYREPORT'
+          import os,json,pathlib,xml.etree.ElementTree as E
+          p=pathlib.Path('seed-preflight-'+os.environ['DB_CONNECTION']+'.xml')
+          if not p.is_file(): raise SystemExit('Missing preflight test evidence')
+          root=E.parse(p).getroot(); cases=list(root.iter('testcase'))
+          counts={'tests':len(cases),'assertions':sum(int(c.get('assertions','0')) for c in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+          report={'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'suite':'seed-preflight','counts':counts,'full_seed_chain_executed':False,'full_seed_verified':False,'live_verified':False,'deployment_authorized':False}
+          print(json.dumps(report,sort_keys=True))
+          for c in cases:
+              for e in list(c):
+                  if e.tag in ['failure','error']: print(c.get('name','')+'\n'+(e.text or '')[:2000])
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
+          if len(cases)!=10 or any(counts[k] for k in ['failure','error','skipped']): raise SystemExit('Preflight regressions failed or cases missing')
+          PYREPORT
       - name: Assert verification did not rewrite source
         run: git diff --exit-code
