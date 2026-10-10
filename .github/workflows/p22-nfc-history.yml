@@ -135,11 +135,13 @@ jobs:
           php artisan test tests/Feature/P22NfcHistoryReadTest.php --log-junit p22-cached-${{ matrix.database }}.xml > /tmp/p22-cached.log 2>&1 || { tail -160 /tmp/p22-cached.log; exit 1; }
           tail -8 /tmp/p22-cached.log
           php artisan route:clear
+      # Evidence is retained in logs and the job summary, not an artifact upload:
+      # repository artifact storage is full. All test/count/failure gates remain.
       - name: Print scoped evidence counts
         if: always()
         run: |
           python3 - <<'PY'
-          import os,json,pathlib,xml.etree.ElementTree as E
+          import os,json,pathlib,hashlib,xml.etree.ElementTree as E
           good=True
           for prefix in ['p22-', 'p22-cached-']:
               path=pathlib.Path(prefix+os.environ['DB_CONNECTION']+'.xml')
@@ -147,7 +149,7 @@ jobs:
               root=E.parse(path).getroot(); cases=list(root.iter('testcase'))
               counts={'tests':len(cases),'assertions':sum(int(c.get('assertions','0')) for c in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
               own=sum('P22NfcHistoryReadTest' in (c.get('class','')+c.get('classname','')) for c in cases)
-              report={'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'suite':prefix,'p22_read_tests':own,'counts':counts,'live_verified':False,'hardware_verified':False,'full_release_verified':False}
+              report={'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'suite':prefix,'p22_read_tests':own,'counts':counts,'junit_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'evidence_storage':'WORKFLOW_LOG_AND_JOB_SUMMARY','live_verified':False,'hardware_verified':False,'full_release_verified':False}
               print(json.dumps(report,sort_keys=True))
               for c in cases:
                   for e in c:
@@ -157,15 +159,5 @@ jobs:
               good=good and own==14 and counts['tests']>=minimum and not any(counts[k] for k in ['failure','error','skipped'])
           if not good: raise SystemExit('Incomplete or failed evidence')
           PY
-      - name: Retain isolated JUnit evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: p22-evidence-${{ matrix.database }}-${{ github.sha }}
-          path: |
-            p22-${{ matrix.database }}.xml
-            p22-cached-${{ matrix.database }}.xml
-          if-no-files-found: error
-          retention-days: 14
       - name: No source rewrites during tests
         run: git diff --exit-code
