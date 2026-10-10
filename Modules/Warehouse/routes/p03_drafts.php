@@ -3,8 +3,9 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\P03DraftController;
 use Modules\Warehouse\Http\Middleware\P03JsonEnvelope;
+use Modules\Warehouse\Http\Middleware\P21ResumeRead;
 
-Route::prefix('v1/mini-app')->middleware(['auth:api', P03JsonEnvelope::class])->group(function (): void {
+Route::prefix('v1/mini-app')->middleware(['auth:api', P03JsonEnvelope::class, P21ResumeRead::class])->group(function (): void {
     Route::get('p03/context', [P03DraftController::class, 'context'])->name('context');
     // Per-operation permissions and actor/session/warehouse intersection are enforced
     // inside the same transaction as the draft/receipt, before any replay is returned.
