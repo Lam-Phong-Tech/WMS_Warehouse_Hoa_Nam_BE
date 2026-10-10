@@ -1,0 +1,142 @@
+name: P22 NFC History Read Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/app/Support/P22*'
+      - 'Modules/Warehouse/app/Http/Middleware/P22*'
+      - 'Modules/Warehouse/routes/p08_history.php'
+      - 'Modules/AuditLog/app/Services/AuditLogger.php'
+      - 'contracts/p22/**'
+      - 'tests/Feature/P22*'
+      - '.github/workflows/p22-nfc-history.yml'
+  pull_request:
+    paths:
+      - 'Modules/Warehouse/app/Support/P22*'
+      - 'Modules/Warehouse/app/Http/Middleware/P22*'
+      - 'Modules/Warehouse/routes/p08_history.php'
+      - 'Modules/AuditLog/app/Services/AuditLogger.php'
+      - 'contracts/p22/**'
+      - 'tests/Feature/P22*'
+      - '.github/workflows/p22-nfc-history.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-p22
+          POSTGRES_DB: p22_history_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p22_history_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p22_history_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${{ github.run_id }}-isolated-p22
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Guard source and disposable target
+        run: |
+          test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          case "$DB_DATABASE" in ':memory:'|p22_history_test) ;; *) exit 1 ;; esac
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json
+          c=json.load(open('contracts/p22/nfc-history-v1.json'))
+          assert c['production_activation'] is False and c['new_routes']==[] and c['new_migrations']==[]
+          assert all(r['method']=='GET' for r in c['read_requests'])
+          PY
+      - name: Prepare isolated runtime with locked dependencies
+        run: |
+          cp .env.example .env
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p22-install.log 2>&1 || { tail -40 /tmp/p22-install.log; exit 1; }
+          php artisan key:generate
+          php artisan config:clear
+          php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          $db = Illuminate\Support\Facades\DB::connection();
+          $safe = $db->getDriverName() === 'sqlite' ? $db->getDatabaseName() === ':memory:'
+              : $db->getDriverName() === 'pgsql' && $db->getDatabaseName() === 'p22_history_test' && $db->getConfig('host') === '127.0.0.1';
+          if (! $app->environment('testing') || ! $safe || getenv('DB_URL') !== '') { exit(1); }
+          echo 'Disposable test database only; no live NFC, seed, account or stock action.'.PHP_EOL;
+          PHP
+      - name: Syntax and scoped style
+        run: |
+          paths=(Modules/Warehouse/app/Support/P22NfcHistory.php Modules/Warehouse/app/Support/P22NfcAuditSnapshot.php Modules/Warehouse/app/Http/Middleware/P22NfcHistoryRead.php Modules/Warehouse/routes/p08_history.php Modules/AuditLog/app/Services/AuditLogger.php tests/Feature/P22NfcHistoryReadTest.php)
+          for path in "${paths[@]}"; do php -l "$path"; done
+          vendor/bin/pint --test "${paths[@]}"
+      - name: P22 read and unchanged P08 P07 regressions
+        run: |
+          php artisan test tests/Feature/P22NfcHistoryReadTest.php tests/Feature/P08HistoryContractTest.php tests/Feature/P08DocumentHistoryTest.php tests/Unit/P08HistoryReadContractTest.php tests/Feature/P07NfcContractTest.php tests/Feature/P07NfcRecoveryTest.php --log-junit p22-${{ matrix.database }}.xml > /tmp/p22-tests.log 2>&1 || { tail -160 /tmp/p22-tests.log; exit 1; }
+          tail -8 /tmp/p22-tests.log
+      - name: Route cached P22 reads
+        run: |
+          php artisan route:cache
+          php artisan test tests/Feature/P22NfcHistoryReadTest.php --log-junit p22-cached-${{ matrix.database }}.xml > /tmp/p22-cached.log 2>&1 || { tail -160 /tmp/p22-cached.log; exit 1; }
+          tail -8 /tmp/p22-cached.log
+          php artisan route:clear
+      - name: Print scoped evidence counts
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,json,pathlib,xml.etree.ElementTree as E
+          good=True
+          for prefix in ['p22-', 'p22-cached-']:
+              path=pathlib.Path(prefix+os.environ['DB_CONNECTION']+'.xml')
+              if not path.is_file(): print('Missing evidence '+str(path)); good=False; continue
+              root=E.parse(path).getroot(); cases=list(root.iter('testcase'))
+              counts={'tests':len(cases),'assertions':sum(int(c.get('assertions','0')) for c in cases),**{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+              own=sum('P22NfcHistoryReadTest' in (c.get('class','')+c.get('classname','')) for c in cases)
+              report={'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'suite':prefix,'p22_read_tests':own,'counts':counts,'live_verified':False,'hardware_verified':False,'full_release_verified':False}
+              print(json.dumps(report,sort_keys=True))
+              for c in cases:
+                  for e in c:
+                      if e.tag in ['failure','error']: print(c.get('name','')+'\n'+(e.text or '')[:2000])
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n'+json.dumps(report,indent=2)+'\n```\n')
+              good=good and own==8 and not any(counts[k] for k in ['failure','error','skipped'])
+          if not good: raise SystemExit('Incomplete or failed evidence')
+          PY
+      - name: No source rewrites during tests
+        run: git diff --exit-code

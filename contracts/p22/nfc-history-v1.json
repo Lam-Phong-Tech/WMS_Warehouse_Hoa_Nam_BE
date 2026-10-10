@@ -1,0 +1,81 @@
+{
+  "contract": "p22-nfc-history-v1",
+  "date": "2026-10-10",
+  "owner": "P08",
+  "status": "PENDING_CONTRACT_AND_LIVE_TEST",
+  "production_activation": false,
+  "live_verified": false,
+  "hardware_verified": false,
+  "new_routes": [],
+  "new_migrations": [],
+  "new_env_variables": [],
+  "opt_in_header": {"X-NFC-History-Contract": "p22-nfc-history-v1"},
+  "read_requests": [
+    {"method": "GET", "path": "/api/v1/mini-app/history/records", "required_query": ["warehouse_id"], "optional_query": ["source=NFC", "keyword", "type", "status", "date_mode", "date", "from", "to", "limit", "cursor"]},
+    {"method": "GET", "path": "/api/v1/mini-app/history/summary", "required_query": ["warehouse_id"], "optional_query": ["source=NFC", "keyword", "type", "status", "date_mode", "date", "from", "to"]},
+    {"method": "GET", "path": "/api/v1/mini-app/history/records/{recordId}", "required_query": ["warehouse_id", "activityId"], "optional_query": ["source=NFC"]},
+    {"method": "GET", "path": "/api/v1/mini-app/history/records", "purpose": "Resolve a bare immutable event UUID and its exact parent without scanning tags", "required_query": ["warehouse_id", "event_id"], "optional_query": ["source=NFC"]}
+  ],
+  "identity": {
+    "recordId": "NFC:<physical_code_id UUID>",
+    "activityId": "NFC:<audit event UUID>",
+    "eventId": "bare audit event UUID",
+    "direct_missing_or_foreign_event": "404 RESOURCE_NOT_FOUND",
+    "parent_and_activity_required": true,
+    "first_event_fallback": false
+  },
+  "permissions": {
+    "read": "history.read AND (physical_code.assign_rfid OR inventory.trace) AND active account/session AND confirmed warehouse context/scope",
+    "actor_and_reason": "Additional audit_log.view; otherwise actor/reason are null with REDACTED",
+    "warehouse_scope": "Persisted EVENT snapshot warehouse before totals, not current tag location",
+    "tenant": "Actor and warehouse explicit tenant/org columns must agree; audit discriminator requires a matching trusted scope. Snapshot dimensions must match; unresolved source tenancy fails closed.",
+    "cache": "private, no-store; client isolate actor/session/warehouse/filter/caller; discard stale callbacks"
+  },
+  "search": {
+    "keyword_fields": ["hardware_uid", "previous_hardware_uid", "serial_number"],
+    "policy": "Case-insensitive literal substring of persisted snapshot strings; outer whitespace trimmed; %, _ and ! escaped. No formatting normalization of UID, no reason/actor/payload search, no per-tag fan-out or page-local filtering.",
+    "max_length": 200
+  },
+  "filters": {
+    "source": "NFC only in opt-in mode; omitted defaults NFC",
+    "type": ["ALL", "ASSIGN", "REPLACE", "REVOKE", "UNKNOWN"],
+    "replacement": "ASSIGN_ITEM_NFC with captured verified distinct old/new tag UUID+UID and identical item+event warehouse. No inference from prefix or current status. P07 replacement remains disabled.",
+    "status": "Exact audit result, ALL skips filter, UNKNOWN selects SQL null. Result remains distinct from action/type/tag status. Existing writer may leave result null; do not synthesize SUCCESS.",
+    "date_mode": "ALL default: no date fields; DATE: date; RANGE: from/to inclusive local calendar days using app timezone and exclusive next-day boundary",
+    "timezone": "Response meta.timezone is authoritative; app timezone normally Asia/Ho_Chi_Minh",
+    "unsupported": ["page", "per_page", "tenant_id", "actor_id", "warehouse switch", "export", "hardware actions"]
+  },
+  "pagination": {
+    "count_unit": "EVENT",
+    "limit": {"default": 20, "min": 1, "max": 100},
+    "sort": "audit created_at DESC (null last), audit event id DESC; one immutable audit event per row even for the same tag",
+    "meta": ["total", "limit", "hasMore", "nextCursor", "asOf"],
+    "cursor_ttl_seconds": 900,
+    "cursor_binding": ["contract", "path", "actor", "auth_session", "warehouse", "permissions", "tenant dimensions", "filters", "limit"],
+    "consistency": "Upper time bound, not a frozen multi-request snapshot. Late outbox publication/permission changes may require restart. Keep totals from server; never data.length as total or EOF.",
+    "retry": "Same read request permitted; expired/invalid cursor restarts first page, never repeat a write"
+  },
+  "projection": {
+    "list": "data[]; canonical recordId/activityId/eventId and whitelisted event snapshot only",
+    "detail": "data.recordId + data.selectedActivity + data.events containing exactly the selected event",
+    "summary": "data.grandTotal/availableTotal/typeTotals/statusTotals; countUnit EVENT within supported authorized persisted snapshot scope",
+    "snapshot_fields": ["hardware_uid", "previous_hardware_uid", "previous_physical_code_id", "item_id", "serial_number", "sku", "warehouse", "actor", "reason", "time", "tag_status_at_event"],
+    "null_policy": "Missing fields remain null; no current user/product/tag/warehouse fallback",
+    "raw_content": "Always null NOT_EXPOSED_MAY_CONTAIN_SECRETS; never whole audit JSON, written_payload, request bodies, idempotency keys or auth identifiers",
+    "copy": "Only actual returned UID, previous UID and serial; plain-text UI, not executable HTML",
+    "current_tag_status": null,
+    "isConfirmationReceipt": false,
+    "mutation_available": false
+  },
+  "p07_dependency": {
+    "snapshot": "nfc-audit-snapshot-v1 under audit.after_data.nfc_history_v1",
+    "capture": "Additive logging only inside existing authenticated ASSIGN_ITEM_NFC/REVOKE_ITEM_NFC owner transaction, before audit sanitization and outbox fallback; exact actor, current confirmed warehouse and persisted tag/item relationships. No new event or writer endpoint.",
+    "legacy": "Do not backfill history from current tags. Old audit rows without event-level snapshot are excluded even if P08 legacy previously included them. P22 total can therefore differ from P08 legacy NFC count.",
+    "outbox": "Snapshot retained in outbox payload; P22 reads only published audit_log entries, not pending outbox or P07 receipts. Coverage is not a claim that all physical operations were published.",
+    "replacement": "Read support only when historical snapshot has proof; no enabling P07 replace_existing or hardware workflow",
+    "receipt": "Use original P07 confirmation contract for unknown writes; P22 list/current mapping never substitutes for it"
+  },
+  "acceptance_pending": ["BA field/type/privacy and legacy coverage approval", "Owner snapshot/outbox fault and concurrency acceptance", "Release artifact and runtime-overlay reconciliation", "Authenticated read/deny/tenant/cursor/event smoke on allowed real data", "Native UI paging/copy/scroll/IME/session and partial-detail UAT"],
+  "live_prohibitions": ["No seed or assignment/revocation to manufacture evidence", "No migration", "No production activation", "No hardware calls from P22", "Do not remove existing owner gates"],
+  "test_scope": "New P22 HTTP read tests with synthetic isolated audit fixtures plus unchanged owner regressions; not live/hardware evidence"
+}

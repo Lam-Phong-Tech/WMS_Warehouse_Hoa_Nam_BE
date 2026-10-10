@@ -21,7 +21,7 @@ use Throwable;
  * thành công (dùng cho các route bắt buộc có audit, xem Wwhn172AggregateLock).
  *
  * Policy `best_effort`: không bao giờ chặn nghiệp vụ vì audit — kể cả khi cả audit_log
- * lẫn audit_outbox đều ghi lỗi, chỉ log critical rồi return bình thường. Quyết định giữ
+ * lẫn audit_outbox đều lỗi, chỉ log critical rồi return bình thường. Quyết định giữ
  * policy này (thay vì luôn fail-closed) nằm ở ADR-AUDIT-001
  * (`docs/decision-records/ADR-AUDIT-001-audit-write-policy.md`).
  */
@@ -55,6 +55,11 @@ class AuditLogger
         ?string $idempotencyKey = null,
         ?string $module = null,
     ): void {
+        // NFC-only, trusted owner snapshot BEFORE sanitization and outbox fallback.
+        // No new event, mutation, receipt, historical backfill or current-tag read fallback.
+        $afterData = \Modules\Warehouse\Support\P22NfcAuditSnapshot::enrich(
+            $action, $objectType, $objectId, $actorId, $afterData,
+        );
         $payload = self::payload(
             $action,
             $objectType,
