@@ -7,11 +7,13 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Support\P22NfcAuditSnapshot;
 use Modules\Warehouse\Support\P22NfcHistory;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
@@ -72,7 +74,7 @@ class P22NfcHistoryReadTest extends TestCase
         [$u, $token, $w] = $this->reader();
         AuditLog::create(['actor_id' => $u->user_id, 'object_type' => 'physical_code', 'object_id' => (string) Str::uuid(),
             'action' => 'ASSIGN_ITEM_NFC', 'created_at' => now()->subMinute(), 'after_data' => ['hardware_uid' => 'Legacy']]);
-        foreach (['warehouse_id', 'actor_id', 'physical_code_id'] as $field) {
+        foreach (['warehouse_id', 'actor_id', 'physical_code_id', 'tenant_id', 'org_id', 'organization_id'] as $field) {
             $this->audit($u, $w, [$field => (string) Str::uuid()]);
         }
         $before = DB::table('audit_log')->count();
@@ -91,6 +93,10 @@ class P22NfcHistoryReadTest extends TestCase
             ->assertJsonPath('data.0.raw_content', null)->assertJsonPath('data.0.isConfirmationReceipt', false);
         $this->assertStringNotContainsString('PRIVATE_SENTINEL', $r->getContent());
         $this->assertStringNotContainsString('Historical actor', $r->getContent());
+        foreach (['Historical actor', 'Historical reason', 'PRIVATE_SENTINEL'] as $keyword) {
+            $this->get($this->url($w, ['keyword' => $keyword]), $this->headers($token))
+                ->assertOk()->assertJsonPath('meta.total', 0);
+        }
     }
 
     public function test_keyset_expiry_scope_and_filter_binding(): void
@@ -149,6 +155,121 @@ class P22NfcHistoryReadTest extends TestCase
         $this->get($this->url($w), $this->headers($noHistory))->assertForbidden();
     }
 
+    public function test_owner_result_not_storage_defaults_drives_list_detail_summary_and_filter(): void
+    {
+        [$u, $token, $w] = $this->reader();
+        // Emulate a persisted legacy default without weakening the PostgreSQL trigger.
+        $legacy = $this->audit($u, $w, [], ['result' => 'SUCCESS']);
+        $this->audit($u, $w, ['result' => null], ['result' => 'SUCCESS']);
+        $this->audit($u, $w, ['result' => 42], ['result' => 'SUCCESS']);
+        $success = $this->audit($u, $w, ['result' => 'SUCCESS'], ['result' => 'SUCCESS']);
+        $failed = $this->audit($u, $w, ['result' => 'FAILED'], ['result' => 'FAILED']);
+        $this->assertSame('SUCCESS', DB::table('audit_log')->where('id', $legacy->id)->value('result'));
+        $this->get($this->url($w, ['event_id' => $legacy->id]), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.0.status', null)->assertJsonPath('data.0.status_source', 'NOT_RECORDED');
+        foreach (['SUCCESS' => $success, 'FAILED' => $failed] as $status => $event) {
+            $this->get($this->url($w, ['status' => $status, 'limit' => 1]), $this->headers($token))->assertOk()
+                ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.eventId', $event->id)
+                ->assertJsonPath('data.0.status', $status)->assertJsonPath('data.0.type', 'ASSIGN')
+                ->assertJsonPath('data.0.tag_status_at_event', 'ACTIVE')
+                ->assertJsonPath('data.0.status_source', 'PERSISTED_OWNER_RESULT');
+            $this->get($this->url($w, ['activityId' => 'NFC:'.$event->id], 'records/NFC:'.$event->object_id), $this->headers($token))
+                ->assertOk()->assertJsonPath('data.selectedActivity.status', $status);
+        }
+        $this->get($this->url($w, ['status' => 'UNKNOWN']), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 3);
+        $summary = $this->get($this->url($w, [], 'summary'), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.availableTotal', 5)->assertJsonPath('meta.resultPolicy', 'OWNER_RESULT_SNAPSHOT_NO_STORAGE_DEFAULTS');
+        $this->assertEqualsCanonicalizing([
+            ['status' => null, 'total' => 3], ['status' => 'SUCCESS', 'total' => 1], ['status' => 'FAILED', 'total' => 1],
+        ], $summary->json('data.statusTotals'));
+    }
+
+    public function test_replacement_requires_nonblank_confirmed_old_to_new_identity(): void
+    {
+        [$u, $token, $w] = $this->reader();
+        $proof = ['hardware_uid' => 'CURRENT', 'previous_hardware_uid' => 'PREVIOUS',
+            'previous_physical_code_id' => (string) Str::uuid(), 'replacement_requested' => true, 'replacement_verified' => true];
+        $confirmed = $this->audit($u, $w, $proof);
+        $invalid = [
+            ['replacement_requested' => 'true'], ['replacement_verified' => false],
+            ['previous_physical_code_id' => null], ['previous_physical_code_id' => ' '],
+            ['previous_hardware_uid' => ' '], ['previous_hardware_uid' => 'CURRENT'], ['hardware_uid' => ' '],
+            ['previous_item_id' => (string) Str::uuid()], ['previous_warehouse_id' => (string) Str::uuid()],
+            ['item_id' => '', 'previous_item_id' => ''],
+        ];
+        foreach ($invalid as $overrides) {
+            $this->audit($u, $w, [...$proof, ...$overrides]);
+        }
+        $this->get($this->url($w, ['type' => 'REPLACE']), $this->headers($token))->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.eventId', $confirmed->id);
+        $this->get($this->url($w, ['type' => 'UNKNOWN']), $this->headers($token))->assertOk()
+            ->assertJsonPath('meta.total', count($invalid));
+    }
+
+    public function test_same_tag_events_keep_stable_tie_break_and_event_snapshot_after_rename(): void
+    {
+        [$u, $token, $w] = $this->reader(['history.read', 'inventory.trace', 'audit_log.view']);
+        $parent = (string) Str::uuid();
+        $expected = [];
+        for ($i = 0; $i < 3; $i++) {
+            $expected[] = $this->audit($u, $w, [], ['object_id' => $parent])->id;
+        }
+        DB::table('warehouses')->where('id', $w->id)->update(['name' => 'Current renamed warehouse']);
+        DB::table('app_user')->where('user_id', $u->user_id)->update(['display_name' => 'Current renamed actor']);
+        rsort($expected, SORT_STRING);
+        $actual = [];
+        $cursor = null;
+        for ($i = 0; $i < 3; $i++) {
+            $query = ['limit' => 1] + ($cursor === null ? [] : ['cursor' => $cursor]);
+            $r = $this->get($this->url($w, $query), $this->headers($token))->assertOk()
+                ->assertJsonPath('meta.total', 3)->assertJsonPath('meta.countUnit', 'EVENT')
+                ->assertJsonPath('data.0.recordId', 'NFC:'.$parent)
+                ->assertJsonPath('data.0.warehouse.name', $w->name)
+                ->assertJsonPath('data.0.actor.display_name', 'Historical actor')
+                ->assertJsonPath('data.0.copy.uid', 'UID-'.$parent);
+            $actual[] = $r->json('data.0.eventId');
+            $cursor = $r->json('meta.nextCursor');
+        }
+        $this->assertSame($expected, $actual);
+        $this->assertNull($cursor);
+    }
+
+    public function test_missing_source_is_503_not_successful_empty(): void
+    {
+        [, $token, $w] = $this->reader();
+        $this->get($this->url($w), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 0);
+        // Simulate an unavailable schema only at the read boundary; no DDL or live data.
+        Schema::partialMock()->shouldReceive('getColumnListing')->with('audit_log')->andReturn(['id']);
+        $this->get($this->url($w), $this->headers($token))->assertStatus(503)
+            ->assertJsonPath('error.code', 'HISTORY_SOURCE_UNAVAILABLE');
+    }
+
+    public function test_untrusted_snapshot_is_removed_outside_the_owner_route(): void
+    {
+        foreach (['ASSIGN_ITEM_NFC', 'REVOKE_ITEM_NFC'] as $action) {
+            $after = P22NfcAuditSnapshot::enrich($action, 'physical_code', (string) Str::uuid(), (string) Str::uuid(),
+                ['other' => 'preserved', P22NfcAuditSnapshot::FIELD => ['result' => 'SUCCESS']], 'SUCCESS');
+            $this->assertArrayNotHasKey(P22NfcAuditSnapshot::FIELD, $after);
+            $this->assertSame('preserved', $after['other']);
+        }
+    }
+
+    public function test_local_calendar_boundaries_are_inclusive_and_all_has_no_date(): void
+    {
+        [$u, $token, $w] = $this->reader();
+        $start = now()->subDay()->startOfDay();
+        foreach ([$start->copy()->subSecond(), $start->copy(), $start->copy()->endOfDay()->startOfSecond(), $start->copy()->addDay()] as $time) {
+            $stored = DB::getDriverName() === 'pgsql' ? $time->copy()->utc() : $time;
+            $this->audit($u, $w, [], ['created_at' => $stored]);
+        }
+        $this->get($this->url($w), $this->headers($token))->assertOk()->assertJsonPath('meta.total', 4);
+        foreach ([['date_mode' => 'DATE', 'date' => $start->toDateString()],
+            ['date_mode' => 'RANGE', 'from' => $start->toDateString(), 'to' => $start->toDateString()]] as $query) {
+            $this->get($this->url($w, $query), $this->headers($token))->assertOk()
+                ->assertJsonPath('meta.total', 2)->assertJsonPath('meta.timezone', config('app.timezone'));
+        }
+    }
+
     private function reader(array $rights = ['history.read', 'inventory.trace']): array
     {
         $w = $this->ensureActiveWarehouse('KHO-TONG-HN', 'P22 isolated warehouse');
@@ -171,9 +292,9 @@ class P22NfcHistoryReadTest extends TestCase
         return [$u, $token, $w];
     }
 
-    private function audit(User $u, object $w, array $overrides = []): AuditLog
+    private function audit(User $u, object $w, array $overrides = [], array $attributes = []): AuditLog
     {
-        $id = (string) Str::uuid();
+        $id = $attributes['object_id'] ?? (string) Str::uuid();
         $item = (string) Str::uuid();
         $data = ['schema' => 'nfc-audit-snapshot-v1', 'physical_code_id' => $id, 'carrier_type' => 'NFC',
             'warehouse_id' => $w->id, 'warehouse_code' => $w->code, 'warehouse_name' => $w->name,
@@ -186,7 +307,7 @@ class P22NfcHistoryReadTest extends TestCase
         return AuditLog::create(['actor_id' => $u->user_id, 'object_type' => 'physical_code', 'object_id' => $id,
             'action' => 'ASSIGN_ITEM_NFC', 'result' => null, 'reason' => 'Historical reason',
             'created_at' => now()->subDay()->startOfDay()->addHours(12),
-            'after_data' => ['nfc_history_v1' => $data, 'arbitrary_private_field' => 'PRIVATE_SENTINEL']]);
+            'after_data' => ['nfc_history_v1' => $data, 'arbitrary_private_field' => 'PRIVATE_SENTINEL'], ...$attributes]);
     }
 
     private function url(object $w, array $query = [], string $path = 'records'): string
