@@ -245,7 +245,10 @@ final class P20ComponentHistoryController extends Controller
 
     private function query(Request $request, array $allowed, bool $explicitWarehouse): void
     {
-        if (array_diff(array_keys($request->query()), $allowed) !== [] || $request->getContent() !== '' || $request->allFiles() !== []) {
+        // Some JSON clients serialize an empty GET envelope. It carries no
+        // parameters; populated, scalar or malformed bodies are still rejected.
+        $emptyBody = in_array(trim((string) $request->getContent()), ['', '[]', '{}'], true);
+        if (array_diff(array_keys($request->query()), $allowed) !== [] || ! $emptyBody || $request->allFiles() !== []) {
             ApiError::abort(422, 'COMPONENT_HISTORY_UNKNOWN_FILTER', 'Chỉ gửi query theo contract đọc, không gửi body/status/limit.');
         }
         Validator::make($request->query(), ['warehouse_id' => [$explicitWarehouse ? 'required' : 'sometimes', 'uuid']])->validate();
