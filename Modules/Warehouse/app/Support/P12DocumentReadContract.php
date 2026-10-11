@@ -2,12 +2,14 @@
 
 namespace Modules\Warehouse\Support;
 
+use App\Support\ApiError;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /** Read-only additions to existing document routes; not an All-list aggregate API. */
 final class P12DocumentReadContract
@@ -57,6 +59,35 @@ final class P12DocumentReadContract
             'page_size' => ['sometimes', 'integer', 'between:1,200'],
             'cursor' => ['prohibited'],
         ]);
+        self::requireEvidenceParent($request);
+    }
+
+    /** Existing scan GETs must recheck the typed, live parent before any cache hit. */
+    private static function requireEvidenceParent(Request $request): void
+    {
+        $parents = [
+            'api/v1/mini-app/inbound-documents/{id}/scan-entries' => ['receipt', 'dst_warehouse_id'],
+            'api/v1/mini-app/outbound-documents/{id}/scan-entries' => ['issue', 'src_warehouse_id'],
+        ];
+        $parent = $parents[$request->route()?->uri() ?? ''] ?? null;
+        if ($parent === null || ! in_array($request->method(), ['GET', 'HEAD'], true)) {
+            return;
+        }
+        [$type, $warehouseField] = $parent;
+        $id = (string) $request->route('id');
+        if (! Str::isUuid($id)) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiếu nguồn của bằng chứng quét.');
+        }
+        $document = DB::table('stock_documents')->where('id', $id)
+            ->where('doc_type', $type)->whereNull('deleted_at')->first(['id', $warehouseField]);
+        if ($document === null || ! Str::isUuid((string) $document->{$warehouseField})) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiếu nguồn của bằng chứng quét.');
+        }
+        $actor = $request->user();
+        if ($actor === null || ! method_exists($actor, 'canAccessWarehouse')
+            || ! $actor->canAccessWarehouse((string) $document->{$warehouseField})) {
+            ApiError::abort(403, 'DATA_SCOPE_DENIED', 'Phiếu nguồn nằm ngoài phạm vi kho.');
+        }
     }
 
     /** Aggregate the entire parent/status query BEFORE pagination, never the page items. */
@@ -117,20 +148,25 @@ final class P12DocumentReadContract
 
     public static function evidenceResponse(JsonResponse $response, array $summary, string $id, string $status): JsonResponse
     {
-        // A rolling deploy can briefly read the previous owner's cached summary.
-        // Do not publish its SQL SUM as a complete quantity until that cache refreshes.
-        if (! array_key_exists('quantity_complete', $summary)) {
-            $summary['quantity_total'] = null;
-            $summary['quantity_by_unit'] = array_map(static fn (array $unit): array => [
-                'unit' => $unit['unit'], 'quantity' => null, 'known_quantity' => null,
-                'entry_count' => null, 'missing_quantity_count' => null,
-            ], $summary['quantity_by_unit'] ?? []);
-            $summary += ['quantity_complete' => null, 'missing_quantity_count' => null,
+        // A rolling deploy can briefly read old or incompletely upgraded cache entries.
+        // One boolean alone is not evidence that all v2 quantity fields are present.
+        if (! self::hasV2Summary($summary)) {
+            $units = is_array($summary['quantity_by_unit'] ?? null) ? $summary['quantity_by_unit'] : [];
+            $summary = array_replace($summary, [
+                'quantity_total' => null,
+                'quantity_by_unit' => array_values(array_map(static fn (array $unit): array => [
+                    'unit' => $unit['unit'] ?? null, 'quantity' => null, 'known_quantity' => null,
+                    'entry_count' => null, 'missing_quantity_count' => null,
+                ], array_filter($units, 'is_array'))),
+                'quantity_complete' => null, 'missing_quantity_count' => null,
                 'unit_complete' => null, 'unknown_unit_entry_count' => null,
-                'mixed_units' => null, 'coverage' => 'LEGACY_CACHE_PENDING_REFRESH'];
+                'mixed_units' => null, 'coverage' => 'LEGACY_CACHE_PENDING_REFRESH',
+            ]);
         }
         $body = $response->getData(true);
-        $body['meta'] += [
+        // Reserved evidence fields belong to THIS route/summary, never old response meta.
+        // Preserve owner pagination/request metadata, but do not use array union here.
+        $body['meta'] = array_replace(is_array($body['meta'] ?? null) ? $body['meta'] : [], [
             'contract' => 'p12-scan-evidence-v2',
             'document_id' => $id,
             'scan_status' => $status,
@@ -138,9 +174,43 @@ final class P12DocumentReadContract
             'sort' => ['created_at' => 'desc', 'id' => 'desc'],
             'pagination_mode' => 'offset',
             'snapshot_consistent' => false,
-        ];
+        ]);
 
         return $response->setData($body)->header('Cache-Control', 'private, no-store');
+    }
+
+    private static function hasV2Summary(array $summary): bool
+    {
+        foreach (['quantity_total', 'quantity_by_unit', 'quantity_complete', 'missing_quantity_count',
+            'unit_complete', 'unknown_unit_entry_count', 'mixed_units', 'coverage'] as $field) {
+            if (! array_key_exists($field, $summary)) {
+                return false;
+            }
+        }
+        if (! is_bool($summary['quantity_complete']) || ! is_bool($summary['unit_complete'])
+            || ! is_bool($summary['mixed_units']) || $summary['coverage'] !== 'CURRENT_QUERY'
+            || ! is_array($summary['quantity_by_unit'])
+            || ! is_int($summary['missing_quantity_count']) || $summary['missing_quantity_count'] < 0
+            || ! is_int($summary['unknown_unit_entry_count']) || $summary['unknown_unit_entry_count'] < 0) {
+            return false;
+        }
+        foreach ($summary['quantity_by_unit'] as $unit) {
+            if (! is_array($unit)) {
+                return false;
+            }
+            foreach (['unit', 'quantity', 'known_quantity', 'entry_count', 'missing_quantity_count'] as $field) {
+                if (! array_key_exists($field, $unit)) {
+                    return false;
+                }
+            }
+            if (! is_int($unit['entry_count']) || $unit['entry_count'] < 1
+                || ! is_int($unit['missing_quantity_count']) || $unit['missing_quantity_count'] < 0
+                || $unit['missing_quantity_count'] > $unit['entry_count']) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static function listResponse(JsonResponse $response, Request $request, string $source): JsonResponse

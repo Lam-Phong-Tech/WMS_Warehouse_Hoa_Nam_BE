@@ -10,6 +10,7 @@ on:
       - 'tests/Feature/P02ReadContractTest.php'
       - 'tests/Feature/P04InboundContractTest.php'
       - 'tests/Feature/P05OutboundContractTest.php'
+      - 'tests/Feature/P13Notification*Test.php'
       - 'tests/Feature/P23ReadContractTest.php'
       - 'docs/contracts/p12-read-v2.json'
       - 'composer.lock'
@@ -55,6 +56,18 @@ jobs:
       CORS_ALLOWED_ORIGINS: http://localhost:5173
       CORS_SUPPORTS_CREDENTIALS: 'true'
       REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      P19_COMMAND_RECOVERY_ENABLED: 'false'
+      P12_TESTS: >-
+        tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php
+        tests/Feature/P12ScanParentSafetyTest.php tests/Unit/P12DocumentPresentationTest.php
+        tests/Unit/P12ScanEvidenceResponseTest.php tests/Feature/P02ReadContractTest.php
+        tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php
+        tests/Feature/P23ReadContractTest.php tests/Feature/P13NotificationContractTest.php
+        tests/Feature/P13NotificationRevision2Test.php
+      P12_CACHED_TESTS: >-
+        tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php
+        tests/Feature/P12ScanParentSafetyTest.php tests/Unit/P12DocumentPresentationTest.php
+        tests/Unit/P12ScanEvidenceResponseTest.php
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,6 +76,8 @@ jobs:
       - name: Verify handoff ancestry and source identity
         run: |
           git merge-base --is-ancestor 4113826a7179a1d54ff2231c88a8cd3477279aa8 HEAD
+          git merge-base --is-ancestor 6a9a8edb42e30d60e9dd4336eb91ce83fc4269ab HEAD
+          git merge-base --is-ancestor d79bf37e80db85379f810f50642b8758936dd548 HEAD
           git rev-parse HEAD
           sha256sum composer.lock
       - uses: shivammathur/setup-php@v2
@@ -72,48 +87,96 @@ jobs:
           coverage: none
           tools: composer:v2
       - name: Install locked dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p12-composer.log 2>&1 || { tail -60 /tmp/p12-composer.log; exit 1; }
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p12-composer.log 2>&1 || { tail -60 /tmp/p12-composer.log; exit 1; }
+          git diff --exit-code -- composer.lock
       - name: Prepare isolated application
         run: |
           cp .env.example .env
           php artisan key:generate
           php artisan config:clear
+          python3 -m json.tool docs/contracts/p12-read-v2.json > /dev/null
       - name: Style and syntax check P12 integration files
         run: |
-          vendor/bin/pint --test -v Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Support/P12DocumentPresentation.php Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php Modules/Warehouse/app/Providers/RouteServiceProvider.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php tests/Feature/P02ReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php
+          vendor/bin/pint --test -v Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Support/P12DocumentPresentation.php Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php Modules/Warehouse/app/Providers/RouteServiceProvider.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php tests/Feature/P02ReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P12ScanParentSafetyTest.php tests/Unit/P12DocumentPresentationTest.php tests/Unit/P12ScanEvidenceResponseTest.php
           find Modules/Warehouse tests -name '*P12*.php' -print0 | xargs -0 -n1 php -l
-      - name: SQLite P12 and owner P02 P04 P05 and P09-P23 read regressions
+      - name: SQLite P12 and owner P02 P04 P05 P09-P23 P13 regressions
         if: success() || failure()
-        run: |
-          php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php tests/Feature/P02ReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P23ReadContractTest.php --log-junit p12-sqlite.xml
-      - name: PostgreSQL P12 and owner P02 P04 P05 and P09-P23 read regressions
+        run: php artisan test $P12_TESTS --log-junit p12-sqlite.xml > /tmp/p12-sqlite.log 2>&1
+      - name: PostgreSQL P12 and owner P02 P04 P05 P09-P23 P13 regressions
         if: success() || failure()
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p12_contract_test
-        run: |
-          php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php tests/Feature/P02ReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P23ReadContractTest.php --log-junit p12-pgsql.xml
+        run: php artisan test $P12_TESTS --log-junit p12-pgsql.xml > /tmp/p12-pgsql.log 2>&1
       - name: Cached route P12 regressions in disposable SQLite
         if: success() || failure()
         run: |
           trap 'php artisan route:clear' EXIT
           php artisan route:cache
-          php artisan test tests/Feature/P12ReadRevision2Test.php --log-junit p12-route-cache.xml
+          php artisan test $P12_CACHED_TESTS --log-junit p12-route-cache.xml > /tmp/p12-route-cache.log 2>&1
       - name: Composer locked dependency audit
         if: success() || failure()
         run: composer audit --locked --no-interaction
-      - name: Publish isolated test counts and source hashes without artifact quota dependency
+      - name: Require complete test evidence without artifact quota dependency
         if: always()
         run: |
-          echo "P12_ISOLATED_SOURCE=$GITHUB_SHA; no deployment or live approval"
-          sha256sum composer.lock Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Support/P12DocumentPresentation.php Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php tests/Feature/P12ReadRevision2Test.php
           python3 - <<'PY'
           from pathlib import Path
+          import hashlib
+          import json
+          import os
           import xml.etree.ElementTree as ET
-          for path in Path('.').glob('p12-*.xml'):
-              if not path.stat().st_size: continue
-              root = ET.parse(path).getroot()
-              for suite in root.findall('./testsuite'): print('P12_SUITE '+path.name+' '+str(suite.attrib))
-              for tag in ['failure', 'error']:
-                  for node in root.iter(tag): print('P12_ISOLATED_TEST_FAILURE '+(node.text or '')[:6000])
+
+          lines = ['## P12 isolated read-contract evidence',
+                   'Build: `' + os.environ['GITHUB_SHA'] + '`',
+                   'LIVE_SMOKE=false; DEPLOYMENT=false; FULL_ACTIVATION=false',
+                   'Required evidence is in this log and job summary; no artifact upload required.']
+          invalid = []
+          for filename in ['composer.lock', 'Modules/Warehouse/app/Support/P12DocumentReadContract.php',
+                           'tests/Feature/P12ScanParentSafetyTest.php', 'tests/Unit/P12ScanEvidenceResponseTest.php']:
+              path = Path(filename)
+              if not path.is_file():
+                  invalid.append(filename + ': missing source')
+                  continue
+              lines.append('SOURCE_SHA256 ' + filename + ' ' + hashlib.sha256(path.read_bytes()).hexdigest())
+          for filename in ['p12-sqlite.xml', 'p12-pgsql.xml', 'p12-route-cache.xml']:
+              path = Path(filename)
+              if not path.is_file() or not path.stat().st_size:
+                  invalid.append(filename + ': missing report')
+                  log = Path('/tmp/' + filename.replace('.xml', '.log'))
+                  if log.is_file(): lines.append(log.read_text(errors='replace')[-6000:])
+                  continue
+              raw = path.read_bytes()
+              try:
+                  root = ET.fromstring(raw)
+              except ET.ParseError as error:
+                  invalid.append(filename + ': invalid XML ' + str(error))
+                  continue
+              suites = [root] if root.tag == 'testsuite' else root.findall('./testsuite')
+              cases = list(root.iter('testcase'))
+              if not suites or not cases:
+                  invalid.append(filename + ': empty test report')
+              lines.append('REPORT_SHA256 ' + filename + ' ' + hashlib.sha256(raw).hexdigest())
+              for suite in suites:
+                  counts = {k: int(suite.get(k, '0')) for k in ['tests', 'assertions', 'errors', 'failures', 'skipped']}
+                  lines.append('P12_SUITE ' + filename + ' ' + json.dumps(counts, sort_keys=True))
+                  if counts['tests'] == 0 or counts['assertions'] == 0 or any(counts[k] for k in ['errors', 'failures', 'skipped']):
+                      invalid.append(filename + ': failed, skipped, or empty suite')
+              for case in cases:
+                  status = 'PASS'
+                  for tag in ['failure', 'error', 'skipped']:
+                      node = case.find(tag)
+                      if node is not None:
+                          status = tag.upper()
+                          invalid.append(filename + ': ' + case.get('name', '') + ': ' + tag)
+                          lines.append((node.text or '')[:6000])
+                          break
+                  lines.append(status + ' ' + case.get('classname', '') + '::' + case.get('name', ''))
+          report = '\n\n'.join(lines) + '\n'
+          print(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as output:
+              output.write(report)
+          if invalid:
+              raise SystemExit('P12 required evidence incomplete: ' + ', '.join(invalid))
           PY

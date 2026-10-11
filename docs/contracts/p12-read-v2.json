@@ -102,5 +102,15 @@
       "Approved deployed artifact/build ancestry/schema and real permitted/denied accounts",
       "GET-only real file download and native-browser smoke, redacted production evidence"
     ]
+  },
+  "safety_hardening": {
+    "reviewed_source": "d79bf37e80db85379f810f50642b8758936dd548",
+    "revision_2_reference": "6a9a8edb42e30d60e9dd4336eb91ce83fc4269ab",
+    "scan_parent": "Both existing scan-entries GETs recheck an existing, non-deleted parent of the exact receipt/issue type and its persisted warehouse before using the read cache. Missing warehouse is not GLOBAL. Existing authentication and permission middleware remain mandatory.",
+    "cache_schema": "All v2 quantity/completeness fields and group counters must be present, not only quantity_complete. Legacy or incomplete cached summaries reset quantity and completeness flags to null and coverage to LEGACY_CACHE_PENDING_REFRESH, even if an old coverage/flag field already exists. No cache flush, seed or business write is required.",
+    "response_identity": "Reserved evidence meta contract/document_id/scan_status/summary/sort/pagination_mode/snapshot_consistent are assigned from this route and sanitized summary; stale response metadata cannot override them. Original data, owner pagination, request metadata and ETag remain unchanged.",
+    "ci_evidence": "Both database suites and the route-cache suite must emit non-empty JUnit with assertions and no failures/errors/skips. Required source/report hashes and per-test results go to the log and job summary; no artifact storage quota dependency. P13 regressions remain included; source ancestry retains revision 2 and the P13 fix. Composer lock is not updated.",
+    "fe_handoff": "FE must migrate prepared parsers from p12-scan-evidence-v1 to v2 and nullable group quantity/known subtotal, consume meta.p12 and the P09 GET read_target, retain partial errors, owner/privacy and Back/focus/scroll. Do not switch to global fetch, fall back to old fixtures or activate automatically. This backend patch does not modify the FE repository.",
+    "not_approved": "All-source aggregation, cross-source state labels and checked/sent ownership remain pending BA. Historical P13 RECORD receipt is not current waiting_for_web or a P12 timeline approval. Deployment/live smoke/full activation remain separate gates."
   }
 }
