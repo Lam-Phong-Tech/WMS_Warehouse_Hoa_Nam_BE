@@ -59,10 +59,15 @@ final class P19ScannerReadGuard
                     ApiError::abort(409, 'P19_RESOLVE_IDENTITY_CHANGED', 'Nhận diện mã đã thay đổi; không xác nhận từ kết quả cũ.');
                 }
                 $skuId = $item ? $target->sku_id : $target->primary_sku_id;
+                if ($skuId !== ($data['sku_id'] ?? null)) {
+                    ApiError::abort(409, 'P19_RESOLVE_IDENTITY_CHANGED', 'SKU của mã đã thay đổi; không xác nhận từ kết quả cũ.');
+                }
                 $skuQuery = DB::table('sku as s')->where('s.sku_id', $skuId);
                 P09WarrantyScope::isolate($skuQuery, 'sku', 's', $scope);
                 $sku = $skuQuery->first('s.*');
-                $eligible = $sku !== null && $sku->status === 'ACTIVE' && $sku->sku_type === 'COMPONENT';
+                // This guard may narrow an owner decision, never broaden it.
+                $eligible = ($data['eligible_for_component_issue'] ?? false) === true
+                    && $sku !== null && $sku->status === 'ACTIVE' && $sku->sku_type === 'COMPONENT';
                 $data['available_qty'] = null;
                 $quantityStatus = $item ? 'NOT_APPLICABLE_ITEM' : 'UNKNOWN';
                 if ($item) {
@@ -74,7 +79,8 @@ final class P19ScannerReadGuard
                         ->where('ci.sku_id', $skuId)->where('ci.is_active', true);
                     P09WarrantyScope::isolate($quantities, 'container_items', 'ci', $scope);
                     $values = $quantities->pluck('ci.quantity');
-                    $known = $sku !== null && ! $values->contains(fn ($q) => $q === null || ! is_numeric($q) || (float) $q < 0);
+                    $known = $sku !== null && ! $values->contains(fn ($q) => $q === null || ! is_numeric($q)
+                        || (float) $q < 0 || (float) $q !== (float) (int) $q);
                     $data['available_qty'] = $known ? (int) $values->sum() : null;
                     $quantityStatus = $known ? 'CONFIRMED_CONTAINER_QUANTITY' : 'UNKNOWN';
                     $eligible = $eligible && ! (bool) $sku?->is_serial_tracked && $target->container_type === 'BOX'
@@ -93,7 +99,8 @@ final class P19ScannerReadGuard
                 'contract' => P19ComponentCommand::CONTRACT,
                 'can_confirm_local' => ($data['resolved'] ?? false) === true
                     && ($data['eligible_for_issue'] ?? false) === true && $data['case_allows_issue'] === true,
-                'reason_kind' => match ($data['item_type'] ?? null) { 'ITEM' => 'UNIT', 'BOX' => 'BOX', default => 'UNKNOWN' },
+                'reason_kind' => ($data['resolved'] ?? false) !== true ? 'UNKNOWN'
+                    : match ($data['item_type'] ?? null) { 'ITEM' => 'UNIT', 'BOX' => 'BOX', default => 'UNKNOWN' },
                 'confirmation_is_scan' => false, 'write_revalidation_required' => true,
                 'observed_at' => now()->toIso8601String(), 'stock_effect' => 'NONE',
             ];

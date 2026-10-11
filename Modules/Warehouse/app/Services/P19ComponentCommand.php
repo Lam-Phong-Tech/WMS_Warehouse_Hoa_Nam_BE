@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Services;
 
 use App\Support\ApiError;
 use App\Support\IdempotencyKeyGuard;
+use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -37,10 +38,19 @@ final class P19ComponentCommand
 
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->hasHeader(self::HEADER)) {
-            return $next($request);
-        }
         try {
+            if (! $request->hasHeader(self::HEADER)) {
+                $key = strtolower(trim((string) $request->header('Idempotency-Key', '')));
+                // Dropping the protocol header must not turn a known retry into
+                // an unprotected legacy CREATE/SCAN. Normal legacy keys pass on.
+                if (Str::isUuid($key) && Schema::hasTable(self::TABLE)
+                    && DB::table(self::TABLE)->where('request_id', $key)->exists()) {
+                    ApiError::abort(409, 'P19_COMMAND_CONTRACT_REQUIRED', 'Giữ đúng contract của yêu cầu đã gửi; không chuyển sang luồng cũ.');
+                }
+
+                return $next($request);
+            }
+
             return $this->command($request, $next);
         } catch (Throwable $error) {
             return $this->errorResponse($request, $error);
@@ -116,10 +126,10 @@ final class P19ComponentCommand
             'warehouse_id' => $scope['warehouse_id'], 'scope_hash' => Scope::digest($scope),
             'operation' => $operation, 'target_document_id' => $target, 'warranty_case_id' => $caseId,
             'expected_version' => $version, 'fingerprint' => $fingerprint, 'outcome' => 'UNKNOWN',
-            'created_at' => now(), 'updated_at' => now(),
+            'created_at' => now('UTC')->toISOString(), 'updated_at' => now('UTC')->toISOString(),
         ]) === 1;
         try {
-            return DB::transaction(function () use ($request, $next, $scope, $key, $fingerprint, $claimed, $operation, $target, $caseId): Response {
+            return DB::transaction(function () use ($request, $next, $scope, $key, $fingerprint, $claimed, $operation, $target, $caseId, $version): Response {
                 $row = DB::table(self::TABLE)->where('request_id', $key)->lockForUpdate()->first();
                 if ($row === null || $row->actor_id !== $scope['actor_id'] || ! hash_equals($row->scope_hash, Scope::digest($scope))) {
                     ApiError::abort(409, 'P19_REQUEST_CONTEXT_CONFLICT', 'Yêu cầu không khớp chủ sở hữu hoặc phiên hiện hành.');
@@ -127,15 +137,23 @@ final class P19ComponentCommand
                 if (! hash_equals($row->fingerprint, $fingerprint)) {
                     ApiError::abort(409, 'IDEMPOTENCY_CONFLICT', 'Giữ đúng yêu cầu, body và phiên bản đã gửi; không tự thay khóa để gửi lại.');
                 }
-                if (! $claimed) {
-                    return $this->receiptResponse($row, true, true);
-                }
-                // Recheck privileges/context after taking the command lock.
+                // Recheck privileges/context after taking the lock, also on replay.
                 if (Scope::digest(Scope::resolve($request)) !== Scope::digest($scope)) {
                     ApiError::abort(409, 'P19_REQUEST_CONTEXT_CONFLICT', 'Phạm vi phiên đã thay đổi.');
                 }
+                if (! $claimed) {
+                    return $this->receiptResponse($row, true, true);
+                }
                 if ($target !== null) {
-                    Scope::document($scope, $target, true);
+                    $before = Scope::document($scope, $target, true);
+                    if ((int) $before->version !== $version) {
+                        ApiError::abort(412, 'VERSION_CONFLICT', 'Phiên bản phiếu đã thay đổi; không tự gửi lại lệnh.');
+                    }
+                    if (! in_array($before->status, ['DRAFT', 'SCANNING'], true)) {
+                        // A pre-existing POSTED document/movement cannot prove a
+                        // new command. Only the original exact receipt can do so.
+                        ApiError::abort(409, 'P19_DOCUMENT_NOT_WRITABLE', 'Trạng thái hiện tại không cho phép thực hiện lệnh mới.');
+                    }
                 } else {
                     DB::table('warehouses')->where('id', $scope['warehouse_id'])->lockForUpdate()->first();
                     P09WarrantyScope::requireCase($scope, $caseId, true);
@@ -150,11 +168,15 @@ final class P19ComponentCommand
                 if (! $response instanceof JsonResponse || ! $response->isSuccessful()) {
                     throw new HttpResponseException($response);
                 }
-                $result = $this->prove($scope, $operation, $target, $caseId, $body = $response->getData(true));
+                $result = $this->prove($scope, $operation, $target, $caseId, $response->getData(true));
+                if ($version !== null && $result['document_version'] <= $version) {
+                    ApiError::abort(502, 'P19_OWNER_RESULT_INVALID', 'Thiếu phiên bản mới xác nhận lệnh của owner.');
+                }
                 // Failure of this update rolls back ALL canonical writes too.
                 $changed = DB::table(self::TABLE)->where('request_id', $key)->where('outcome', 'UNKNOWN')->update([
                     'outcome' => 'SUCCEEDED', 'response_status' => $operation === 'CREATE' ? 201 : 200,
-                    'result_json' => json_encode($result, JSON_THROW_ON_ERROR), 'recorded_at' => now(), 'updated_at' => now(),
+                    'result_json' => json_encode($result, JSON_THROW_ON_ERROR),
+                    'recorded_at' => now('UTC')->toISOString(), 'updated_at' => now('UTC')->toISOString(),
                 ]);
                 if ($changed !== 1) {
                     ApiError::abort(503, 'P19_RECEIPT_NOT_STORED', 'Chưa lưu được kết quả yêu cầu.');
@@ -173,7 +195,8 @@ final class P19ComponentCommand
                 $code = is_string($code) && preg_match('/^[A-Z0-9_]{1,80}$/D', $code) ? $code : 'P19_COMMAND_REJECTED';
                 try {
                     DB::table(self::TABLE)->where('request_id', $key)->where('outcome', 'UNKNOWN')->update([
-                        'outcome' => 'FAILED', 'response_status' => $status, 'error_code' => $code, 'recorded_at' => now(), 'updated_at' => now(),
+                        'outcome' => 'FAILED', 'response_status' => $status, 'error_code' => $code,
+                        'recorded_at' => now('UTC')->toISOString(), 'updated_at' => now('UTC')->toISOString(),
                     ]);
                 } catch (Throwable) {
                     // Do not misreport failed persistence as a confirmed result.
@@ -263,7 +286,8 @@ final class P19ComponentCommand
             'warranty_case_id' => $row->warranty_case_id, 'target_document_id' => $row->target_document_id,
             'expected_version' => $row->expected_version === null ? null : (int) $row->expected_version,
             'outcome' => $outcome, 'result' => $row->result_json === null ? null : json_decode($row->result_json, true, 512, JSON_THROW_ON_ERROR),
-            'recorded_at' => $row->recorded_at, 'recorded_at_source' => self::TABLE.'.recorded_at',
+            'recorded_at' => $row->recorded_at === null ? null : CarbonImmutable::parse($row->recorded_at, 'UTC')->utc()->toISOString(),
+            'recorded_at_source' => self::TABLE.'.recorded_at',
             'error_code' => $row->error_code, 'response_status' => (int) $row->response_status,
         ];
         $status = $write ? ($outcome === 'UNKNOWN' ? 202 : (int) $row->response_status) : 200;

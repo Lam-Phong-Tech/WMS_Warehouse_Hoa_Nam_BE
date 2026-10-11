@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -57,9 +58,14 @@ class P24ScannerOwnerContractTest extends TestCase
         $this->assertNull($receipt['expected_version']);
         $this->assertSame($f['session_id'], $receipt['auth_session_id']);
         $this->assertNotNull($receipt['recorded_at']);
+        $this->assertStringEndsWith('Z', $receipt['recorded_at']);
+        $this->assertLessThan(60, abs(CarbonImmutable::parse($receipt['recorded_at'])->getTimestamp() - time()));
         $this->check($f, $key, 'CREATE')->assertOk()->assertJsonPath('data.outcome', 'SUCCEEDED')->assertJsonPath('data.receipt', $receipt);
         $this->postJson(self::BASE, $body, $this->headers($f) + ['Idempotency-Key' => $key])->assertCreated()
             ->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.receipt', $receipt);
+        // A missing protocol header cannot escape into legacy CREATE/SCAN.
+        $this->postJson(self::BASE, $body, $this->plainHeaders($f['token']) + ['Idempotency-Key' => $key])->assertConflict()
+            ->assertJsonPath('error.code', 'P19_COMMAND_CONTRACT_REQUIRED');
         $stored = DB::table(Command::TABLE)->where('request_id', $key)->first();
         $this->assertStringNotContainsString($body['note'], json_encode($stored));
         $this->assertDatabaseCount('component_issue_documents', 1);
@@ -103,7 +109,7 @@ class P24ScannerOwnerContractTest extends TestCase
             ->assertJsonPath('data.receipt.error_code', 'SCAN_EXCEEDS_REQUIRED');
         $d['version'] = 9;
         $this->scan($f, $d, ['line_id' => $d['line_id'], 'container_id' => $f['container_id'], 'quantity' => 1], (string) Str::uuid())
-            ->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
+            ->assertStatus(412)->assertJsonPath('error.code', 'VERSION_CONFLICT');
         $this->assertDatabaseCount('component_issue_items', 0);
     }
 
@@ -118,6 +124,12 @@ class P24ScannerOwnerContractTest extends TestCase
         $posted = $this->postJson(self::BASE.'/'.$d['id'].'/post', [], $headers)->assertOk()
             ->assertJsonPath('data.outcome', 'SUCCEEDED')->assertJsonPath('data.receipt.result.stock_effect', 'DECREASE');
         $receipt = $posted->json('data.receipt');
+        // Current POSTED and its movements are not proof of a different request.
+        $replacement = (string) Str::uuid();
+        $this->postJson(self::BASE.'/'.$d['id'].'/post', [], $this->headers($f) + [
+            'Idempotency-Key' => $replacement, 'If-Match' => '"'.$receipt['result']['document_version'].'"',
+        ])->assertConflict()->assertJsonPath('error.code', 'P19_DOCUMENT_NOT_WRITABLE');
+        $this->check($f, $replacement, 'POST')->assertOk()->assertJsonPath('data.outcome', 'FAILED');
         DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'RETURNED']);
         $this->postJson(self::BASE.'/'.$d['id'].'/post', [], $this->headers($f) + ['Idempotency-Key' => $key, 'If-Match' => '"'.$d['version'].'"'])
             ->assertOk()->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.receipt', $receipt);

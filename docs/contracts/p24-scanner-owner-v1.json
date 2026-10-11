@@ -15,7 +15,7 @@
       "POST": "POST /api/v1/mini-app/warranty-component-issues/{id}/post"
     },
     "identity": "Idempotency-Key is the UUID request_id; the server trace request_id is different. One immutable key per operation intent. Body order, original canonical document version, actor, auth session, warehouse and trusted organization dimensions are bound.",
-    "versions": "CREATE has no If-Match. SCAN/POST require the original canonical document If-Match, never a staging draft version. Do not mix X-Draft headers or the linked RECORD contract.",
+    "versions": "CREATE has no If-Match. SCAN/POST require the original canonical document If-Match, never a staging draft version. Do not mix X-Draft headers or the linked RECORD contract. A stale version returns 412 VERSION_CONFLICT. Fresh commands on already POSTED documents cannot claim historical movements as their own success.",
     "response": "data.outcome and data.receipt.result; CREATE/SCAN/POST only succeed after verifying canonical persisted results in the same transaction as the receipt. Follow result.current_detail_url for CURRENT state, not another CREATE.",
     "check": "GET /api/v1/mini-app/component-issue-requests/{requestId}?operation=CREATE|SCAN|POST",
     "journal": "p19_component_command_receipts; dedicated to P19, not P03, P09 or generic idempotency cleanup",
@@ -28,16 +28,16 @@
     },
     "retention": "No purge/TTL on command receipts. Rollback preserves a nonempty table; operator recovery for stuck UNKNOWN requires separate investigation and approval.",
     "privacy": "No body, raw scan code or free-text note stored in command receipts. Payload fingerprint is an HMAC. Reads/replays revalidate active account, session, warehouse, rights, persisted case owner and source organization scope. Foreign session reads return UNKNOWN without disclosing the receipt.",
-    "timestamps": "recorded_at is the server timestamp stored transactionally in the receipt, not a database WAL commit instant. posted_at/occurred_at come from canonical rows. They are distinct from meta.observed_at and must not be synthesized from document_date/current status. Stored timestamp strings use the application timezone; transport timezone normalization remains a release verification item.",
+    "timestamps": "Receipt recorded_at is stored and serialized as UTC ISO-8601, independently of application/database timezone; it is a server timestamp saved transactionally, not a database WAL commit instant. Canonical posted_at/occurred_at are preserved from their source rows, not synthesized. They are distinct from meta.observed_at. DEV must still verify canonical source timezone behavior on the deployed tier.",
     "disable_behavior": "Disabling new command execution leaves authorized GET recovery available. This setting does not enable any FE screen or authorize live test writes.",
-    "compatibility": "Requests without the new header keep their existing canonical or linked RECORD behavior. Old in-flight operations cannot be retroactively assigned new receipts. Do not change protocol midway to recover them."
+    "compatibility": "Legacy requests without the header and without a known P19 journal key keep their existing canonical or linked RECORD behavior. Omitting the header for a known journal key fails closed with 409. Old in-flight operations cannot be retroactively assigned new receipts. Do not change protocol midway to recover them."
   },
   "scanner_panels": {
     "resolve": "Existing POST /api/v1/mini-app/warranty-component-issues/resolve-code (and existing mini-app component-issue-documents alias), with the command contract header; read-only and usable without the command execution flag.",
     "case": "Send exact warranty_case_id. Persisted warehouse ownership and current case status are rechecked; cached open-case flags cannot authorize a closed case.",
-    "confirmation": "Require resolved===true, eligible_for_issue===true and case_allows_issue===true, with matching context. meta.p19_scanner.can_confirm_local is local confirmation only, not a canonical scan or stock reservation.",
-    "quantity": "ITEM available_qty remains null, not zero. BOX available_qty is freshly read for that container/SKU; incomplete source remains null. Zero is a confirmed empty quantity, not a missing response. Never clamp rejected input.",
-    "reasons": "meta.p19_scanner.reason_kind is UNIT, BOX or UNKNOWN from resolved target type. HTTP 200 by itself proves neither eligibility nor command success.",
+    "confirmation": "Require resolved===true, eligible_for_issue===true and case_allows_issue===true, with matching context. meta.p19_scanner.can_confirm_local is local confirmation only, not a canonical scan or stock reservation. Fresh checks can only narrow the original owner eligibility decision.",
+    "quantity": "ITEM available_qty remains null, not zero. BOX available_qty is freshly read for that container/SKU; null, invalid or fractional source quantities remain unknown. Zero is a confirmed empty quantity, not a missing response. Never clamp rejected input.",
+    "reasons": "meta.p19_scanner.reason_kind is always UNKNOWN when resolved is not true; otherwise UNIT or BOX follows the resolved target type. HTTP 200 by itself proves neither eligibility nor command success.",
     "freshness": "Resolver is a read, not a lock held while the panel is open; every subsequent owner write performs its normal version, case-state and stock validation again."
   },
   "unchanged_owner_boundaries": {
