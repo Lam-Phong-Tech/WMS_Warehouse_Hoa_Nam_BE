@@ -320,8 +320,9 @@ class CurrentBaselineComponentFlowController extends Controller
             }
 
             $scanEventId = $this->recordScanEvent($document, $physicalCodeId, $itemId, $containerId, $validated['code_value'] ?? null);
+            $scanEntryId = (string) Str::uuid();
             DB::table('component_issue_items')->insert([
-                'id' => (string) Str::uuid(),
+                'id' => $scanEntryId,
                 'component_issue_line_id' => $line->id,
                 'scan_event_id' => $scanEventId,
                 'item_id' => $itemId,
@@ -353,6 +354,7 @@ class CurrentBaselineComponentFlowController extends Controller
             return [
                 'component_issue_document_id' => $id,
                 'line_id' => (string) $line->id,
+                'scan_entry_id' => $scanEntryId,
                 'scan_event_id' => $scanEventId,
                 'item_id' => $itemId,
                 'container_id' => $containerId,

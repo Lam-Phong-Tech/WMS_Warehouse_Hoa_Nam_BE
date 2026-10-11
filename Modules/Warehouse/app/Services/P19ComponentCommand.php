@@ -91,8 +91,8 @@ final class P19ComponentCommand
             ApiError::abort(422, 'P19_UNEXPECTED_FIELD', 'Có trường ngoài contract của lệnh.');
         }
         if ($operation === 'SCAN') {
-            // The opt-in scanner contract requires real input for a unique owner
-            // scan_event. Never identify a new scan via an older NULL event row.
+            // The opt-in scanner contract requires real input and the exact inserted
+            // entry ID. Never identify a new scan via an older NULL event row.
             // ID-only legacy calls retain their existing separate protocol.
             Validator::make($body, ['line_id' => ['required', 'uuid'],
                 'code_value' => ['required', 'string', 'max:200'],
@@ -261,22 +261,28 @@ final class P19ComponentCommand
             'stock_effect' => $operation === 'POST' ? 'DECREASE' : 'NONE',
             'current_detail_url' => '/api/v1/mini-app/warranty-component-issues/'.$id];
         if ($operation === 'SCAN') {
+            $entryId = data_get($body, 'data.scan_entry_id');
             $eventId = data_get($body, 'data.scan_event_id');
-            if (! is_string($eventId) || ! Str::isUuid($eventId)
+            // The inserted canonical entry is mandatory; a missing event remains null.
+            if (! is_string($entryId) || ! Str::isUuid($entryId)
+                || ($eventId !== null && (! is_string($eventId) || ! Str::isUuid($eventId)))
                 || data_get($body, 'data.line_id') !== $command['line_id']) {
                 ApiError::abort(502, 'P19_SCAN_EVIDENCE_UNAVAILABLE', 'Thiếu bằng chứng quét riêng của lệnh; không dùng dòng hoặc sự kiện cũ thay thế.');
             }
             $entries = DB::table('component_issue_items as i')->join('component_issue_lines as l', 'l.id', '=', 'i.component_issue_line_id')
                 ->where('l.component_issue_document_id', $id)->where('l.id', $command['line_id'])
-                ->where('i.scan_event_id', $eventId)->where('i.status', 'ACTIVE')->limit(2)
+                ->where('i.id', $entryId)->where('i.status', 'ACTIVE')->limit(2)
                 ->get(['i.id', 'i.scan_event_id', 'i.quantity', 'i.item_id', 'i.container_id', 'l.id as line_id']);
             $entry = $entries->first();
-            if ($entries->count() !== 1 || $entry->quantity === null || (int) $entry->quantity !== (int) $command['quantity']
+            if ($entries->count() !== 1 || $entry->scan_event_id !== $eventId
+                || $entry->quantity === null || (int) $entry->quantity !== (int) $command['quantity']
                 || $entry->item_id !== data_get($body, 'data.item_id') || $entry->container_id !== data_get($body, 'data.container_id')) {
                 ApiError::abort(502, 'P19_OWNER_RESULT_INVALID', 'Bằng chứng quét không khớp đúng lệnh.');
             }
             $result['scan'] = (array) $entry;
             $result['scan']['quantity'] = (int) $entry->quantity;
+            $result['scan']['id_source'] = 'component_issue_items.id';
+            $result['scan']['event_status'] = $eventId === null ? 'NOT_RECORDED' : 'SOURCE_EVENT';
         }
         if ($operation === 'POST') {
             $movements = DB::table('stock_movements')->where('source_type', 'COMPONENT_ISSUE_DOCUMENT')

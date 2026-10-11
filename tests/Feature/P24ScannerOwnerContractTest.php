@@ -94,7 +94,7 @@ class P24ScannerOwnerContractTest extends TestCase
         $this->assertDatabaseCount('component_issue_items', 1);
     }
 
-    public function test_each_distinct_box_scan_receipt_has_its_own_event_and_exact_quantity(): void
+    public function test_each_distinct_box_scan_receipt_has_its_own_entry_and_exact_quantity(): void
     {
         $f = $this->fixture();
         $d = $this->createDocument($f);
@@ -108,10 +108,18 @@ class P24ScannerOwnerContractTest extends TestCase
         $d['version'] = $a->json('data.receipt.result.document_version');
         $keyB = (string) Str::uuid();
         $b = $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 2], $keyB)->assertOk();
-        $this->assertTrue(Str::isUuid($a->json('data.receipt.result.scan.scan_event_id')));
-        $this->assertTrue(Str::isUuid($b->json('data.receipt.result.scan.scan_event_id')));
+        $this->assertTrue(Str::isUuid($a->json('data.receipt.result.scan.id')));
+        $this->assertTrue(Str::isUuid($b->json('data.receipt.result.scan.id')));
+        foreach ([$a, $b] as $response) {
+            $scan = $response->json('data.receipt.result.scan');
+            $stored = DB::table('component_issue_items')->where('id', $scan['id'])->first();
+            $this->assertSame($stored->scan_event_id, $scan['scan_event_id']);
+            $this->assertSame($scan['scan_event_id'] === null ? 'NOT_RECORDED' : 'SOURCE_EVENT', $scan['event_status']);
+            $this->assertSame('component_issue_items.id', $scan['id_source']);
+        }
         $this->assertNotSame($a->json('data.receipt.result.scan.id'), $b->json('data.receipt.result.scan.id'));
-        $this->assertNotSame($a->json('data.receipt.result.scan.scan_event_id'), $b->json('data.receipt.result.scan.scan_event_id'));
+        $this->assertSame(1, (int) DB::table('component_issue_items')->where('id', $a->json('data.receipt.result.scan.id'))->value('quantity'));
+        $this->assertSame(2, (int) DB::table('component_issue_items')->where('id', $b->json('data.receipt.result.scan.id'))->value('quantity'));
         $this->check($f, $keyA, 'SCAN')->assertOk()->assertJsonPath('data.receipt.result.scan.quantity', 1);
         $this->check($f, $keyB, 'SCAN')->assertOk()->assertJsonPath('data.receipt.result.scan.quantity', 2);
         $this->assertDatabaseCount('component_issue_items', 2);
@@ -248,7 +256,7 @@ class P24ScannerOwnerContractTest extends TestCase
         $d = $this->createDocument($f);
         DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'RETURNED']);
         $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 1], (string) Str::uuid())
-            ->assertUnprocessable()->assertJsonPath('error.code', 'CASE_NOT_READY_FOR_COMPONENT_ISSUE');
+            ->assertUnprocessable()->assertJsonPath('error.code', 'WARRANTY_CASE_NOT_ACTIVE');
         $this->assertDatabaseCount('component_issue_items', 0);
     }
 
@@ -314,7 +322,7 @@ class P24ScannerOwnerContractTest extends TestCase
 
     private function check(array $f, string $key, string $operation)
     {
-        return $this->getJson('/api/v1/mini-app/component-issue-requests/'.$key.'?operation='.$operation, $this->headers($f));
+        return $this->get('/api/v1/mini-app/component-issue-requests/'.$key.'?operation='.$operation, $this->headers($f) + ['Accept' => 'application/json']);
     }
 
     private function headers(array $f): array

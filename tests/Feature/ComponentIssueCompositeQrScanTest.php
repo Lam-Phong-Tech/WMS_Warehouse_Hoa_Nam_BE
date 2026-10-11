@@ -49,6 +49,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
         $this->seedScanCode($itemId, $itemUnique);
 
         $case = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => (string) $warehouse->id,
             'customer_name' => 'Khách test composite QR',
             'customer_phone' => '0911111111',
             'description' => 'Máy không lên nguồn',
@@ -99,6 +100,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
         $this->seedScanCode($itemId, 'SN-PLAIN-0001');
 
         $case = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => (string) $warehouse->id,
             'customer_name' => 'Khách test mã trần',
             'customer_phone' => '0922222222',
             'description' => 'Lỗi cảm biến',
@@ -133,6 +135,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
         $sku = $this->componentSkuFixture('HN-COMP-SEED-0024', true);
 
         $case = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => (string) $warehouse->id,
             'customer_name' => 'Khách test mã sai',
             'customer_phone' => '0933333333',
             'description' => 'Lỗi nguồn',
@@ -185,6 +188,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
 
         // Phiếu A: scan item này ACTIVE, còn SCANNING (chưa Cancel/Post).
         $caseA = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => (string) $warehouse->id,
             'customer_name' => 'Khách A',
             'customer_phone' => '0944444444',
             'description' => 'Lỗi motor',
@@ -210,6 +214,7 @@ class ComponentIssueCompositeQrScanTest extends TestCase
 
         // Phiếu B: scan CÙNG item này — phải bị chặn, không phải lỗi DB thô.
         $caseB = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => (string) $warehouse->id,
             'customer_name' => 'Khách B',
             'customer_phone' => '0955555555',
             'description' => 'Lỗi khác',
