@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -61,14 +62,31 @@ class P12ScanParentSafetyTest extends TestCase
         }
     }
 
-    public function test_missing_persisted_warehouse_never_becomes_a_global_scan_read(): void
+    public function test_missing_warehouse_is_rejected_by_storage_or_read_guard(): void
     {
         [$token, $warehouse] = $this->actor();
         foreach (['inbound' => 'dst_warehouse_id', 'outbound' => 'src_warehouse_id'] as $type => $field) {
             $id = $this->document($warehouse, $type);
             $this->getJson($this->url($type, $id), $this->headers($token))->assertOk();
-            DB::table('stock_documents')->where('id', $id)->update([$field => null]);
             $before = $this->businessCounts();
+            try {
+                // Savepoint keeps the outer test transaction usable after SQL rejection.
+                DB::transaction(fn () => DB::table('stock_documents')->where('id', $id)->update([$field => null]));
+            } catch (QueryException $error) {
+                // PostgreSQL's existing mirror may enforce this invariant at storage.
+                // Do not disable triggers or relax NOT NULL to manufacture corrupt data.
+                $this->assertSame('pgsql', DB::getDriverName());
+                $this->assertSame('23502', (string) $error->getCode());
+                $this->assertStringContainsString('warehouse_id', $error->getMessage());
+                $this->assertSame((string) $warehouse->id, (string) DB::table('stock_documents')->where('id', $id)->value($field));
+                $this->getJson($this->url($type, $id), $this->headers($token))->assertOk()
+                    ->assertJsonPath('meta.document_id', $id);
+                $this->assertSame($before, $this->businessCounts());
+
+                continue;
+            }
+            // Where storage allows legacy rows, the same HTTP route must fail closed.
+            $this->assertNull(DB::table('stock_documents')->where('id', $id)->value($field));
             $this->getJson($this->url($type, $id), $this->headers($token))->assertNotFound()
                 ->assertJsonMissingPath('meta.summary');
             $this->assertSame($before, $this->businessCounts());
