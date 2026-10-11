@@ -1,0 +1,39 @@
+name: Seed Replay Contract
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/database/seeders/**'
+      - 'tests/Feature/SeedReplay*Test.php'
+      - 'scripts/test-seed-replay-*.php'
+      - '.github/workflows/seed-replay-contract.yml'
+permissions:
+  contents: read
+jobs:
+  source-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Inspect bounded source sites, not runtime data
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          for p in sorted(Path('Modules/Warehouse/database/seeders').glob('*.php')):
+              lines = p.read_text().splitlines()
+              method = ''
+              for i, line in enumerate(lines):
+                  if re.search(r'function\s+\w+', line): method = line.strip()
+                  if 'item_instances' in line and any(word in '\n'.join(lines[max(0,i-4):i+24]) for word in ['update(', 'UPDATE', 'DB::statement', 'DB::unprepared']):
+                      print('\nSOURCE_SITE', str(p), i+1, method)
+                      print('\n'.join(f'{j+1}: {lines[j]}' for j in range(max(0,i-3), min(len(lines),i+27))))
+          for p in sorted(Path('.').rglob('*Seed*php')):
+              if 'vendor' in p.parts: continue
+              if 'seed-preflight' in p.read_text(errors='replace'):
+                  print('UPSTREAM_PREFLIGHT', str(p))
+          print('SOURCE_REVIEW_ONLY; LIVE=false; SEED=false; DEPLOYMENT=false')
+          PY
