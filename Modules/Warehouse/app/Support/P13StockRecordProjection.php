@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Support;
 
 use Carbon\CarbonImmutable;
+use Carbon\Exceptions\InvalidFormatException;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -159,7 +160,7 @@ final class P13StockRecordProjection
                 'stock_effect_at_record' => 'NONE',
                 'posted_at_record' => false,
             ];
-        } catch (\JsonException|\Carbon\Exceptions\InvalidFormatException) {
+        } catch (\JsonException|InvalidFormatException) {
             return null;
         }
     }

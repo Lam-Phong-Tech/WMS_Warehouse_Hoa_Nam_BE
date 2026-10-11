@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
@@ -60,12 +61,20 @@ class P13NotificationRevision2Test extends TestCase
         [$user, $token] = $this->actor();
         $recipient = $this->notice($user);
         $url = self::BASE.'/'.$recipient->id.'/read';
-        foreach (['{}', '[]', 'null', ' ', 'broken-json'] as $raw) {
+        // Preserve the shared parser's 400; valid JSON and whitespace reach the owner's 422 guard.
+        $cases = [
+            '{}' => [422, 'NOTIFICATION_READ_BODY_NOT_ALLOWED'],
+            '[]' => [422, 'NOTIFICATION_READ_BODY_NOT_ALLOWED'],
+            'null' => [422, 'NOTIFICATION_READ_BODY_NOT_ALLOWED'],
+            ' ' => [422, 'NOTIFICATION_READ_BODY_NOT_ALLOWED'],
+            'broken-json' => [400, 'MALFORMED_JSON'],
+        ];
+        foreach ($cases as $raw => [$status, $code]) {
             $this->headers($token);
             $this->call('PATCH', $url, [], [], [], [
                 'HTTP_AUTHORIZATION' => 'Bearer '.$token, 'HTTP_ACCEPT' => 'application/json',
                 'CONTENT_TYPE' => 'application/json',
-            ], $raw)->assertStatus(422);
+            ], $raw)->assertStatus($status)->assertJsonPath('error.code', $code);
             $this->assertNull($recipient->fresh()->read_at);
         }
         $this->patch($url.'?read_at=now', [], $this->headers($token))->assertStatus(422);
@@ -219,7 +228,7 @@ class P13NotificationRevision2Test extends TestCase
         $this->assertSame($counts, $this->counts());
     }
 
-    private function recordInbound(string $token, object $warehouse): \Illuminate\Testing\TestResponse
+    private function recordInbound(string $token, object $warehouse): TestResponse
     {
         $sku = $this->productSkuFixture('P13-IN-'.Str::upper(Str::random(8)));
         $draft = (string) Str::uuid();
