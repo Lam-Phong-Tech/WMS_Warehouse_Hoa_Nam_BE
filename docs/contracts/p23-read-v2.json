@@ -1,0 +1,32 @@
+{
+  "contract": "mini-app-p23-read-v2",
+  "status": "SOURCE_IMPLEMENTED_PENDING_BA_AND_LIVE_TEST",
+  "base_commit": "9325eff232f486484d268ae7b098e4ec25411f9b",
+  "live_release": null,
+  "business_approval": null,
+  "write_operations": [],
+  "routes": {
+    "case_list": {"method": "GET", "path": "/api/v1/mini-app/warranty-cases", "base_contract": "mini-app-p09-v1", "extension": "p23-case-dates-v2", "dates": {"none_or_all": {"date_mode": "ALL"}, "one_day": {"date_mode": "DATE", "date_field": "created_at|received_at|returned_at", "date": "YYYY-MM-DD"}, "range": {"date_mode": "RANGE", "date_field": "created_at|received_at|returned_at", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}, "bounds": "Inclusive first day, exclusive following day in app.timezone", "unavailable_column": "503 WARRANTY_DATE_SOURCE_UNAVAILABLE; never fallback"}},
+    "case_detail": {"method": "GET", "path": "/api/v1/mini-app/warranty-cases/{id}"},
+    "case_events": {"method": "GET", "path": "/api/v1/mini-app/warranty-cases/{id}/events", "latest": "meta.latest_recorded_event_id/at, full authorized retained source, not current page", "redaction": "unchanged P09 warranty.pii.view"},
+    "scan_sessions": {"method": "GET", "path": "/api/v1/mini-app/scan-sessions", "new_route": true, "permissions": ["history.read", "inventory.view"], "query": ["warehouse_id (required UUID)", "keyword", "source_type", "status (only when source records it)", "page OR cursor", "per_page (1..100, default 20)", "date_mode", "date_field (created_at only)", "date", "from", "to"], "count_unit": "SCAN_SESSION", "zero_event_batches": "included", "partial_sources": "meta.total=null; meta.availableTotal is supported scoped source only", "search_fields": ["scan_batch_id", "batch_no", "source_type"], "sort": "normalized created_at desc, immutable batch UUID desc; missing time last", "cursor_owner": "P23 session collection only; not P08 event or P09 case cursors"},
+    "scan_session_detail": {"method": "GET", "path": "/api/v1/mini-app/history/scan-sessions/{sessionId}", "new_route": false, "query": ["warehouse_id", "limit", "cursor"], "extension": "data.p23.batch/counts; data.events retains P08 paging and safe projection"}
+  },
+  "invariants": ["Fresh actor/auth session/active warehouse scope checked using P08", "Persisted warehouse and tenant discriminator checked before union/dedup", "Canonical batch and event IDs deduplicated before filter/total/paging", "No current SKU/code lookup replaces scan evidence", "Batch creator is not assumed to be event actor", "created_at is not started_at or ended_at", "Ended scan is not posting proof", "null quantity stays null", "RESOLVED is not ACCEPTED", "P08 OTHER includes explicit REJECTED; not complete rejection total", "No fallback to legacy /scan/events; no business mutation or seed on live"],
+  "pending_source_or_ba": {
+    "batch_no_started_ended_status": "Only existing persisted columns; missing fields are null, no new writer or backfill",
+    "actor_display": "No historical display snapshot; null with status, no current-account fabrication",
+    "raw_reason_serial_sku_quantity": "P08 safe event projection retained; additional source/ACL contract pending",
+    "rejected": "counts.rejected=null until complete approved mapping; explicitRejected is literal REJECTED subset of OTHER",
+    "issued_quantity": "null until persisted batch-to-posted-document quantity mapping is approved",
+    "case_document_links": "Not enabled without verified persisted target mapping and detail permission checks",
+    "related_document_event_id": "null; no joins by prefixes, timestamps or current lookup",
+    "retention_and_source_version": "not published; no invented TTL/version"
+  },
+  "validation": {
+    "pure_gate": "php scripts/verify-p23-read-contract.php",
+    "ci_workflow": ".github/workflows/p23-read-contract.yml",
+    "ci_data": "Disposable SQLite memory / PostgreSQL p23_contract_test only; not live evidence",
+    "live_smoke": "GET-only existing records; independent allowed/denied sessions, wrong warehouse/direct ID/date/PII checks; do not create sessions or post stock"
+  }
+}

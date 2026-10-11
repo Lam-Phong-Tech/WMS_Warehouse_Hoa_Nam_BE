@@ -21,6 +21,8 @@ use Modules\Warehouse\Support\P09WarrantyPage;
 use Modules\Warehouse\Support\P09WarrantyPolicy as Policy;
 use Modules\Warehouse\Support\P09WarrantyRequests;
 use Modules\Warehouse\Support\P09WarrantyScope as Scope;
+use Modules\Warehouse\Support\P23WarrantyDateFilter;
+use Modules\Warehouse\Support\P23WarrantyTimeline;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 
 /** P09 mobile transport; WMS remains the only warranty state-machine owner. */
@@ -37,13 +39,14 @@ class MiniAppWarrantyController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $this->queryFields($request, ['warehouse_id', 'search', 'status', 'sort', 'cursor', 'page', 'per_page']);
+        $this->queryFields($request, ['warehouse_id', 'search', 'status', 'sort', 'cursor', 'page', 'per_page', ...P23WarrantyDateFilter::INPUT_FIELDS]);
         $input = Validator::make($request->query(), ['search' => ['sometimes', 'string', 'max:200'],
             'status' => ['sometimes', Rule::in(['ALL', ...Policy::STATUSES])],
             'sort' => ['sometimes', Rule::in(['created_at_desc', 'created_at_asc'])]])->validate();
         return P06ReadSnapshot::run(function (array $snapshot) use ($request, $input): JsonResponse {
             $scope = Scope::resolve($request);
             $q = Scope::cases($scope);
+            $dates = P23WarrantyDateFilter::apply($request, $q);
             if (isset($input['status']) && $input['status'] !== 'ALL') {
                 $q->where('c.status', $input['status']);
             }
@@ -59,10 +62,11 @@ class MiniAppWarrantyController extends Controller
                         });
                 });
             }
-            [$ids, $page] = P09WarrantyPage::read($request, $q, $scope, 'c.warranty_case_id', 'c.created_at', ($input['sort'] ?? 'created_at_desc') === 'created_at_desc');
+            $pageScope = $scope + ($dates === [] ? [] : ['p23_date_filter' => $dates]);
+            [$ids, $page] = P09WarrantyPage::read($request, $q, $pageScope, 'c.warranty_case_id', 'c.created_at', ($input['sort'] ?? 'created_at_desc') === 'created_at_desc');
             // Bounded to per_page, reuse canonical PII masking rather than a second serializer.
             $rows = array_map(fn (string $id): array => $this->caseData($request, $scope, $id), $ids);
-            return $this->reply($rows, $scope, $page + ['snapshot' => $snapshot, 'search_fields' => ['warranty_case_code', 'temporary_item_code', 'serial_number']]);
+            return $this->reply($rows, $scope, $page + $dates + ['snapshot' => $snapshot, 'search_fields' => ['warranty_case_code', 'temporary_item_code', 'serial_number']]);
         });
     }
 
@@ -96,6 +100,7 @@ class MiniAppWarrantyController extends Controller
             $case = Scope::requireCase($scope, $id);
             $q = DB::table('warranty_event as e')->where('e.warranty_case_id', $case->warranty_case_id);
             Scope::isolate($q, 'warranty_event', 'e', $scope);
+            $timeline = P23WarrantyTimeline::metadata(clone $q);
             [$ids, $page] = P09WarrantyPage::read($request, clone $q, $scope, 'e.warranty_event_id', 'e.event_at', $request->query('sort', 'event_at_asc') === 'event_at_desc');
             $events = $q->whereIn('e.warranty_event_id', $ids)->get(['e.warranty_event_id', 'e.warranty_case_id', 'e.event_type', 'e.from_status', 'e.to_status', 'e.note', 'e.created_by', 'e.event_at'])->keyBy('warranty_event_id');
             $rows = array_map(function (string $eventId) use ($events, $scope): array {
@@ -103,10 +108,13 @@ class MiniAppWarrantyController extends Controller
                 return ['event_id' => $e->warranty_event_id, 'warranty_case_id' => $e->warranty_case_id,
                     'event_type' => $e->event_type, 'from_status' => $e->from_status, 'status' => $e->to_status,
                     'to_status' => $e->to_status, 'event_at' => $e->event_at,
-                    'actor' => ['user_id' => $e->created_by], 'message' => $scope['pii'] ? $e->note : null,
+                    'actor' => ['user_id' => $e->created_by, 'user_id_source' => 'warranty_event.created_by',
+                        'display_name' => null, 'display_name_status' => 'NOT_RECORDED_IN_EVENT'],
+                    'related_document_event_id' => null, 'related_document_event_status' => 'NOT_RECORDED_IN_EVENT',
+                    'message' => $scope['pii'] ? $e->note : null,
                     'message_redacted' => ! $scope['pii'], 'time_status' => $e->event_at === null ? 'NOT_RECORDED' : 'SOURCE_TIMESTAMP'];
             }, $ids);
-            return $this->reply($rows, $scope, $page + ['snapshot' => $snapshot, 'order' => $request->query('sort', 'event_at_asc')]);
+            return $this->reply($rows, $scope, $page + $timeline + ['snapshot' => $snapshot, 'order' => $request->query('sort', 'event_at_asc')]);
         });
     }
 

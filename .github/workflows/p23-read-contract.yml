@@ -1,0 +1,116 @@
+name: P23 Read-only Warranty and Scan Sessions
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/**'
+      - 'Modules/Auth/**'
+      - 'tests/Feature/P23*Test.php'
+      - 'tests/Unit/P23*Test.php'
+      - 'tests/Support/P23*.php'
+      - 'scripts/verify-p23-*.php'
+      - 'docs/contracts/p23-read-v2.json'
+      - '.github/workflows/p23-read-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p23-disposable-ci-only
+          POSTGRES_DB: p23_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p23_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p23_contract_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p23-disposable-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p23-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Syntax and pure rule gate
+        run: |
+          find Modules/Warehouse tests -name '*P23*.php' -print0 | xargs -0 -n1 php -l
+          php -l Modules/Warehouse/app/Http/Controllers/P08HistoryController.php
+          php -l Modules/Warehouse/app/Http/Controllers/MiniAppWarrantyController.php
+          php -l Modules/Warehouse/routes/p09_warranty.php
+          php scripts/verify-p23-read-contract.php
+      - name: Prepare isolated application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: P23 and P08 HTTP/unit regressions in disposable database
+        run: |
+          set -o pipefail
+          php artisan test tests/Feature/P23ReadContractTest.php tests/Unit/P23WarrantyDateFilterTest.php tests/Feature/P08HistoryContractTest.php tests/Unit/P08HistoryReadContractTest.php --log-junit p23-contract.xml 2>&1 | tee p23-test-output.log
+      - name: Read-only route cache gate
+        if: success() || failure()
+        run: |
+          php artisan route:cache
+          php artisan route:list --path=api/v1/mini-app --json > /tmp/p23-routes.json
+          python3 - <<'PY'
+          import json
+          routes=json.load(open('/tmp/p23-routes.json'))
+          sessions=[r for r in routes if r['uri']=='api/v1/mini-app/scan-sessions']
+          history=[r for r in routes if r['uri'].startswith('api/v1/mini-app/history/')]
+          assert len(sessions)==1 and len(history)==4
+          assert all(set(r['method'].split('|')) <= {'GET','HEAD'} for r in sessions+history)
+          PY
+          php artisan route:clear
+      - name: Retain test summary in job log without artifact quota dependency
+        if: always()
+        run: |
+          echo '## P23 isolated contract evidence (not DEV/live approval)' >> "$GITHUB_STEP_SUMMARY"
+          echo "Source: $GITHUB_SHA; database: $DB_CONNECTION" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f p23-contract.xml ]; then
+            cat p23-contract.xml
+            python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as E
+          root=E.parse('p23-contract.xml').getroot()
+          failures=list(root.iter('failure')); errors=list(root.iter('error')); skipped=list(root.iter('skipped'))
+          cases=list(root.iter('testcase'))
+          print(f'Tests: {len(cases)}; failures: {len(failures)}; errors: {len(errors)}; skipped: {len(skipped)}')
+          print('Live read-only smoke, native-browser approval and business sign-off remain separate gates.')
+          PY
+          else
+            echo 'No JUnit report produced; tests are NOT verified.' >> "$GITHUB_STEP_SUMMARY"
+          fi

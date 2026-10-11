@@ -18,6 +18,7 @@ use Modules\Auth\Support\WarehouseContext;
 use Modules\Warehouse\Support\P06ReadSnapshot;
 use Modules\Warehouse\Support\P08HistoryPolicy as Policy;
 use Modules\Warehouse\Support\P08HistoryReadModel;
+use Modules\Warehouse\Support\P23ScanSessionReadModel;
 use Throwable;
 
 /** P08 has GET/HEAD only. History is not a write receipt or proof of NFC confirm. */
@@ -86,7 +87,8 @@ final class P08HistoryController extends Controller
             [$events, $paging] = $this->page($q, $s, $i, $m);
 
             return $this->reply(['sessionId' => $id, 'sessionType' => 'SCAN_BATCH', 'sourceTables' => $tables,
-                ...Policy::scanCounts($counts), 'events' => $events], $m + $paging);
+                ...Policy::scanCounts($counts), 'events' => $events,
+                'p23' => app(P23ScanSessionReadModel::class)->detail($s, $id, $counts, $m['sources']['SCAN'])], $m + $paging);
         }, 'SCAN');
     }
 
@@ -123,7 +125,8 @@ final class P08HistoryController extends Controller
         return $i;
     }
 
-    private function scope(Request $request, array $i): array
+    /** Shared authorization for the P23 batch read; callers validate warehouse_id first. */
+    public function scope(Request $request, array $i): array
     {
         $presented = $request->user();
         if (! $presented instanceof User) {
