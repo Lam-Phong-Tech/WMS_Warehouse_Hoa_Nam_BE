@@ -42,7 +42,7 @@
     "per_page_max": 200,
     "pagination": "OFFSET; no cursor or frozen snapshot"
   },
-  "warranty": "P09 queries unchanged; date_mode/date_field/date/from/to are the separately deployed P23 extension. Do not send stock date_from/date_to/sort_order or copy its paging cap.",
+  "warranty": "P09 queries unchanged; date_mode/date_field/date/from/to are the separately implemented P23 extension. Do not send stock date_from/date_to/sort_order or copy its paging cap.",
   "timeline": {
     "location": "data.p12.timeline.milestones, detail only",
     "created": "Exact server created_at, with timestamp_source; null stays NOT_RECORDED.",
