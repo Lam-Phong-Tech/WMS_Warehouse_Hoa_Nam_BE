@@ -1,0 +1,119 @@
+name: P24 Scanner Owner Contracts
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/app/Services/P19ComponentCommand.php'
+      - 'Modules/Warehouse/app/Support/P19CommandScope.php'
+      - 'Modules/Warehouse/app/Http/Middleware/P19ScannerReadGuard.php'
+      - 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
+      - 'database/migrations/*p19_component_command*'
+      - 'config/p19.php'
+      - 'tests/Feature/P24*'
+      - 'docs/contracts/p24-scanner-owner-v1.json'
+      - '.github/workflows/p24-scanner-owner.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: p24-disposable-ci-only
+          POSTGRES_DB: p24_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p24_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: p24-disposable-ci-only
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: p24-isolated-ci-only-not-a-production-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      P19_COMMAND_RECOVERY_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Source ancestry and locked dependencies
+        run: |
+          git merge-base --is-ancestor 6a9a8edb42e30d60e9dd4336eb91ce83fc4269ab HEAD
+          git rev-parse HEAD
+          sha256sum composer.lock
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies and prepare disposable application
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p24-composer.log 2>&1 || { tail -60 /tmp/p24-composer.log; exit 1; }
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: Syntax and contract checks
+        run: |
+          php -l Modules/Warehouse/app/Services/P19ComponentCommand.php
+          php -l Modules/Warehouse/app/Support/P19CommandScope.php
+          php -l Modules/Warehouse/app/Http/Middleware/P19ScannerReadGuard.php
+          php -l database/migrations/2026_10_11_000024_create_p19_component_command_receipts.php
+          php -l tests/Feature/P24ScannerOwnerContractTest.php
+          python3 -m json.tool docs/contracts/p24-scanner-owner-v1.json > /dev/null
+      - name: SQLite P24 and existing owner regressions
+        run: >-
+          php artisan test tests/Feature/P24ScannerOwnerContractTest.php tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/P20ComponentHistoryTest.php tests/Feature/P21ComponentResumeTest.php tests/Feature/P03DraftContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/MiniAppComponentIssueStagingTest.php tests/Feature/ComponentIssueCompositeQrScanTest.php --log-junit p24-sqlite.xml
+      - name: PostgreSQL P24 and existing owner regressions
+        if: always()
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: p24_contract_test
+        run: >-
+          php artisan test tests/Feature/P24ScannerOwnerContractTest.php tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/P20ComponentHistoryTest.php tests/Feature/P21ComponentResumeTest.php tests/Feature/P03DraftContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/MiniAppComponentIssueStagingTest.php tests/Feature/ComponentIssueCompositeQrScanTest.php --log-junit p24-pgsql.xml
+      - name: Route cache and P24 recovery boundary
+        if: always()
+        run: |
+          trap 'php artisan route:clear' EXIT
+          php artisan route:cache
+          php artisan test tests/Feature/P24ScannerOwnerContractTest.php --log-junit p24-route-cache.xml
+      - name: Locked Composer audit
+        if: always()
+        run: composer audit --locked --no-interaction
+      - name: Publish test counts and source hashes, never live evidence
+        if: always()
+        run: |
+          echo "P24_ISOLATED_SOURCE=$GITHUB_SHA; live_test=false; deployment_approved=false; full_activation=false"
+          sha256sum composer.lock Modules/Warehouse/app/Services/P19ComponentCommand.php Modules/Warehouse/app/Support/P19CommandScope.php Modules/Warehouse/app/Http/Middleware/P19ScannerReadGuard.php
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          for path in Path('.').glob('p24-*.xml'):
+              root = ET.parse(path).getroot()
+              for suite in root.findall('./testsuite'):
+                  print('P24_SUITE', path.name, suite.attrib)
+              for tag in ['failure','error']:
+                  for node in root.iter(tag):
+                      print('P24_ISOLATED_FAILURE', (node.text or '')[:4000])
+          PY

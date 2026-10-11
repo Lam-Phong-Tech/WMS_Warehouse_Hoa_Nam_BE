@@ -12,8 +12,10 @@ use Modules\Warehouse\Http\Middleware\P07NfcReadbackGuard;
 use Modules\Warehouse\Http\Middleware\P07NfcRecoveryGuard;
 use Modules\Warehouse\Http\Middleware\P09WarrantyAttachmentGuard;
 use Modules\Warehouse\Http\Middleware\P12DocumentReadMetadata;
+use Modules\Warehouse\Http\Middleware\P19ScannerReadGuard;
 use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Modules\Warehouse\Services\MiniAppDraftService;
+use Modules\Warehouse\Services\P19ComponentCommand;
 
 class RouteServiceProvider extends ServiceProvider
 {
@@ -44,7 +46,18 @@ class RouteServiceProvider extends ServiceProvider
         Route::middleware('api')->prefix('api')->name('api.p08.')->group(module_path($this->name, '/routes/p08_history.php'));
         Route::middleware('api')->prefix('api')->name('api.p09.')->group(module_path($this->name, '/routes/p09_warranty.php'));
         Route::middleware('api')->prefix('api')->name('api.upload-receipts.')->group(module_path($this->name, '/routes/attachment_upload_receipts.php'));
+        // Recovery belongs to P19. No quantity/error/waiting/closed P24 APIs.
+        Route::get('api/v1/mini-app/component-issue-requests/{requestId}', [P19ComponentCommand::class, 'check'])
+            ->middleware(['api', 'auth:api', 'permission:warranty.component_issue'])->name('api.p19.command.check');
         foreach (Route::getRoutes() as $route) {
+            if (str_starts_with($route->uri(), 'api/v1/mini-app/warranty-component-issues')
+                || str_starts_with($route->uri(), 'api/v1/mini-app/component-issue-documents')) {
+                if (in_array('POST', $route->methods(), true) && str_ends_with($route->uri(), '/resolve-code')) {
+                    $route->middleware(P19ScannerReadGuard::class);
+                } elseif (array_intersect(['POST', 'PATCH', 'DELETE'], $route->methods()) !== []) {
+                    $route->middleware(P19ComponentCommand::class);
+                }
+            }
             if (in_array('GET', $route->methods(), true)
                 && (isset(P12DocumentReadMetadata::READ_ROUTES[$route->uri()])
                     || $route->uri() === P12DocumentReadMetadata::DOWNLOAD_ROUTE)) {

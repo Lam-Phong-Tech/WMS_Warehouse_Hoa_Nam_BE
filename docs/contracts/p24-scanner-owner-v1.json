@@ -1,0 +1,57 @@
+{
+  "contract": "p24-scanner-owner-v1",
+  "status": "SOURCE_IMPLEMENTED_PENDING_OWNER_ACCEPTANCE_AND_LIVE_TEST",
+  "reviewed_base": "6a9a8edb42e30d60e9dd4336eb91ce83fc4269ab",
+  "full_activation": false,
+  "p24_routes": [],
+  "p19_commands": {
+    "contract": "p19-component-command-v1",
+    "header": "X-Component-Command-Contract",
+    "enabled_by_default": false,
+    "server_release_setting": "P19_COMMAND_RECOVERY_ENABLED",
+    "writes": {
+      "CREATE": "POST /api/v1/mini-app/warranty-component-issues",
+      "SCAN": "POST /api/v1/mini-app/warranty-component-issues/{id}/scans",
+      "POST": "POST /api/v1/mini-app/warranty-component-issues/{id}/post"
+    },
+    "identity": "Idempotency-Key is the UUID request_id; the server trace request_id is different. One immutable key per operation intent. Body order, original canonical document version, actor, auth session, warehouse and trusted organization dimensions are bound.",
+    "versions": "CREATE has no If-Match. SCAN/POST require the original canonical document If-Match, never a staging draft version. Do not mix X-Draft headers or the linked RECORD contract.",
+    "response": "data.outcome and data.receipt.result; CREATE/SCAN/POST only succeed after verifying canonical persisted results in the same transaction as the receipt. Follow result.current_detail_url for CURRENT state, not another CREATE.",
+    "check": "GET /api/v1/mini-app/component-issue-requests/{requestId}?operation=CREATE|SCAN|POST",
+    "journal": "p19_component_command_receipts; dedicated to P19, not P03, P09 or generic idempotency cleanup",
+    "schema_migration": "2026_10_11_000024_create_p19_component_command_receipts.php",
+    "no_repair": "The migration only creates an empty receipt table. It does not repair, seed, restore or change business records. No live migration or deployment was performed by this handoff.",
+    "outcomes": {
+      "SUCCEEDED": "Historical receipt of this exact operation, not current Web/case/document state.",
+      "FAILED": "Confirmed 4xx rejection after transaction rollback; inspect original response_status/error_code. Do not silently clamp, rewrite the list or change key/version.",
+      "UNKNOWN": "Missing/foreign/other-session receipt, in-flight claim, lost worker, 5xx or ambiguous commit. Receipt is null. Check only; no lease timeout, takeover, automatic replay or new-key replacement. DRAFT/404/current POSTED does not resolve it."
+    },
+    "retention": "No purge/TTL on command receipts. Rollback preserves a nonempty table; operator recovery for stuck UNKNOWN requires separate investigation and approval.",
+    "privacy": "No body, raw scan code or free-text note stored in command receipts. Payload fingerprint is an HMAC. Reads/replays revalidate active account, session, warehouse, rights, persisted case owner and source organization scope. Foreign session reads return UNKNOWN without disclosing the receipt.",
+    "timestamps": "recorded_at is the server timestamp stored transactionally in the receipt, not a database WAL commit instant. posted_at/occurred_at come from canonical rows. They are distinct from meta.observed_at and must not be synthesized from document_date/current status. Stored timestamp strings use the application timezone; transport timezone normalization remains a release verification item.",
+    "disable_behavior": "Disabling new command execution leaves authorized GET recovery available. This setting does not enable any FE screen or authorize live test writes.",
+    "compatibility": "Requests without the new header keep their existing canonical or linked RECORD behavior. Old in-flight operations cannot be retroactively assigned new receipts. Do not change protocol midway to recover them."
+  },
+  "scanner_panels": {
+    "resolve": "Existing POST /api/v1/mini-app/warranty-component-issues/resolve-code (and existing mini-app component-issue-documents alias), with the command contract header; read-only and usable without the command execution flag.",
+    "case": "Send exact warranty_case_id. Persisted warehouse ownership and current case status are rechecked; cached open-case flags cannot authorize a closed case.",
+    "confirmation": "Require resolved===true, eligible_for_issue===true and case_allows_issue===true, with matching context. meta.p19_scanner.can_confirm_local is local confirmation only, not a canonical scan or stock reservation.",
+    "quantity": "ITEM available_qty remains null, not zero. BOX available_qty is freshly read for that container/SKU; incomplete source remains null. Zero is a confirmed empty quantity, not a missing response. Never clamp rejected input.",
+    "reasons": "meta.p19_scanner.reason_kind is UNIT, BOX or UNKNOWN from resolved target type. HTTP 200 by itself proves neither eligibility nor command success.",
+    "freshness": "Resolver is a read, not a lock held while the panel is open; every subsequent owner write performs its normal version, case-state and stock validation again."
+  },
+  "unchanged_owner_boundaries": {
+    "P04_P03": "Save the complete ordered batch first. Use exact owner draft/version/key/body and RECORD receipt/reconcile. Business ID differs from staging ID. P19 canonical receipts are not interchangeable with these receipts.",
+    "P05": "Keep source version separate from draft version; retain X-Draft headers, source-linked SAVE/RECORD and original key. No standalone or recipient override, no guessed P05 If-Match.",
+    "P19_linked": "p19-component-issue-linked-v1 SAVE/RECORD with P03 receipts remains a separate existing protocol; it is not CREATE/SCAN/POST recovery.",
+    "P20_P09": "Use existing immutable links, posted movement/scan evidence, REMOVED counts and source timestamps. Closed cases may still be read with correct rights. Do not close, reopen, Post or recreate while opening a panel or checking results.",
+    "FE": "Cancel/ignore stale callbacks using request identity and session/context generation. Preserve scoped private checkpoints; no blanket storage wipe on logout. Empty/error/denied/UNKNOWN states are separate. Do not label code count, quantity and attempts as one number."
+  },
+  "release_gates": [
+    "Approve separate P19 canonical command protocol and deploy its empty schema before enabling writes; full P24 activation remains OFF.",
+    "Review CI for exact source SHA on SQLite/PostgreSQL, route cache and dependency audit; isolated fixtures are not live evidence.",
+    "DEV verifies deployed artifact/build ancestry/schema/routes/timezone/tier and real allowed/denied accounts.",
+    "Run GET/resolver smoke without mutations. Run owner-approved CREATE/SCAN/POST and race/late-callback tests separately on permitted data after release approval.",
+    "FE/BA verify S01 quantity, S02 reason, waiting/closed rendering, private checkpoint lifecycle and P20 full UI. No FE production integration or visual acceptance is claimed by this BE change."
+  ]
+}

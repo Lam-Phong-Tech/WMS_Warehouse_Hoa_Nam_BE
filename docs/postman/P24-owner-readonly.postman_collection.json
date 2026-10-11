@@ -1,0 +1,38 @@
+{
+  "info": {
+    "name": "P24 owner reads only - no mutation permission",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Only GET recovery and the existing read-only resolver. Supply an existing authorized request/case/code. This collection does not grant live write permission and contains no CREATE/SCAN/RECORD/POST/cancel/delete, scripts or deployment flags."
+  },
+  "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{access_token}}", "type": "string"}]},
+  "variable": [
+    {"key": "base_url", "value": ""},
+    {"key": "access_token", "value": ""},
+    {"key": "existing_request_id", "value": ""},
+    {"key": "operation", "value": "CREATE"},
+    {"key": "warehouse_id", "value": ""},
+    {"key": "warranty_case_id", "value": ""},
+    {"key": "existing_raw_code", "value": ""}
+  ],
+  "item": [
+    {
+      "name": "Read existing P19 command outcome",
+      "request": {
+        "method": "GET",
+        "header": [{"key": "X-Component-Command-Contract", "value": "p19-component-command-v1"}, {"key": "Accept", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/mini-app/component-issue-requests/{{existing_request_id}}?operation={{operation}}",
+        "description": "CREATE/SCAN/POST here identifies a HISTORICAL operation. This GET does not execute it. UNKNOWN or 404 never authorizes a new request."
+      }
+    },
+    {
+      "name": "Resolve existing code - read-only",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "X-Component-Command-Contract", "value": "p19-component-command-v1"}, {"key": "Accept", "value": "application/json"}, {"key": "Content-Type", "value": "application/json"}],
+        "url": "{{base_url}}/api/v1/mini-app/warranty-component-issues/resolve-code",
+        "body": {"mode": "raw", "raw": "{\"warehouse_id\":\"{{warehouse_id}}\",\"warranty_case_id\":\"{{warranty_case_id}}\",\"raw_code\":\"{{existing_raw_code}}\"}", "options": {"raw": {"language": "json"}}},
+        "description": "Resolver only. HTTP 200 is not confirmation of eligibility; inspect all three resolved/eligible/case conditions and null quantities."
+      }
+    }
+  ]
+}
