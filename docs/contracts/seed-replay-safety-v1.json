@@ -1,0 +1,51 @@
+{
+  "contract": "seed-replay-safety-v1",
+  "status": "SOURCE_IMPLEMENTED_PENDING_FULL_CHAIN_AND_RELEASE_REVIEW",
+  "reviewed_upstream": "eaa8fd2fd4ffb4013e6b72da0fa1384e80ef0154",
+  "scope": [
+    "InventoryStockStatusMixSeeder cohort selection and atomic opening evidence",
+    "WarehouseOperationsCoverageSeeder cancelled reversal replay and fresh-item lifecycle cohort",
+    "Isolated fixture authentication and protected-database regression tests"
+  ],
+  "stock_mix": {
+    "selection": "Choose the initial cohort under a warehouse advisory transaction lock; do not choose the next no-stock cohort on each replay.",
+    "atomicity": "Opening movements and their balance changes commit together; an unexpected error rolls back the entire cohort.",
+    "key": "SEED-STKMIX:{warehouse_uuid}:{stock_status}:{sku_uuid}",
+    "legacy": "Any existing SEED-STKMIX movement in the warehouse preserves the existing cohort without adding or repairing rows. This is NOT a proof that a historical interrupted seed completed.",
+    "availability": "Non-AVAILABLE fixture buckets do not increase available quantity.",
+    "warehouse": "Exact KHO-TONG-HN only; missing reference is not permission to use the first warehouse."
+  },
+  "operations": {
+    "reversal": "Existing DRAFT, POSTED or CANCELLED reversal history prevents the seeder from creating another reversal for the same original movements. Business-owner retry permissions and commands are unchanged.",
+    "item_lifecycle": "Only exact new item IDs produced by successful receipt posting in the current invocation are eligible for the lifecycle sample. Pre-existing IDs and unrelated operational items are not a fresh sample; the in-memory cohort is consumed once.",
+    "coverage_limit": "These targeted changes do not certify every phase or backfill of WarehouseOperationsCoverageSeeder or the default DatabaseSeeder chain."
+  },
+  "protected_database": {
+    "policy": "Both changed seeders reject protected deployment databases before querying, regardless of fixture credentials or the separate protected-seed permission flag.",
+    "preflight": "Existing wms:seed-preflight remains configuration-only. Missing fixture credentials or explicit runtime coverage remain blockers, not defaults to fill automatically.",
+    "live_seed_authorized": false,
+    "full_seed_authorized": false,
+    "p19_recovery_activation": false,
+    "production_activation": false
+  },
+  "validation": {
+    "workflow": ".github/workflows/seed-replay-contract.yml",
+    "candidate_run": 38144398587,
+    "candidate_only": "Prepared candidate passed targeted tests; final commit must pass its own exact-SHA workflow.",
+    "temporary_table_checks": "58 PostgreSQL replay/rollback/protected-guard assertions, plus the existing 11 component display-backfill immutability assertions. These use isolated temporary tables, not the deployed schema or a full seed chain.",
+    "migrated_schema_checks": "SeedReplayFixtureContractTest, SeedPreflightTest, P12ReadRevision2Test and P13NotificationRevision2Test on isolated PostgreSQL and SQLite. Stock-mix writes are PostgreSQL-only; SQLite verifies the unsupported-driver no-op.",
+    "fixture_login": "AuthDatabaseSeeder fixture -> browser login -> GET auth/me -> logout -> old token denied. Test credentials are local and must not be exported.",
+    "evidence": "Required nonempty JUnit results and source/report hashes in workflow log and summary. No dependency lock update, artifact-quota bypass of tests or release claim."
+  },
+  "release_boundaries": {
+    "reported_deployment": "The supplied DEV/TEST report describes eaa8fd2f plus 14 retained runtime overlays, not a bare-source artifact. Those overlay contents and local evidence have not been imported or certified by this change.",
+    "no_runtime_mutations": "This change contains no live seed, database repair, rollback, deployment or runtime overlay update.",
+    "next_review": [
+      "Reconcile and review the per-file manifest and diffs of all 14 runtime overlays before preparing a new release.",
+      "Run the approved full chain twice on a separately authorized disposable clone with the exact intended coverage window and a fixed reference time; inspect row-level differences, warnings, ledger/balance and immutable history.",
+      "Recheck the reported historical 2386 item-row changes by field and source phase. No claim that this count is fully explained or fixed by the targeted tests.",
+      "Verify fixture login after that full chain and scope/deny/nonempty business cases separately from basic route smoke.",
+      "Keep the existing release, vendor volume, backups and P19 receipt/deduplication history. No live fixture-secret installation, environment reclassification or protected-seed bypass."
+    ]
+  }
+}

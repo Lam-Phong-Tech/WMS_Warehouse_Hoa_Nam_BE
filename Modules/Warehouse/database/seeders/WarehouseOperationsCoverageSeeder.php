@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Auth\Support\SeedEnvironment;
 use Modules\Notification\Services\NotificationService;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
@@ -16,6 +17,7 @@ use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineReversalService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Services\StockDocumentService;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -79,6 +81,9 @@ class WarehouseOperationsCoverageSeeder extends Seeder
 
     private string $warehouseId;
 
+    /** @var array<string, true> Exact new item IDs created by successful receipts in this run. */
+    private array $createdFixtureItemIds = [];
+
     /** @var array<string,string> username → user_id */
     private array $actors = [];
 
@@ -89,6 +94,7 @@ class WarehouseOperationsCoverageSeeder extends Seeder
 
     public function run(): void
     {
+        $this->createdFixtureItemIds = [];
         if (! $this->bootstrap()) {
             return;
         }
@@ -171,12 +177,16 @@ class WarehouseOperationsCoverageSeeder extends Seeder
     /** Kho + service + danh sách người thao tác/nơi nhận. false = thiếu tiền đề. */
     private function bootstrap(): bool
     {
+        if ((bool) config('deployment_safety.protect_database', false)) {
+            throw new RuntimeException('Coverage fixtures require an isolated unprotected database.');
+        }
+        SeedEnvironment::assertFixtureAccountsAllowed(self::class);
+        SeedEnvironment::fixturePassword();
         if (DB::getDriverName() !== 'pgsql') {
             return false;
         }
 
-        $warehouse = Warehouse::query()->where('code', self::WAREHOUSE_CODE)->first()
-            ?? Warehouse::query()->orderBy('created_at')->first();
+        $warehouse = Warehouse::query()->where('code', self::WAREHOUSE_CODE)->first();
         if ($warehouse === null) {
             $this->command?->warn('WarehouseOperationsCoverageSeeder: chưa có kho — chạy WarehouseDatabaseSeeder trước.');
 
@@ -338,6 +348,7 @@ class WarehouseOperationsCoverageSeeder extends Seeder
             return $this->itemIdsBySerial($serials);
         }
 
+        $preexistingItems = $this->itemIdsBySerial($serials);
         Carbon::setTestNow($day);
         try {
             $lines = array_map(fn () => ['product_id' => $skuId, 'qty_planned' => 1], $serials);
@@ -355,6 +366,9 @@ class WarehouseOperationsCoverageSeeder extends Seeder
                 ], $actorId);
             }
             $this->postDocument($docId, 'receipt', $actorId);
+            foreach (array_diff($this->itemIdsBySerial($serials), $preexistingItems) as $itemId) {
+                $this->createdFixtureItemIds[$itemId] = true;
+            }
         } catch (Throwable $e) {
             $this->command?->warn('  bỏ qua phiếu nhập '.$docNo.': '.$this->describe($e));
         } finally {
@@ -1126,10 +1140,11 @@ class WarehouseOperationsCoverageSeeder extends Seeder
             return;
         }
 
+        // Seeder replay preserves terminal cancellation; this does not alter owner retry policy.
         $alreadyReversed = DB::table('reversal_line as rl')
             ->join('reversal_document as rd', 'rd.reversal_document_id', '=', 'rl.reversal_document_id')
             ->whereIn('rl.original_movement_id', $movements->pluck('id'))
-            ->whereIn('rd.status', ['DRAFT', 'POSTED'])
+            ->whereIn('rd.status', ['DRAFT', 'POSTED', 'CANCELLED'])
             ->exists();
         if ($alreadyReversed) {
             return;
@@ -1461,6 +1476,13 @@ class WarehouseOperationsCoverageSeeder extends Seeder
      */
     private function seedItemLifecycleEdges(): void
     {
+        // Never select a fresh cohort from existing operational stock on replay.
+        $freshIds = array_keys($this->createdFixtureItemIds);
+        $this->createdFixtureItemIds = [];
+        if ($freshIds === []) {
+            return;
+        }
+
         $targets = [
             ['LOST', null, 8],
             ['ADJUSTED_OUT', null, 8],
@@ -1471,6 +1493,7 @@ class WarehouseOperationsCoverageSeeder extends Seeder
 
         foreach ($targets as [$status, $condition, $count]) {
             $items = DB::table('item_instances')
+                ->whereIn('item_id', $freshIds)
                 ->where('item_status', 'IN_STOCK')
                 ->where('item_condition', 'NORMAL')
                 ->whereNotExists(function ($query): void {
@@ -1478,7 +1501,7 @@ class WarehouseOperationsCoverageSeeder extends Seeder
                         ->from('warranty_case as wc')
                         ->whereColumn('wc.item_id', 'item_instances.item_id');
                 })
-                ->orderByDesc('created_at')
+                ->orderByDesc('created_at')->orderBy('item_id')
                 ->limit($count)
                 ->pluck('item_id');
 
@@ -1492,7 +1515,8 @@ class WarehouseOperationsCoverageSeeder extends Seeder
                 if ($condition !== null) {
                     $update['item_condition'] = $condition;
                 }
-                DB::table('item_instances')->where('item_id', $itemId)->update($update);
+                DB::table('item_instances')->where('item_id', $itemId)
+                    ->where('item_status', 'IN_STOCK')->where('item_condition', 'NORMAL')->update($update);
             }
         }
     }

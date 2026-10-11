@@ -109,7 +109,7 @@ class InventoryStockStatusMixSeeder extends Seeder
         if ($skuId === null) {
             throw new RuntimeException('Selected fixture SKU disappeared; roll back the whole cohort.');
         }
-        $businessKey = self::BK_PREFIX.':'.$status.':'.$skuId;
+        $businessKey = self::BK_PREFIX.':'.$this->warehouseId.':'.$status.':'.$skuId;
         if (DB::table('stock_movements')->where('business_key', $businessKey)->exists()) {
             throw new RuntimeException('Stock-mix fixture key already exists outside this cohort; review without replay.');
         }
