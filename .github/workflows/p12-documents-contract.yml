@@ -119,7 +119,8 @@ jobs:
   security_lock_candidate:
     # Single-use candidate preparation, reviewed before a separate branch update.
     # This job never updates refs or commits; its only write is an unreferenced blob.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev' && startsWith(github.event.head_commit.message, 'ci(p12): prepare a bounded audited dependency lock candidate')
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/dev' && startsWith(github.event.head_commit.message, 'ci(p12): prepare a bounded audited dependency lock candidate')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -162,7 +163,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 2
       - name: Assert exact reviewed parent before any dependency change
-        run: test "$(git rev-parse HEAD^)" = '9e2cab74e889580c8d6a7a7343d447ba46b7a533'
+        run: test "$(git rev-parse HEAD^)" = '5a18f391798ff556492c11a6902bbe506c7a5f22'
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
