@@ -2,16 +2,11 @@ name: Seed Replay Contract
 on:
   push:
     branches: [dev]
-    paths:
-      - 'Modules/Warehouse/database/seeders/**'
-      - 'tests/Feature/SeedReplay*Test.php'
-      - 'scripts/test-seed-replay-*.php'
-      - '.github/workflows/seed-replay-contract.yml'
+    paths: ['.github/workflows/seed-replay-contract.yml']
 permissions:
   contents: read
 jobs:
   isolated-candidate:
-    if: startsWith(github.event.head_commit.message, 'fix(seed): prepare bounded replay candidate')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -55,64 +50,21 @@ jobs:
           persist-credentials: false
           fetch-depth: 2
           ref: ${{ github.sha }}
-      - name: Require reviewed parent and bounded source edits
+      - name: Prepare exact reviewed candidate blocks
         run: |
-          test "$(git rev-parse HEAD^)" = '25034b093107139718bd2a9257c6a11af034182c'
+          test "$(git rev-parse HEAD^)" = 'f86e911ed3a7dc916975a791a86c135ca96e0d03'
           python3 - <<'PY'
           from pathlib import Path
-          import subprocess
-          p = Path('Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php')
-          assert subprocess.check_output(['git', 'hash-object', str(p)], text=True).strip() == '934d761d77a95129c530e22882e6bbabb483283a'
-          text = p.read_text()
-          def replace(old, new):
-              global text
-              assert text.count(old) == 1, 'Non-unique source patch: '+old[:90]
-              text = text.replace(old, new, 1)
-          replace('use Modules\\AuditLog\\Services\\AuditLogger;', 'use Modules\\AuditLog\\Services\\AuditLogger;\nuse Modules\\Auth\\Support\\SeedEnvironment;')
-          replace('use Throwable;', 'use RuntimeException;\nuse Throwable;')
-          replace('    private string $warehouseId;', '    private string $warehouseId;\n\n    /** @var array<string, true> Exact new item IDs created by successful receipts in this run. */\n    private array $createdFixtureItemIds = [];')
-          replace('    public function run(): void\n    {\n        if (! $this->bootstrap())', '    public function run(): void\n    {\n        $this->createdFixtureItemIds = [];\n        if (! $this->bootstrap())')
-          replace('    private function bootstrap(): bool\n    {', '    private function bootstrap(): bool\n    {\n        if ((bool) config(\'deployment_safety.protect_database\', false)) {\n            throw new RuntimeException(\'Coverage fixtures require an isolated unprotected database.\');\n        }\n        SeedEnvironment::assertFixtureAccountsAllowed(self::class);\n        SeedEnvironment::fixturePassword();')
-          replace("$warehouse = Warehouse::query()->where('code', self::WAREHOUSE_CODE)->first()\n            ?? Warehouse::query()->orderBy('created_at')->first();", "$warehouse = Warehouse::query()->where('code', self::WAREHOUSE_CODE)->first();")
-          begin = text.index('    private function receiptBatch(')
-          end = text.index('    private function seedQuantityReceipts(', begin)
-          part = text[begin:end]
-          old = '        Carbon::setTestNow($day);'
-          assert part.count(old) == 1
-          part = part.replace(old, '        $preexistingItems = $this->itemIdsBySerial($serials);\n'+old, 1)
-          old = "            $this->postDocument($docId, 'receipt', $actorId);"
-          assert part.count(old) == 1
-          part = part.replace(old, old+'\n            foreach (array_diff($this->itemIdsBySerial($serials), $preexistingItems) as $itemId) {\n                $this->createdFixtureItemIds[$itemId] = true;\n            }', 1)
-          text = text[:begin]+part+text[end:]
-          begin = text.index('    private function runReversal(')
-          end = text.index('    private function seedOutboundRequestStates(', begin)
-          part = text[begin:end]
-          old = "->whereIn('rd.status', ['DRAFT', 'POSTED'])"
-          assert part.count(old) == 1
-          part = part.replace(old, "->whereIn('rd.status', ['DRAFT', 'POSTED', 'CANCELLED'])", 1)
-          part = part.replace("        $alreadyReversed = DB::table('reversal_line as rl')", "        // Seeder replay preserves terminal cancellation; this does not alter owner retry policy.\n        $alreadyReversed = DB::table('reversal_line as rl')", 1)
-          text = text[:begin]+part+text[end:]
-          begin = text.index('    private function seedItemLifecycleEdges(): void')
-          end = text.index('    private function seedNewCandidates(', begin)
-          part = text[begin:end]
-          old = '    private function seedItemLifecycleEdges(): void\n    {'
-          part = part.replace(old, old+'\n        // Never select a fresh cohort from existing operational stock on replay.\n        $freshIds = array_keys($this->createdFixtureItemIds);\n        $this->createdFixtureItemIds = [];\n        if ($freshIds === []) {\n            return;\n        }\n', 1)
-          old = "$items = DB::table('item_instances')"
-          assert part.count(old) == 1
-          part = part.replace(old, old+"\n                ->whereIn('item_id', $freshIds)", 1)
-          part = part.replace("->orderByDesc('created_at')", "->orderByDesc('created_at')->orderBy('item_id')", 1)
-          old = "DB::table('item_instances')->where('item_id', $itemId)->update($update);"
-          assert part.count(old) == 1
-          part = part.replace(old, "DB::table('item_instances')->where('item_id', $itemId)\n                    ->where('item_status', 'IN_STOCK')->where('item_condition', 'NORMAL')->update($update);", 1)
-          text = text[:begin]+part+text[end:]
-          p.write_text(text)
-          p = Path('Modules/Warehouse/database/seeders/InventoryStockStatusMixSeeder.php')
-          text = p.read_text()
-          old = "$businessKey = self::BK_PREFIX.':'.$status.':'.$skuId;"
-          assert text.count(old) == 1
-          text = text.replace(old, "$businessKey = self::BK_PREFIX.':'.$this->warehouseId.':'.$status.':'.$skuId;", 1)
-          p.write_text(text)
+          import hashlib, re, subprocess, textwrap
+          ref = 'f86e911ed3a7dc916975a791a86c135ca96e0d03:.github/workflows/seed-replay-contract.yml'
+          raw = subprocess.check_output(['git','show',ref])
+          assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() == '35f0d67264358240843946268af3bf13a8055967'
+          blocks = re.findall(r"          python3 - <<'PY'\n(.*?)          PY\n", raw.decode(), re.S)
+          assert len(blocks) == 2
+          for filename, block in zip(['prepare','publish'], blocks):
+              Path('/tmp/seed-'+filename+'.py').write_text(textwrap.dedent(block))
           PY
+          python3 /tmp/seed-prepare.py
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -131,58 +83,29 @@ jobs:
           php artisan key:generate
           php artisan config:clear
           PGPASSWORD="$DB_PASSWORD" createdb -h 127.0.0.1 -U postgres component_issue_seeder_test
-      - name: Format only reviewed candidate files
+      - name: Format only the four reviewed candidate files
         run: |
           vendor/bin/pint Modules/Warehouse/database/seeders/InventoryStockStatusMixSeeder.php Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php scripts/test-seed-replay-contract.php tests/Feature/SeedReplayFixtureContractTest.php
           php -l Modules/Warehouse/database/seeders/InventoryStockStatusMixSeeder.php
           php -l Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php
           php -l scripts/test-seed-replay-contract.php
           php -l tests/Feature/SeedReplayFixtureContractTest.php
-      - name: PostgreSQL repeat and rollback assertions
+      - name: PostgreSQL repeat rollback and immutable backfill assertions
         env:
           DB_DATABASE: component_issue_seeder_test
         run: |
           php scripts/test-seed-replay-contract.php
           php scripts/test-component-issue-seeder-immutability.php
-      - name: Actual migrated PostgreSQL fixture login and preflight regressions
-        run: |
-          php artisan test tests/Feature/SeedReplayFixtureContractTest.php tests/Feature/SeedPreflightTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit seed-pgsql.xml
-      - name: Actual migrated SQLite fixture login and preflight regressions
+      - name: Migrated PostgreSQL fixture login preflight P12 P13 tests
+        run: php artisan test tests/Feature/SeedReplayFixtureContractTest.php tests/Feature/SeedPreflightTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit seed-pgsql.xml
+      - name: Migrated SQLite fixture login preflight P12 P13 tests
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: ':memory:'
-        run: |
-          php artisan test tests/Feature/SeedReplayFixtureContractTest.php tests/Feature/SeedPreflightTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit seed-sqlite.xml
+        run: php artisan test tests/Feature/SeedReplayFixtureContractTest.php tests/Feature/SeedPreflightTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit seed-sqlite.xml
       - name: Locked dependency audit
         run: composer audit --locked --no-interaction
-      - name: Publish only verified candidate blobs, never update any ref
+      - name: Publish verified blobs only, no commit or ref updates
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib, json, os, subprocess, urllib.request
-          import xml.etree.ElementTree as ET
-          paths = ['Modules/Warehouse/database/seeders/InventoryStockStatusMixSeeder.php', 'Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php', 'scripts/test-seed-replay-contract.php', 'tests/Feature/SeedReplayFixtureContractTest.php']
-          changed = subprocess.check_output(['git','diff','--name-only'], text=True).splitlines()
-          assert set(changed) <= set(paths)
-          assert os.environ['GITHUB_REPOSITORY'] == 'Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
-          for report in ['seed-pgsql.xml', 'seed-sqlite.xml']:
-              root = ET.parse(report).getroot()
-              suites = root.findall('./testsuite')
-              assert suites and list(root.iter('testcase'))
-              for suite in suites:
-                  assert int(suite.get('tests','0')) > 0 and int(suite.get('assertions','0')) > 0
-                  assert all(int(suite.get(k,'0')) == 0 for k in ['errors','failures','skipped'])
-                  print('CANDIDATE_TESTS', report, json.dumps(suite.attrib, sort_keys=True))
-          for path in paths:
-              raw = Path(path).read_bytes()
-              expected = hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
-              req = urllib.request.Request('https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/git/blobs',
-                  data=json.dumps({'encoding':'utf-8','content':raw.decode()}).encode(), method='POST',
-                  headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
-              with urllib.request.urlopen(req, timeout=30) as response: result=json.load(response)
-              assert result['sha'] == expected
-              print('VERIFIED_SEED_BLOB', path, expected, hashlib.sha256(raw).hexdigest())
-          print('CANDIDATE_ONLY; LIVE=false; DEPLOYMENT=false; FULL_SEED_APPROVAL=false')
-          PY
+        run: python3 /tmp/seed-publish.py
