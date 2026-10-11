@@ -200,6 +200,9 @@ final class P23ReadContractTest extends TestCase
         $id = (string) Str::uuid();
         DB::table('warranty_case')->insert(['warranty_case_id' => $id, 'warranty_case_code' => 'P23-'.$id,
             'identification_status' => 'TEMP_ONLY', 'temporary_item_code' => 'TEMP-'.$id,
+            // Match the existing TEMP_ONLY shape; never relax production constraints for a test.
+            'missing_code_reason' => 'Isolated CI item has no physical label',
+            'manual_product_description' => 'Isolated P23 warranty fixture',
             'created_by' => $user->user_id, 'status' => 'RECEIVED', 'version' => 1, 'created_at' => $created, 'updated_at' => $created]);
         DB::table(WarrantyWarehouseScope::TABLE)->insert(['warranty_case_id' => $id, 'warehouse_id' => $warehouse->id,
             'source' => 'EXPLICIT_REQUEST', 'actor_id' => $user->user_id, 'auth_session_id' => null, 'assigned_at' => $created, 'evidence' => null]);
