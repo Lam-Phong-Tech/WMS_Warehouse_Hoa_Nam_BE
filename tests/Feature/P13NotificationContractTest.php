@@ -32,7 +32,7 @@ class P13NotificationContractTest extends TestCase
         foreach ([self::BASE, self::BASE.'/unread-count', self::BASE.'/'.$id] as $url) {
             $this->getJson($url)->assertUnauthorized();
         }
-        $this->patchJson(self::BASE.'/'.$id.'/read')->assertUnauthorized();
+        $this->patch(self::BASE.'/'.$id.'/read', [], ['Accept' => 'application/json'])->assertUnauthorized();
     }
 
     public function test_identity_is_recipient_and_cross_user_access_is_not_found(): void
@@ -47,7 +47,7 @@ class P13NotificationContractTest extends TestCase
             ->assertJsonPath('data.read_at', null);
         foreach ([$mine->notification_id, $other->id, '123', 'not-a-uuid'] as $id) {
             $this->getJson(self::BASE.'/'.$id, $this->headers($token))->assertNotFound();
-            $this->patchJson(self::BASE.'/'.$id.'/read', [], $this->headers($token))->assertNotFound();
+            $this->patch(self::BASE.'/'.$id.'/read', [], $this->headers($token))->assertNotFound();
         }
         $this->assertNull($mine->fresh()->read_at);
         $this->assertNull($other->fresh()->read_at);
@@ -66,7 +66,7 @@ class P13NotificationContractTest extends TestCase
         $this->assertSame(array_slice($ids, 0, 2), array_column($first->json('data'), 'id'));
         $cursor = $first->json('meta.next_cursor');
         foreach (array_slice($ids, 0, 2) as $id) {
-            $this->patchJson(self::BASE.'/'.$id.'/read', [], $this->headers($token))->assertOk();
+            $this->patch(self::BASE.'/'.$id.'/read', [], $this->headers($token))->assertOk();
         }
         $new = $this->notification($user, created: now()->addSecond()->toDateTimeString());
         $second = $this->getJson($this->url(['cursor' => $cursor, 'unread' => 1, 'per_page' => 2]), $this->headers($token))->assertOk()
@@ -117,11 +117,11 @@ class P13NotificationContractTest extends TestCase
         [$user, $token] = $this->actor();
         $recipient = $this->notification($user);
         $url = self::BASE.'/'.$recipient->id.'/read';
-        $first = $this->patchJson($url, [], $this->headers($token))->assertOk()
+        $first = $this->patch($url, [], $this->headers($token))->assertOk()
             ->assertJsonPath('meta.changed', true)->assertJsonPath('meta.unread_count', 0);
         $this->assertNotNull($first->json('data.read_at'));
         $this->travel(2)->seconds();
-        $this->patchJson($url, [], $this->headers($token))->assertOk()->assertJsonPath('meta.changed', false)
+        $this->patch($url, [], $this->headers($token))->assertOk()->assertJsonPath('meta.changed', false)
             ->assertJsonPath('data.read_at', $first->json('data.read_at'));
         $this->travelBack();
         foreach ([['read_at' => null], ['user_id' => (string) Str::uuid()], ['notification_id' => $recipient->notification_id]] as $body) {
@@ -140,7 +140,7 @@ class P13NotificationContractTest extends TestCase
         }
         $count = $this->getJson(self::BASE.'/unread-count', $this->headers($token))->assertOk()->assertJsonPath('data.unread_count', 101);
         $this->assertStringContainsString('no-store', $count->headers->get('Cache-Control'));
-        $this->patchJson(self::BASE.'/'.$last->id.'/read', [], $this->headers($token))->assertOk();
+        $this->patch(self::BASE.'/'.$last->id.'/read', [], $this->headers($token))->assertOk();
         $this->getJson(self::BASE.'/unread-count', $this->headers($token))->assertOk()->assertJsonPath('data.unread_count', 100);
     }
 
@@ -170,7 +170,7 @@ class P13NotificationContractTest extends TestCase
         $recipient = $this->notification($user);
         app(RefreshTokenService::class)->revoke($cookie);
         $this->getJson(self::BASE.'/'.$recipient->id, $this->headers($token))->assertUnauthorized();
-        $this->patchJson(self::BASE.'/'.$recipient->id.'/read', [], $this->headers($token))->assertUnauthorized();
+        $this->patch(self::BASE.'/'.$recipient->id.'/read', [], $this->headers($token))->assertUnauthorized();
         $this->assertNull($recipient->fresh()->read_at);
     }
 
@@ -183,7 +183,7 @@ class P13NotificationContractTest extends TestCase
             ->assertJsonPath('data.subject.requires_subject_revalidation', true)
             ->assertJsonPath('data.subject.web_url', null);
         $this->getJson('/api/v1/mini-app/inbound-documents/'.$documentId, $this->headers($token))->assertForbidden();
-        $this->patchJson(self::BASE.'/'.$recipient->id.'/read', [], $this->headers($token))->assertOk();
+        $this->patch(self::BASE.'/'.$recipient->id.'/read', [], $this->headers($token))->assertOk();
         $this->getJson('/api/v1/mini-app/inbound-documents/'.$documentId, $this->headers($token))->assertForbidden();
     }
 
@@ -223,6 +223,6 @@ class P13NotificationContractTest extends TestCase
         $this->app['tymon.jwt']->unsetToken();
         $this->app['tymon.jwt.auth']->unsetToken();
 
-        return ['Authorization' => 'Bearer '.$token];
+        return ['Authorization' => 'Bearer '.$token, 'Accept' => 'application/json'];
     }
 }

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Notification\Models\NotificationRecipient;
 use Modules\Notification\Support\P13NotificationCursor;
+use Modules\Notification\Support\P13NotificationPresentation;
 use OpenApi\Attributes as OA;
 
 class NotificationController extends Controller
@@ -128,7 +129,7 @@ class NotificationController extends Controller
         path: '/api/v1/notifications/{id}/read',
         operationId: 'notification_mark_read',
         summary: 'Đánh dấu 1 thông báo đã đọc',
-        description: 'Không gửi body/query. Ghi một chiều, idempotent và giữ read_at đầu tiên. Timeout: GET lại cùng recipient để đối chiếu; không tự trừ badge. Không cần và không mở quyền subject.',
+        description: 'Không gửi body/query, kể cả JSON rỗng. Ghi một chiều, idempotent và giữ read_at đầu tiên. Timeout: GET lại cùng recipient để đối chiếu; không tự trừ badge. Không cần và không mở quyền subject.',
         security: [['bearerAuth' => []]],
         tags: ['16. Notifications'],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
@@ -144,8 +145,9 @@ class NotificationController extends Controller
         if (! Str::isUuid($id)) {
             return $this->respondNotFound('Không tìm thấy thông báo.');
         }
-        $input = $request->isJson() ? $request->json()->all() : $request->request->all();
-        if ($input !== [] || $request->query() !== [] || $request->allFiles() !== []) {
+        // Reject bytes as well as parsed parameters: {}, [], null and malformed JSON are bodies too.
+        if ($request->getContent() !== '' || $request->request->all() !== []
+            || $request->query() !== [] || $request->allFiles() !== []) {
             ApiError::abort(422, 'NOTIFICATION_READ_BODY_NOT_ALLOWED', 'Không gửi dữ liệu khi đánh dấu đã đọc.');
         }
         [$recipient, $changed] = DB::transaction(function () use ($request, $id): array {
@@ -222,10 +224,7 @@ class NotificationController extends Controller
                 'read_at' => $recipient->read_at?->toIso8601String(),
                 'created_at' => $recipient->created_at?->toIso8601String(),
                 'payload_semantics' => 'EVENT_SNAPSHOT_NOT_AUTHORIZATION',
-                'subject' => [
-                    'requires_subject_revalidation' => true,
-                    'web_url' => null, 'web_url_status' => 'NOT_CONFIGURED',
-                ],
+                'subject' => P13NotificationPresentation::subject($recipient),
             ];
         })->values();
     }
@@ -233,7 +232,11 @@ class NotificationController extends Controller
     private function withReadMeta(JsonResponse $response, array $meta = []): JsonResponse
     {
         $body = $response->getData(true);
-        $body['meta'] = array_merge($body['meta'] ?? [], ['contract' => P13NotificationCursor::CONTRACT], $meta);
+        $body['meta'] = array_merge($body['meta'] ?? [], [
+            'contract' => P13NotificationCursor::CONTRACT,
+            'projection_revision' => P13NotificationPresentation::REVISION,
+            'count_unit' => 'NOTIFICATION_RECIPIENT',
+        ], $meta);
 
         return $response->setData($body)->header('Cache-Control', 'private, no-store');
     }

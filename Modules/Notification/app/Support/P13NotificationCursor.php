@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Modules\Auth\Support\StableAuthSession;
 use Modules\Notification\Models\NotificationRecipient;
 
 /** Forward keyset, not an immutable snapshot of unread membership. */
@@ -57,9 +58,11 @@ final class P13NotificationCursor
     public static function read(Request $request, array $input): array
     {
         // Do not bind to read_at or unread count: reading a row must not invalidate the cursor.
+        // Stable session survives refresh rotation, but a new login cannot reuse its cursor.
         $scope = hash('sha256', json_encode([
             self::CONTRACT, $request->path(), (string) $request->user()->user_id,
-            (int) $request->user()->version, $input['unread'], $input['severity'], $input['per_page'],
+            (int) $request->user()->version, app(StableAuthSession::class)->id($request->user()),
+            $input['unread'], $input['severity'], $input['per_page'],
         ], JSON_THROW_ON_ERROR));
         $query = self::query($request, $input);
         if ($input['cursor'] === 'start') {
@@ -81,7 +84,7 @@ final class P13NotificationCursor
                 ApiError::abort(422, 'NOTIFICATION_CURSOR_INVALID', 'Cursor không hợp lệ; tải lại danh sách.');
             }
             if (! hash_equals($scope, $state['scope'])) {
-                ApiError::abort(409, 'NOTIFICATION_CURSOR_SCOPE_MISMATCH', 'Cursor không thuộc người dùng hoặc bộ lọc hiện tại.');
+                ApiError::abort(409, 'NOTIFICATION_CURSOR_SCOPE_MISMATCH', 'Cursor không thuộc người dùng, phiên hoặc bộ lọc hiện tại.');
             }
             if ($state['expires'] <= now()->timestamp) {
                 ApiError::abort(410, 'NOTIFICATION_CURSOR_EXPIRED', 'Cursor đã hết hạn; tải lại danh sách.');
@@ -114,6 +117,7 @@ final class P13NotificationCursor
             'sort' => ['created_at' => 'desc', 'id' => 'desc'],
             'snapshot_consistent' => false, 'membership' => 'LIVE_UNREAD_OR_ALL',
             'new_notifications' => 'RESTART_FROM_START',
+            'session_binding' => 'STABLE_AUTH_SESSION_WHEN_PRESENT',
         ]];
     }
 

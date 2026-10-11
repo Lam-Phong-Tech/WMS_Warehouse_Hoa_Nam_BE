@@ -1,0 +1,66 @@
+{
+  "contract": "p13-notifications-v1",
+  "projection_revision": "p13-notifications-r2",
+  "status": "SOURCE_IMPLEMENTED_PENDING_OWNER_ACCEPTANCE_TEST_AND_DEPLOYMENT",
+  "reviewed_base": "7733f582d37c34e65dabfa6c48067a19a3f29ad0",
+  "production_activation": false,
+  "new_routes": [],
+  "routes_in_scope": [
+    "GET /api/v1/notifications",
+    "GET /api/v1/notifications/unread-count",
+    "GET /api/v1/notifications/{recipientId}",
+    "PATCH /api/v1/notifications/{recipientId}/read",
+    "GET /api/v1/mini-app/inbound-documents",
+    "GET /api/v1/mini-app/inbound-documents/{id}",
+    "GET /api/v1/mini-app/outbound-documents",
+    "GET /api/v1/mini-app/outbound-documents/{id}"
+  ],
+  "identity": "data.id is NotificationRecipient.id only. notification_id is a different nullable field and never a fallback route identity.",
+  "navigation": {
+    "field": "data.subject or data[].subject",
+    "registry": "Modules/Notification/app/Support/P13NotificationPresentation.php::EVENTS",
+    "rule": "Exact existing event_key + source_module + subject_type + subject_id must agree with persisted payload document_id/case_id and optional stock type. Titles, doc_no, prefixes and selected warehouse are never identity evidence. Unknown events stay unmapped; mismatches have no read_target.",
+    "read_target": "A GET path/query for the existing owner is returned only when the persisted notification warehouse is a valid UUID. This is an event snapshot, not permission or proof of current existence. Owner detail revalidates current authorization, warehouse and resource type.",
+    "missing_warehouse": "warehouse_id remains null, navigation_status=WAREHOUSE_SOURCE_REQUIRED, read_target=null. Old warranty events currently lack this source; resolve it through an approved owner contract, never fill from active warehouse.",
+    "web_url": "null / NOT_CONFIGURED. Operations must supply and approve Web navigation configuration; no guessed host is shipped.",
+    "not_enabled": ["read-all", "push", "approval", "Post", "automatic mark-read on GET"]
+  },
+  "paging": {
+    "mode": "cursor=start, then exact next_cursor with unchanged filters/per_page; never send page with cursor",
+    "ttl_seconds": 900,
+    "binding": "user, user version, path, stable auth session when present, unread, severity, per_page; never bind to read_at or count",
+    "migration": "Old pre-r2 cursors or another login's cursor return 409 scope mismatch; restart from cursor=start. Expired cursor returns 410; invalid cursor 422. Refresh-token rotation within a stable session does not change the scope.",
+    "totals": "meta.total counts current filtered membership within the keyset high-water mark. It is not an immutable snapshot, loaded-row count or whole-account unread count. New notifications require restarting from start.",
+    "legacy": "Offset remains for existing clients, labelled mutable_unread_safe=false. Access-only legacy clients have no claimed stable-session binding; FE must still isolate all caches/responses by its session/generation."
+  },
+  "mark_read": {
+    "request": "PATCH with zero body bytes, no parsed form/files and no query. Empty JSON {}, [], null, whitespace and malformed bodies are not empty requests and are rejected. Send Accept: application/json; no synthetic JSON body.",
+    "result": "First read_at is retained; meta.changed and meta.unread_count are authoritative for that response. The account count is a separate live SQL observation, not a frozen cross-request snapshot.",
+    "timeout": "GET the SAME recipient and GET unread-count. No local total subtraction, read-all, guessed success, permission bypass or document mutation."
+  },
+  "record_handoff": {
+    "contract": "p13-record-handoff-v1",
+    "field": "data.p13 or data[].p13 on the four stock list/detail routes",
+    "evidence": "Batched join of persisted mini_app_drafts and mini_app_draft_receipts in current actor/stable-session/operation/document warehouse. Verify a successful RECORD receipt, its original response business ID, draft identity/version, transactional timestamp, posted=false and stock_effect=NONE. Neither current SCANNING, readiness nor a notification payload is sufficient.",
+    "state": "record_handoff.state_at_record=SENT_WAITING_WEB only for verified evidence. It is explicitly HISTORICAL_RECORD_RECEIPT_NOT_CURRENT_DOCUMENT_STATE. current_waiting_for_web stays null; do not override a current owner POSTED/cancelled state with the historical label. Current-state mapping across sources still needs owner/BA acceptance.",
+    "missing": "record_handoff=null with NOT_ESTABLISHED, NO_ACTIVE_AUTH_SESSION or SOURCE_UNAVAILABLE. These are not failed RECORD or empty document evidence. Other-session receipts are not borrowed or exposed. Unavailable child evidence does not fabricate a parent result.",
+    "timestamp": "recorded_at comes from mini_app_draft_receipts.completed_at, UTC ISO-8601; transactional server time, not a database WAL commit instant. Owner posted_at and response observation time remain separate.",
+    "selection": "Latest verified scoped RECORD, ordered by completed_at desc then request_id desc. No title/prefix/time-window association.",
+    "privacy": "No receipt response_body, raw codes, free text or other actor/session journal is projected. Notification reads do not emit notifications or create RECORD receipts.",
+    "recovery": "Existing P04/P03 or P05/P03 owner protocol only. Read errors never replay RECORD, Post or create replacement documents."
+  },
+  "quantity_and_all_sources": {
+    "all_sources_aggregate": false,
+    "decision": "BA/BE must still approve combined inbound/outbound presentation, paging, sorting, total and source-error behavior. No new aggregate API or local page merge is shipped.",
+    "units": "Notification totals use NOTIFICATION_RECIPIENT; stock list totals use STOCK_DOCUMENT. Planned, scanned quantity, SKU, serial and scan-attempt counts are not interchangeable.",
+    "evidence": "Continue P12 scan-entries meta.summary for full parent/status query quantities and units. Never sum page rows or treat null/mixed-unit quantity as zero. Parent and summary reads are separate observations, not a frozen snapshot."
+  },
+  "release_gates": [
+    "CI on exact source SHA: both databases, eight-route auth, event identity/deny, real isolated P04/P05 RECORD projections, full-parent summaries, raw-body rejection, read-state reconciliation and route-cache.",
+    "Composer audit uses the current locked dependencies, not historical run 37766537981 as new evidence. No automatic composer update.",
+    "Required XML counts/hash/per-test status are in CI logs/job summary; artifact upload/quota is reported independently.",
+    "DEV separately proves deployed artifact SHA/build ancestry/schema/routes/tier/timezone and approved account scopes. No live call or deployment is performed by this source change.",
+    "Smoke the seven GET routes on permitted real records and the single PATCH only after explicit owner approval for that recipient. Do not create notifications, seed, repair, restore or Post to manufacture evidence.",
+    "FE adapter/UI revision 07 integration, Back/scroll/focus/reader, generation isolation and late-response tests remain FE work. This BE commit does not modify or release App/Web FE."
+  ]
+}
