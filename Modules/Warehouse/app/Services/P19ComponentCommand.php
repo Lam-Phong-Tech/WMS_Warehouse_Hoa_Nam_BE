@@ -84,11 +84,19 @@ final class P19ComponentCommand
         $body = $request->json()->all();
         $allowed = match ($operation) {
             'CREATE' => ['warehouse_id', 'warranty_case_id', 'component_issue_no', 'document_date', 'purpose', 'note', 'lines'],
-            'SCAN' => ['line_id', 'code_value', 'item_id', 'container_id', 'quantity'],
+            'SCAN' => ['line_id', 'code_value', 'quantity'],
             'POST' => [],
         };
         if (array_diff(array_keys($body), $allowed) !== []) {
             ApiError::abort(422, 'P19_UNEXPECTED_FIELD', 'Có trường ngoài contract của lệnh.');
+        }
+        if ($operation === 'SCAN') {
+            // The opt-in scanner contract requires real input for a unique owner
+            // scan_event. Never identify a new scan via an older NULL event row.
+            // ID-only legacy calls retain their existing separate protocol.
+            Validator::make($body, ['line_id' => ['required', 'uuid'],
+                'code_value' => ['required', 'string', 'max:200'],
+                'quantity' => ['required', 'integer', 'min:1']])->validate();
         }
         if ($operation === 'CREATE') {
             Validator::make($body, ['warehouse_id' => ['required', 'uuid'], 'warranty_case_id' => ['required', 'uuid'],
@@ -129,7 +137,7 @@ final class P19ComponentCommand
             'created_at' => now('UTC')->toISOString(), 'updated_at' => now('UTC')->toISOString(),
         ]) === 1;
         try {
-            return DB::transaction(function () use ($request, $next, $scope, $key, $fingerprint, $claimed, $operation, $target, $caseId, $version): Response {
+            return DB::transaction(function () use ($request, $next, $scope, $key, $fingerprint, $claimed, $operation, $target, $caseId, $version, $body): Response {
                 $row = DB::table(self::TABLE)->where('request_id', $key)->lockForUpdate()->first();
                 if ($row === null || $row->actor_id !== $scope['actor_id'] || ! hash_equals($row->scope_hash, Scope::digest($scope))) {
                     ApiError::abort(409, 'P19_REQUEST_CONTEXT_CONFLICT', 'Yêu cầu không khớp chủ sở hữu hoặc phiên hiện hành.');
@@ -168,7 +176,7 @@ final class P19ComponentCommand
                 if (! $response instanceof JsonResponse || ! $response->isSuccessful()) {
                     throw new HttpResponseException($response);
                 }
-                $result = $this->prove($scope, $operation, $target, $caseId, $response->getData(true));
+                $result = $this->prove($scope, $operation, $target, $caseId, $response->getData(true), $body);
                 if ($version !== null && $result['document_version'] <= $version) {
                     ApiError::abort(502, 'P19_OWNER_RESULT_INVALID', 'Thiếu phiên bản mới xác nhận lệnh của owner.');
                 }
@@ -236,7 +244,7 @@ final class P19ComponentCommand
         }
     }
 
-    private function prove(array $scope, string $operation, ?string $target, string $caseId, array $body): array
+    private function prove(array $scope, string $operation, ?string $target, string $caseId, array $body, array $command): array
     {
         $id = $operation === 'CREATE' ? data_get($body, 'data.document.id') : $target;
         if (($body['success'] ?? null) !== true || ! is_string($id) || ! Str::isUuid($id)) {
@@ -253,11 +261,19 @@ final class P19ComponentCommand
             'stock_effect' => $operation === 'POST' ? 'DECREASE' : 'NONE',
             'current_detail_url' => '/api/v1/mini-app/warranty-component-issues/'.$id];
         if ($operation === 'SCAN') {
-            $entry = DB::table('component_issue_items as i')->join('component_issue_lines as l', 'l.id', '=', 'i.component_issue_line_id')
-                ->where('l.component_issue_document_id', $id)->where('i.scan_event_id', data_get($body, 'data.scan_event_id'))
-                ->where('i.status', 'ACTIVE')->first(['i.id', 'i.scan_event_id', 'i.quantity', 'i.item_id', 'i.container_id', 'l.id as line_id']);
-            if ($entry === null || $entry->quantity === null) {
-                ApiError::abort(502, 'P19_OWNER_RESULT_INVALID', 'Thiếu bằng chứng quét của lệnh.');
+            $eventId = data_get($body, 'data.scan_event_id');
+            if (! is_string($eventId) || ! Str::isUuid($eventId)
+                || data_get($body, 'data.line_id') !== $command['line_id']) {
+                ApiError::abort(502, 'P19_SCAN_EVIDENCE_UNAVAILABLE', 'Thiếu bằng chứng quét riêng của lệnh; không dùng dòng hoặc sự kiện cũ thay thế.');
+            }
+            $entries = DB::table('component_issue_items as i')->join('component_issue_lines as l', 'l.id', '=', 'i.component_issue_line_id')
+                ->where('l.component_issue_document_id', $id)->where('l.id', $command['line_id'])
+                ->where('i.scan_event_id', $eventId)->where('i.status', 'ACTIVE')->limit(2)
+                ->get(['i.id', 'i.scan_event_id', 'i.quantity', 'i.item_id', 'i.container_id', 'l.id as line_id']);
+            $entry = $entries->first();
+            if ($entries->count() !== 1 || $entry->quantity === null || (int) $entry->quantity !== (int) $command['quantity']
+                || $entry->item_id !== data_get($body, 'data.item_id') || $entry->container_id !== data_get($body, 'data.container_id')) {
+                ApiError::abort(502, 'P19_OWNER_RESULT_INVALID', 'Bằng chứng quét không khớp đúng lệnh.');
             }
             $result['scan'] = (array) $entry;
             $result['scan']['quantity'] = (int) $entry->quantity;

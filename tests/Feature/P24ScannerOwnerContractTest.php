@@ -63,7 +63,6 @@ class P24ScannerOwnerContractTest extends TestCase
         $this->check($f, $key, 'CREATE')->assertOk()->assertJsonPath('data.outcome', 'SUCCEEDED')->assertJsonPath('data.receipt', $receipt);
         $this->postJson(self::BASE, $body, $this->headers($f) + ['Idempotency-Key' => $key])->assertCreated()
             ->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.receipt', $receipt);
-        // A missing protocol header cannot escape into legacy CREATE/SCAN.
         $this->postJson(self::BASE, $body, $this->plainHeaders($f['token']) + ['Idempotency-Key' => $key])->assertConflict()
             ->assertJsonPath('error.code', 'P19_COMMAND_CONTRACT_REQUIRED');
         $stored = DB::table(Command::TABLE)->where('request_id', $key)->first();
@@ -79,7 +78,7 @@ class P24ScannerOwnerContractTest extends TestCase
         $f = $this->fixture();
         $d = $this->createDocument($f);
         $key = (string) Str::uuid();
-        $body = ['line_id' => $d['line_id'], 'container_id' => $f['container_id'], 'quantity' => 3];
+        $body = ['line_id' => $d['line_id'], 'quantity' => 3];
         $first = $this->scan($f, $d, $body, $key)->assertOk()->assertJsonPath('data.receipt.result.scan.quantity', 3);
         $this->scan($f, $d, $body, $key)->assertOk()->assertHeader('Idempotent-Replay', 'true')
             ->assertJsonPath('data.receipt', $first->json('data.receipt'));
@@ -95,12 +94,37 @@ class P24ScannerOwnerContractTest extends TestCase
         $this->assertDatabaseCount('component_issue_items', 1);
     }
 
+    public function test_each_distinct_box_scan_receipt_has_its_own_event_and_exact_quantity(): void
+    {
+        $f = $this->fixture();
+        $d = $this->createDocument($f);
+        // ID-only input cannot become fabricated raw scan evidence in this opt-in protocol.
+        $this->postJson(self::BASE.'/'.$d['id'].'/scans', [
+            'line_id' => $d['line_id'], 'container_id' => $f['container_id'], 'quantity' => 1,
+        ], $this->headers($f) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"1"'])->assertUnprocessable();
+        $this->assertDatabaseCount('component_issue_items', 0);
+        $keyA = (string) Str::uuid();
+        $a = $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 1], $keyA)->assertOk();
+        $d['version'] = $a->json('data.receipt.result.document_version');
+        $keyB = (string) Str::uuid();
+        $b = $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 2], $keyB)->assertOk();
+        $this->assertTrue(Str::isUuid($a->json('data.receipt.result.scan.scan_event_id')));
+        $this->assertTrue(Str::isUuid($b->json('data.receipt.result.scan.scan_event_id')));
+        $this->assertNotSame($a->json('data.receipt.result.scan.id'), $b->json('data.receipt.result.scan.id'));
+        $this->assertNotSame($a->json('data.receipt.result.scan.scan_event_id'), $b->json('data.receipt.result.scan.scan_event_id'));
+        $this->check($f, $keyA, 'SCAN')->assertOk()->assertJsonPath('data.receipt.result.scan.quantity', 1);
+        $this->check($f, $keyB, 'SCAN')->assertOk()->assertJsonPath('data.receipt.result.scan.quantity', 2);
+        $this->assertDatabaseCount('component_issue_items', 2);
+        $this->assertDatabaseHas('component_issue_lines', ['id' => $d['line_id'], 'scanned_qty' => 3]);
+        $this->assertSame(7, $this->balance($f));
+    }
+
     public function test_rejected_quantity_and_stale_version_do_not_clamp_or_modify_batch(): void
     {
         $f = $this->fixture();
         $d = $this->createDocument($f);
         $key = (string) Str::uuid();
-        $this->scan($f, $d, ['line_id' => $d['line_id'], 'container_id' => $f['container_id'], 'quantity' => 4], $key)
+        $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 4], $key)
             ->assertUnprocessable()->assertJsonPath('error.code', 'SCAN_EXCEEDS_REQUIRED');
         $this->assertDatabaseHas('component_issue_documents', ['id' => $d['id'], 'version' => 1, 'status' => 'DRAFT']);
         $this->assertDatabaseHas('component_issue_lines', ['id' => $d['line_id'], 'scanned_qty' => 0]);
@@ -108,7 +132,7 @@ class P24ScannerOwnerContractTest extends TestCase
         $this->check($f, $key, 'SCAN')->assertOk()->assertJsonPath('data.outcome', 'FAILED')
             ->assertJsonPath('data.receipt.error_code', 'SCAN_EXCEEDS_REQUIRED');
         $d['version'] = 9;
-        $this->scan($f, $d, ['line_id' => $d['line_id'], 'container_id' => $f['container_id'], 'quantity' => 1], (string) Str::uuid())
+        $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 1], (string) Str::uuid())
             ->assertStatus(412)->assertJsonPath('error.code', 'VERSION_CONFLICT');
         $this->assertDatabaseCount('component_issue_items', 0);
     }
@@ -117,14 +141,13 @@ class P24ScannerOwnerContractTest extends TestCase
     {
         $f = $this->fixture();
         $d = $this->createDocument($f);
-        $scanned = $this->scan($f, $d, ['line_id' => $d['line_id'], 'container_id' => $f['container_id'], 'quantity' => 3], (string) Str::uuid())->assertOk();
+        $scanned = $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 3], (string) Str::uuid())->assertOk();
         $d['version'] = $scanned->json('data.receipt.result.document_version');
         $key = (string) Str::uuid();
         $headers = $this->headers($f) + ['Idempotency-Key' => $key, 'If-Match' => '"'.$d['version'].'"'];
         $posted = $this->postJson(self::BASE.'/'.$d['id'].'/post', [], $headers)->assertOk()
             ->assertJsonPath('data.outcome', 'SUCCEEDED')->assertJsonPath('data.receipt.result.stock_effect', 'DECREASE');
         $receipt = $posted->json('data.receipt');
-        // Current POSTED and its movements are not proof of a different request.
         $replacement = (string) Str::uuid();
         $this->postJson(self::BASE.'/'.$d['id'].'/post', [], $this->headers($f) + [
             'Idempotency-Key' => $replacement, 'If-Match' => '"'.$receipt['result']['document_version'].'"',
@@ -224,8 +247,8 @@ class P24ScannerOwnerContractTest extends TestCase
             ->assertJsonPath('meta.p19_scanner.reason_kind', 'UNKNOWN')->assertJsonPath('meta.p19_scanner.can_confirm_local', false);
         $d = $this->createDocument($f);
         DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'RETURNED']);
-        $this->scan($f, $d, ['line_id' => $d['line_id'], 'item_id' => $f['item_id'], 'quantity' => 1], (string) Str::uuid())
-            ->assertUnprocessable()->assertJsonPath('error.code', 'WARRANTY_CASE_NOT_ACTIVE');
+        $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 1], (string) Str::uuid())
+            ->assertUnprocessable()->assertJsonPath('error.code', 'CASE_NOT_READY_FOR_COMPONENT_ISSUE');
         $this->assertDatabaseCount('component_issue_items', 0);
     }
 
@@ -285,7 +308,7 @@ class P24ScannerOwnerContractTest extends TestCase
 
     private function scan(array $f, array $d, array $body, string $key)
     {
-        return $this->postJson(self::BASE.'/'.$d['id'].'/scans', $body,
+        return $this->postJson(self::BASE.'/'.$d['id'].'/scans', $body + ['code_value' => $f['raw_code']],
             $this->headers($f) + ['Idempotency-Key' => $key, 'If-Match' => '"'.$d['version'].'"']);
     }
 
