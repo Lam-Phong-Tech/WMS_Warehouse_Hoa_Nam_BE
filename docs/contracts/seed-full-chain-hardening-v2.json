@@ -1,0 +1,38 @@
+{
+  "contract": "seed-full-chain-hardening-v2",
+  "status": "PARTIAL_SOURCE_HARDENING_NOT_FULL_SEED_ACCEPTANCE",
+  "base_commit": "1eeb1ecc13ae6790fdc080ebb2e6360fdf3c2ef2",
+  "implemented": {
+    "full_entry_guard": "Default DatabaseSeeder rejects protected databases before Auth/master/business writes; no break-glass grant is introduced.",
+    "coverage": "Preflight, default PostgreSQL chain and DailySkuCoverageSeeder validate the same explicit HN_DAILY_COVERAGE_DAYS process input. Missing/invalid/overflow input fails; no cached .env assumption or implicit 0/14 at those entrypoints.",
+    "run_boundary": "A PostgreSQL session advisory lock serializes the default full-chain invocation without a whole-chain transaction. An in-memory before-ID boundary restricts late enrichment to new rows in an exclusive disposable clone; it is not historical provenance.",
+    "late_hints": "FinalFixtureLocationSeeder runs after all existing phases, including DailySkuCoverageSeeder. It conditionally fills only new item IDs with null hints, without modifying existing locations, timestamps, status or condition.",
+    "display": "DisplayFieldCoverageSeeder requires an active run scope, restricts sample trays/mappings and import error files to new eligible rows, rejects unowned tray-code collisions, and does not synthesize cancelled evidence or rewrite historical line notes.",
+    "required_failure": "SeedStrictCommand makes unclassified standard warn/error calls fatal with sanitized phase information, including legacy warnings requiring review. It does not assert earlier phases or filesystem writes rolled back. Informational verified-replay skips remain distinct."
+  },
+  "still_open": [
+    "WarehouseOperationsCoverageSeeder::seedStockStatusSpread still needs its own stable scenario manifest and atomic/concurrent cohort repair; the previous +2 bucket path is not certified fixed by this change.",
+    "The existing early WarehouseOperationsCoverageSeeder::backfillDisplayGaps is not removed or provenance-scoped by this change. The new finalizer fixes the late new-item gap but does not certify the entire historical backfill.",
+    "HoaNamBulkDemoSeeder lifecycle replay, other master/catalog/threshold mutations and durable field ownership remain to be repaired or explicitly reviewed. No complete provenance or live master/fixture split is claimed.",
+    "Direct invocation of the underlying operations runDailyCoverageOnly method remains a separate owner-hardening task; canonical default and DailySkuCoverageSeeder entrypoints validate explicit process coverage.",
+    "Legacy stock-mix preservation warnings now stop strict full-chain acceptance. Do not suppress them or interpret old movement presence as completed scenario evidence.",
+    "The reported four reversal records and 2386 changed item rows still require per-record/per-field investigation on an isolated copy. No claim that all item changes were status changes.",
+    "The exact 14-day default chain must pass twice, including seeded actor HTTP login/logout, row/field/ledger/projection/file comparison, changed-window/config behavior and concurrent default-chain tests. Added tests are scoped regressions, not this acceptance."
+  ],
+  "boundaries": {
+    "live_seed": false,
+    "production_activation": false,
+    "p19_recovery_activation": false,
+    "deployment": false,
+    "migration_added": false,
+    "dependency_lock_changed": false,
+    "manual_workflow_dispatch": false,
+    "runtime_overlays_verified": false
+  },
+  "tests_added": [
+    "tests/Unit/SeedRuntimeCoverageTest.php",
+    "tests/Feature/SeedReplayFullSeedHardeningTest.php",
+    "tests/Feature/SeedStrictCommandTest.php"
+  ],
+  "validation_notice": "PHP syntax and a standalone process-coverage check are not Laravel/PostgreSQL test execution. Record actual test runs against the final commit separately. Do not call source or CI success a full seed authorization."
+}

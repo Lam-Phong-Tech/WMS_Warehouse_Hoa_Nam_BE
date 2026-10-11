@@ -71,7 +71,7 @@ final class SeedPreflightTest extends TestCase
 
     public function test_valid_credentials_preserve_default_child_sequence_without_executing_children(): void
     {
-        // This is an orchestration test only: no catalogue or business seed runs.
+        $this->coverage('0');
         $batches = [];
         $seeder = Mockery::mock(DatabaseSeeder::class)->makePartial();
         $seeder->shouldReceive('call')->andReturnUsing(function (array $classes) use (&$batches, $seeder) {
@@ -92,7 +92,8 @@ final class SeedPreflightTest extends TestCase
                 'SkuAttributeBackfillSeeder', 'DailySkuCoverageSeeder', 'SkuStockThresholdSeeder',
                 'DisplayFieldCoverageSeeder',
             ], $batches[1]);
-            $this->assertCount(2, $batches);
+            $this->assertSame(['FinalFixtureLocationSeeder'], $batches[2]);
+            $this->assertCount(3, $batches);
         } else {
             $this->assertCount(1, $batches);
         }
