@@ -54,6 +54,18 @@ jobs:
       CORS_SUPPORTS_CREDENTIALS: 'true'
       REFRESH_TOKEN_COOKIE_SECURE: 'false'
       P19_COMMAND_RECOVERY_ENABLED: 'false'
+      P13_TESTS: >-
+        tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php
+        tests/Feature/P12ReadRevision2Test.php tests/Feature/P03DraftContractTest.php
+        tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php
+        tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php
+      P13_STYLE: >-
+        Modules/Notification/app/Http/Controllers/NotificationController.php
+        Modules/Notification/app/Support/P13NotificationCursor.php
+        Modules/Notification/app/Support/P13NotificationPresentation.php
+        Modules/Warehouse/app/Support/P13StockRecordProjection.php
+        Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php
+        tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php
     steps:
       - uses: actions/checkout@v4
         with:
@@ -71,40 +83,37 @@ jobs:
           extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Install locked dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-      - name: Prepare isolated application
+      - name: Install locked dependencies and prepare isolated application
         run: |
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p13-composer.log 2>&1 || { tail -40 /tmp/p13-composer.log; exit 1; }
           cp .env.example .env
           php artisan key:generate
           php artisan config:clear
-      - name: Syntax and machine contract
-        run: |
-          php -l Modules/Notification/app/Http/Controllers/NotificationController.php
-          php -l Modules/Notification/app/Support/P13NotificationCursor.php
-          php -l Modules/Notification/app/Support/P13NotificationPresentation.php
-          php -l Modules/Warehouse/app/Support/P13StockRecordProjection.php
-          php -l Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php
-          php -l tests/Feature/P13NotificationRevision2Test.php
+          for path in $P13_STYLE; do php -l "$path"; done
           python3 -m json.tool docs/contracts/p13-notifications-r2.json > /dev/null
       - name: SQLite P13 and owner regressions
-        run: php artisan test tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P03DraftContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p13-sqlite.xml
+        run: php artisan test $P13_TESTS --log-junit p13-sqlite.xml > /tmp/p13-sqlite.log 2>&1
       - name: PostgreSQL P13 and owner regressions
         if: success() || failure()
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p12_contract_test
-        # Use P12's explicitly allowed isolated database, without weakening its safety guard.
-        run: php artisan test tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P03DraftContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p13-pgsql.xml
+        # Use P12's explicitly allowed disposable database; never weaken its guard.
+        run: php artisan test $P13_TESTS --log-junit p13-pgsql.xml > /tmp/p13-pgsql.log 2>&1
       - name: Route cache and eight-route contract
         if: success() || failure()
         run: |
           trap 'php artisan route:clear' EXIT
           php artisan route:cache
-          php artisan test tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php --log-junit p13-route-cache.xml
+          php artisan test tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php --log-junit p13-route-cache.xml > /tmp/p13-route-cache.log 2>&1
       - name: P13 style check
         if: success() || failure()
-        run: vendor/bin/pint --test Modules/Notification/app/Http/Controllers/NotificationController.php Modules/Notification/app/Support/P13NotificationCursor.php Modules/Notification/app/Support/P13NotificationPresentation.php Modules/Warehouse/app/Support/P13StockRecordProjection.php Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php
+        run: |
+          vendor/bin/pint --test $P13_STYLE || {
+            vendor/bin/pint $P13_STYLE > /tmp/p13-style.log 2>&1
+            git diff -- $P13_STYLE
+            exit 1
+          }
       - name: Locked Composer audit
         if: success() || failure()
         run: composer audit --locked --no-interaction
@@ -113,49 +122,46 @@ jobs:
         run: |
           python3 - <<'PY_REPORT'
           from pathlib import Path
-          import hashlib
-          import json
-          import os
+          import hashlib, json, os
           import xml.etree.ElementTree as ET
-          lines = ['## P13 r2 isolated contract evidence',
-                   'Build: `' + os.environ['GITHUB_SHA'] + '`',
-                   'LIVE_DEV_SMOKE=false; DEPLOYMENT=false; PRODUCTION_ACTIVATION=false',
-                   'Required evidence: this log and job summary. XML download is an optional copy.']
+          lines = ['## P13 r2 isolated contract evidence', 'Build: `' + os.environ['GITHUB_SHA'] + '`',
+                   'LIVE_DEV_SMOKE=false; DEPLOYMENT=false; PRODUCTION_ACTIVATION=false']
+          print('\n'.join(lines))
           invalid = []
           for filename in ['p13-sqlite.xml', 'p13-pgsql.xml', 'p13-route-cache.xml']:
               path = Path(filename)
               if not path.is_file() or path.stat().st_size == 0:
                   invalid.append(filename)
-                  lines.append('MISSING REPORT: ' + filename)
+                  print('MISSING REPORT:', filename)
+                  log = Path('/tmp/' + filename.replace('.xml', '.log'))
+                  if log.is_file(): print(log.read_text()[-5000:])
                   continue
-              content = path.read_bytes()
-              root = ET.fromstring(content)
+              raw = path.read_bytes()
+              root = ET.fromstring(raw)
               suites = [root] if root.tag == 'testsuite' else root.findall('./testsuite')
               cases = list(root.iter('testcase'))
-              if not suites or not cases:
-                  invalid.append(filename + ': empty test report')
-              lines.append('### ' + filename)
-              lines.append('SHA256: `' + hashlib.sha256(content).hexdigest() + '`')
+              if not suites or not cases: invalid.append(filename + ': empty')
+              lines += ['### ' + filename, 'SHA256: `' + hashlib.sha256(raw).hexdigest() + '`']
               for suite in suites:
                   counts = {key: suite.get(key, '0') for key in ['tests', 'assertions', 'errors', 'failures', 'skipped']}
                   lines.append(json.dumps(counts, sort_keys=True))
-                  if int(counts['tests']) == 0 or any(int(counts[key]) for key in ['errors', 'failures', 'skipped']):
-                      invalid.append(filename + ': failing or skipped tests')
+                  print('P13_SUITE', filename, json.dumps(counts, sort_keys=True))
+                  if int(counts['tests']) == 0 or any(int(counts[k]) for k in ['errors', 'failures', 'skipped']):
+                      invalid.append(filename + ': failing/skipped')
               for case in cases:
                   status = 'PASS'
                   for tag in ['failure', 'error', 'skipped']:
                       node = case.find(tag)
                       if node is not None:
                           status = tag.upper()
-                          lines.append((node.text or '')[:3000])
+                          detail = (node.text or '')[:4000]
+                          print('P13_FAILURE', filename, case.get('name'), detail)
+                          lines.append(detail)
                           break
                   lines.append(status + ' ' + case.get('classname', '') + '::' + case.get('name', ''))
-          report = '\n\n'.join(lines) + '\n'
-          print(report)
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
-              summary.write(report)
-          if invalid:
-              raise SystemExit('Required CI evidence incomplete: ' + ', '.join(invalid))
+              summary.write('\n\n'.join(lines) + '\n')
+          if invalid: raise SystemExit('Required evidence incomplete: ' + ', '.join(invalid))
           PY_REPORT
       - name: Optional XML artifact copy
         id: xml_artifact
@@ -173,7 +179,4 @@ jobs:
           ARTIFACT_OUTCOME: ${{ steps.xml_artifact.outcome }}
         run: |
           echo "XML_ARTIFACT_OUTCOME=$ARTIFACT_OUTCOME"
-          echo "XML artifact copy: **$ARTIFACT_OUTCOME**. Test/style/audit gates are independent; see required evidence above." >> "$GITHUB_STEP_SUMMARY"
-          if [ "$ARTIFACT_OUTCOME" != "success" ]; then
-            echo "::warning::XML artifact copy unavailable; required counts and per-test results remain in the log and job summary."
-          fi
+          echo "XML artifact copy: **$ARTIFACT_OUTCOME**. Required counts and per-test evidence are in the job summary; test/style/audit gates are independent." >> "$GITHUB_STEP_SUMMARY"
