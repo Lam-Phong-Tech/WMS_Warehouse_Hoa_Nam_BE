@@ -18,10 +18,10 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: p24-candidate-disposable
-          POSTGRES_DB: p24_candidate
+          POSTGRES_DB: p24_candidate_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres -d p24_candidate"
+          --health-cmd "pg_isready -U postgres -d p24_candidate_test"
           --health-interval 10s --health-timeout 5s --health-retries 5
     env:
       APP_ENV: testing
@@ -51,7 +51,7 @@ jobs:
           fetch-depth: 2
       - name: Assert the exact reviewed source
         run: |
-          test "$(git rev-parse HEAD^)" = '31f1d238079b343a14b434ca7efaf999db53d6de'
+          test "$(git rev-parse HEAD^)" = 'adc7ea4a66209cfd1b95fa6bf13dab96ebaf69f2'
           test "$(git diff HEAD^ HEAD --name-only)" = '.github/workflows/p24-scan-evidence-candidate.yml'
       - uses: shivammathur/setup-php@v2
         with:
@@ -59,7 +59,7 @@ jobs:
           extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Apply four reviewed exact edits in the disposable workspace only
+      - name: Apply five reviewed exact file edits in the disposable workspace only
         run: |
           python3 - <<'PY'
           import json, subprocess
@@ -68,6 +68,7 @@ jobs:
           controller = root/'Http/Controllers/CurrentBaselineComponentFlowController.php'
           service = root/'Services/P19ComponentCommand.php'
           tests = Path('tests/Feature/P24ScannerOwnerContractTest.php')
+          composite = Path('tests/Feature/ComponentIssueCompositeQrScanTest.php')
           contract = Path('docs/contracts/p24-scanner-owner-v1.json')
           def replace(path, old, new):
               text = path.read_text()
@@ -100,10 +101,19 @@ jobs:
           replace(tests,
               "        $this->assertNotSame($a->json('data.receipt.result.scan.scan_event_id'), $b->json('data.receipt.result.scan.scan_event_id'));",
               "        $this->assertSame(1, (int) DB::table('component_issue_items')->where('id', $a->json('data.receipt.result.scan.id'))->value('quantity'));\n        $this->assertSame(2, (int) DB::table('component_issue_items')->where('id', $b->json('data.receipt.result.scan.id'))->value('quantity'));")
+          replace(tests,
+              "        return $this->getJson('/api/v1/mini-app/component-issue-requests/'.$key.'?operation='.$operation, $this->headers($f));",
+              "        return $this->get('/api/v1/mini-app/component-issue-requests/'.$key.'?operation='.$operation, $this->headers($f) + ['Accept' => 'application/json']);")
+          replace(tests, "'CASE_NOT_READY_FOR_COMPONENT_ISSUE'", "'WARRANTY_CASE_NOT_ACTIVE'")
+          replace(tests, 'test_each_distinct_box_scan_receipt_has_its_own_event_and_exact_quantity', 'test_each_distinct_box_scan_receipt_has_its_own_entry_and_exact_quantity')
+          text = composite.read_text()
+          needle = "$this->postJson('/api/v1/warranty-cases', [\n"
+          assert text.count(needle) == 5, 'Unexpected composite fixture shape'
+          composite.write_text(text.replace(needle, needle+"            'warehouse_id' => (string) $warehouse->id,\n"))
           data = json.loads(contract.read_text())
           data['p19_commands']['scan_evidence'] = ('The canonical SCAN response adds scan_entry_id: the UUID of the entry inserted by that operation. The receipt verifies this exact entry against parent, line, quantity, target and nullable scan_event_id. An event ID is never synthesized. result.scan.id_source is component_issue_items.id; event_status is NOT_RECORDED when the owner has no event, otherwise SOURCE_EVENT. Missing or mismatched entry identity rolls back the write and stays UNKNOWN; an older NULL-event row is never used as proof. This does not fabricate raw-code/timeline evidence for P20.')
           contract.write_text(json.dumps(data, ensure_ascii=False, indent=2)+'\n')
-          paths = sorted(str(p) for p in [controller, service, tests, contract])
+          paths = sorted(str(p) for p in [controller, service, tests, composite, contract])
           assert sorted(subprocess.check_output(['git','diff','--name-only'],text=True).splitlines()) == paths
           Path('/tmp/p24-candidate-paths.json').write_text(json.dumps(paths))
           PY
@@ -115,12 +125,14 @@ jobs:
           php artisan config:clear
           php -l Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php
           php -l Modules/Warehouse/app/Services/P19ComponentCommand.php
+          php -l tests/Feature/P24ScannerOwnerContractTest.php
+          php -l tests/Feature/ComponentIssueCompositeQrScanTest.php
       - name: SQLite exact-entry and canonical-owner tests
         run: php artisan test tests/Feature/P24ScannerOwnerContractTest.php tests/Feature/MiniAppComponentIssueStagingTest.php tests/Feature/ComponentIssueCompositeQrScanTest.php --log-junit p24-candidate-sqlite.xml
       - name: PostgreSQL exact-entry and canonical-owner tests
         env:
           DB_CONNECTION: pgsql
-          DB_DATABASE: p24_candidate
+          DB_DATABASE: p24_candidate_test
         run: php artisan test tests/Feature/P24ScannerOwnerContractTest.php tests/Feature/MiniAppComponentIssueStagingTest.php tests/Feature/ComponentIssueCompositeQrScanTest.php --log-junit p24-candidate-pgsql.xml
       - name: Locked dependency audit
         run: composer audit --locked --no-interaction
