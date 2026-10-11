@@ -10,30 +10,179 @@ on:
 permissions:
   contents: read
 jobs:
-  source-review:
+  isolated-candidate:
+    if: startsWith(github.event.head_commit.message, 'fix(seed): prepare bounded replay candidate')
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: '${{ github.run_id }}-seed-replay-only'
+          POSTGRES_DB: p12_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p12_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: pgsql
+      DB_DATABASE: p12_contract_test
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: '${{ github.run_id }}-seed-replay-only'
+      DB_SSLMODE: disable
+      DB_URL: ''
+      WMS_PROTECT_DEPLOYMENT_DATABASE: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      HN_DAILY_COVERAGE_DAYS: '0'
+      P19_COMMAND_RECOVERY_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 2
           ref: ${{ github.sha }}
-      - name: Inspect bounded source sites, not runtime data
+      - name: Require reviewed parent and bounded source edits
+        run: |
+          test "$(git rev-parse HEAD^)" = '25034b093107139718bd2a9257c6a11af034182c'
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          p = Path('Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php')
+          assert subprocess.check_output(['git', 'hash-object', str(p)], text=True).strip() == '934d761d77a95129c530e22882e6bbabb483283a'
+          text = p.read_text()
+          def replace(old, new):
+              global text
+              assert text.count(old) == 1, 'Non-unique source patch: '+old[:90]
+              text = text.replace(old, new, 1)
+          replace('use Modules\\AuditLog\\Services\\AuditLogger;', 'use Modules\\AuditLog\\Services\\AuditLogger;\nuse Modules\\Auth\\Support\\SeedEnvironment;')
+          replace('use Throwable;', 'use RuntimeException;\nuse Throwable;')
+          replace('    private string $warehouseId;', '    private string $warehouseId;\n\n    /** @var array<string, true> Exact new item IDs created by successful receipts in this run. */\n    private array $createdFixtureItemIds = [];')
+          replace('    public function run(): void\n    {\n        if (! $this->bootstrap())', '    public function run(): void\n    {\n        $this->createdFixtureItemIds = [];\n        if (! $this->bootstrap())')
+          replace('    private function bootstrap(): bool\n    {', '    private function bootstrap(): bool\n    {\n        if ((bool) config(\'deployment_safety.protect_database\', false)) {\n            throw new RuntimeException(\'Coverage fixtures require an isolated unprotected database.\');\n        }\n        SeedEnvironment::assertFixtureAccountsAllowed(self::class);\n        SeedEnvironment::fixturePassword();')
+          replace("$warehouse = Warehouse::query()->where('code', self::WAREHOUSE_CODE)->first()\n            ?? Warehouse::query()->orderBy('created_at')->first();", "$warehouse = Warehouse::query()->where('code', self::WAREHOUSE_CODE)->first();")
+          begin = text.index('    private function receiptBatch(')
+          end = text.index('    private function seedQuantityReceipts(', begin)
+          part = text[begin:end]
+          old = '        Carbon::setTestNow($day);'
+          assert part.count(old) == 1
+          part = part.replace(old, '        $preexistingItems = $this->itemIdsBySerial($serials);\n'+old, 1)
+          old = "            $this->postDocument($docId, 'receipt', $actorId);"
+          assert part.count(old) == 1
+          part = part.replace(old, old+'\n            foreach (array_diff($this->itemIdsBySerial($serials), $preexistingItems) as $itemId) {\n                $this->createdFixtureItemIds[$itemId] = true;\n            }', 1)
+          text = text[:begin]+part+text[end:]
+          begin = text.index('    private function runReversal(')
+          end = text.index('    private function seedOutboundRequestStates(', begin)
+          part = text[begin:end]
+          old = "->whereIn('rd.status', ['DRAFT', 'POSTED'])"
+          assert part.count(old) == 1
+          part = part.replace(old, "->whereIn('rd.status', ['DRAFT', 'POSTED', 'CANCELLED'])", 1)
+          part = part.replace("        $alreadyReversed = DB::table('reversal_line as rl')", "        // Seeder replay preserves terminal cancellation; this does not alter owner retry policy.\n        $alreadyReversed = DB::table('reversal_line as rl')", 1)
+          text = text[:begin]+part+text[end:]
+          begin = text.index('    private function seedItemLifecycleEdges(): void')
+          end = text.index('    private function seedNewCandidates(', begin)
+          part = text[begin:end]
+          old = '    private function seedItemLifecycleEdges(): void\n    {'
+          part = part.replace(old, old+'\n        // Never select a fresh cohort from existing operational stock on replay.\n        $freshIds = array_keys($this->createdFixtureItemIds);\n        $this->createdFixtureItemIds = [];\n        if ($freshIds === []) {\n            return;\n        }\n', 1)
+          old = "$items = DB::table('item_instances')"
+          assert part.count(old) == 1
+          part = part.replace(old, old+"\n                ->whereIn('item_id', $freshIds)", 1)
+          part = part.replace("->orderByDesc('created_at')", "->orderByDesc('created_at')->orderBy('item_id')", 1)
+          old = "DB::table('item_instances')->where('item_id', $itemId)->update($update);"
+          assert part.count(old) == 1
+          part = part.replace(old, "DB::table('item_instances')->where('item_id', $itemId)\n                    ->where('item_status', 'IN_STOCK')->where('item_condition', 'NORMAL')->update($update);", 1)
+          text = text[:begin]+part+text[end:]
+          p.write_text(text)
+          p = Path('Modules/Warehouse/database/seeders/InventoryStockStatusMixSeeder.php')
+          text = p.read_text()
+          old = "$businessKey = self::BK_PREFIX.':'.$status.':'.$skuId;"
+          assert text.count(old) == 1
+          text = text.replace(old, "$businessKey = self::BK_PREFIX.':'.$this->warehouseId.':'.$status.':'.$skuId;", 1)
+          p.write_text(text)
+          PY
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_pgsql, sqlite3, pdo_sqlite, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Prepare disposable runtime with exact lock
+        run: |
+          cp .env.example .env
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          echo "WMS_FIXTURE_PASSWORD=$secret" >> "$GITHUB_ENV"
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/seed-composer.log 2>&1 || { tail -40 /tmp/seed-composer.log; exit 1; }
+          git diff --exit-code -- composer.lock
+          php artisan key:generate
+          php artisan config:clear
+          PGPASSWORD="$DB_PASSWORD" createdb -h 127.0.0.1 -U postgres component_issue_seeder_test
+      - name: Format only reviewed candidate files
+        run: |
+          vendor/bin/pint Modules/Warehouse/database/seeders/InventoryStockStatusMixSeeder.php Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php scripts/test-seed-replay-contract.php tests/Feature/SeedReplayFixtureContractTest.php
+          php -l Modules/Warehouse/database/seeders/InventoryStockStatusMixSeeder.php
+          php -l Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php
+          php -l scripts/test-seed-replay-contract.php
+          php -l tests/Feature/SeedReplayFixtureContractTest.php
+      - name: PostgreSQL repeat and rollback assertions
+        env:
+          DB_DATABASE: component_issue_seeder_test
+        run: |
+          php scripts/test-seed-replay-contract.php
+          php scripts/test-component-issue-seeder-immutability.php
+      - name: Actual migrated PostgreSQL fixture login and preflight regressions
+        run: |
+          php artisan test tests/Feature/SeedReplayFixtureContractTest.php tests/Feature/SeedPreflightTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit seed-pgsql.xml
+      - name: Actual migrated SQLite fixture login and preflight regressions
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+        run: |
+          php artisan test tests/Feature/SeedReplayFixtureContractTest.php tests/Feature/SeedPreflightTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit seed-sqlite.xml
+      - name: Locked dependency audit
+        run: composer audit --locked --no-interaction
+      - name: Publish only verified candidate blobs, never update any ref
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
-          for p in sorted(Path('Modules/Warehouse/database/seeders').glob('*.php')):
-              lines = p.read_text().splitlines()
-              method = ''
-              for i, line in enumerate(lines):
-                  if re.search(r'function\s+\w+', line): method = line.strip()
-                  if 'item_instances' in line and any(word in '\n'.join(lines[max(0,i-4):i+24]) for word in ['update(', 'UPDATE', 'DB::statement', 'DB::unprepared']):
-                      print('\nSOURCE_SITE', str(p), i+1, method)
-                      print('\n'.join(f'{j+1}: {lines[j]}' for j in range(max(0,i-3), min(len(lines),i+27))))
-          for p in sorted(Path('.').rglob('*Seed*php')):
-              if 'vendor' in p.parts: continue
-              if 'seed-preflight' in p.read_text(errors='replace'):
-                  print('UPSTREAM_PREFLIGHT', str(p))
-          print('SOURCE_REVIEW_ONLY; LIVE=false; SEED=false; DEPLOYMENT=false')
+          import hashlib, json, os, subprocess, urllib.request
+          import xml.etree.ElementTree as ET
+          paths = ['Modules/Warehouse/database/seeders/InventoryStockStatusMixSeeder.php', 'Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php', 'scripts/test-seed-replay-contract.php', 'tests/Feature/SeedReplayFixtureContractTest.php']
+          changed = subprocess.check_output(['git','diff','--name-only'], text=True).splitlines()
+          assert set(changed) <= set(paths)
+          assert os.environ['GITHUB_REPOSITORY'] == 'Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE'
+          for report in ['seed-pgsql.xml', 'seed-sqlite.xml']:
+              root = ET.parse(report).getroot()
+              suites = root.findall('./testsuite')
+              assert suites and list(root.iter('testcase'))
+              for suite in suites:
+                  assert int(suite.get('tests','0')) > 0 and int(suite.get('assertions','0')) > 0
+                  assert all(int(suite.get(k,'0')) == 0 for k in ['errors','failures','skipped'])
+                  print('CANDIDATE_TESTS', report, json.dumps(suite.attrib, sort_keys=True))
+          for path in paths:
+              raw = Path(path).read_bytes()
+              expected = hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+              req = urllib.request.Request('https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/git/blobs',
+                  data=json.dumps({'encoding':'utf-8','content':raw.decode()}).encode(), method='POST',
+                  headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
+              with urllib.request.urlopen(req, timeout=30) as response: result=json.load(response)
+              assert result['sha'] == expected
+              print('VERIFIED_SEED_BLOB', path, expected, hashlib.sha256(raw).hexdigest())
+          print('CANDIDATE_ONLY; LIVE=false; DEPLOYMENT=false; FULL_SEED_APPROVAL=false')
           PY
