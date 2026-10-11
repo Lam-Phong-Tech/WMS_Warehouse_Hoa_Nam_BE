@@ -12,11 +12,14 @@ use Modules\Auth\Models\User;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
+use Tests\TestCredentials;
 
 /** Read regressions only; fixtures live in the disposable CI database. */
 class P02ReadContractTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use RefreshDatabase;
 
     private const LISTS = [
@@ -133,14 +136,27 @@ class P02ReadContractTest extends TestCase
     {
         $warehouse = $this->ensureActiveWarehouse('P02-A');
         $token = $this->token();
+        // P09 now requires a renewable session and confirmed warehouse. Preserve
+        // that guard; only this fixture changes, not the stock access-only tests.
+        $this->getJson('/api/v1/mini-app/warranty-cases', $this->headers($token))
+            ->assertStatus(409)->assertJsonPath('error_code', 'AUTH_SESSION_REQUIRED');
+        $user = User::query()->findOrFail($this->actorId);
+        $this->resetAuthentication();
+        $login = $this->browserLogin($user->email, TestCredentials::PASSWORD)->assertOk();
+        $context = $this->postJson('/api/v1/auth/switch-context', [
+            'context_type' => 'WAREHOUSE', 'context_id' => (string) $warehouse->id,
+        ], $this->headers($login->json('data.access_token')))->assertOk();
+        $token = $context->json('data.access_token');
         $ids = [];
         for ($i = 0; $i < 3; $i++) {
             $response = $this->postJson('/api/v1/mini-app/warranty-cases', [
-                'customer_name' => 'P02 automated test', 'customer_phone' => '0900000000',
+                'customer_name' => 'P02 automated test', 'customer_phone' => '0000000000',
                 'description' => 'Disposable test only', 'missing_code_reason' => 'Test without serial',
                 'manual_product_description' => 'P02 isolated fixture',
                 'warehouse_id' => (string) $warehouse->id,
-            ], $this->headers($token))->assertCreated();
+            ], $this->headers($token) + [
+                'Idempotency-Key' => (string) Str::uuid(), 'X-Request-ID' => (string) Str::uuid(),
+            ])->assertCreated()->assertJsonPath('data.receipt.state', 'SUCCEEDED');
             $id = (string) $response->json('data.warranty_case_id');
             $this->assertTrue(Str::isUuid($id));
             $ids[] = $id;
@@ -156,6 +172,7 @@ class P02ReadContractTest extends TestCase
                     ->assertJsonPath('data.0.status', 'RECEIVED')->assertJsonPath('data.0.pii_masked', true);
             }
         }
+        $this->assertDatabaseCount('mini_app_work_shifts', 0);
     }
 
     private function document(string $type, Warehouse $warehouse): string
@@ -177,7 +194,7 @@ class P02ReadContractTest extends TestCase
         $suffix = substr((string) Str::uuid(), 0, 8);
         $user = User::create([
             'username' => 'p02_'.$suffix, 'display_name' => 'P02 test', 'email' => 'p02_'.$suffix.'@wms-hoanam.test',
-            'password_hash' => Hash::make('secret123'), 'status' => 'ACTIVE', 'version' => 1,
+            'password_hash' => Hash::make(TestCredentials::PASSWORD), 'status' => 'ACTIVE', 'version' => 1,
         ]);
         $this->actorId = (string) $user->user_id;
         $role = Role::create(['role_code' => 'P02_'.$suffix, 'role_name' => 'P02 test', 'scope_type' => 'WAREHOUSE', 'status' => 'ACTIVE']);
@@ -189,7 +206,7 @@ class P02ReadContractTest extends TestCase
                 'permission_id' => $permission->permission_id, 'created_at' => now(), 'updated_at' => now(),
             ]);
         }
-        // No refresh family or shift: the existing business read APIs must stay usable.
+        // No refresh family or shift: existing stock business reads stay usable.
         $this->resetAuthentication();
 
         return app(RefreshTokenService::class)->accessTokenFor($user, null);

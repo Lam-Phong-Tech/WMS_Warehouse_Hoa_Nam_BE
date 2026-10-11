@@ -7,6 +7,7 @@ on:
       - 'Modules/Warehouse/**'
       - 'tests/Feature/P12*Test.php'
       - 'tests/Unit/P12*Test.php'
+      - 'tests/Feature/P02ReadContractTest.php'
       - 'tests/Feature/P04InboundContractTest.php'
       - 'tests/Feature/P05OutboundContractTest.php'
       - 'tests/Feature/P23ReadContractTest.php'
@@ -79,19 +80,19 @@ jobs:
           php artisan config:clear
       - name: Style and syntax check P12 integration files
         run: |
-          vendor/bin/pint --test -v Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Support/P12DocumentPresentation.php Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php Modules/Warehouse/app/Providers/RouteServiceProvider.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php
+          vendor/bin/pint --test -v Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Support/P12DocumentPresentation.php Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php Modules/Warehouse/app/Providers/RouteServiceProvider.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php tests/Feature/P02ReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php
           find Modules/Warehouse tests -name '*P12*.php' -print0 | xargs -0 -n1 php -l
-      - name: SQLite P12 and owner P04 P05 and P09-P23 read regressions
+      - name: SQLite P12 and owner P02 P04 P05 and P09-P23 read regressions
         if: success() || failure()
         run: |
-          php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P23ReadContractTest.php --log-junit p12-sqlite.xml
-      - name: PostgreSQL P12 and owner P04 P05 and P09-P23 read regressions
+          php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php tests/Feature/P02ReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P23ReadContractTest.php --log-junit p12-sqlite.xml
+      - name: PostgreSQL P12 and owner P02 P04 P05 and P09-P23 read regressions
         if: success() || failure()
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p12_contract_test
         run: |
-          php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P23ReadContractTest.php --log-junit p12-pgsql.xml
+          php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php tests/Feature/P02ReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P23ReadContractTest.php --log-junit p12-pgsql.xml
       - name: Cached route P12 regressions in disposable SQLite
         if: success() || failure()
         run: |
@@ -117,8 +118,7 @@ jobs:
                   for node in root.iter(tag): print('P12_ISOLATED_TEST_FAILURE '+(node.text or '')[:6000])
           PY
   security_lock_candidate:
-    # Single-use candidate preparation, reviewed before a separate branch update.
-    # This job never updates refs or commits; its only write is an unreferenced blob.
+    # Single-use preparation. Only an unreferenced blob is written after audit/tests.
     if: >-
       github.event_name == 'push' && github.ref == 'refs/heads/dev' && startsWith(github.event.head_commit.message, 'ci(p12): prepare a bounded audited dependency lock candidate')
     runs-on: ubuntu-24.04
@@ -163,34 +163,45 @@ jobs:
           persist-credentials: false
           fetch-depth: 2
       - name: Assert exact reviewed parent before any dependency change
-        run: test "$(git rev-parse HEAD^)" = '5a18f391798ff556492c11a6902bbe506c7a5f22'
+        run: test "$(git rev-parse HEAD^)" = 'ca6f58e620da9f3211ca48fae745f325e67de58e'
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
           coverage: none
           tools: composer:v2
-      - name: Resolve only the three affected packages at patched versions
+      - name: Resolve three patch upgrades and preserve every other locked package
         run: |
           cp composer.lock /tmp/p12-before.lock
-          composer update laravel/framework:13.30.0 league/commonmark:2.10.2 league/flysystem:3.35.3 --with-all-dependencies --minimal-changes --no-scripts --no-interaction --no-progress
+          composer update laravel/framework:13.30.0 league/commonmark:2.10.2 league/flysystem:3.35.3 --with-all-dependencies --minimal-changes --no-install --no-scripts --no-interaction --no-progress
           python3 - <<'PY'
           import json, subprocess
           from pathlib import Path
           old=json.loads(Path('/tmp/p12-before.lock').read_text())
-          new=json.loads(Path('composer.lock').read_text())
+          resolved=json.loads(Path('composer.lock').read_text())
           def packages(lock): return {p['name']:p for group in ['packages','packages-dev'] for p in lock[group]}
-          before=packages(old); after=packages(new)
-          changed={k for k in set(before)|set(after) if before.get(k)!=after.get(k)}
-          expected={'laravel/framework':'v13.30.0','league/commonmark':'2.10.2','league/flysystem':'3.35.3'}
-          assert changed==set(expected), f'Unexpected dependency change set: {sorted(changed)}'
-          assert old['content-hash']==new['content-hash'], 'Root dependency manifest changed'
-          assert subprocess.check_output(['git','diff','--name-only'],text=True).splitlines()==['composer.lock']
+          before=packages(old); after=packages(resolved)
+          expected={'laravel/framework':'13.30.0','league/commonmark':'2.10.2','league/flysystem':'3.35.3'}
+          assert set(before)==set(after), 'Unexpected install/removal'
+          for name in before:
+              if name not in expected:
+                  assert before[name]['version']==after[name]['version'], 'Unexpected version upgrade '+name
+                  # Registry metadata can refresh at the same version. Preserve the
+                  # complete original object (source/dist/requirements included).
+                  if before[name]!=after[name]: print('P12_KEEP_ORIGINAL_LOCK_METADATA '+name)
+          assert old['content-hash']==resolved['content-hash']
+          for group in ['packages','packages-dev']:
+              old[group]=[after[p['name']] if p['name'] in expected else p for p in old[group]]
+          patched=packages(old)
+          assert {k for k in before if before[k]!=patched[k]}==set(expected)
           for name, version in expected.items():
-              assert after[name]['version'].lstrip('v')==version.lstrip('v')
-              print('P12_PATCH_PACKAGE '+name+' '+before[name]['version']+' -> '+after[name]['version'])
+              assert patched[name]['version'].lstrip('v')==version
+              print('P12_PATCH_PACKAGE '+name+' '+before[name]['version']+' -> '+patched[name]['version'])
+          Path('composer.lock').write_text(json.dumps(old,ensure_ascii=False,indent=4)+'\n')
+          assert subprocess.check_output(['git','diff','--name-only'],text=True).splitlines()==['composer.lock']
           PY
-      - name: Audit the candidate lock without suppressing findings
+          composer install --no-scripts --no-interaction --prefer-dist --no-progress
+      - name: Audit candidate lock without suppressing findings
         run: composer audit --locked --no-interaction
       - name: Prepare disposable test application only
         run: |
@@ -217,9 +228,9 @@ jobs:
           raw=Path('composer.lock').read_bytes()
           blob=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
           url='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/git/blobs'
-          req=urllib.request.Request(url, data=json.dumps({'encoding':'utf-8','content':raw.decode()}).encode(),
+          req=urllib.request.Request(url,data=json.dumps({'encoding':'utf-8','content':raw.decode()}).encode(),
               headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'},method='POST')
-          with urllib.request.urlopen(req, timeout=30) as response: result=json.load(response)
+          with urllib.request.urlopen(req,timeout=30) as response: result=json.load(response)
           assert result['sha']==blob
           print('P12_VERIFIED_LOCK_BLOB='+blob)
           print('P12_VERIFIED_LOCK_SHA256='+hashlib.sha256(raw).hexdigest())
