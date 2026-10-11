@@ -1,0 +1,106 @@
+{
+  "contract": "p12-documents-read-v2",
+  "status": "SOURCE_IMPLEMENTED_PENDING_BA_AND_LIVE_TEST",
+  "handoff_commit": "4113826a7179a1d54ff2231c88a8cd3477279aa8",
+  "base_commit": "b51c77d929b223eb298efebcbf6fbdf0e7886358",
+  "new_routes": [],
+  "write_operations": [],
+  "full_activation": false,
+  "metadata": {
+    "location": "meta.p12; data.p12 for detail; data[].p12 for list",
+    "sources": {
+      "INBOUND": "P04 stock document",
+      "OUTBOUND": "P05 stock document",
+      "WARRANTY": "P09 warranty case, never a fabricated stock document"
+    },
+    "backwards_compatibility": "Original data/status/mini_app_status/readiness/ETag preserved; metadata is additive. No mandatory header.",
+    "status": "status.canonical and status.mini_app are distinct owner fields; readiness is not proof of review, sending to Web, approval or posting.",
+    "legacy_inbound": "WAITING_APPROVAL remains the existing scan-readiness alias for old clients, not a cross-source state or handoff event.",
+    "all_sources": "No merged endpoint, complete total, shared pagination or frozen snapshot is introduced."
+  },
+  "stock_list": {
+    "paths": [
+      "/api/v1/mini-app/inbound-documents",
+      "/api/v1/mini-app/outbound-documents"
+    ],
+    "query": [
+      "warehouse_id",
+      "keyword",
+      "status",
+      "ready_for_post (INBOUND)",
+      "ready_for_issue (OUTBOUND)",
+      "date_from",
+      "date_to",
+      "timezone",
+      "sort_order",
+      "page",
+      "per_page"
+    ],
+    "timezone_default": "Asia/Ho_Chi_Minh",
+    "date_field": "created_at",
+    "sort": "created_at + id, asc/desc",
+    "per_page_max": 200,
+    "pagination": "OFFSET; no cursor or frozen snapshot"
+  },
+  "warranty": "P09 queries unchanged; date_mode/date_field/date/from/to are the separately deployed P23 extension. Do not send stock date_from/date_to/sort_order or copy its paging cap.",
+  "timeline": {
+    "location": "data.p12.timeline.milestones, detail only",
+    "created": "Exact server created_at, with timestamp_source; null stays NOT_RECORDED.",
+    "checked": "SOURCE_MAPPING_PENDING; do not infer from SCANNING, counters, state history aliases or doc_date.",
+    "sent_to_web": "SOURCE_MAPPING_PENDING; do not repurpose generic submitted_at/approved_at until the owner mapping is approved.",
+    "posted": "Exact stock_documents.posted_at only, never inferred from POSTED status. Warranty receipt/case is stock-neutral: NOT_APPLICABLE.",
+    "event_id": "null for timestamp-column evidence; no synthetic event IDs.",
+    "coverage": "PARTIAL is explicit, not a claim that the event did not happen."
+  },
+  "scan_summary": {
+    "contract": "p12-scan-evidence-v2",
+    "location": "meta.summary",
+    "paths": [
+      "/api/v1/mini-app/inbound-documents/{id}/scan-entries",
+      "/api/v1/mini-app/outbound-documents/{id}/scan-entries"
+    ],
+    "scope": "Whole authorized parent/status query before pagination",
+    "quantity_by_unit": "unit, quantity, known_quantity, entry_count, missing_quantity_count",
+    "null_rule": "quantity is null when any row in that unit lacks quantity; known_quantity is only the known subtotal, null when none known. No null-to-zero.",
+    "quantity_total": "Only confirmed empty=0 or one non-empty unit with all quantities known; otherwise null.",
+    "flags": [
+      "quantity_complete",
+      "missing_quantity_count",
+      "unit_complete",
+      "unknown_unit_entry_count",
+      "mixed_units",
+      "coverage"
+    ],
+    "rolling_cache": "Legacy cached summary is marked LEGACY_CACHE_PENDING_REFRESH with unknown quantities until the existing short read cache refreshes.",
+    "children": "A failed scan/files request is not an empty parent. Do not use embedded item_matches as a paginated evidence source."
+  },
+  "p09_bridge": {
+    "path": "GET /api/v1/mini-app/warranty-requests/{requestId}",
+    "location": "meta.p12.read_target",
+    "success": "Only SUCCEEDED plus matching canonical warranty_case_id, after existing owner ACL, exposes GET case detail target.",
+    "other_states": "UNKNOWN/PROCESSING/FAILED have no target; original receipt and may_create_new_request policy remain owned by P09.",
+    "pii": "No receipt note/name/phone is added; existing safeCase and event redaction remain in force."
+  },
+  "attachments": {
+    "path": "GET /api/v1/mini-app/document-attachments/{attachmentId}/download",
+    "fix": "INBOUND/OUTBOUND validate existing non-deleted parent of exact canonical type and warehouse before streaming; missing, wrong-type, or soft-deleted parent fails closed even for global users.",
+    "binary": "Existing owner stream, MIME handling, private no-store/nosniff and download audit preserved.",
+    "outside_scope": "No new route, upload/delete capability, Web attachment controller rewrite, or reversal-owner change."
+  },
+  "unchanged": [
+    "P04 GLOBAL supplier lookup q/status/page/per_page; no warehouse_id",
+    "P04 write note 1000; P12 readonly note is not truncated; P05/P09 limits unchanged",
+    "P04/P05/P09 command/UNKNOWN owners; no recreate in P12",
+    "Old removed repair scripts stay removed"
+  ],
+  "validation": {
+    "workflow": ".github/workflows/p12-documents-contract.yml",
+    "ci_only": "Disposable SQLite/PostgreSQL regressions, real test-byte download/ACL errors, route cache, ancestry and locked Composer audit. NOT live evidence.",
+    "pending": [
+      "BA All presentation and cross-source state mapping",
+      "Explicit checked/sent_to_web event ownership",
+      "Approved deployed artifact/build ancestry/schema and real permitted/denied accounts",
+      "GET-only real file download and native-browser smoke, redacted production evidence"
+    ]
+  }
+}

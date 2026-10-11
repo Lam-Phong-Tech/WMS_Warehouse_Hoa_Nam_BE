@@ -68,14 +68,32 @@ final class P12DocumentReadContract
             .'COUNT(DISTINCT item_id) AS item_count, '
             ."COUNT(DISTINCT NULLIF(TRIM(serial_number), '')) AS resolved_serial_count"
         )->first();
-        $byUnit = (clone $base)->select('unit')->selectRaw('SUM(quantity) AS quantity')
-            ->groupBy('unit')->orderBy('unit')->get()->map(fn (object $row): array => [
-                'unit' => $row->unit,
-                'quantity' => self::number($row->quantity),
-            ])->all();
+        $byUnit = (clone $base)->select('unit')
+            ->selectRaw('COUNT(*) AS entry_count, COUNT(quantity) AS known_quantity_count, SUM(quantity) AS known_quantity')
+            ->groupBy('unit')->orderBy('unit')->get()->map(function (object $row): array {
+                $missing = (int) $row->entry_count - (int) $row->known_quantity_count;
+
+                return [
+                    'unit' => $row->unit,
+                    'quantity' => $missing === 0 ? self::number($row->known_quantity) : null,
+                    'known_quantity' => self::number($row->known_quantity),
+                    'entry_count' => (int) $row->entry_count,
+                    'missing_quantity_count' => $missing,
+                ];
+            })->all();
         $entryCount = (int) $counts->entry_count;
+        $missingQuantity = array_sum(array_column($byUnit, 'missing_quantity_count'));
+        $unknownUnit = 0;
+        $knownUnits = 0;
+        foreach ($byUnit as $unit) {
+            if (trim((string) $unit['unit']) === '') {
+                $unknownUnit += $unit['entry_count'];
+            } else {
+                $knownUnits++;
+            }
+        }
         $total = $entryCount === 0 ? 0 : null;
-        if (count($byUnit) === 1 && trim((string) $byUnit[0]['unit']) !== '') {
+        if (count($byUnit) === 1 && $unknownUnit === 0 && $missingQuantity === 0) {
             $total = $byUnit[0]['quantity'];
         }
 
@@ -88,14 +106,32 @@ final class P12DocumentReadContract
             'resolved_serial_count' => (int) $counts->resolved_serial_count,
             'quantity_total' => $total,
             'quantity_by_unit' => $byUnit,
+            'quantity_complete' => $missingQuantity === 0,
+            'missing_quantity_count' => $missingQuantity,
+            'unit_complete' => $unknownUnit === 0,
+            'unknown_unit_entry_count' => $unknownUnit,
+            'mixed_units' => $knownUnits > 1,
+            'coverage' => 'CURRENT_QUERY',
         ];
     }
 
     public static function evidenceResponse(JsonResponse $response, array $summary, string $id, string $status): JsonResponse
     {
+        // A rolling deploy can briefly read the previous owner's cached summary.
+        // Do not publish its SQL SUM as a complete quantity until that cache refreshes.
+        if (! array_key_exists('quantity_complete', $summary)) {
+            $summary['quantity_total'] = null;
+            $summary['quantity_by_unit'] = array_map(static fn (array $unit): array => [
+                'unit' => $unit['unit'], 'quantity' => null, 'known_quantity' => null,
+                'entry_count' => null, 'missing_quantity_count' => null,
+            ], $summary['quantity_by_unit'] ?? []);
+            $summary += ['quantity_complete' => null, 'missing_quantity_count' => null,
+                'unit_complete' => null, 'unknown_unit_entry_count' => null,
+                'mixed_units' => null, 'coverage' => 'LEGACY_CACHE_PENDING_REFRESH'];
+        }
         $body = $response->getData(true);
         $body['meta'] += [
-            'contract' => 'p12-scan-evidence-v1',
+            'contract' => 'p12-scan-evidence-v2',
             'document_id' => $id,
             'scan_status' => $status,
             'summary' => $summary,
@@ -128,8 +164,11 @@ final class P12DocumentReadContract
         return $response->setData($body)->header('Cache-Control', 'private, no-store');
     }
 
-    private static function number(mixed $value): int|float
+    private static function number(mixed $value): int|float|null
     {
+        if ($value === null) {
+            return null;
+        }
         $number = (float) $value;
 
         return floor($number) === $number ? (int) $number : $number;

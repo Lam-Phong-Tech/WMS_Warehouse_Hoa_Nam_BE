@@ -6,8 +6,12 @@ on:
     paths:
       - 'Modules/Warehouse/**'
       - 'tests/Feature/P12*Test.php'
+      - 'tests/Unit/P12*Test.php'
       - 'tests/Feature/P04InboundContractTest.php'
       - 'tests/Feature/P05OutboundContractTest.php'
+      - 'tests/Feature/P23ReadContractTest.php'
+      - 'docs/contracts/p12-read-v2.json'
+      - 'composer.lock'
       - '.github/workflows/p12-documents-contract.yml'
 permissions:
   contents: read
@@ -54,6 +58,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Verify handoff ancestry and source identity
+        run: |
+          git merge-base --is-ancestor 4113826a7179a1d54ff2231c88a8cd3477279aa8 HEAD
+          git rev-parse HEAD
+          sha256sum composer.lock
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -62,34 +72,47 @@ jobs:
           tools: composer:v2
       - name: Install locked dependencies
         run: composer install --no-interaction --prefer-dist --no-progress > /tmp/p12-composer.log 2>&1 || { tail -60 /tmp/p12-composer.log; exit 1; }
-      - name: Style and syntax check P12 integration files
-        run: |
-          vendor/bin/pint --test Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php
-          for file in Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Http/Controllers/{MiniAppInboundController,MiniAppOutboundController,P04InboundController,DocumentAttachmentController}.php tests/Feature/{P04InboundContractTest,P12DocumentsReadContractTest}.php; do php -l "$file"; done
       - name: Prepare isolated application
         run: |
           cp .env.example .env
           php artisan key:generate
           php artisan config:clear
-      - name: SQLite P12 and owner P04 P05 regressions
-        run: php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php --log-junit p12-sqlite.xml
-      - name: PostgreSQL P12 and owner P04 P05 regressions
+      - name: Style and syntax check P12 integration files
+        run: |
+          vendor/bin/pint --test -v Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Support/P12DocumentPresentation.php Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php Modules/Warehouse/app/Providers/RouteServiceProvider.php Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php Modules/Warehouse/app/Http/Controllers/P04InboundController.php Modules/Warehouse/app/Http/Controllers/DocumentAttachmentController.php tests/Feature/P04InboundContractTest.php tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php
+          find Modules/Warehouse tests -name '*P12*.php' -print0 | xargs -0 -n1 php -l
+      - name: SQLite P12 and owner P04 P05 and P09-P23 read regressions
+        if: success() || failure()
+        run: |
+          php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P23ReadContractTest.php --log-junit p12-sqlite.xml
+      - name: PostgreSQL P12 and owner P04 P05 and P09-P23 read regressions
         if: success() || failure()
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p12_contract_test
-        run: php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php --log-junit p12-pgsql.xml
-      - name: Publish counts and sanitized isolated failures to logs
+        run: |
+          php artisan test tests/Feature/P12DocumentsReadContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Unit/P12DocumentPresentationTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P23ReadContractTest.php --log-junit p12-pgsql.xml
+      - name: Cached route P12 regressions in disposable SQLite
+        if: success() || failure()
+        run: |
+          trap 'php artisan route:clear' EXIT
+          php artisan route:cache
+          php artisan test tests/Feature/P12ReadRevision2Test.php --log-junit p12-route-cache.xml
+      - name: Composer locked dependency audit
+        if: success() || failure()
+        run: composer audit --locked --no-interaction
+      - name: Publish isolated test counts and source hashes without artifact quota dependency
         if: always()
         run: |
+          echo "P12_ISOLATED_SOURCE=$GITHUB_SHA; no deployment or live approval"
+          sha256sum composer.lock Modules/Warehouse/app/Support/P12DocumentReadContract.php Modules/Warehouse/app/Support/P12DocumentPresentation.php Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php tests/Feature/P12ReadRevision2Test.php
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
           for path in Path('.').glob('p12-*.xml'):
               if not path.stat().st_size: continue
               root = ET.parse(path).getroot()
-              print('P12_TEST_COUNTS '+path.name+' '+str(root.attrib))
-              for suite in root.findall('./testsuite'): print('P12_SUITE '+str(suite.attrib))
+              for suite in root.findall('./testsuite'): print('P12_SUITE '+path.name+' '+str(suite.attrib))
               for tag in ['failure', 'error']:
-                  for node in root.iter(tag): print('P12_TEST_FAILURE '+(node.text or '')[:6000])
+                  for node in root.iter(tag): print('P12_ISOLATED_TEST_FAILURE '+(node.text or '')[:6000])
           PY

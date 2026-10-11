@@ -11,6 +11,7 @@ use Modules\Warehouse\Http\Middleware\P05OutboundSource;
 use Modules\Warehouse\Http\Middleware\P07NfcReadbackGuard;
 use Modules\Warehouse\Http\Middleware\P07NfcRecoveryGuard;
 use Modules\Warehouse\Http\Middleware\P09WarrantyAttachmentGuard;
+use Modules\Warehouse\Http\Middleware\P12DocumentReadMetadata;
 use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Modules\Warehouse\Services\MiniAppDraftService;
 
@@ -44,6 +45,11 @@ class RouteServiceProvider extends ServiceProvider
         Route::middleware('api')->prefix('api')->name('api.p09.')->group(module_path($this->name, '/routes/p09_warranty.php'));
         Route::middleware('api')->prefix('api')->name('api.upload-receipts.')->group(module_path($this->name, '/routes/attachment_upload_receipts.php'));
         foreach (Route::getRoutes() as $route) {
+            if (in_array('GET', $route->methods(), true)
+                && (isset(P12DocumentReadMetadata::READ_ROUTES[$route->uri()])
+                    || $route->uri() === P12DocumentReadMetadata::DOWNLOAD_ROUTE)) {
+                $route->middleware(P12DocumentReadMetadata::class);
+            }
             if ($route->uri() === 'api/v1/mini-app/warranty-cases/{id}/attachments'
                 || str_starts_with($route->uri(), 'api/v1/mini-app/warranty-attachments/')) {
                 $route->middleware(P09WarrantyAttachmentGuard::class);
