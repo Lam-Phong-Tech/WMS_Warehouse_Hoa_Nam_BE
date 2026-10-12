@@ -136,6 +136,8 @@ class MiniAppDashboardSummaryTest extends TestCase
             'doc_no' => 'DASH-'.strtoupper(Str::random(10)),
             'doc_date' => '2026-09-11',
             'status' => $status,
+            // Required by the canonical outbound mirror in the isolated test DB.
+            'recipient_name' => $docType === 'issue' ? 'Isolated dashboard recipient' : null,
             ($docType === 'receipt' ? 'dst_warehouse_id' : 'src_warehouse_id') => $warehouseId,
             'posted_by' => $postedAt === null ? null : $actorId,
             'posted_at' => $postedAt,
