@@ -153,6 +153,7 @@ class MiniAppDashboardSummaryTest extends TestCase
                 'line_no' => 1,
                 'product_id' => $skuId,
                 'qty_planned' => $planned,
+                'qty_actual' => $planned,
                 'scanned_qty' => $scanned,
                 'created_at' => '2026-09-11 07:00:00',
                 'updated_at' => '2026-09-11 07:00:00',
