@@ -1,0 +1,163 @@
+name: P11-P24 Backlog Integration
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Auth/**'
+      - 'Modules/Warehouse/app/**'
+      - 'tests/Feature/**'
+      - 'contracts/p19/**'
+      - 'contracts/integration/p11-p24-*.json'
+      - '.github/workflows/p11-p24-backlog-regression.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-backlog
+          POSTGRES_DB: p24_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p24_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p24_contract_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${{ github.run_id }}-isolated-backlog
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      P19_COMMAND_RECOVERY_ENABLED: 'false'
+      P14_SHIFT_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Source and disposable target guard
+        run: |
+          test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
+          case "$DB_DATABASE" in ':memory:'|p24_contract_test) ;; *) exit 1 ;; esac
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor 701e93522010664e623f18605d79d59ae6316c37 HEAD
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          sha256sum composer.lock
+      - name: Install locked dependencies and prepare isolated runtime
+        run: |
+          cp .env.example .env
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/backlog-install.log 2>&1 || { tail -60 /tmp/backlog-install.log; exit 1; }
+          php artisan key:generate
+          php artisan config:clear
+          php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          $db = Illuminate\Support\Facades\DB::connection();
+          $safe = $db->getDriverName() === 'sqlite' ? $db->getDatabaseName() === ':memory:'
+              : $db->getDriverName() === 'pgsql' && $db->getDatabaseName() === 'p24_contract_test' && $db->getConfig('host') === '127.0.0.1';
+          if (! $app->environment('testing') || ! $safe || getenv('DB_URL') !== '') { exit(1); }
+          PHP
+      - name: Select complete P24 owner matrix and backlog extensions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          core = ['P24ScannerOwnerContractTest','P19LinkedComponentIssueTest','P20ComponentHistoryTest','P21ComponentResumeTest','P03DraftContractTest','P04InboundContractTest','P05OutboundContractTest','P12ReadRevision2Test','AuthWarehouseContextTest','AuthSessionPersistenceTest','MiniAppComponentIssueStagingTest','ComponentIssueCompositeQrScanTest']
+          paths = [Path('tests/Feature') / (name + '.php') for name in core]
+          assert len(paths) == 12 and all(path.is_file() for path in paths)
+          Path('/tmp/backlog-core.txt').write_text('\n'.join(map(str, paths)) + '\n')
+          extra = sorted(p for p in Path('tests/Feature').glob('P*Test.php') if re.match(r'P(?:11|12|13|14|15|16|17|18|19|20|21|22|23|24)', p.name) and p not in paths)
+          assert extra, 'Missing backlog extension tests'
+          Path('/tmp/backlog-extra.txt').write_text('\n'.join(map(str, extra)) + '\n')
+          print('P24_REQUIRED_FILES', len(paths), 'BACKLOG_EXTENSION_FILES', len(extra))
+          print('\n'.join(map(str, paths + extra)))
+          PY
+      - name: Full P24 owner regressions
+        id: core
+        run: |
+          mapfile -t tests < /tmp/backlog-core.txt
+          php artisan test "${tests[@]}" --log-junit backlog-core.xml > /tmp/backlog-core.log 2>&1 || { tail -160 /tmp/backlog-core.log; exit 1; }
+          tail -8 /tmp/backlog-core.log
+      - name: P11-P24 extension regressions
+        id: extra
+        if: success() || failure()
+        run: |
+          mapfile -t tests < /tmp/backlog-extra.txt
+          php artisan test "${tests[@]}" --log-junit backlog-extra.xml > /tmp/backlog-extra.log 2>&1 || { tail -160 /tmp/backlog-extra.log; exit 1; }
+          tail -8 /tmp/backlog-extra.log
+      - name: Full P24 owner matrix with cached routes
+        id: cached
+        if: success() || failure()
+        run: |
+          trap 'php artisan route:clear' EXIT
+          php artisan route:cache
+          mapfile -t tests < /tmp/backlog-core.txt
+          php artisan test "${tests[@]}" --log-junit backlog-cached.xml > /tmp/backlog-cached.log 2>&1 || { tail -160 /tmp/backlog-cached.log; exit 1; }
+          tail -8 /tmp/backlog-cached.log
+      - name: Locked Composer audit
+        if: success() || failure()
+        run: composer audit --locked --no-interaction
+      - name: Strict counts and exact-source evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, json, hashlib
+          import xml.etree.ElementTree as E
+          from pathlib import Path
+          good = True
+          for label in ['core','extra','cached']:
+              path = Path('backlog-' + label + '.xml')
+              if not path.is_file():
+                  print('MISSING_EVIDENCE', label); good = False; continue
+              root = E.parse(path).getroot(); cases = list(root.iter('testcase'))
+              counts = {'tests':len(cases),'assertions':sum(int(c.get('assertions','0')) for c in cases), **{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+              report = {'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'suite':label,'counts':counts,'junit_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'live_verified':False,'production_activation':False}
+              print(json.dumps(report, sort_keys=True))
+              with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n' + json.dumps(report,indent=2) + '\n```\n')
+              good = good and bool(cases) and not any(counts[k] for k in ['failure','error','skipped'])
+              if label in ['core','cached']:
+                  names = {c.get('name','') for c in cases}
+                  required = 'test_record_handoff_on_real_warranty_route_is_atomic_and_cannot_be_cancelled_or_repeated'
+                  good = good and required in names and len(cases) >= 191
+              for c in cases:
+                  for child in c:
+                      if child.tag in ['failure','error']:
+                          print('FAILED_CASE', c.get('name',''), (child.text or '')[:3000])
+          if not good: raise SystemExit('Missing or unsuccessful integration evidence')
+          PY
+      - name: No source rewrites during tests
+        if: always()
+        run: git diff --exit-code
