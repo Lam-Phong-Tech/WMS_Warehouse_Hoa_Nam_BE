@@ -138,10 +138,10 @@ final class P12MixedDocumentsTest extends TestCase
         $this->read($token, $warehouse, ['source' => 'OUTBOUND', 'status' => 'INBOUND:DRAFT'])->assertStatus(422);
     }
 
-    public function test_created_date_uses_half_open_local_calendar_days_including_fractional_end(): void
+    public function test_created_date_uses_half_open_local_days_and_respects_native_storage_precision(): void
     {
         [, $token, $warehouse] = $this->actor();
-        foreach (['2026-10-08 16:59:59', '2026-10-08 17:00:00', '2026-10-09 16:59:59.999999', '2026-10-09 17:00:00'] as $at) {
+        foreach (['2026-10-08 16:59:59', '2026-10-08 17:00:00', '2026-10-09 16:59:59', '2026-10-09 17:00:00'] as $at) {
             $this->stock($warehouse, 'INBOUND', $at);
         }
         $this->warranty($token, $warehouse, '2026-10-08 17:10:00');
@@ -149,6 +149,16 @@ final class P12MixedDocumentsTest extends TestCase
             ->assertJsonPath('meta.source_facets.WARRANTY.total', 1)
             ->assertJsonPath('meta.total', 3)->assertJsonPath('meta.date_field', 'created_at')
             ->assertJsonPath('meta.timezone', 'Asia/Ho_Chi_Minh');
+        // A precision-zero PostgreSQL column rounds .999999 into the next day.
+        // The API must filter the persisted timestamp, not the pre-write fixture string.
+        $fractional = $this->stock($warehouse, 'INBOUND', '2026-10-09 16:59:59.999999');
+        $stored = DB::table('stock_documents')->where('id', $fractional)->value('created_at');
+        $localDate = (new \DateTimeImmutable($stored, new \DateTimeZone('UTC')))
+            ->setTimezone(new \DateTimeZone('Asia/Ho_Chi_Minh'))->format('Y-m-d');
+        $included = $localDate === '2026-10-09';
+        $page = $this->read($token, $warehouse, ['date_from' => '2026-10-09', 'date_to' => '2026-10-09'])->assertOk()
+            ->assertJsonPath('meta.total', 3 + (int) $included);
+        $this->assertSame($included, in_array($fractional, array_column($page->json('data'), 'id'), true));
         foreach ([['date_from' => '2026-10-10'], ['date_to' => '2026-10-10'],
             ['date_from' => '2026-10-10', 'date_to' => '2026-10-09'], ['timezone' => 'NOT_A_TIMEZONE']] as $invalid) {
             $this->read($token, $warehouse, $invalid)->assertStatus(422);
