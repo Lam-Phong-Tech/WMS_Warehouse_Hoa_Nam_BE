@@ -12,7 +12,7 @@ use Modules\Auth\Support\WarehouseContext;
 /** Server-owned scope; never infer a document's warehouse from this context. */
 final class P12MixedDocumentScope
 {
-    public static function resolve(Request $request, string $requestedWarehouse): array
+    public static function resolve(Request $request, ?string $requestedWarehouse): array
     {
         $presented = $request->user();
         if (! $presented instanceof User) {
@@ -37,7 +37,7 @@ final class P12MixedDocumentScope
         if (($context['warehouse_context']['status'] ?? null) !== 'READY' || ! is_string($warehouseId)) {
             ApiError::abort(409, 'WAREHOUSE_CONTEXT_REQUIRED', 'Xác nhận kho làm việc trước khi đọc chứng từ.');
         }
-        if ($requestedWarehouse !== $warehouseId) {
+        if ($requestedWarehouse !== null && $requestedWarehouse !== $warehouseId) {
             ApiError::abort(409, 'WAREHOUSE_CONTEXT_MISMATCH', 'Kho yêu cầu không khớp phiên làm việc.');
         }
         if (! $actor->canAccessWarehouse($warehouseId)) {
@@ -58,29 +58,22 @@ final class P12MixedDocumentScope
                 $dimensions[$field] = $value;
             }
         }
-        // Reuse P09's exact persisted-owner and privacy scope when that source is permitted.
+        // Reuse P09's persisted-owner and privacy scope, only for a permitted source.
         $warranty = $allowed['WARRANTY'] ? P09WarrantyScope::resolve($request) : null;
 
         return [
-            'actor_id' => (string) $actor->user_id,
-            'actor_version' => (int) $actor->version,
-            'auth_session_id' => $session,
-            'warehouse_id' => $warehouseId,
-            'dimensions' => $dimensions,
-            'allowed' => $allowed,
-            'warranty' => $warranty,
+            'actor_id' => (string) $actor->user_id, 'actor_version' => (int) $actor->version,
+            'auth_session_id' => $session, 'warehouse_id' => $warehouseId,
+            'dimensions' => $dimensions, 'allowed' => $allowed, 'warranty' => $warranty,
         ];
     }
 
-    /** This private fingerprint is encrypted into the cursor, never returned as identity metadata. */
+    /** Private binding is encrypted into the cursor, never emitted as identity metadata. */
     public static function fingerprint(array $scope, array $filters): string
     {
         return P09WarrantyPolicy::digest([
-            'contract' => P12MixedDocumentReadModel::CONTRACT,
-            'scope' => $scope,
-            'filters' => $filters,
-            'storage_timezone' => config('app.timezone', 'UTC'),
-            'driver' => DB::getDriverName(),
+            'contract' => P12MixedDocumentReadModel::CONTRACT, 'scope' => $scope, 'filters' => $filters,
+            'storage_timezone' => config('app.timezone', 'UTC'), 'driver' => DB::getDriverName(),
         ], (string) config('app.key'));
     }
 }

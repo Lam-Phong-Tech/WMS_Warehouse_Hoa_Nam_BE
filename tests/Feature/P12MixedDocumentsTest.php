@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -19,12 +21,13 @@ use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\P12MixedDocumentPage as Page;
 use Modules\Warehouse\Support\P12MixedDocumentReadModel as ReadModel;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
+use Normalizer;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 use Tests\TestCredentials;
 
-/** Test-only fixtures in an isolated DB. No deployed service, full seed or feature activation. */
+/** Disposable fixtures only. Never contacts a deployed service or enables its feature flag. */
 final class P12MixedDocumentsTest extends TestCase
 {
     use InteractsWithBrowserSession;
@@ -46,6 +49,7 @@ final class P12MixedDocumentsTest extends TestCase
         }
         parent::setUp();
         config(['p12_mixed_documents.enabled' => true, 'app.timezone' => 'UTC']);
+        $this->travelTo(CarbonImmutable::parse('2026-10-12T05:00:00Z'));
     }
 
     public function test_exact_route_is_authenticated_read_only_and_default_gate_is_off(): void
@@ -65,60 +69,72 @@ final class P12MixedDocumentsTest extends TestCase
         $this->assertStringContainsString("env('P12_MIXED_DOCUMENTS_ENABLED', false)", file_get_contents(config_path('p12_mixed_documents.php')));
     }
 
-    public function test_all_is_one_interleaved_keyset_with_full_database_totals_and_facets(): void
+    public function test_all_and_every_source_traverse_more_than_two_pages_without_missing_or_duplicate_keys(): void
     {
         [, $token, $warehouse] = $this->actor();
         $expected = [];
-        for ($i = 0; $i < 9; $i++) {
+        for ($i = 0; $i < 21; $i++) {
             $source = ReadModel::SOURCES[$i % 3];
             $at = sprintf('2026-10-01 %02d:00:00', $i);
             $id = $source === 'WARRANTY' ? $this->warranty($token, $warehouse, $at) : $this->stock($warehouse, $source, $at);
             $expected[] = $source.':'.$id;
         }
         $before = $this->fingerprints();
-        $found = [];
-        $cursor = 'start';
-        do {
-            $page = $this->read($token, $warehouse, ['cursor' => $cursor, 'per_page' => 2])->assertOk()
-                ->assertJsonPath('meta.total', 9)->assertJsonPath('meta.contract', ReadModel::CONTRACT)
-                ->assertJsonPath('meta.source_facets.INBOUND.total', 3)
-                ->assertJsonPath('meta.source_facets.OUTBOUND.total', 3)
-                ->assertJsonPath('meta.source_facets.WARRANTY.total', 3)
-                ->assertJsonPath('meta.cross_request_snapshot', false);
-            $this->assertLessThanOrEqual(2, count($page->json('data')));
-            $this->assertSame(count($page->json('data')), $page->json('meta.returned_count'));
-            array_push($found, ...array_column($page->json('data'), 'row_key'));
-            $cursor = $page->json('meta.next_cursor');
-            $this->assertSame($cursor !== null, $page->json('meta.has_more'));
-            $this->assertLessThanOrEqual(9, count($found));
-        } while ($cursor !== null);
-        $this->assertSame(array_reverse($expected), $found);
-        $this->assertSame($before, $this->fingerprints());
-        foreach (ReadModel::SOURCES as $source) {
-            $tab = $this->read($token, $warehouse, ['source' => $source])->assertOk()->assertJsonPath('meta.total', 3);
-            $this->assertSame([$source], array_values(array_unique(array_column($tab->json('data'), 'source'))));
-            $tab->assertJsonPath('meta.source_facets.INBOUND.total', 3);
+        foreach (['created_at_asc', 'created_at_desc'] as $sort) {
+            foreach (['ALL', ...ReadModel::SOURCES] as $source) {
+                $found = [];
+                $cursor = 'start';
+                $pageCount = 0;
+                do {
+                    $page = $this->read($token, $warehouse, ['source' => $source, 'sort' => $sort, 'cursor' => $cursor, 'per_page' => 2])->assertOk()
+                        ->assertJsonPath('meta.total', $source === 'ALL' ? 21 : 7)
+                        ->assertJsonPath('meta.contract', ReadModel::CONTRACT)
+                        ->assertJsonPath('meta.count_unit', 'DOCUMENT_LIST_RECORD')
+                        ->assertJsonPath('meta.source_facets.ALL.total', 21)
+                        ->assertJsonPath('meta.source_facets.INBOUND.total', 7)
+                        ->assertJsonPath('meta.source_facets.OUTBOUND.total', 7)
+                        ->assertJsonPath('meta.source_facets.WARRANTY.total', 7)
+                        ->assertJsonPath('meta.snapshot_consistent', false);
+                    $this->assertLessThanOrEqual(2, count($page->json('data')));
+                    $this->assertSame(count($page->json('data')), $page->json('meta.returned_count'));
+                    array_push($found, ...array_column($page->json('data'), 'row_key'));
+                    $cursor = $page->json('meta.nextCursor');
+                    $this->assertSame($cursor, $page->json('meta.next_cursor'));
+                    $this->assertSame($cursor !== null, $page->json('meta.hasMore'));
+                    $this->assertSame($page->json('meta.hasMore'), $page->json('meta.has_more'));
+                    $this->assertLessThanOrEqual(21, count($found));
+                    $pageCount++;
+                } while ($cursor !== null);
+                $selected = array_values(array_filter($expected, fn ($key) => $source === 'ALL' || str_starts_with($key, $source.':')));
+                $this->assertSame($sort === 'created_at_asc' ? $selected : array_reverse($selected), $found);
+                $this->assertSame($found, array_values(array_unique($found)));
+                $this->assertGreaterThan(2, $pageCount);
+            }
         }
+        $this->assertSame($before, $this->fingerprints());
     }
 
-    public function test_ties_use_source_and_canonical_id_in_both_sort_directions(): void
+    public function test_ties_keep_source_rank_and_id_ascending_in_both_time_directions(): void
     {
         [, $token, $warehouse] = $this->actor();
         $time = '2026-10-01 12:00:00';
         $case = $this->warranty($token, $warehouse, $time);
         $receipt = $this->stock($warehouse, 'INBOUND', $time, $case);
+        $second = $this->stock($warehouse, 'INBOUND', $time);
         $other = $this->stock($warehouse, 'OUTBOUND', $time);
+        $receipts = [$receipt, $second];
+        sort($receipts, SORT_STRING);
+        $expected = ['INBOUND:'.$receipts[0], 'INBOUND:'.$receipts[1], 'OUTBOUND:'.$other, 'WARRANTY:'.$case];
         foreach (['created_at_asc', 'created_at_desc'] as $sort) {
             $keys = [];
             $cursor = 'start';
             do {
                 $response = $this->read($token, $warehouse, ['sort' => $sort, 'per_page' => 1, 'cursor' => $cursor])->assertOk();
                 array_push($keys, ...array_column($response->json('data'), 'row_key'));
-                $cursor = $response->json('meta.next_cursor');
-                $this->assertLessThanOrEqual(3, count($keys));
+                $cursor = $response->json('meta.nextCursor');
+                $this->assertLessThanOrEqual(4, count($keys));
             } while ($cursor !== null);
-            $expected = ['INBOUND:'.$receipt, 'OUTBOUND:'.$other, 'WARRANTY:'.$case];
-            $this->assertSame($sort === 'created_at_asc' ? $expected : array_reverse($expected), $keys);
+            $this->assertSame($expected, $keys);
         }
     }
 
@@ -130,8 +146,12 @@ final class P12MixedDocumentsTest extends TestCase
         $this->stock($warehouse, 'OUTBOUND', '2026-10-01 13:00:00');
         $this->read($token, $warehouse, ['status' => 'INBOUND:SCANNING'])->assertOk()
             ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.status', 'SCANNING')
+            ->assertJsonPath('data.0.source_status', 'SCANNING')
+            ->assertJsonPath('data.0.display_status.label', null)
+            ->assertJsonPath('data.0.display_status.availability', 'PENDING_BA_MAPPING')
             ->assertJsonPath('data.0.p12.status.waiting_for_web', null)
-            ->assertJsonPath('data.0.p12.status.mini_app', null);
+            ->assertJsonPath('data.0.p12.status.mini_app', null)
+            ->assertJsonPath('meta.source_facets.OUTBOUND.total', 0);
         foreach (['WAITING_APPROVAL', 'SENT_WAITING_WEB', 'SCANNING'] as $status) {
             $this->read($token, $warehouse, ['status' => $status])->assertStatus(422);
         }
@@ -146,11 +166,8 @@ final class P12MixedDocumentsTest extends TestCase
         }
         $this->warranty($token, $warehouse, '2026-10-08 17:10:00');
         $this->read($token, $warehouse, ['date_from' => '2026-10-09', 'date_to' => '2026-10-09'])->assertOk()
-            ->assertJsonPath('meta.source_facets.WARRANTY.total', 1)
-            ->assertJsonPath('meta.total', 3)->assertJsonPath('meta.date_field', 'created_at')
-            ->assertJsonPath('meta.timezone', 'Asia/Ho_Chi_Minh');
-        // A precision-zero PostgreSQL column rounds .999999 into the next day.
-        // The API must filter the persisted timestamp, not the pre-write fixture string.
+            ->assertJsonPath('meta.source_facets.WARRANTY.total', 1)->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.date_field', 'created_at')->assertJsonPath('meta.timezone', 'Asia/Ho_Chi_Minh');
         $fractional = $this->stock($warehouse, 'INBOUND', '2026-10-09 16:59:59.999999');
         $stored = DB::table('stock_documents')->where('id', $fractional)->value('created_at');
         $localDate = (new \DateTimeImmutable($stored, new \DateTimeZone('UTC')))
@@ -172,8 +189,7 @@ final class P12MixedDocumentsTest extends TestCase
         $nullIds = [$this->stock($warehouse, 'INBOUND', '2026-10-01 01:00:00'),
             $this->stock($warehouse, 'INBOUND', '2026-10-01 02:00:00')];
         sort($nullIds, SORT_STRING);
-        // Owner mirrors enforce NOT NULL today. Exercise nullable read projection
-        // in SQL without altering schema, disabling triggers or corrupting stored rows.
+        // Exercise nullable projection without weakening owner NOT NULL constraints or mirrors.
         $source = DB::table('stock_documents')->whereIn('id', [$known, ...$nullIds])
             ->selectRaw("CAST(id AS VARCHAR(36)) AS id, 'INBOUND' AS source, 1 AS source_rank,
                 doc_no AS document_no, CAST(dst_warehouse_id AS VARCHAR(36)) AS warehouse_id,
@@ -185,7 +201,7 @@ final class P12MixedDocumentsTest extends TestCase
             $state = Page::state('start', 'isolated-null-projection');
             [$first, $meta] = Page::read(clone $query, $state, 1, $sort);
             $this->assertSame($known, $first->first()->id);
-            $cursor = $meta['next_cursor'];
+            $cursor = $meta['nextCursor'];
             $found = [];
             do {
                 [$rows, $meta] = Page::read(clone $query, Page::state($cursor, 'isolated-null-projection'), 1, $sort);
@@ -193,12 +209,13 @@ final class P12MixedDocumentsTest extends TestCase
                 $this->assertNull($record['created_at']);
                 $this->assertSame('NOT_RECORDED', $record['time_status']);
                 $found[] = $record['id'];
-                $cursor = $meta['next_cursor'];
+                $cursor = $meta['nextCursor'];
                 $this->assertLessThanOrEqual(2, count($found));
             } while ($cursor !== null);
-            $this->assertSame($sort === 'created_at_asc' ? $nullIds : array_reverse($nullIds), $found);
+            $this->assertSame($nullIds, $found);
         }
         $this->assertSame(0, DB::table('stock_documents')->whereIn('id', [$known, ...$nullIds])->whereNull('created_at')->count());
+        $this->assertSame(1, (clone $query)->where('created_at', '>=', '2026-10-01 00:00:00')->count());
     }
 
     public function test_literal_keyword_search_and_warranty_pii_minimization_apply_before_counts(): void
@@ -208,11 +225,13 @@ final class P12MixedDocumentsTest extends TestCase
         DB::table('stock_documents')->where('id', $id)->update(['source_name' => 'Partner 50%_! literal']);
         $this->stock($warehouse, 'INBOUND', '2026-10-01 01:00:00');
         $case = $this->warranty($token, $warehouse, '2026-10-01 02:00:00');
-        $this->read($token, $warehouse, ['keyword' => '%_!'])->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $id);
-        $this->read($token, $warehouse, ['keyword' => 'Hidden P12 customer'])->assertOk()->assertJsonPath('meta.total', 0);
+        foreach (['q', 'keyword'] as $key) {
+            $this->read($token, $warehouse, [$key => '%_!'])->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $id);
+            $this->read($token, $warehouse, [$key => 'Hidden P12 customer'])->assertOk()->assertJsonPath('meta.total', 0);
+        }
         $response = $this->read($token, $warehouse, ['source' => 'WARRANTY'])->assertOk()
             ->assertJsonPath('data.0.id', $case)->assertJsonPath('data.0.partner.display_name', null)
-            ->assertJsonPath('data.0.partner.availability', 'WITHHELD_IN_AGGREGATE');
+            ->assertJsonPath('data.0.partner.availability', 'WITHHELD_IN_AGGREGATE')->assertJsonPath('data.0.partner.redacted', true);
         foreach (['Hidden P12 customer', '0000000000', 'encrypted', 'customer_phone'] as $private) {
             $this->assertStringNotContainsString($private, $response->getContent());
         }
@@ -229,13 +248,16 @@ final class P12MixedDocumentsTest extends TestCase
         DB::listen(static function (QueryExecuted $event) use (&$queries): void {
             $queries[] = strtolower($event->sql);
         });
-        $this->read($token, $warehouse)->assertOk()->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('meta.source_facets.WARRANTY.total', null)
-            ->assertJsonPath('meta.source_facets.OUTBOUND.total', null)
-            ->assertJsonPath('meta.source_facets.WARRANTY.availability', 'DENIED')
-            ->assertJsonPath('meta.coverage', 'AUTHORIZED_SOURCES_ONLY');
+        $response = $this->read($token, $warehouse)->assertOk()->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('meta.source_facets.WARRANTY.total', null)->assertJsonPath('meta.source_facets.OUTBOUND.total', null)
+            ->assertJsonPath('meta.source_facets.WARRANTY.availability', 'DENIED')->assertJsonPath('meta.coverage', 'AUTHORIZED_SOURCES_ONLY')
+            ->assertJsonPath('meta.allowed_sources', ['INBOUND']);
         $this->assertStringNotContainsString('warranty_case', implode("\n", $queries));
+        $this->assertNotContains('WARRANTY:RECEIVED', $response->json('meta.status_filter_keys'));
         $this->read($token, $warehouse, ['source' => 'WARRANTY'])->assertForbidden();
+        $this->read($token, $warehouse, ['status' => 'WARRANTY:RECEIVED'])->assertForbidden();
+        [, $none] = $this->actor([]);
+        $this->read($none, $warehouse)->assertForbidden();
     }
 
     public function test_warehouse_and_persisted_warranty_owner_apply_before_paging(): void
@@ -246,8 +268,7 @@ final class P12MixedDocumentsTest extends TestCase
         $this->stock($other, 'INBOUND', '2026-10-01 01:00:00');
         $case = $this->warranty($token, $warehouse, '2026-10-01 02:00:00');
         DB::table(WarrantyWarehouseScope::TABLE)->where('warranty_case_id', $case)->delete();
-        $this->read($token, $warehouse)->assertOk()->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('meta.source_facets.WARRANTY.total', 0);
+        $this->read($token, $warehouse)->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('meta.source_facets.WARRANTY.total', 0);
         $this->read($token, $other)->assertStatus(409);
     }
 
@@ -255,8 +276,9 @@ final class P12MixedDocumentsTest extends TestCase
     {
         [, $token, $warehouse] = $this->actor();
         foreach ([['page' => 1], ['per_page' => 0], ['per_page' => 101], ['per_page' => 'abc'],
-            ['tenant_id' => 'spoof'], ['sort_order' => 'desc'], ['source' => 'STOCK'],
-            ['keyword' => str_repeat('x', 201)], ['cursor' => ['start']]] as $query) {
+            ['tenant_id' => 'spoof'], ['sort_order' => 'desc'], ['source' => 'STOCK'], ['timezone' => 'UTC'],
+            ['keyword' => str_repeat('x', 201)], ['q' => str_repeat('x', 201)], ['cursor' => ['start']],
+            ['q' => 'one', 'keyword' => 'two'], ['warehouse_id' => '']] as $query) {
             $this->read($token, $warehouse, $query)->assertStatus(422);
         }
         $url = self::URL.'?warehouse_id='.$warehouse->id;
@@ -278,14 +300,17 @@ final class P12MixedDocumentsTest extends TestCase
             $this->stock($warehouse, 'INBOUND', '2026-10-01 0'.$i.':00:00');
         }
         $first = $this->read($token, $warehouse, ['per_page' => 1])->assertOk();
-        $cursor = $first->json('meta.next_cursor');
+        $cursor = $first->json('meta.nextCursor');
         $next = $this->read($token, $warehouse, ['per_page' => 1, 'cursor' => $cursor])->assertOk();
         $this->assertSame($first->json('meta.cursor_expires_at'), $next->json('meta.cursor_expires_at'));
-        foreach ([['per_page' => 2], ['source' => 'INBOUND'], ['sort' => 'created_at_asc'], ['keyword' => 'changed']] as $changed) {
+        foreach ([['per_page' => 2], ['source' => 'INBOUND'], ['sort' => 'created_at_asc'], ['q' => 'changed']] as $changed) {
             $this->read($token, $warehouse, array_replace(['per_page' => 1, 'cursor' => $cursor], $changed))->assertStatus(409);
         }
         $this->read($token, $warehouse, ['per_page' => 1, 'cursor' => 'tampered'])->assertStatus(422);
         $state = json_decode(Crypt::decryptString($cursor), true, 16, JSON_THROW_ON_ERROR);
+        $old = $state;
+        $old['v'] = 1;
+        $this->read($token, $warehouse, ['per_page' => 1, 'cursor' => Crypt::encryptString(json_encode($old, JSON_THROW_ON_ERROR))])->assertStatus(422);
         $state['expires'] = now()->timestamp - 1;
         $this->read($token, $warehouse, ['per_page' => 1, 'cursor' => Crypt::encryptString(json_encode($state, JSON_THROW_ON_ERROR))])
             ->assertStatus(410)->assertJsonPath('error_code', 'DOCUMENTS_CURSOR_EXPIRED');
@@ -296,10 +321,10 @@ final class P12MixedDocumentsTest extends TestCase
         [$user, $token, $warehouse, $role] = $this->actor();
         $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
         $this->stock($warehouse, 'INBOUND', '2026-10-01 01:00:00');
-        $cursor = $this->read($token, $warehouse, ['per_page' => 1])->assertOk()->json('meta.next_cursor');
+        $cursor = $this->read($token, $warehouse, ['per_page' => 1])->assertOk()->json('meta.nextCursor');
         $newToken = $this->loginContext($user, $warehouse);
         $this->read($newToken, $warehouse, ['per_page' => 1, 'cursor' => $cursor])->assertStatus(409);
-        $cursor = $this->read($newToken, $warehouse, ['per_page' => 1])->assertOk()->json('meta.next_cursor');
+        $cursor = $this->read($newToken, $warehouse, ['per_page' => 1])->assertOk()->json('meta.nextCursor');
         $permission = Permission::where('permission_key', 'outbound.view')->firstOrFail();
         DB::table('role_permission')->where('role_id', $role->role_id)->where('permission_id', $permission->permission_id)->delete();
         Cache::flush();
@@ -312,13 +337,14 @@ final class P12MixedDocumentsTest extends TestCase
         $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
         $this->stock($warehouse, 'INBOUND', '2026-10-01 02:00:00');
         $page = $this->read($token, $warehouse, ['per_page' => 1])->assertOk();
-        $cursor = $page->json('meta.next_cursor');
-        $future = now()->addDay()->format('Y-m-d H:i:s');
-        $this->stock($warehouse, 'INBOUND', $future);
+        $cursor = $page->json('meta.nextCursor');
+        $this->stock($warehouse, 'INBOUND', now()->addDay()->format('Y-m-d H:i:s'));
         $this->read($token, $warehouse, ['per_page' => 1, 'cursor' => $cursor])->assertOk()->assertJsonPath('meta.total', 2);
         $late = $this->stock($warehouse, 'INBOUND', '2026-10-01 01:00:00');
         $this->read($token, $warehouse, ['per_page' => 1, 'cursor' => $cursor])->assertOk()
             ->assertJsonPath('meta.total', 3)->assertJsonPath('data.0.id', $late)->assertJsonPath('meta.cross_request_snapshot', false);
+        DB::table('stock_documents')->where('id', $late)->update(['deleted_at' => now()]);
+        $this->read($token, $warehouse, ['per_page' => 1, 'cursor' => $cursor])->assertOk()->assertJsonPath('meta.total', 2);
     }
 
     public function test_missing_authorized_source_fails_closed_instead_of_partial_success(): void
@@ -328,8 +354,10 @@ final class P12MixedDocumentsTest extends TestCase
         $table = WarrantyWarehouseScope::TABLE;
         Schema::rename($table, $table.'_isolated_missing');
         try {
-            $this->read($token, $warehouse)->assertStatus(503)->assertJsonPath('error_code', 'DOCUMENTS_SOURCE_UNAVAILABLE')
-                ->assertJsonMissingPath('data.0')->assertJsonMissingPath('meta.total');
+            foreach (['ALL', 'INBOUND'] as $source) {
+                $this->read($token, $warehouse, ['source' => $source])->assertStatus(503)->assertJsonPath('error_code', 'DOCUMENTS_SOURCE_UNAVAILABLE')
+                    ->assertJsonMissingPath('data.0')->assertJsonMissingPath('meta.total');
+            }
         } finally {
             Schema::rename($table.'_isolated_missing', $table);
         }
@@ -395,7 +423,131 @@ final class P12MixedDocumentsTest extends TestCase
         $this->read($login->json('data.access_token'), $warehouse)->assertStatus(409);
         $spec = json_decode(file_get_contents(base_path('docs/contracts/p12-mixed-documents-openapi.json')), true, 512, JSON_THROW_ON_ERROR);
         $this->assertSame(['get'], array_keys($spec['paths'][self::URL]));
-        $this->assertSame('p12-mixed-documents-v1', $spec['info']['version']);
+        $this->assertSame(ReadModel::CONTRACT, $spec['info']['version']);
+    }
+
+    public function test_q_optional_context_and_keyword_alias_share_one_normalized_cursor_binding(): void
+    {
+        [, $token, $warehouse] = $this->actor(['inbound.view']);
+        $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
+        $this->stock($warehouse, 'INBOUND', '2026-10-01 01:00:00');
+        $response = $this->get(self::URL.'?q=pn&per_page=1', $this->headers($token) + ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('meta.warehouse_id', $warehouse->id)->assertJsonPath('meta.total', 2);
+        $this->read($token, $warehouse, ['keyword' => ' PN ', 'cursor' => $response->json('meta.nextCursor'), 'per_page' => 1])->assertOk();
+        $this->read($token, $warehouse, ['q' => 'PN', 'keyword' => 'pn'])->assertOk();
+    }
+
+    public function test_vietnamese_unicode_normalization_case_and_accents_are_explicit(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $inbound = $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
+        $outbound = $this->stock($warehouse, 'OUTBOUND', '2026-10-01 01:00:00');
+        DB::table('stock_documents')->where('id', $inbound)->update(['source_name' => 'ĐẠI LÝ HỒNG HÀ']);
+        DB::table('stock_documents')->where('id', $outbound)->update(['recipient_name' => Normalizer::normalize('Đại lý Hồng Hà', Normalizer::FORM_D)]);
+        foreach (['đại lý hồng hà', 'ĐẠI LÝ HỒNG HÀ', Normalizer::normalize('đại lý hồng hà', Normalizer::FORM_D)] as $q) {
+            $this->read($token, $warehouse, ['q' => $q])->assertOk()->assertJsonPath('meta.total', 2)
+                ->assertJsonPath('meta.source_facets.INBOUND.total', 1)->assertJsonPath('meta.source_facets.OUTBOUND.total', 1);
+        }
+        $this->read($token, $warehouse, ['q' => 'dai ly hong ha'])->assertOk()->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_type_search_matches_explicit_source_terms_without_title_or_id_inference(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
+        $this->stock($warehouse, 'OUTBOUND', '2026-10-01 01:00:00');
+        $this->warranty($token, $warehouse, '2026-10-01 02:00:00');
+        foreach (['PN' => 'INBOUND', 'Nhập kho' => 'INBOUND', 'PX' => 'OUTBOUND', 'XUẤT' => 'OUTBOUND', 'BH' => 'WARRANTY', 'BẢO HÀNH' => 'WARRANTY'] as $q => $source) {
+            $this->read($token, $warehouse, ['q' => $q])->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.source', $source);
+        }
+    }
+
+    public function test_ninety_day_selection_and_all_dates_are_different_filters(): void
+    {
+        [, $token, $warehouse] = $this->actor(['inbound.view']);
+        $old = $this->stock($warehouse, 'INBOUND', '2025-01-01 00:00:00');
+        $day = now()->setTimezone('Asia/Ho_Chi_Minh')->startOfDay();
+        $min = $day->copy()->subDays(90)->toDateString();
+        $today = $day->toDateString();
+        $this->stock($warehouse, 'INBOUND', $day->copy()->subDays(90)->utc()->format('Y-m-d H:i:s'));
+        $this->read($token, $warehouse, ['date_from' => $min, 'date_to' => $today])->assertOk()->assertJsonPath('meta.total', 1);
+        $all = $this->read($token, $warehouse)->assertOk()->assertJsonPath('meta.total', 2);
+        $this->assertContains($old, array_column($all->json('data'), 'id'));
+        foreach ([[$day->copy()->subDays(91)->toDateString(), $today], [$today, $day->copy()->addDay()->toDateString()]] as [$from, $to]) {
+            $this->read($token, $warehouse, ['date_from' => $from, 'date_to' => $to])->assertStatus(422)
+                ->assertJsonPath('error_code', 'DOCUMENTS_DATE_OUT_OF_WINDOW');
+        }
+    }
+
+    public function test_cursor_date_window_does_not_shift_at_vietnam_midnight(): void
+    {
+        $this->travelTo(CarbonImmutable::parse('2026-10-12T16:59:00Z'));
+        [, $token, $warehouse] = $this->actor(['inbound.view']);
+        $from = now()->setTimezone('Asia/Ho_Chi_Minh')->subDays(90)->toDateString();
+        $filter = ['date_from' => $from, 'date_to' => '2026-10-12', 'per_page' => 1];
+        $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
+        $this->stock($warehouse, 'INBOUND', '2026-10-01 01:00:00');
+        $first = $this->read($token, $warehouse, $filter)->assertOk();
+        $this->travelTo(CarbonImmutable::parse('2026-10-12T17:01:00Z'));
+        $this->read($token, $warehouse, $filter + ['cursor' => $first->json('meta.nextCursor')])->assertOk()
+            ->assertJsonPath('meta.date_window.max', '2026-10-12');
+        $this->read($token, $warehouse, $filter)->assertStatus(422);
+    }
+
+    public function test_read_targets_resource_types_and_filter_options_are_owner_derived(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
+        $this->stock($warehouse, 'OUTBOUND', '2026-10-01 01:00:00');
+        $this->warranty($token, $warehouse, '2026-10-01 02:00:00');
+        $response = $this->read($token, $warehouse)->assertOk();
+        foreach ($response->json('data') as $row) {
+            $this->assertSame($row['resource_type'], $row['p12']['identity']['resource_type']);
+            $this->assertSame($row['id'], $row['p12']['identity']['id']);
+            $this->assertSame($row['source'], $row['p12']['identity']['source']);
+            $this->assertSame($row['read_target'], $row['p12']['read_target']);
+            $this->assertSame($row['source'] === 'WARRANTY' ? 'WARRANTY_CASE' : 'STOCK_DOCUMENT', $row['resource_type']);
+            $target = $row['read_target'];
+            $this->getJson($target['path'].'?'.http_build_query($target['query']), $this->headers($token))->assertOk();
+        }
+        foreach ($response->json('meta.filter_options.status') as $option) {
+            if ($option['value'] !== 'ALL') {
+                $this->assertSame($option['source'].':'.$option['source_status'], $option['value']);
+                $this->assertNull($option['display_label']);
+                $this->assertContains($option['value'], ReadModel::statusKeys());
+            }
+        }
+        $this->assertArrayNotHasKey('auth_session_id', $response->json('meta'));
+        $this->assertArrayNotHasKey('actor_id', $response->json('meta'));
+    }
+
+    public function test_warranty_pii_is_not_returned_or_searched_even_with_pii_permission(): void
+    {
+        [, $token, $warehouse] = $this->actor(['warranty.view', 'warranty.manage', 'warranty.pii.view']);
+        $this->warranty($token, $warehouse, '2026-10-01 00:00:00');
+        foreach (['Hidden P12 customer', '0000000000', 'Isolated reported defect'] as $q) {
+            $this->read($token, $warehouse, ['q' => $q])->assertOk()->assertJsonPath('meta.total', 0);
+        }
+        $response = $this->read($token, $warehouse)->assertOk()->assertJsonPath('data.0.partner.display_name', null);
+        $this->assertStringNotContainsString('Hidden P12 customer', $response->getContent());
+    }
+
+    public function test_bad_serialization_fails_closed_instead_of_fabricating_identity_or_time(): void
+    {
+        $row = (object) ['id' => (string) Str::uuid(), 'warehouse_id' => (string) Str::uuid(), 'source' => 'INBOUND',
+            'document_no' => null, 'created_at' => 'tomorrow', 'status' => 'DRAFT', 'partner_name' => null];
+        try {
+            ReadModel::record($row);
+            $this->fail('Relative time must not become a historical source timestamp.');
+        } catch (HttpResponseException $exception) {
+            $this->assertSame(503, $exception->getResponse()->getStatusCode());
+        }
+        $row->created_at = null;
+        $row->status = null;
+        $record = ReadModel::record($row);
+        $this->assertNull($record['created_at']);
+        $this->assertNull($record['source_status']);
+        $this->assertNull($record['status_key']);
     }
 
     private function actor(array $permissions = ['inbound.view', 'outbound.view', 'warranty.view', 'warranty.manage']): array
@@ -446,7 +598,6 @@ final class P12MixedDocumentsTest extends TestCase
 
     private function warranty(string $token, object $warehouse, string $at): string
     {
-        // Existing owner is exercised only against the isolated test DB to prepare an honest canonical row.
         $response = $this->postJson('/api/v1/mini-app/warranty-cases', [
             'warehouse_id' => $warehouse->id, 'customer_name' => 'Hidden P12 customer', 'customer_phone' => '0000000000',
             'description' => 'Isolated reported defect', 'missing_code_reason' => 'Isolated unreadable label',
@@ -460,7 +611,6 @@ final class P12MixedDocumentsTest extends TestCase
 
     private function read(string $token, object $warehouse, array $query = [])
     {
-        // getJson serializes an empty array as a raw GET body. Real bodyless GET is required.
         return $this->get(self::URL.'?'.http_build_query(array_replace(['warehouse_id' => $warehouse->id], $query)),
             $this->headers($token) + ['Accept' => 'application/json']);
     }
@@ -478,7 +628,11 @@ final class P12MixedDocumentsTest extends TestCase
     {
         $result = [];
         foreach (['stock_documents', 'stock_document_lines', 'stock_movements', 'inventory_balances',
-            'warranty_case', 'p09_warranty_requests'] as $table) {
+            'warranty_case', 'p09_warranty_requests', 'mini_app_drafts', 'mini_app_draft_requests',
+            'p19_component_command_receipts'] as $table) {
+            if (! Schema::hasTable($table)) {
+                continue;
+            }
             $rows = DB::table($table)->get()->map(fn ($row) => json_encode($row, JSON_THROW_ON_ERROR))->all();
             sort($rows, SORT_STRING);
             $result[$table] = hash('sha256', implode("\n", $rows));

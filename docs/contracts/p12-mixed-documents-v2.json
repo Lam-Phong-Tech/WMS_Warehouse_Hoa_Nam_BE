@@ -1,0 +1,79 @@
+{
+  "contract": "p12-mixed-documents-v2",
+  "implementation_status": "SPEC_ALIGNED_SOURCE_IMPLEMENTED",
+  "approval_status": "PENDING_BA_LABEL_AND_RELEASE_ACCEPTANCE",
+  "base_commit": "01a52d8441b453c01511ee4c60e14503cd6bf948",
+  "supersedes_candidate": "p12-mixed-documents-v1",
+  "sources": {
+    "P12_MIXED_LIST_SPEC.md": "sha256:777d929081f30ccdc512f4fb4a4e06bcc0a6f187e40546497063a7d4bc6748bc",
+    "BE_RETURN_CHECKLIST.md": "sha256:68f6cc6e9458c9e0153cef0c839480beb7acec4869b59f2a364c8061e2f42692",
+    "SOURCE_REFERENCES.md": "sha256:43b117f321e1b31733305a803db26a06d29198cc4473270f1d7bebf2ec88f6e8",
+    "BE_IMPLEMENTATION_PROMPT.md": "sha256:541646d602b4a2d3cc468977ead3146f1c456556fb0fe477741fb22949043fa8",
+    "owner_contract": "docs/contracts/p12-read-v2.json at 6a9a8edb42e30d60e9dd4336eb91ce83fc4269ab, also preserved at current base",
+    "reference_limit": "Six uploaded core files including manifest were read. Their five content-file hashes match manifest. The local Windows ZIP path and B12 image bytes are not mounted; no visual/ZIP-completeness acceptance is claimed. B12 list behavior is explicitly specified in the supplied text."
+  },
+  "route": {"method": "GET", "path": "/api/v1/mini-app/documents", "new_mutations": []},
+  "rollout": {"env": "P12_MIXED_DOCUMENTS_ENABLED", "config": "p12_mixed_documents.enabled", "default": false, "disabled_status": 503, "disabled_code": "DOCUMENTS_AGGREGATE_DISABLED", "production": false, "live_test": "NOT_RUN", "deployment": "NOT_RUN"},
+  "query": {
+    "allowlist": ["source", "q", "keyword", "status", "date_from", "date_to", "timezone", "sort", "per_page", "cursor", "warehouse_id"],
+    "defaults": {"source": "ALL", "q": "", "status": "ALL", "sort": "created_at_desc", "per_page": 20, "timezone": "Asia/Ho_Chi_Minh"},
+    "warehouse_id": "Optional assertion against confirmed server context, never a scope selector. Omitted and matching explicit warehouse normalize to the same binding; malformed/empty=422, conflicting=409.",
+    "source_values": ["ALL", "INBOUND", "OUTBOUND", "WARRANTY"],
+    "q": "Trim, Unicode NFC, lowercase, literal contains; case insensitive, accent sensitive. No accent removal/transliteration. Maximum 200 normalized characters, raw input limited to 600. Percent, underscore and ! escaped. PostgreSQL UTF8 NORMALIZE/LOWER, SQLite connection-local deterministic Unicode lower function; no schema/function migration.",
+    "keyword_alias": "Earlier candidate alias for q. Supplying both with different normalized values returns DOCUMENTS_SEARCH_CONFLICT 422. Equivalent normalized search shares a cursor binding.",
+    "search_fields": {"INBOUND": ["doc_no", "source_name", "source type terms"], "OUTBOUND": ["doc_no", "recipient_name", "source type terms"], "WARRANTY": ["warranty_case_code", "temporary_item_code", "serial_number", "source type terms"]},
+    "type_terms": {"INBOUND": ["INBOUND", "PN", "Nhập", "Nhập kho", "Phiếu nhập", "Phiếu nhập kho"], "OUTBOUND": ["OUTBOUND", "PX", "Xuất", "Xuất kho", "Phiếu xuất", "Phiếu xuất kho"], "WARRANTY": ["WARRANTY", "BH", "Bảo hành", "Hồ sơ bảo hành"]},
+    "privacy": "Warranty customer name/phone/address, ciphertext/hashes and free text are never searched or projected, even with warranty.pii.view. They cannot influence filtered counts. Detailed customer display remains with P09.",
+    "date": "Both date_from and date_to or neither. Fixed timezone Asia/Ho_Chi_Minh; each selected boundary is within [Vietnam today-90 calendar days, today], from<=to. All dates omits both and may return older records. The 90-day window anchors to the signed first-request issued_at so a valid cursor does not become invalid at midnight. The upper date becomes the next local midnight exclusive. All sources use created_at, not received/returned/document dates; owner queries unchanged.",
+    "per_page": {"minimum": 1, "maximum": 100, "default": 20},
+    "cursor_first_page": "Omit cursor as requested by spec. The earlier explicit cursor=start remains accepted. Empty cursor is invalid.",
+    "unsupported": "Any other query field, page/offset/page_size/sort_order, arbitrary timezone and every raw body including {} or [] return 422."
+  },
+  "status": {
+    "parameter": "status=ALL or SOURCE:CANONICAL_STATUS",
+    "stock_values": ["DRAFT", "SCANNING", "POSTED", "CANCELLED"],
+    "warranty_values": ["RECEIVED", "CHECKING", "REPAIRING", "COMPLETED", "RETURNED", "CANCELLED"],
+    "source_mismatch": "422 when explicit source disagrees with status prefix; denied source or denied status prefix=403.",
+    "fields": "source_status and status retain canonical value; p12.status.canonical is preserved. mini_app_status/readiness=null in this deliberately minimal list. display_status is separate, null with PENDING_BA_MAPPING, not a guessed badge.",
+    "options": "meta.filter_options.status exposes ALL and only permitted source-qualified canonical values, owner status-source column, canonical label and CANONICAL_ONLY_PENDING_BA_LABEL. No waiting/approval states are inferred. Localized/common badge labels require BA acceptance.",
+    "owner_rule": "SCANNING or fullscan is never proof of checked/sent/approval. A warranty case is not a stock document or stock Post."
+  },
+  "paging": {
+    "mode": "KEYSET",
+    "order": ["time_missing ASC", "created_at ASC or DESC", "source_rank ASC", "canonical ID ASC"],
+    "source_rank": {"INBOUND": 1, "OUTBOUND": 2, "WARRANTY": 3},
+    "null": "NULLS LAST in either time direction, excluded by selected date bounds, returned as null/NOT_RECORDED. Original database timestamp precision is kept in cursor; no synthetic fallback time.",
+    "cursor": "Laravel Crypt authenticated encryption, payload v2, fixed TTL 900 seconds. Bound to contract, normalized query, actor/version/stable session, warehouse, permissions, owner capabilities/dimensions and database driver/storage timezone. Original upper created_at bound and issued_at retained.",
+    "response": ["meta.hasMore", "meta.nextCursor", "meta.per_page", "meta.returned_count"],
+    "compatibility_aliases": "meta.has_more and meta.next_cursor equal the camelCase fields. Old v1 cursors return 422; restart rather than mixing secondary sort semantics.",
+    "errors": {"422": "DOCUMENTS_CURSOR_INVALID", "409": "DOCUMENTS_CURSOR_CONTEXT_CHANGED", "410": "DOCUMENTS_CURSOR_EXPIRED"},
+    "consistency": "Counts/facets/page share P06 response transaction snapshot. snapshot_consistent=false and cross_request_snapshot=false refer to successive requests. Watermark excludes newer-created rows; backdated inserts, deletes or modified sort/status fields can change membership/totals. Refresh from first page to observe a new set. No immutable snapshot/export promise."
+  },
+  "totals": {
+    "count_unit": "DOCUMENT_LIST_RECORD",
+    "meta.total": "DB count for authorized sources after q/date/status/source selection but before cursor and LIMIT. One canonical stock document or warranty case per list record; no mirror double-counting.",
+    "facets": "meta.source_facets has ALL/INBOUND/OUTBOUND/WARRANTY. Apply authorization/q/date/status/watermark before facets, but not source tab or cursor. ALL is the sum of authorized DB counts, not page lengths. DENIED.total=null; READY empty.total=0.",
+    "quantity": "No product/attempt/serial/SKU/quantity totals inferred from list records. Continue owner detail/P12 scan-evidence-v2 summary with nullable/mixed-unit completeness semantics."
+  },
+  "acl_cache": {
+    "permissions": {"INBOUND": "inbound.view", "OUTBOUND": "outbound.view", "WARRANTY": "warranty.view OR warranty.manage"},
+    "scope": "Fresh active actor; stable authenticated session and confirmed active warehouse; data-scope and trusted tenancy; persisted P09 warranty ownership before filtering/counting. No schema query for a denied source. No authorized source=403.",
+    "source_failure": "Missing/error in any authorized source needed for global facets fails whole response, including single-source tabs; no partial rows or total. Malformed projection identity or timestamp also fails closed.",
+    "transport": "private, no-store; nosniff; Vary Authorization",
+    "result_cache": "None. No stock-only cache that misses warranty changes; auth owner caching policy remains unchanged."
+  },
+  "row": {
+    "required": ["source", "resource_type", "id", "row_key", "document_no", "warehouse_id", "created_at", "timestamp_source", "time_status", "source_status", "display_status", "partner", "p12", "read_target"],
+    "identity": "row_key=SOURCE:canonical UUID, resource_type=STOCK_DOCUMENT or WARRANTY_CASE; p12.identity from existing pure P12DocumentPresentation.",
+    "navigation": "GET read_target uses canonical existing inbound-documents/outbound-documents/warranty-cases ID and persisted warehouse. Target must recheck permission. No new detail route or Web host.",
+    "partner": "Actual permitted stock source_name/recipient_name; warranty null, redacted=true, WITHHELD_IN_AGGREGATE. Null is not empty string or zero."
+  },
+  "compatibility": "P04/P05/P09/P12/P13 existing controllers, DTOs, query contracts, receipts, timelines and write paths unchanged. docs/contracts/p12-read-v2.json and old owner all_sources_aggregate=false remain unchanged. Only additive aggregate candidate is revised.",
+  "schema_index": {"migration_added": false, "index_added": false, "explain": "Read-only EXPLAIN on isolated schema, not production-volume performance evidence. Any proposed production index needs a separate plan and approval."},
+  "tests": {"file": "tests/Feature/P12MixedDocumentsTest.php", "workflow": ".github/workflows/p12-mixed-documents.yml", "coverage": ["7 records per source, >2 pages each source, both directions, no lost/duplicate keys", "equal timestamps and same UUID across owners", "NULLS LAST projection without relaxing owner constraints", "four facets and denied/empty distinction", "Vietnam day boundaries, 90-day window, all dates and midnight cursor", "Unicode NFC/NFD, uppercase Vietnamese, literal escaping, accent policy", "q alias and optional warehouse binding", "P09 PII denial even with permission", "canonical status options separate from BA display mapping", "tamper/expired/old cursor, filter/session/warehouse/permission changes", "backdated/newer insert and delete policy", "authorized-source failures and malformed serialization", "domain row fingerprints across repeated GET", "P12/P13 owner regressions and route cache"]},
+  "ba_decisions": [
+    {"question": "Approve localized/common badge labels and filter presentation?", "proposal": "Use source-qualified canonical labels until BA approves a localized mapping; display_status remains unavailable.", "impact": "Does not block read/identity/count implementation; FE must not label SCANNING as sent or waiting approval."},
+    {"question": "Require warranty customer-name search/display in mixed list?", "proposal": "Keep excluded/minimized in v2; use P09 detail for authorized customer data.", "impact": "A privacy-reviewed owner extension is required before broadening aggregate customer search/count."}
+  ],
+  "release": "User-approved release is separate. Verify exact SHA/artifact bytes/runtime overlays/locked vendor and tier. Smoke existing nonempty/empty/denied data read-only after approved enablement. Rollback code/config to prior release or disable aggregate flag; no schema/data rollback required. Never seed, replay writes, dispatch deployment or enable production for evidence."
+}

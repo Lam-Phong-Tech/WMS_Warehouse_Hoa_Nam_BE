@@ -8,14 +8,12 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 /** SQL UNION ALL over canonical owners; never merge paginated owner responses. */
 final class P12MixedDocumentReadModel
 {
-    public const CONTRACT = 'p12-mixed-documents-v1';
+    public const CONTRACT = 'p12-mixed-documents-v2';
 
     public const SOURCES = ['INBOUND', 'OUTBOUND', 'WARRANTY'];
 
@@ -35,46 +33,17 @@ final class P12MixedDocumentReadModel
 
     public static function input(Request $request): array
     {
-        $known = ['warehouse_id', 'source', 'keyword', 'status', 'date_from', 'date_to', 'timezone', 'sort', 'per_page', 'cursor'];
-        if (array_diff(array_keys($request->query()), $known) !== []) {
-            ApiError::abort(422, 'DOCUMENTS_QUERY_UNSUPPORTED', 'Tham số không thuộc contract danh sách trộn.');
-        }
-        $input = Validator::make($request->query(), [
-            'warehouse_id' => ['required', 'uuid'],
-            'source' => ['sometimes', Rule::in(['ALL', ...self::SOURCES])],
-            'keyword' => ['sometimes', 'nullable', 'string', 'max:200'],
-            'status' => ['sometimes', Rule::in(['ALL', ...self::statusKeys()])],
-            'date_from' => ['required_with:date_to', 'date_format:Y-m-d'],
-            'date_to' => ['required_with:date_from', 'date_format:Y-m-d', 'after_or_equal:date_from'],
-            'timezone' => ['sometimes', 'string', 'timezone'],
-            'sort' => ['sometimes', Rule::in(['created_at_desc', 'created_at_asc'])],
-            'per_page' => ['sometimes', 'integer', 'between:1,100'],
-            'cursor' => ['sometimes', 'string', 'max:4096'],
-        ])->validate();
-        $filters = [
-            'warehouse_id' => strtolower($input['warehouse_id']),
-            'source' => $input['source'] ?? 'ALL',
-            'keyword' => trim($input['keyword'] ?? ''),
-            'status' => $input['status'] ?? 'ALL',
-            'date_from' => $input['date_from'] ?? null,
-            'date_to' => $input['date_to'] ?? null,
-            'timezone' => $input['timezone'] ?? 'Asia/Ho_Chi_Minh',
-            'sort' => $input['sort'] ?? 'created_at_desc',
-            'per_page' => (int) ($input['per_page'] ?? 20),
-        ];
-        if ($filters['status'] !== 'ALL' && $filters['source'] !== 'ALL'
-            && ! str_starts_with($filters['status'], $filters['source'].':')) {
-            ApiError::abort(422, 'DOCUMENTS_STATUS_SOURCE_MISMATCH', 'Trạng thái không thuộc nguồn đã chọn.');
-        }
-
-        return [$filters, $input['cursor'] ?? 'start'];
+        return P12MixedDocumentQuery::input($request);
     }
 
     public static function union(array $scope, array $filters, string $upperBound): Builder
     {
+        if ($filters['keyword'] !== '') {
+            P12MixedDocumentSearch::prepare();
+        }
         $union = null;
         foreach (self::SOURCES as $source) {
-            // Do not even inspect schema, search or count a denied owner.
+            // Do not inspect schema, search or count a denied owner.
             if (! $scope['allowed'][$source]) {
                 continue;
             }
@@ -95,6 +64,9 @@ final class P12MixedDocumentReadModel
             }
             $union = $union === null ? $query : $union->unionAll($query);
         }
+        if ($union === null) {
+            ApiError::abort(403, 'DOCUMENTS_PERMISSION_DENIED', 'Không có nguồn chứng từ được phép đọc.');
+        }
 
         return DB::query()->fromSub($union, 'p12_mixed');
     }
@@ -113,11 +85,11 @@ final class P12MixedDocumentReadModel
                 d.created_at, CASE WHEN d.created_at IS NULL THEN 1 ELSE 0 END AS time_missing,
                 d.status, d.{$partner} AS partner_name");
         P09WarrantyScope::isolate($query, 'stock_documents', 'd', $scope);
-        if ($filters['keyword'] !== '') {
+        if ($filters['keyword'] !== '' && ! P12MixedDocumentSearch::typeMatches($source, $filters['keyword'])) {
             $pattern = P09WarrantyPolicy::pattern($filters['keyword']);
             $query->where(fn (Builder $search) => $search
-                ->whereRaw("LOWER(d.doc_no) LIKE LOWER(?) ESCAPE '!'", [$pattern])
-                ->orWhereRaw("LOWER(d.{$partner}) LIKE LOWER(?) ESCAPE '!'", [$pattern]));
+                ->whereRaw(P12MixedDocumentSearch::contains('d.doc_no'), [$pattern])
+                ->orWhereRaw(P12MixedDocumentSearch::contains('d.'.$partner), [$pattern]));
         }
 
         return $query;
@@ -136,16 +108,15 @@ final class P12MixedDocumentReadModel
             ->selectSub($owner->selectRaw('CAST(w.warehouse_id AS VARCHAR(36))')->limit(1), 'warehouse_id')
             ->selectRaw('c.created_at, CASE WHEN c.created_at IS NULL THEN 1 ELSE 0 END AS time_missing,
                 c.status, CAST(NULL AS VARCHAR(255)) AS partner_name');
-        // Filtering must stay on the owner query, before wrapping/UNION/count.
-        if ($filters['keyword'] !== '') {
+        if ($filters['keyword'] !== '' && ! P12MixedDocumentSearch::typeMatches('WARRANTY', $filters['keyword'])) {
             self::requireColumns('item_instances', ['item_id', 'serial_number']);
             $pattern = P09WarrantyPolicy::pattern($filters['keyword']);
             $query->where(function (Builder $search) use ($pattern, $scope): void {
-                $search->whereRaw("LOWER(c.warranty_case_code) LIKE LOWER(?) ESCAPE '!'", [$pattern])
-                    ->orWhereRaw("LOWER(c.temporary_item_code) LIKE LOWER(?) ESCAPE '!'", [$pattern])
+                $search->whereRaw(P12MixedDocumentSearch::contains('c.warranty_case_code'), [$pattern])
+                    ->orWhereRaw(P12MixedDocumentSearch::contains('c.temporary_item_code'), [$pattern])
                     ->orWhereExists(function (Builder $item) use ($pattern, $scope): void {
                         $item->selectRaw('1')->from('item_instances as i')->whereColumn('i.item_id', 'c.item_id')
-                            ->whereRaw("LOWER(i.serial_number) LIKE LOWER(?) ESCAPE '!'", [$pattern]);
+                            ->whereRaw(P12MixedDocumentSearch::contains('i.serial_number'), [$pattern]);
                         P09WarrantyScope::isolate($item, 'item_instances', 'i', $scope['warranty']);
                     });
             });
@@ -158,42 +129,66 @@ final class P12MixedDocumentReadModel
     {
         $counts = (clone $union)->select('source')->selectRaw('COUNT(*) AS total')->groupBy('source')->pluck('total', 'source');
         $result = [];
+        $total = 0;
         foreach (self::SOURCES as $source) {
-            $result[$source] = [
-                'availability' => $scope['allowed'][$source] ? 'READY' : 'DENIED',
-                'total' => $scope['allowed'][$source] ? (int) ($counts[$source] ?? 0) : null,
-            ];
+            $count = $scope['allowed'][$source] ? (int) ($counts[$source] ?? 0) : null;
+            $result[$source] = ['availability' => $scope['allowed'][$source] ? 'READY' : 'DENIED', 'total' => $count];
+            if ($count !== null) {
+                $total += $count;
+            }
         }
 
-        return $result;
+        return ['ALL' => ['availability' => 'READY', 'total' => $total]] + $result;
     }
 
     public static function record(object $row): array
     {
-        if (! Str::isUuid($row->id) || ! Str::isUuid($row->warehouse_id)) {
+        if (! is_string($row->id ?? null) || ! Str::isUuid($row->id)
+            || ! is_string($row->warehouse_id ?? null) || ! Str::isUuid($row->warehouse_id)
+            || ! in_array($row->source ?? null, self::SOURCES, true)) {
             ApiError::abort(503, 'DOCUMENTS_IDENTITY_UNAVAILABLE', 'Nguồn chứng từ chưa có định danh hợp lệ.');
+        }
+        foreach (['document_no', 'status', 'partner_name', 'created_at'] as $field) {
+            if (! property_exists($row, $field) || ($row->{$field} !== null
+                && (! is_string($row->{$field}) || ! mb_check_encoding($row->{$field}, 'UTF-8')))) {
+                ApiError::abort(503, 'DOCUMENTS_SOURCE_UNAVAILABLE', 'Nguồn chứng từ có dữ liệu không hợp lệ; không trả kết quả một phần.');
+            }
         }
         $source = $row->source;
         $warehouseField = match ($source) {
-            'INBOUND' => 'dst_warehouse_id',
-            'OUTBOUND' => 'src_warehouse_id',
-            default => 'warehouse_id',
+            'INBOUND' => 'dst_warehouse_id', 'OUTBOUND' => 'src_warehouse_id', default => 'warehouse_id',
         };
-        $created = $row->created_at === null ? null : CarbonImmutable::parse($row->created_at, config('app.timezone', 'UTC'))->utc()->toISOString();
+        $created = null;
+        if ($row->created_at !== null) {
+            try {
+                if (! preg_match('/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/', $row->created_at)) {
+                    throw new \InvalidArgumentException('Missing absolute source timestamp.');
+                }
+                $created = CarbonImmutable::parse($row->created_at, config('app.timezone', 'UTC'))->utc()->toISOString();
+            } catch (\InvalidArgumentException) {
+                ApiError::abort(503, 'DOCUMENTS_SOURCE_UNAVAILABLE', 'Thời gian nguồn không hợp lệ; không suy diễn mốc thay thế.');
+            }
+        }
         $p12 = P12DocumentPresentation::record([
             $source === 'WARRANTY' ? 'warranty_case_id' : 'id' => $row->id,
             $warehouseField => $row->warehouse_id, 'status' => $row->status,
         ], $source, false);
+        $statusKey = $row->status === null ? null : $source.':'.$row->status;
 
         return [
             'id' => $row->id, 'row_key' => $source.':'.$row->id, 'source' => $source,
+            'resource_type' => $p12['identity']['resource_type'],
             'document_no' => $row->document_no, 'warehouse_id' => $row->warehouse_id,
             'created_at' => $created,
             'timestamp_source' => ($source === 'WARRANTY' ? 'warranty_case' : 'stock_documents').'.created_at',
             'time_status' => $created === null ? 'NOT_RECORDED' : 'RECORDED',
-            'status' => $row->status, 'status_key' => $source.':'.$row->status,
+            'status' => $row->status, 'source_status' => $row->status, 'status_key' => $statusKey,
+            'mini_app_status' => null, 'readiness' => null,
+            'display_status' => ['value' => null, 'label' => null, 'availability' => 'PENDING_BA_MAPPING',
+                'source' => ($source === 'WARRANTY' ? 'warranty_case' : 'stock_documents').'.status'],
             'partner' => ['display_name' => $row->partner_name,
-                'availability' => $source === 'WARRANTY' ? 'WITHHELD_IN_AGGREGATE' : ($row->partner_name === null ? 'NOT_RECORDED' : 'RECORDED')],
+                'availability' => $source === 'WARRANTY' ? 'WITHHELD_IN_AGGREGATE' : ($row->partner_name === null ? 'NOT_RECORDED' : 'RECORDED'),
+                'redacted' => $source === 'WARRANTY'],
             'p12' => $p12, 'read_target' => $p12['read_target'],
         ];
     }
