@@ -26,16 +26,16 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-backlog
-          POSTGRES_DB: p24_contract_test
+          POSTGRES_DB: p12_contract_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres -d p24_contract_test"
+          --health-cmd "pg_isready -U postgres -d p12_contract_test"
           --health-interval 10s --health-timeout 5s --health-retries 5
     env:
       APP_ENV: testing
       APP_DEBUG: 'false'
       DB_CONNECTION: ${{ matrix.database }}
-      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p24_contract_test' }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p12_contract_test' }}
       DB_HOST: '127.0.0.1'
       DB_PORT: '5432'
       DB_USERNAME: postgres
@@ -53,11 +53,13 @@ jobs:
       REFRESH_TOKEN_COOKIE_SECURE: 'false'
       P19_COMMAND_RECOVERY_ENABLED: 'false'
       P14_SHIFT_ENABLED: 'false'
+      P12_MIXED_DOCUMENTS_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: ${{ github.sha }}
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -67,7 +69,7 @@ jobs:
       - name: Source and disposable target guard
         run: |
           test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
-          case "$DB_DATABASE" in ':memory:'|p24_contract_test) ;; *) exit 1 ;; esac
+          case "$DB_DATABASE" in ':memory:'|p12_contract_test) ;; *) exit 1 ;; esac
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git merge-base --is-ancestor 701e93522010664e623f18605d79d59ae6316c37 HEAD
           secret="$(openssl rand -hex 32)"
@@ -87,7 +89,7 @@ jobs:
           $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
           $db = Illuminate\Support\Facades\DB::connection();
           $safe = $db->getDriverName() === 'sqlite' ? $db->getDatabaseName() === ':memory:'
-              : $db->getDriverName() === 'pgsql' && $db->getDatabaseName() === 'p24_contract_test' && $db->getConfig('host') === '127.0.0.1';
+              : $db->getDriverName() === 'pgsql' && $db->getDatabaseName() === 'p12_contract_test' && $db->getConfig('host') === '127.0.0.1';
           if (! $app->environment('testing') || ! $safe || getenv('DB_URL') !== '') { exit(1); }
           PHP
       - name: Select complete P24 owner matrix and backlog extensions
@@ -100,7 +102,7 @@ jobs:
           assert len(paths) == 12 and all(path.is_file() for path in paths)
           Path('/tmp/backlog-core.txt').write_text('\n'.join(map(str, paths)) + '\n')
           extra = sorted(p for p in Path('tests/Feature').glob('P*Test.php') if re.match(r'P(?:11|12|13|14|15|16|17|18|19|20|21|22|23|24)', p.name) and p not in paths)
-          assert extra, 'Missing backlog extension tests'
+          assert len(extra) >= 15 and Path('tests/Feature/P19BatchLimitsTest.php') in extra
           Path('/tmp/backlog-extra.txt').write_text('\n'.join(map(str, extra)) + '\n')
           print('P24_REQUIRED_FILES', len(paths), 'BACKLOG_EXTENSION_FILES', len(extra))
           print('\n'.join(map(str, paths + extra)))
@@ -127,6 +129,12 @@ jobs:
           mapfile -t tests < /tmp/backlog-core.txt
           php artisan test "${tests[@]}" --log-junit backlog-cached.xml > /tmp/backlog-cached.log 2>&1 || { tail -160 /tmp/backlog-cached.log; exit 1; }
           tail -8 /tmp/backlog-cached.log
+      - name: Scoped PHP syntax and style
+        if: success() || failure()
+        run: |
+          paths=(Modules/Warehouse/app/Services/P19LinkedComponentIssue.php tests/Feature/P19BatchLimitsTest.php)
+          for path in "${paths[@]}"; do php -l "$path"; done
+          vendor/bin/pint --test "${paths[@]}"
       - name: Locked Composer audit
         if: success() || failure()
         run: composer audit --locked --no-interaction
@@ -144,10 +152,14 @@ jobs:
                   print('MISSING_EVIDENCE', label); good = False; continue
               root = E.parse(path).getroot(); cases = list(root.iter('testcase'))
               counts = {'tests':len(cases),'assertions':sum(int(c.get('assertions','0')) for c in cases), **{k:len(list(root.iter(k))) for k in ['failure','error','skipped']}}
-              report = {'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'suite':label,'counts':counts,'junit_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'live_verified':False,'production_activation':False}
+              selected = Path('/tmp/backlog-' + ('extra' if label == 'extra' else 'core') + '.txt')
+              expected = {Path(p).stem for p in selected.read_text().splitlines()}
+              observed = {c.get('class',c.get('classname','')).split('\\')[-1] for c in cases}
+              missing = sorted(expected - observed)
+              report = {'sha':os.environ['GITHUB_SHA'],'database':os.environ['DB_CONNECTION'],'suite':label,'counts':counts,'missing_test_classes':missing,'junit_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'live_verified':False,'production_activation':False}
               print(json.dumps(report, sort_keys=True))
               with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f: f.write('```json\n' + json.dumps(report,indent=2) + '\n```\n')
-              good = good and bool(cases) and not any(counts[k] for k in ['failure','error','skipped'])
+              good = good and bool(cases) and not missing and not any(counts[k] for k in ['failure','error','skipped'])
               if label in ['core','cached']:
                   names = {c.get('name','') for c in cases}
                   required = 'test_record_handoff_on_real_warranty_route_is_atomic_and_cannot_be_cancelled_or_repeated'
