@@ -1,0 +1,85 @@
+{
+  "contract": "p12-mixed-documents-v2",
+  "handoff": "BE_RETURN_CHECKLIST_RESPONSE_20261012",
+  "status": "BACKEND_IMPLEMENTED_SCOPED_SOURCE_TESTS_PASS_RELEASE_PENDING",
+  "source": {
+    "repository": "Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE",
+    "branch": "dev",
+    "base_commit": "01a52d8441b453c01511ee4c60e14503cd6bf948",
+    "implementation_commit": "69804729e915f0f076adcbcc7f4853c1cad140c0",
+    "implementation_tree": "a8f0fc9d3284ce3c0a9d562e53c318fb4e3b8f18",
+    "handoff_revision": "The commit containing this checklist adds only examples/checklist documents on top of implementation_commit. Resolve its exact SHA from Git; do not substitute a health or local merge SHA.",
+    "force_push": false,
+    "implementation_files": [
+      "Modules/Warehouse/app/Http/Controllers/P12MixedDocumentsController.php",
+      "Modules/Warehouse/app/Support/P12MixedDocumentMetadata.php",
+      "Modules/Warehouse/app/Support/P12MixedDocumentPage.php",
+      "Modules/Warehouse/app/Support/P12MixedDocumentQuery.php",
+      "Modules/Warehouse/app/Support/P12MixedDocumentReadModel.php",
+      "Modules/Warehouse/app/Support/P12MixedDocumentScope.php",
+      "Modules/Warehouse/app/Support/P12MixedDocumentSearch.php",
+      "tests/Feature/P12MixedDocumentsTest.php",
+      "docs/contracts/p12-mixed-documents-v2.json",
+      "docs/contracts/p12-mixed-documents-openapi.json",
+      ".github/workflows/p12-mixed-documents.yml"
+    ],
+    "handoff_only_files": ["docs/contracts/p12-mixed-documents-examples-v2.json", "docs/contracts/p12-mixed-documents-return-v2.json"],
+    "compatibility_evidence": "Workflow verifies unchanged composer.lock, original P12 read-v2 contract, owner routes and P04/P05/P09 controllers/scope/presentation against base. No shared owner API behavior is rewritten."
+  },
+  "input_verification": {
+    "method": "Container byte length and SHA256 comparison against uploaded manifest.json",
+    "matched": ["BE_IMPLEMENTATION_PROMPT.md", "BE_RETURN_CHECKLIST.md", "P12_MIXED_LIST_SPEC.md", "SOURCE_REFERENCES.md", "README.md"],
+    "not_claimed": "Windows ZIP/B12 image and the full references folder were not uploaded as bytes in this chat. No ZIP completeness, visual acceptance or immutable runtime-overlay certification. The detailed mixed-list textual spec is available and implemented."
+  },
+  "contract_and_query": {
+    "route": "GET /api/v1/mini-app/documents",
+    "json": "docs/contracts/p12-mixed-documents-v2.json",
+    "openapi": "docs/contracts/p12-mixed-documents-openapi.json",
+    "examples": "docs/contracts/p12-mixed-documents-examples-v2.json",
+    "query": "source/q/status/date_from/date_to/timezone/sort/per_page/cursor; optional warehouse_id assertion; earlier keyword alias retained with conflict validation.",
+    "caps": "per_page 1..100 default20; normalized search <=200 characters; fixed 900-second cursor; date picker today-90..today in Vietnam.",
+    "sort": "NULLS LAST, requested created_at direction, source_rank ASC, ID ASC. Rank INBOUND1 OUTBOUND2 WARRANTY3.",
+    "time": "created_at for each canonical source; half-open local calendar day filter. All dates omits bounds and may include older rows. Stored timestamp precision is preserved; null never synthesized.",
+    "search": "Unicode NFC/NFD equivalence and Vietnamese case-insensitivity tested on PostgreSQL and SQLite; accents preserved. Explicit type terms plus permitted stock partner/code fields. Warranty customer fields excluded even with PII permission."
+  },
+  "data_acl_cache": {
+    "identity": "resource_type, source and canonical UUID; row_key SOURCE:UUID, p12.identity and exact existing GET read_target. Detail target revalidates ACL.",
+    "status": "Canonical source_status retained, separate null mini_app/readiness/display_status with explicit availability. Source-qualified canonical filter options only for authorized sources. No fullscan/SCANNING -> waiting/approval inference.",
+    "counts": "DOCUMENT_LIST_RECORD. DB totals/four facets before cursor/LIMIT; source tab affects total but not facet source selection. DENIED null differs from authorized empty0.",
+    "scope": "Fresh active actor, confirmed server warehouse context, stable session, existing owner permissions and persisted warranty ownership before search/count/page.",
+    "errors": "No partial list/total if an authorized source required for facets fails. No false empty. 403 denied; 409 changed context; 410 cursor expired; 422 malformed query/body/cursor; 503 disabled/unavailable.",
+    "cache": "No internal result cache; private no-store/nosniff. No stale stock-only version serving warranty data.",
+    "snapshot": "Counts and rows share a single-response DB snapshot; snapshot_consistent=false between requests. Newer-created rows excluded by signed watermark, backdated inserts/deletes/status edits may change totals. Restart to refresh."
+  },
+  "source_test_evidence": {
+    "sha": "69804729e915f0f076adcbcc7f4853c1cad140c0",
+    "workflow": "P12 Mixed Documents Read Contract",
+    "run_id": 38209441334,
+    "job_id": 114680092001,
+    "result": "SUCCESS",
+    "postgresql": {"tests": 44, "assertions": 1537, "errors": 0, "failures": 0, "skipped": 0},
+    "sqlite": {"tests": 44, "assertions": 1537, "errors": 0, "failures": 0, "skipped": 0},
+    "postgresql_route_cache": {"tests": 26, "assertions": 1201, "errors": 0, "failures": 0, "skipped": 0},
+    "test_command": "php artisan test tests/Feature/P12MixedDocumentsTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit <isolated-report>.xml",
+    "route_cache_command": "php artisan route:cache; php artisan test tests/Feature/P12MixedDocumentsTest.php --log-junit mixed-route-cache.xml; php artisan route:clear",
+    "environment": "Disposable PostgreSQL p12_contract_test at localhost and SQLite memory, with APP_ENV testing; test fixture setup is not live seed authorization.",
+    "quality": "PHP syntax, Pint on eight changed PHP files, JSON parse and locked Composer audit PASS; audit reported no advisories.",
+    "reports": "Required nonempty successful XML assertions are printed with SHA256 in workflow log/job summary. No artifact quota fallback masks missing tests.",
+    "not_claimed": ["full project suite PASS", "deployed read smoke", "production workload performance", "APK/browser visual acceptance", "production approval"]
+  },
+  "schema_index": {"migration": "NONE", "new_index": "NONE", "explain": "Read-only EXPLAIN on isolated data recorded in source test log; production-volume query plan/index change requires separate review."},
+  "open_decisions": [
+    {"owner": "BA", "question": "Approve localized/common badges and filter presentation?", "proposal": "Keep canonical source-qualified labels until an approved mapping; display_status remains explicitly unavailable.", "impact": "FE must not render waiting/approval labels from SCANNING/readiness."},
+    {"owner": "BA/P09", "question": "Is customer-name search/display required in aggregate?", "proposal": "Keep it outside v2 aggregate; use existing authorized P09 detail.", "impact": "Any expansion needs a separate privacy-reviewed owner contract, not unmasking current PII."}
+  ],
+  "release": {
+    "deployed": false,
+    "live": "NOT_RUN",
+    "full_activation": false,
+    "production": false,
+    "default_flag": "P12_MIXED_DOCUMENTS_ENABLED=false",
+    "procedure": "Obtain explicit release approval, verify exact artifact bytes/overlays/SHA/locked vendor/tier/schema/routes. Enable only the approved environment, then smoke GET-only using existing nonempty/empty/denied records and pagination. FE integration and device/back/focus/scroll checks follow separately.",
+    "rollback": "Disable aggregate flag or return to previously approved code/config release. No new schema or stock effects to reverse. Preserve owner receipts/dedup/history.",
+    "restrictions": "No seed/repair/restore, business write, P19 enablement, automatic deploy, bypassed security gate or production activation."
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "contract": "p12-mixed-documents-v2",
+  "kind": "ILLUSTRATIVE_REQUESTS_AND_RESPONSE_EXCERPTS_NOT_LIVE_EVIDENCE",
+  "notice": "These excerpts explain the contract, not FE fallback data. Full runtime envelopes are defined by p12-mixed-documents-openapi.json. Never send angle-bracket placeholders literally. Authentication and warehouse confirmation use existing owner flows. No write requests appear here.",
+  "common": {"method": "GET", "path": "/api/v1/mini-app/documents", "body": "ABSENT", "headers": {"Accept": "application/json"}, "scope": "Warehouse comes from confirmed server context; optional warehouse_id must match.", "timezone": "Asia/Ho_Chi_Minh"},
+  "examples": [
+    {
+      "name": "ALL_DESC_FIRST_AND_SECOND_PAGE",
+      "query": {"source": "ALL", "sort": "created_at_desc", "per_page": 2},
+      "stable_example_rows_in_order": [
+        {"row_key": "INBOUND:11111111-1111-4111-8111-111111111111", "created_at": "2026-10-10T03:00:00.000000Z"},
+        {"row_key": "OUTBOUND:22222222-2222-4222-8222-222222222222", "created_at": "2026-10-10T02:00:00.000000Z"},
+        {"row_key": "WARRANTY:33333333-3333-4333-8333-333333333333", "created_at": "2026-10-10T01:00:00.000000Z"}
+      ],
+      "first_response_excerpt": {"meta": {"total": 3, "count_unit": "DOCUMENT_LIST_RECORD", "returned_count": 2, "hasMore": true, "nextCursor": "<OPAQUE_AUTHENTICATED_CURSOR>", "source_facets": {"ALL": {"availability": "READY", "total": 3}, "INBOUND": {"availability": "READY", "total": 1}, "OUTBOUND": {"availability": "READY", "total": 1}, "WARRANTY": {"availability": "READY", "total": 1}}}},
+      "second_query": {"source": "ALL", "sort": "created_at_desc", "per_page": 2, "cursor": "<EXACT_NEXT_CURSOR_FROM_FIRST_RESPONSE>"},
+      "second_response_excerpt": {"meta": {"total": 3, "returned_count": 1, "hasMore": false, "nextCursor": null}}
+    },
+    {"name": "INBOUND_TAB", "query": {"source": "INBOUND", "q": "PN", "per_page": 20}, "rule": "q matches explicit type terms or owner searchable fields. Other authorized source facets are evaluated before the selected tab."},
+    {"name": "OUTBOUND_TAB", "query": {"source": "OUTBOUND", "q": "Đại lý Hồng Hà", "sort": "created_at_asc"}, "rule": "Search recipient_name with Unicode NFC/case folding, preserve accents, and count before LIMIT."},
+    {"name": "WARRANTY_TAB", "query": {"source": "WARRANTY", "status": "WARRANTY:RECEIVED"}, "response_excerpt": {"data": [{"source": "WARRANTY", "resource_type": "WARRANTY_CASE", "partner": {"display_name": null, "availability": "WITHHELD_IN_AGGREGATE", "redacted": true}, "source_status": "RECEIVED", "display_status": {"value": null, "label": null, "availability": "PENDING_BA_MAPPING", "source": "warranty_case.status"}}]}},
+    {
+      "name": "EQUAL_TIMESTAMP_AND_UUID_IN_ASC_OR_DESC",
+      "query_variants": [{"sort": "created_at_asc", "per_page": 1}, {"sort": "created_at_desc", "per_page": 1}],
+      "rule": "For equal created_at, both variants return INBOUND before OUTBOUND before WARRANTY; IDs ascend within a source. Same UUID across sources is a different row_key. Follow a new cursor chain for each sort.",
+      "expected_equal_time_keys": ["INBOUND:11111111-1111-4111-8111-111111111111", "OUTBOUND:22222222-2222-4222-8222-222222222222", "WARRANTY:11111111-1111-4111-8111-111111111111"]
+    },
+    {"name": "NULL_TIME", "response_excerpt": {"data": [{"created_at": null, "time_status": "NOT_RECORDED", "timestamp_source": "warranty_case.created_at"}]}, "rule": "Last in both directions; excluded by an explicit date filter, never replaced by current time."},
+    {"name": "CONFIRMED_EMPTY", "response_excerpt": {"success": true, "data": [], "meta": {"total": 0, "count_unit": "DOCUMENT_LIST_RECORD", "returned_count": 0, "hasMore": false, "nextCursor": null}}},
+    {"name": "DENIED_SOURCE_IN_ALL", "response_excerpt": {"meta": {"coverage": "AUTHORIZED_SOURCES_ONLY", "source_facets": {"WARRANTY": {"availability": "DENIED", "total": null}}}}, "explicit_denied_tab_http": 403, "rule": "Do not display DENIED as zero or expose actual count."},
+    {"name": "AUTHORIZED_SOURCE_UNAVAILABLE", "http": 503, "response_excerpt": {"success": false, "error_code": "DOCUMENTS_SOURCE_UNAVAILABLE"}, "rule": "No rows/total from other sources are returned as a complete result; do not fallback to groups/fixtures."},
+    {"name": "EXPIRED_CURSOR", "http": 410, "response_excerpt": {"success": false, "error_code": "DOCUMENTS_CURSOR_EXPIRED"}, "recovery": "Start a new GET without cursor; fixed TTL is 15 minutes and never slides."},
+    {"name": "CHANGED_CONTEXT", "http": 409, "response_excerpt": {"success": false, "error_code": "DOCUMENTS_CURSOR_CONTEXT_CHANGED"}, "recovery": "Discard old cursor/cache for the previous context; confirm server context and restart the read. Never replay owner writes."},
+    {"name": "VIETNAM_DATE_WINDOW", "query": {"date_from": "2026-10-09", "date_to": "2026-10-09", "timezone": "Asia/Ho_Chi_Minh"}, "assumption": "First request Vietnam date is 2026-10-12.", "rule": "Select local 2026-10-09 00:00 inclusive to 2026-10-10 00:00 exclusive. Both selected dates must fall within first-request Vietnam today-90..today. For all dates omit both bounds."},
+    {"name": "CANONICAL_DETAIL_TARGET", "response_excerpt": {"data": [{"source": "INBOUND", "id": "11111111-1111-4111-8111-111111111111", "resource_type": "STOCK_DOCUMENT", "read_target": {"method": "GET", "path": "/api/v1/mini-app/inbound-documents/11111111-1111-4111-8111-111111111111", "query": {"warehouse_id": "44444444-4444-4444-8444-444444444444"}}}]}, "rule": "Use the actual response target; owner GET must revalidate ACL/context. This example does not assert these UUIDs exist."}
+  ]
+}
