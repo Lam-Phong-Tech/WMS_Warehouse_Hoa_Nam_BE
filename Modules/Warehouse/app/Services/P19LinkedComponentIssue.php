@@ -18,6 +18,9 @@ final class P19LinkedComponentIssue
 
     public const HEADER = 'X-Component-Issue-Contract';
 
+    /** Match the existing staging owner cap; P03 SAVE capacity is not Post capacity. */
+    public const MAX_RECORD_ITEMS = 500;
+
     /** Called only after P03 has locked and checked actor/session/warehouse/draft/version. */
     public function handle(Request $request, Closure $next): Response
     {
@@ -46,7 +49,7 @@ final class P19LinkedComponentIssue
             'warehouse_id' => ['required', 'uuid'], 'warranty_case_id' => ['required', 'uuid'],
             'post_immediately' => ['required', 'boolean'], 'document_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'note' => ['sometimes', 'nullable', 'string', 'max:2000'],
-            'items' => ['required', 'array', 'list', 'min:1', 'max:1000'],
+            'items' => ['required', 'array', 'list', 'min:1', 'max:'.self::MAX_RECORD_ITEMS],
             'items.*' => ['required', 'array:raw_code,quantity,scan_source'],
             'items.*.raw_code' => ['required', 'string', 'max:512'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100000'],
