@@ -1,0 +1,123 @@
+{
+  "contract": "mini-app-p02-v2",
+  "revision_date": "2026-10-12",
+  "owner": "P02 dashboard KPI",
+  "ownership_contract": "warranty-owner-v1",
+  "baseline_sha": "1b58c6a4982d737c3ea4a27c9281f15d7fb299d6",
+  "status": "IMPLEMENTED_PENDING_BA_AND_LIVE_TEST",
+  "production_activation": false,
+  "activation_note": "Release approval metadata, not a new runtime feature flag. Source push and CI are not deployment or BA sign-off.",
+  "new_routes": [],
+  "new_migrations": [],
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/mini-app/dashboard/summary",
+    "auth": "Existing bearer access token; no new work-shift or stable-session prerequisite.",
+    "permission_any": ["inbound.view", "outbound.view", "warranty.view", "warranty.manage"],
+    "headers": "No new opt-in header. Confirm meta.contract on the response.",
+    "query": {
+      "warehouse_id": "Optional; when present must be a nonempty UUID of an existing warehouse within role scope. Send the canonical lowercase UUID: inherited scope middleware may reject noncanonical values. Omitted means full authorized scope, never implicit active warehouse.",
+      "date": "Optional YYYY-MM-DD within existing InputLimits::date window. Null/omitted uses today in config(app.timezone). Applies only to posted_count."
+    },
+    "unknown_query": "422 P02_UNKNOWN_FILTER. page/status/tenant filters are not P02 inputs.",
+    "nonempty_body": "Rejected with 422 P02_QUERY_ONLY after existing auth/data-scope middleware."
+  },
+  "scope": {
+    "data_scope": "Effective result scope AFTER warehouse filtering, not maximum role access.",
+    "authorization_scope": "Role access scope BEFORE warehouse filtering. Informational only; does not grant access.",
+    "warehouse_id": "Explicit selected warehouse UUID or null. Must equal warranty.warehouse_scope.warehouse_id when warranty is visible. Null does not mean GLOBAL for a warehouse-scoped role.",
+    "matrix": [
+      {"authorization_scope": "GLOBAL", "warehouse_filter": false, "data_scope": "GLOBAL"},
+      {"authorization_scope": "GLOBAL", "warehouse_filter": true, "data_scope": "WAREHOUSE_SCOPED"},
+      {"authorization_scope": "WAREHOUSE_SCOPED", "warehouse_filter": false, "data_scope": "WAREHOUSE_SCOPED"},
+      {"authorization_scope": "WAREHOUSE_SCOPED", "warehouse_filter": true, "data_scope": "WAREHOUSE_SCOPED"}
+    ]
+  },
+  "warranty": {
+    "permission_any": ["warranty.view", "warranty.manage"],
+    "open_statuses": ["RECEIVED", "CHECKING", "REPAIRING", "COMPLETED"],
+    "count_unit": "WARRANTY_CASE",
+    "time_semantics": "Current open-case snapshot; date does not filter it. COMPLETED awaits return and is included. RETURNED/CANCELLED are excluded.",
+    "ownership": "warranty-owner-v1 persisted owners; EXISTS does not multiply cases. TEMP_ONLY with no item_id is included when its owner is in scope.",
+    "unassigned_policy": "Excluded for an explicit warehouse or restricted role; included only for authorized GLOBAL unfiltered view, preserving owner-v1.",
+    "ownership_complete": "Existing source-wide coverage flag, not a per-warehouse missing-case total. No outside-scope case IDs or counts returned.",
+    "not_permitted": null,
+    "zero": "Integer 0 only after a successful authorized query confirms no matching cases. Never coerce null/errors to 0."
+  },
+  "document_counts": {
+    "pending_approval_count": "Existing current SCANNING documents with at least one line and every scanned_qty equal to qty_planned. No date filtering.",
+    "posted_count": "Existing posted_at >= start of requested day AND < start of next day in application timezone. Later REVERSED documents still count.",
+    "directional_ownership": {"inbound": "dst_warehouse_id", "outbound": "src_warehouse_id"},
+    "top_level_totals": "Sum only visible inbound/outbound sections, never add warranty.open_count.",
+    "no_section_permission": "Section is null, not zero."
+  },
+  "cache": {
+    "stock": "Existing stock_short TTL and stock:version. New miniapp:dashboard:summary:p02-v2 namespace separates old schema; filters, visibility and role warehouse scope remain in keys.",
+    "warranty": "Uncached query each request.",
+    "http": "private, no-store",
+    "consistency": "Stock may be cached and warranty is a current read. NOT an atomic or frozen cross-section snapshot. Response timestamp does not claim joint data freshness."
+  },
+  "errors": {
+    "401": "Unauthenticated, inherited auth owner.",
+    "403": "Missing endpoint permissions or denied warehouse scope. Inherited middleware may reject before query validation.",
+    "404": "WAREHOUSE_NOT_FOUND for an authorized explicit UUID that does not exist.",
+    "422": "Invalid query/date/UUID, P02_UNKNOWN_FILTER or P02_QUERY_ONLY.",
+    "source_failure": "Non-success follows existing error handling, not empty/zero. No new source-recovery guarantee."
+  },
+  "compatibility": {
+    "replaces": "P02 summary metadata/schema semantics in the earlier 06/10 handoff. Preserves endpoint, count semantics and warranty-owner-v1.",
+    "migration": "Clients treating data_scope as role scope must use authorization_scope. Read data_scope + warehouse_id for displayed KPI scope.",
+    "p12": "Recent/document list owner only. Its page length/total/cursor does not replace P02 KPIs.",
+    "out_of_scope": ["P12 implementation", "P22/P23 changes", "NFC recovery", "business mutations", "live seed/backfill", "deployment"]
+  },
+  "response_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["success", "data", "meta"],
+    "$defs": {
+      "count": {"type": "integer", "minimum": 0},
+      "warehouse": {"type": ["string", "null"], "format": "uuid"},
+      "scope": {"type": "string", "enum": ["GLOBAL", "WAREHOUSE_SCOPED"]},
+      "stock": {
+        "type": ["object", "null"], "required": ["pending_approval_count", "posted_count"],
+        "properties": {"pending_approval_count": {"$ref": "#/$defs/count"}, "posted_count": {"$ref": "#/$defs/count"}},
+        "additionalProperties": false
+      },
+      "owner": {
+        "type": "object", "required": ["contract", "warehouse_id", "unassigned_policy", "ownership_complete"],
+        "properties": {
+          "contract": {"const": "warranty-owner-v1"}, "warehouse_id": {"$ref": "#/$defs/warehouse"},
+          "unassigned_policy": {"enum": ["INCLUDED", "EXCLUDED"]}, "ownership_complete": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "properties": {
+      "success": {"const": true},
+      "meta": {
+        "type": "object", "required": ["contract", "request_id", "timestamp"],
+        "properties": {"contract": {"const": "mini-app-p02-v2"}, "request_id": {"type": "string"}, "timestamp": {"type": "string", "format": "date-time"}}
+      },
+      "data": {
+        "type": "object",
+        "required": ["date", "timezone", "warehouse_id", "data_scope", "authorization_scope", "pending_approval_count", "posted_count", "inbound", "outbound", "warranty"],
+        "properties": {
+          "date": {"type": "string", "format": "date"}, "timezone": {"type": "string"},
+          "warehouse_id": {"$ref": "#/$defs/warehouse"}, "data_scope": {"$ref": "#/$defs/scope"}, "authorization_scope": {"$ref": "#/$defs/scope"},
+          "pending_approval_count": {"$ref": "#/$defs/count"}, "posted_count": {"$ref": "#/$defs/count"},
+          "inbound": {"$ref": "#/$defs/stock"}, "outbound": {"$ref": "#/$defs/stock"},
+          "warranty": {
+            "type": ["object", "null"], "required": ["open_count", "open_statuses", "warehouse_scope"],
+            "properties": {
+              "open_count": {"$ref": "#/$defs/count"},
+              "open_statuses": {"const": ["RECEIVED", "CHECKING", "REPAIRING", "COMPLETED"]},
+              "warehouse_scope": {"$ref": "#/$defs/owner"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
