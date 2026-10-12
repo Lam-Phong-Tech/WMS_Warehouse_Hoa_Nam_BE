@@ -16,6 +16,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\P12MixedDocumentPage as Page;
 use Modules\Warehouse\Support\P12MixedDocumentReadModel as ReadModel;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
@@ -154,25 +155,40 @@ final class P12MixedDocumentsTest extends TestCase
         }
     }
 
-    public function test_null_created_time_is_not_replaced_and_sorts_last_with_a_continuable_cursor(): void
+    public function test_null_time_keyset_and_projection_without_relaxing_owner_schema(): void
     {
-        [, $token, $warehouse] = $this->actor();
+        [, , $warehouse] = $this->actor();
         $known = $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
-        $nullIds = [$this->stock($warehouse, 'INBOUND', null), $this->stock($warehouse, 'INBOUND', null)];
+        $nullIds = [$this->stock($warehouse, 'INBOUND', '2026-10-01 01:00:00'),
+            $this->stock($warehouse, 'INBOUND', '2026-10-01 02:00:00')];
         sort($nullIds, SORT_STRING);
+        // Owner mirrors enforce NOT NULL today. Exercise nullable read projection
+        // in SQL without altering schema, disabling triggers or corrupting stored rows.
+        $source = DB::table('stock_documents')->whereIn('id', [$known, ...$nullIds])
+            ->selectRaw("CAST(id AS VARCHAR(36)) AS id, 'INBOUND' AS source, 1 AS source_rank,
+                doc_no AS document_no, CAST(dst_warehouse_id AS VARCHAR(36)) AS warehouse_id,
+                status, source_name AS partner_name")
+            ->selectRaw('CASE WHEN id = ? THEN created_at ELSE NULL END AS created_at,
+                CASE WHEN id = ? THEN 0 ELSE 1 END AS time_missing', [$known, $known]);
+        $query = DB::query()->fromSub($source, 'nullable_projection');
         foreach (['created_at_asc', 'created_at_desc'] as $sort) {
-            $first = $this->read($token, $warehouse, ['sort' => $sort, 'per_page' => 1])->assertOk()->assertJsonPath('data.0.id', $known);
-            $cursor = $first->json('meta.next_cursor');
+            $state = Page::state('start', 'isolated-null-projection');
+            [$first, $meta] = Page::read(clone $query, $state, 1, $sort);
+            $this->assertSame($known, $first->first()->id);
+            $cursor = $meta['next_cursor'];
             $found = [];
             do {
-                $page = $this->read($token, $warehouse, ['sort' => $sort, 'per_page' => 1, 'cursor' => $cursor])->assertOk()
-                    ->assertJsonPath('data.0.created_at', null)->assertJsonPath('data.0.time_status', 'NOT_RECORDED');
-                $found[] = $page->json('data.0.id');
-                $cursor = $page->json('meta.next_cursor');
+                [$rows, $meta] = Page::read(clone $query, Page::state($cursor, 'isolated-null-projection'), 1, $sort);
+                $record = ReadModel::record($rows->first());
+                $this->assertNull($record['created_at']);
+                $this->assertSame('NOT_RECORDED', $record['time_status']);
+                $found[] = $record['id'];
+                $cursor = $meta['next_cursor'];
                 $this->assertLessThanOrEqual(2, count($found));
             } while ($cursor !== null);
             $this->assertSame($sort === 'created_at_asc' ? $nullIds : array_reverse($nullIds), $found);
         }
+        $this->assertSame(0, DB::table('stock_documents')->whereIn('id', [$known, ...$nullIds])->whereNull('created_at')->count());
     }
 
     public function test_literal_keyword_search_and_warranty_pii_minimization_apply_before_counts(): void
@@ -216,7 +232,7 @@ final class P12MixedDocumentsTest extends TestCase
     {
         [, $token, $warehouse] = $this->actor();
         $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
-        $other = Warehouse::create(['code' => 'MIX-OTHER', 'name' => 'Other isolated warehouse', 'status' => 'ACTIVE']);
+        $other = Warehouse::create(['code' => 'MIX-OTHER', 'name' => 'Other isolated warehouse', 'status' => 'INACTIVE']);
         $this->stock($other, 'INBOUND', '2026-10-01 01:00:00');
         $case = $this->warranty($token, $warehouse, '2026-10-01 02:00:00');
         DB::table(WarrantyWarehouseScope::TABLE)->where('warranty_case_id', $case)->delete();
@@ -434,7 +450,9 @@ final class P12MixedDocumentsTest extends TestCase
 
     private function read(string $token, object $warehouse, array $query = [])
     {
-        return $this->getJson(self::URL.'?'.http_build_query(array_replace(['warehouse_id' => $warehouse->id], $query)), $this->headers($token));
+        // getJson serializes an empty array as a raw GET body. Real bodyless GET is required.
+        return $this->get(self::URL.'?'.http_build_query(array_replace(['warehouse_id' => $warehouse->id], $query)),
+            $this->headers($token) + ['Accept' => 'application/json']);
     }
 
     private function headers(string $token): array
