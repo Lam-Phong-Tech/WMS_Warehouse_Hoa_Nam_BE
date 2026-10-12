@@ -45,6 +45,7 @@ class RouteServiceProvider extends ServiceProvider
         Route::middleware('api')->prefix('api')->name('api.p07.')->group(module_path($this->name, '/routes/p07_nfc.php'));
         Route::middleware('api')->prefix('api')->name('api.p08.')->group(module_path($this->name, '/routes/p08_history.php'));
         Route::middleware('api')->prefix('api')->name('api.p09.')->group(module_path($this->name, '/routes/p09_warranty.php'));
+        Route::middleware('api')->prefix('api')->name('api.p12-mixed.')->group(module_path($this->name, '/routes/p12_mixed_documents.php'));
         Route::middleware('api')->prefix('api')->name('api.upload-receipts.')->group(module_path($this->name, '/routes/attachment_upload_receipts.php'));
         // Recovery belongs to P19. No quantity/error/waiting/closed P24 APIs.
         Route::get('api/v1/mini-app/component-issue-requests/{requestId}', [P19ComponentCommand::class, 'check'])

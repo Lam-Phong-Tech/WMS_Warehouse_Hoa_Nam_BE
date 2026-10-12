@@ -1,0 +1,142 @@
+name: P12 Mixed Documents Read Contract
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'Modules/Warehouse/app/Support/P12MixedDocument*.php'
+      - 'Modules/Warehouse/app/Support/P12DocumentPresentation.php'
+      - 'Modules/Warehouse/app/Support/P09Warranty*.php'
+      - 'Modules/Warehouse/app/Support/P06ReadSnapshot.php'
+      - 'Modules/Warehouse/app/Http/Controllers/P12MixedDocumentsController.php'
+      - 'Modules/Warehouse/app/Http/Middleware/P12MixedDocumentsReadGuard.php'
+      - 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
+      - 'Modules/Warehouse/routes/p12_mixed_documents.php'
+      - 'config/p12_mixed_documents.php'
+      - 'tests/Feature/P12MixedDocumentsTest.php'
+      - 'docs/contracts/p12-mixed-documents*.json'
+      - 'composer.lock'
+      - '.github/workflows/p12-mixed-documents.yml'
+permissions:
+  contents: read
+concurrency:
+  group: p12-mixed-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  isolated-read-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: '${{ github.run_id }}-isolated-p12'
+          POSTGRES_DB: p12_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p12_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: pgsql
+      DB_DATABASE: p12_contract_test
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: '${{ github.run_id }}-isolated-p12'
+      DB_SSLMODE: disable
+      DB_URL: ''
+      WMS_PROTECT_DEPLOYMENT_DATABASE: 'false'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      HN_DAILY_COVERAGE_DAYS: '0'
+      P19_COMMAND_RECOVERY_ENABLED: 'false'
+      P12_MIXED_DOCUMENTS_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Verify exact SHA and original owner ancestry
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor 8341412f2d1b20237d6bc1d59ecf41cf3bf5b766 HEAD
+          git rev-parse HEAD
+          git diff --exit-code 8341412f2d1b20237d6bc1d59ecf41cf3bf5b766 -- composer.lock
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_pgsql, sqlite3, pdo_sqlite, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Prepare isolated runtime with locked dependencies
+        run: |
+          cp .env.example .env
+          secret=$(openssl rand -hex 32)
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          echo "WMS_FIXTURE_PASSWORD=$secret" >> "$GITHUB_ENV"
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p12-mixed-composer.log 2>&1 || { tail -40 /tmp/p12-mixed-composer.log; exit 1; }
+          php artisan key:generate
+          php artisan config:clear
+          git diff --exit-code -- composer.lock
+      - name: Syntax style and JSON contract
+        run: |
+          git diff --name-only -z --diff-filter=ACMR 8341412f2d1b20237d6bc1d59ecf41cf3bf5b766 HEAD -- '*.php' > /tmp/p12-mixed-php
+          xargs -0 -n1 php -l < /tmp/p12-mixed-php
+          xargs -0 vendor/bin/pint --test < /tmp/p12-mixed-php
+          python3 -m json.tool docs/contracts/p12-mixed-documents-v1.json > /dev/null
+          python3 -m json.tool docs/contracts/p12-mixed-documents-openapi.json > /dev/null
+      - name: PostgreSQL HTTP contract and P12 P13 owner regressions
+        run: php artisan test tests/Feature/P12MixedDocumentsTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit mixed-pgsql.xml
+      - name: SQLite HTTP contract and P12 P13 owner regressions
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+        run: php artisan test tests/Feature/P12MixedDocumentsTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/P13NotificationRevision2Test.php --log-junit mixed-sqlite.xml
+      - name: Route cache and PostgreSQL mixed contract
+        run: |
+          php artisan route:cache
+          php artisan test tests/Feature/P12MixedDocumentsTest.php --log-junit mixed-route-cache.xml
+          php artisan route:clear
+      - name: Locked dependency audit
+        run: composer audit --locked --no-interaction
+      - name: Require nonempty evidence in log and summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os
+          import xml.etree.ElementTree as ET
+          lines = ['## P12 mixed list source validation', 'SHA: '+os.environ['GITHUB_SHA'],
+            'Isolated tests only. No deployed service, full seed, runtime-overlay certification or production approval.']
+          invalid = []
+          for name in ['mixed-pgsql.xml','mixed-sqlite.xml','mixed-route-cache.xml']:
+              path = Path(name)
+              if not path.is_file() or not path.stat().st_size:
+                  invalid.append(name+': missing'); continue
+              root = ET.parse(path).getroot()
+              suites = root.findall('./testsuite')
+              if not suites or not list(root.iter('testcase')):
+                  invalid.append(name+': empty')
+              for suite in suites:
+                  counts = {key:int(suite.get(key,'0')) for key in ['tests','assertions','errors','failures','skipped']}
+                  lines.append(name+' '+json.dumps(counts,sort_keys=True))
+                  if counts['tests'] == 0 or counts['assertions'] == 0 or any(counts[key] for key in ['errors','failures','skipped']):
+                      invalid.append(name+': unsuccessful')
+              lines.append('REPORT_SHA256 '+name+' '+hashlib.sha256(path.read_bytes()).hexdigest())
+          for name in ['composer.lock','docs/contracts/p12-mixed-documents-v1.json','docs/contracts/p12-mixed-documents-openapi.json']:
+              lines.append('SOURCE_SHA256 '+name+' '+hashlib.sha256(Path(name).read_bytes()).hexdigest())
+          report = '\n\n'.join(lines)+'\n'
+          print(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as output: output.write(report)
+          if invalid: raise SystemExit('; '.join(invalid))
+          PY

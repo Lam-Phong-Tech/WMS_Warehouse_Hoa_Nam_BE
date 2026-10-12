@@ -1,0 +1,79 @@
+{
+  "contract": "p12-mixed-documents-v1",
+  "status": "IMPLEMENTED_CANDIDATE_PENDING_BA_AND_RELEASE_ACCEPTANCE",
+  "base_commit": "8341412f2d1b20237d6bc1d59ecf41cf3bf5b766",
+  "basis": {
+    "available": "BE_IMPLEMENTATION_PROMPT.md P12.S01, plus current canonical source reviewed at base_commit",
+    "not_available": ["P12_MIXED_LIST_SPEC.md", "SOURCE_REFERENCES.md", "BE_RETURN_CHECKLIST.md"],
+    "notice": "This is the explicitly requested implementation candidate. Do not represent design choices below as recovered text or approval from unavailable references."
+  },
+  "route": {"method": "GET", "path": "/api/v1/mini-app/documents", "mutation_routes": []},
+  "rollout": {"config": "p12_mixed_documents.enabled", "env": "P12_MIXED_DOCUMENTS_ENABLED", "default": false, "disabled_http": 503, "production_enabled": false, "deployed": false},
+  "query": {
+    "required": ["warehouse_id"],
+    "defaults": {"source": "ALL", "status": "ALL", "sort": "created_at_desc", "per_page": 20, "cursor": "start", "timezone": "Asia/Ho_Chi_Minh"},
+    "allowed": ["warehouse_id", "source", "status", "keyword", "date_from", "date_to", "timezone", "sort", "per_page", "cursor"],
+    "source_values": ["ALL", "INBOUND", "OUTBOUND", "WARRANTY"],
+    "status_keys": ["INBOUND:DRAFT", "INBOUND:SCANNING", "INBOUND:POSTED", "INBOUND:CANCELLED", "OUTBOUND:DRAFT", "OUTBOUND:SCANNING", "OUTBOUND:POSTED", "OUTBOUND:CANCELLED", "WARRANTY:RECEIVED", "WARRANTY:CHECKING", "WARRANTY:REPAIRING", "WARRANTY:COMPLETED", "WARRANTY:RETURNED", "WARRANTY:CANCELLED"],
+    "status_semantics": "ALL or a source-qualified canonical value. No common business-state label is inferred. A selected single source must match the status prefix.",
+    "date_semantics": "Both date_from and date_to or neither; inclusive local calendar dates, translated to [start, next-day-start) in app.timezone. created_at for every source, never received_at/returned_at/document_date. Null creation times sort last in both directions and are excluded by an explicit date range.",
+    "keyword_semantics": {"max_length": 200, "match": "Literal case-insensitive contains using parameterized LOWER LIKE with ! escaping. Percent/underscore are literals, not wildcard requests.", "INBOUND": ["doc_no", "source_name"], "OUTBOUND": ["doc_no", "recipient_name"], "WARRANTY": ["warranty_case_code", "temporary_item_code", "serial_number"], "excluded": ["customer_name", "customer_phone", "customer_address", "decrypted_pii", "free_text_notes"]},
+    "per_page_range": [1, 100],
+    "unsupported": "Any other field, offset/page/page_size/sort_order and every raw body including {} or [] return 422."
+  },
+  "owners": {
+    "tables": ["stock_documents receipt rows", "stock_documents issue rows", "warranty_case plus persisted WarrantyWarehouseScope binding"],
+    "auth": "Fresh active actor, existing exact owner permissions, stable auth session, confirmed active warehouse, warehouse access and optional trusted tenancy before search/count/paging. P09 scope/cases/isolate are reused; no inference from current item location.",
+    "permissions": {"INBOUND": ["inbound.view"], "OUTBOUND": ["outbound.view"], "WARRANTY": ["warranty.view OR warranty.manage"]},
+    "denied_source": "No schema/read/count of denied source. ALL includes authorized sources only; denied facet total=null. Explicit denied source=403. No authorized source=403.",
+    "failure_policy": "Any unavailable authorized source needed for global facets fails the whole response with 503; no partial items or total, including single-source tabs. No legacy/fixture fallback.",
+    "old_apis": "P04/P05/P09/P12 owner controllers, DTOs, draft/receipt/stock/ledger/writer behavior unchanged. Only one additive route registration."
+  },
+  "pagination": {
+    "mode": "KEYSET",
+    "tuple": ["time_missing ASC", "created_at requested direction", "source_rank requested direction", "id requested direction"],
+    "source_rank": {"INBOUND": 1, "OUTBOUND": 2, "WARRANTY": 3},
+    "cursor": "Encrypted/authenticated Laravel Crypt payload, fixed TTL 900s, original created_at upper bound and tuple retained across pages. Binding includes contract, normalized filters/per_page, actor/version/session, permissions, warehouse, dimensions, P09 capabilities, driver/storage timezone.",
+    "snapshot": "P06 single-response repeatable-read READ ONLY PostgreSQL snapshot. This is NOT an immutable cross-request snapshot. Newer-created rows are excluded; backdated inserts, deletes, status/permission changes can change totals and membership.",
+    "null_time": "A separate null flag retains records with missing created_at; no fabricated timestamp is returned.",
+    "cross_request_change": "Newer record insertion does not extend the initial upper bound. Backdated inserts may appear on later pages and counts may change. Changed sort timestamps can move rows; restart for a fresh view, never report a frozen export.",
+    "cursor_errors": {"422": "malformed/tampered or unsupported version", "409": "binding changed", "410": "fixed expiry reached"},
+    "client": "Start a new cursor on tab/filter/size/sort/warehouse/session change; never mix cursors with owner-detail or event cursors."
+  },
+  "counts": {
+    "total": "Full DB authorized filtered selected-source total within the initial upper bound, before cursor/limit. One stock_document or one warranty_case is one row; mirror projections are not joined as duplicates.",
+    "returned_count": "Rows in this response only.",
+    "facets": "All authorized sources with keyword/status/date/watermark filters, BEFORE source tab selection and cursor. Never sum page lengths. DENIED total=null, confirmed empty READY total=0.",
+    "quantity": "No quantity/attempt/SKU/serial totals are invented here. Use owner detail and P12 scan-entries meta.summary, preserving nullable/mixed-unit semantics."
+  },
+  "projection": {
+    "fields": ["id", "row_key", "source", "document_no", "warehouse_id", "created_at", "timestamp_source", "time_status", "status", "status_key", "partner", "p12", "read_target"],
+    "row_key": "source:canonical_UUID; use this instead of ID alone for mixed lists.",
+    "p12": "Existing pure P12DocumentPresentation::record projection, no DTO mutation of owner endpoints. mini_app/readiness may be absent/null; waiting_for_web remains null.",
+    "read_target": "GET of existing inbound-documents/outbound-documents/warranty-cases canonical ID, with verified warehouse_id. Target must revalidate permission/scope; a link grants no right. No invented Web host.",
+    "partner": "Actual source_name/recipient_name for permitted stock documents. Warranty partner is always null/WITHHELD_IN_AGGREGATE; no ciphertext, hash, customer PII or free text returned.",
+    "time": "Actual created_at normalized to UTC ISO8601 or null/NOT_RECORDED. Warranty is not a stock POST."
+  },
+  "acceptance": {
+    "workflow": ".github/workflows/p12-mixed-documents.yml",
+    "test": "tests/Feature/P12MixedDocumentsTest.php",
+    "scope": ["SQLite and PostgreSQL HTTP contract", "interleaved ALL plus source tabs", "exact totals and facets before LIMIT", "ties across sources including equal canonical UUID", "qualified canonical status and no waiting inference", "inclusive date boundaries including fractional timestamp", "null creation time", "literal wildcard search and PII exclusion", "permission-denied source not queried", "warehouse isolation and missing owner", "strict body/query validation", "cursor tamper/filter/per_page/session/revocation/expiry", "newer and backdated insert behavior", "authorized source failure no partial success", "soft delete and existing detail link", "domain fingerprints before/after repeated GET", "read-only EXPLAIN", "P12/P13 regression suites", "route cache"],
+    "not_claimed": ["missing-reference BA approval", "live data smoke", "production workload performance", "runtime overlays byte equivalence", "full project CI", "deployment"]
+  },
+  "release_gates": [
+    "BA accepts candidate status/date/search/facet/null/privacy decisions and compares unavailable detailed spec when supplied.",
+    "DEV verifies artifact bytes/overlays, SHA and locked vendor, then enables only approved environment; no seed or database writes needed to test new GET.",
+    "Smoke authenticated allowed/denied/nonempty/empty and pagination on existing data; preserve full activation OFF until accepted."
+  ],
+  "migrations": {"added": false, "indexes_added": false, "explain": "Test-only EXPLAIN executes on isolated fixtures; production-volume plan/index approval remains separate. No schema rewrite/seed/repair."},
+  "examples": {
+    "notice": "Illustrative contract examples only; never FE fallback data or live evidence.",
+    "first_request": "GET /api/v1/mini-app/documents?warehouse_id=<confirmed-uuid>&source=ALL&cursor=start&per_page=20",
+    "status_filter": "status=INBOUND:SCANNING",
+    "empty_metadata": {"total": 0, "returned_count": 0, "has_more": false, "next_cursor": null},
+    "denied_facet": {"availability": "DENIED", "total": null},
+    "null_creation_row": {"created_at": null, "time_status": "NOT_RECORDED"},
+    "warranty_privacy": {"partner": {"display_name": null, "availability": "WITHHELD_IN_AGGREGATE"}},
+    "source_failure": {"http": 503, "success": false, "error_code": "DOCUMENTS_SOURCE_UNAVAILABLE", "partial_data_returned": false}
+  }
+}
