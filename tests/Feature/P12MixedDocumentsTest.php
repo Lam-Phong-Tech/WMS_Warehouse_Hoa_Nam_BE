@@ -454,12 +454,25 @@ final class P12MixedDocumentsTest extends TestCase
     public function test_type_search_matches_explicit_source_terms_without_title_or_id_inference(): void
     {
         [, $token, $warehouse] = $this->actor();
-        $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
-        $this->stock($warehouse, 'OUTBOUND', '2026-10-01 01:00:00');
-        $this->warranty($token, $warehouse, '2026-10-01 02:00:00');
+        $receipt = $this->stock($warehouse, 'INBOUND', '2026-10-01 00:00:00');
+        $issue = $this->stock($warehouse, 'OUTBOUND', '2026-10-01 01:00:00');
+        $case = $this->warranty($token, $warehouse, '2026-10-01 02:00:00');
+        // Random fixture codes can contain PN/PX/BH and legitimately match a
+        // second source. Separate source-term matching from literal-code matching.
+        DB::table('stock_documents')->where('id', $receipt)->update(['doc_no' => 'TYPE-IN-001', 'source_name' => 'Alpha supplier']);
+        DB::table('stock_documents')->where('id', $issue)->update(['doc_no' => 'TYPE-OUT-001', 'recipient_name' => 'Beta receiver']);
+        DB::table('warranty_case')->where('warranty_case_id', $case)->update([
+            'warranty_case_code' => 'TYPE-WC-001', 'temporary_item_code' => 'TYPE-TMP-001',
+        ]);
         foreach (['PN' => 'INBOUND', 'Nhập kho' => 'INBOUND', 'PX' => 'OUTBOUND', 'XUẤT' => 'OUTBOUND', 'BH' => 'WARRANTY', 'BẢO HÀNH' => 'WARRANTY'] as $q => $source) {
             $this->read($token, $warehouse, ['q' => $q])->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.source', $source);
         }
+        // q is a code/partner/type search, not an implicit source selector.
+        DB::table('stock_documents')->where('id', $issue)->update(['doc_no' => 'TYPE-OUT-PN-001']);
+        $this->read($token, $warehouse, ['q' => 'PN'])->assertOk()->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('meta.source_facets.INBOUND.total', 1)->assertJsonPath('meta.source_facets.OUTBOUND.total', 1);
+        $this->read($token, $warehouse, ['q' => 'PN', 'source' => 'OUTBOUND'])->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $issue);
     }
 
     public function test_ninety_day_selection_and_all_dates_are_different_filters(): void
