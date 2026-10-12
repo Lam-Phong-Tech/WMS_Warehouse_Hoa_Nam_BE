@@ -134,8 +134,8 @@ final class P12MixedDocumentReadModel
             ->selectRaw("CAST(c.warranty_case_id AS VARCHAR(36)) AS id, 'WARRANTY' AS source, 3 AS source_rank,
                 c.warranty_case_code AS document_no")
             ->selectSub($owner->selectRaw('CAST(w.warehouse_id AS VARCHAR(36))')->limit(1), 'warehouse_id')
-            ->selectRaw("c.created_at, CASE WHEN c.created_at IS NULL THEN 1 ELSE 0 END AS time_missing,
-                c.status, CAST(NULL AS VARCHAR(255)) AS partner_name");
+            ->selectRaw('c.created_at, CASE WHEN c.created_at IS NULL THEN 1 ELSE 0 END AS time_missing,
+                c.status, CAST(NULL AS VARCHAR(255)) AS partner_name');
         // Filtering must stay on the owner query, before wrapping/UNION/count.
         if ($filters['keyword'] !== '') {
             self::requireColumns('item_instances', ['item_id', 'serial_number']);
@@ -150,7 +150,7 @@ final class P12MixedDocumentReadModel
                     });
             });
         }
-        // Build the final projection directly, retaining c.* for shared predicate application.
+
         return $query;
     }
 
