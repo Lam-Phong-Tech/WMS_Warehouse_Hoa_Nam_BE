@@ -11,6 +11,7 @@ use Modules\Warehouse\Http\Controllers\MiniAppComponentIssueStagingController;
 use Modules\Warehouse\Services\MiniAppDraftService as P03;
 use Modules\Warehouse\Services\P19LinkedComponentIssue as P19;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
@@ -19,6 +20,7 @@ use Tests\TestCase;
 /** Only disposable fixtures; never split, truncate or silently replace a saved batch. */
 class P19BatchLimitsTest extends TestCase
 {
+    use BuildsScanDrivenInbound;
     use InteractsWithBrowserSession;
     use OpensWarrantyCaseForComponentIssue;
     use PreparesOutboundFixtures;

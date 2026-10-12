@@ -24,11 +24,11 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: p24-disposable-ci-only
-          POSTGRES_DB: p24_contract_test
+          POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-p24
+          POSTGRES_DB: p12_contract_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres -d p24_contract_test"
+          --health-cmd "pg_isready -U postgres -d p12_contract_test"
           --health-interval 10s --health-timeout 5s --health-retries 5
     env:
       APP_ENV: testing
@@ -38,7 +38,7 @@ jobs:
       DB_HOST: '127.0.0.1'
       DB_PORT: '5432'
       DB_USERNAME: postgres
-      DB_PASSWORD: p24-disposable-ci-only
+      DB_PASSWORD: ${{ github.run_id }}-isolated-p24
       DB_SSLMODE: disable
       DB_URL: ''
       PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
@@ -47,7 +47,6 @@ jobs:
       QUEUE_CONNECTION: sync
       BROADCAST_CONNECTION: 'null'
       MAIL_MAILER: array
-      JWT_SECRET: p24-isolated-ci-only-not-a-production-secret
       CORS_ALLOWED_ORIGINS: http://localhost:5173
       CORS_SUPPORTS_CREDENTIALS: 'true'
       REFRESH_TOKEN_COOKIE_SECURE: 'false'
@@ -57,9 +56,15 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: ${{ github.sha }}
       - name: Source ancestry and locked dependencies
         run: |
           git merge-base --is-ancestor 6a9a8edb42e30d60e9dd4336eb91ce83fc4269ab HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
           git rev-parse HEAD
           sha256sum composer.lock
       - uses: shivammathur/setup-php@v2
@@ -89,7 +94,7 @@ jobs:
         if: always()
         env:
           DB_CONNECTION: pgsql
-          DB_DATABASE: p24_contract_test
+          DB_DATABASE: p12_contract_test
         run: >-
           php artisan test tests/Feature/P24ScannerOwnerContractTest.php tests/Feature/P19LinkedComponentIssueTest.php tests/Feature/P20ComponentHistoryTest.php tests/Feature/P21ComponentResumeTest.php tests/Feature/P03DraftContractTest.php tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P12ReadRevision2Test.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php tests/Feature/MiniAppComponentIssueStagingTest.php tests/Feature/ComponentIssueCompositeQrScanTest.php --log-junit p24-pgsql.xml
       - name: Route cache and P24 recovery boundary
