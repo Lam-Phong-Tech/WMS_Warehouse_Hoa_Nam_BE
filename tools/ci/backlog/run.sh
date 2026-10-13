@@ -3,6 +3,7 @@ set -euo pipefail
 cd /app
 test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
 test "$(cat .backlog-source-sha)" = "$BACKLOG_SOURCE_SHA"
+case "${BACKLOG_CI_SCOPE:-}" in focused|complete) ;; *) exit 1 ;; esac
 case "$DB_CONNECTION:$DB_DATABASE" in 'sqlite::memory:'|'pgsql:p12_contract_test') ;; *) exit 1 ;; esac
 cp .env.example .env
 php artisan key:generate
@@ -33,7 +34,9 @@ assert len(extra) >= 15 and Path('tests/Feature/P19BatchLimitsTest.php') in extr
 assert Path('tests/Feature/P11LegacyCredentialBoundaryTest.php') in extra
 races = [Path('tools/ci/backlog/P18MixedQuotaRaceTest.php'), Path('tools/ci/backlog/P22OutboxRaceTest.php')]
 assert all(p.is_file() for p in races)
-for label, selected in [('core', paths), ('extra', extra), ('cached', paths + extra), ('race', races)]:
+focused = [Path('tests/Feature') / (name + '.php') for name in ['P11LegacyCredentialBoundaryTest', 'P18MixedQuotaFenceTest', 'P18UploadReceiptTest', 'P22OutboxPublicationTest', 'P22NfcHistoryReadTest', 'P12MixedDocumentsTest']] + extra[-2:]
+assert all(p.is_file() for p in focused)
+for label, selected in [('focused', focused), ('core', paths), ('extra', extra), ('cached', paths + extra), ('race', races)]:
     Path('backlog-results/' + label + '-expected.txt').write_text('\n'.join(map(str, selected)) + '\n')
     print(label, len(selected), 'required classes')
 PY
@@ -54,6 +57,7 @@ files=(
 for file in "${files[@]}"; do php -l "$file" || result=1; done
 vendor/bin/pint --test "${files[@]}" || result=1
 suites=(extra core cached)
+if [ "$BACKLOG_CI_SCOPE" = focused ]; then suites=(focused); fi
 if [ "$DB_CONNECTION" = pgsql ]; then suites+=(race); fi
 for suite in "${suites[@]}"; do
     echo "BEGIN_SUITE $DB_CONNECTION $suite $(date -u +%FT%TZ)"

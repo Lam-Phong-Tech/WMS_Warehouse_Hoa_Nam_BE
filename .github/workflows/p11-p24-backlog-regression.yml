@@ -16,142 +16,19 @@ on:
       - 'package-lock.json'
       - 'tools/ci/backlog/**'
       - '.github/workflows/p11-p24-backlog-regression.yml'
+      - '.github/workflows/backlog-isolated-run.yml'
 permissions:
   contents: read
 concurrency:
   group: p11-p24-isolated-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  focused:
+    uses: ./.github/workflows/backlog-isolated-run.yml
+    with:
+      scope: focused
   contract:
-    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          path: backlog-source
-          persist-credentials: false
-      - name: Prepare exact committed source, never runtime configuration
-        working-directory: backlog-source
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          git diff --exit-code HEAD
-          ctx="$(mktemp -d "$RUNNER_TEMP/backlog-ci.XXXXXXXX")"
-          echo "BACKLOG_CI_DIR=$ctx" >> "$GITHUB_ENV"
-          echo "BACKLOG_CI_NAME=backlog-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
-          mkdir "$ctx/source" "$ctx/evidence"
-          printf 'node/\nevidence/\n' > "$ctx/.dockerignore"
-          git ls-files -z | tar --null --verbatim-files-from -T - -cf - | tar -xf - -C "$ctx/source"
-          test ! -f "$ctx/source/.env" && test ! -f "$ctx/source/.env.testing"
-          test ! -f "$ctx/source/bootstrap/cache/config.php"
-          test -z "$(find "$ctx/source" -type l -print -quit)"
-          printf '%s' "$GITHUB_SHA" > "$ctx/source/.backlog-source-sha"
-          git ls-files -z | xargs -0 sha256sum > "$ctx/source/.backlog-source-hashes"
-          (cd "$ctx/source" && sha256sum --check --quiet .backlog-source-hashes)
-      - name: Locked Node gates and dependency diagnostics
-        id: node
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp -a "$BACKLOG_CI_DIR/source" "$BACKLOG_CI_DIR/node"
-          docker run --rm --name "$BACKLOG_CI_NAME-node" --cpus=1 --memory=1g \
-            --cap-drop=ALL --security-opt=no-new-privileges --user "$(id -u):$(id -g)" \
-            -e HOME=/tmp -v "$BACKLOG_CI_DIR/node:/workspace" -w /workspace node:22-alpine sh -c '
-              set -eu
-              npm ci --ignore-scripts --no-audit
-              result=0
-              npm audit --omit=dev --audit-level=high || result=1
-              npm audit --audit-level=critical || result=1
-              npm run build || result=1
-              npm test || result=1
-              if [ "$result" != 0 ]; then
-                for package in handlebars shell-quote fast-uri qs ip-address source-map-js; do
-                  printf "REGISTRY_DIST_TAGS %s " "$package"
-                  npm view "$package" dist-tags --json || true
-                done
-              fi
-              exit "$result"
-            '
-      - name: Build locked PHP image from exact source
-        if: ${{ !cancelled() && env.BACKLOG_CI_DIR != '' }}
-        shell: bash
-        run: |
-          docker build --tag "backlog-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
-            --file "$BACKLOG_CI_DIR/source/tools/ci/p14/Dockerfile" "$BACKLOG_CI_DIR"
-      - name: Locked Composer audit without deployment credentials
-        if: ${{ !cancelled() && env.BACKLOG_CI_DIR != '' }}
-        shell: bash
-        run: |
-          docker run --rm --name "$BACKLOG_CI_NAME-audit" --cpus=1 --memory=768m \
-            --cap-drop=ALL --security-opt=no-new-privileges \
-            "backlog-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" composer audit --locked --no-interaction
-      - name: Complete SQLite and PostgreSQL matrices, no external runtime networking
-        if: ${{ !cancelled() && env.BACKLOG_CI_DIR != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          secret="$(openssl rand -hex 32)"
-          echo "::add-mask::$secret"
-          docker run -d --name "$BACKLOG_CI_NAME-db" --network none --cpus=1 --memory=512m \
-            --tmpfs /var/lib/postgresql/data:rw,size=384m \
-            -e POSTGRES_USER=postgres -e POSTGRES_DB=p12_contract_test -e POSTGRES_PASSWORD="$secret" postgres:16
-          ready=0
-          for attempt in $(seq 1 30); do
-            if docker exec "$BACKLOG_CI_NAME-db" pg_isready -U postgres -d p12_contract_test; then ready=1; break; fi
-            sleep 2
-          done
-          test "$ready" = 1
-          test "$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$BACKLOG_CI_NAME-db")" = none
-          result=0
-          for db in sqlite pgsql; do
-            database=p12_contract_test
-            if [ "$db" = sqlite ]; then database=':memory:'; fi
-            docker create --name "$BACKLOG_CI_NAME-$db" --network "container:$BACKLOG_CI_NAME-db" \
-              --cpus=1 --memory=1g --cap-drop=ALL --security-opt=no-new-privileges \
-              -e APP_ENV=testing -e APP_DEBUG=false -e DB_CONNECTION="$db" -e DB_DATABASE="$database" \
-              -e DB_HOST=127.0.0.1 -e DB_PORT=5432 -e DB_USERNAME=postgres -e DB_PASSWORD="$secret" \
-              -e DOCUMENT_LEGACY_NAIVE_TIMEZONE=UTC -e DB_SSLMODE=disable -e DB_URL= -e JWT_SECRET="$secret" -e BACKLOG_SOURCE_SHA="$GITHUB_SHA" \
-              -e PGOPTIONS='-c lock_timeout=5000 -c statement_timeout=30000' \
-              -e CACHE_STORE=array -e SESSION_DRIVER=array -e QUEUE_CONNECTION=sync \
-              -e BROADCAST_CONNECTION=null -e MAIL_MAILER=array \
-              -e CORS_ALLOWED_ORIGINS=http://localhost:5173 -e CORS_SUPPORTS_CREDENTIALS=true \
-              -e REFRESH_TOKEN_COOKIE_SECURE=false -e P14_SHIFT_ENABLED=false -e P14_SHIFT_DRAIN_ENABLED=false \
-              -e P14_RECOVERY_ENABLED=false -e P19_COMMAND_RECOVERY_ENABLED=false -e P12_MIXED_DOCUMENTS_ENABLED=false \
-              "backlog-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" bash tools/ci/backlog/run.sh
-            if ! docker start -a "$BACKLOG_CI_NAME-$db"; then result=1; fi
-            mkdir -p "$BACKLOG_CI_DIR/evidence/$db"
-            docker cp "$BACKLOG_CI_NAME-$db:/app/backlog-results/." "$BACKLOG_CI_DIR/evidence/$db/" || result=1
-            docker rm "$BACKLOG_CI_NAME-$db"
-          done
-          exit "$result"
-      - name: Publish strict exact-source evidence
-        if: always()
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json, os
-          from pathlib import Path
-          ok = bool(os.environ.get('BACKLOG_CI_DIR'))
-          for db in ['sqlite', 'pgsql']:
-              for suite in ['core', 'extra', 'cached'] + (['race'] if db == 'pgsql' else []):
-                  path = Path(os.environ.get('BACKLOG_CI_DIR', '/nonexistent')) / 'evidence' / db / (suite + '.json')
-                  if not path.is_file():
-                      print('MISSING_EVIDENCE', db, suite); ok = False; continue
-                  report = json.loads(path.read_text())
-                  print(json.dumps(report, sort_keys=True))
-                  with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
-                      out.write('```json\n' + json.dumps(report, indent=2) + '\n```\n')
-                  ok = ok and report['passed'] and report['sha'] == os.environ['GITHUB_SHA']
-          if not ok: raise SystemExit('Integration evidence incomplete or failed')
-          PY
-      - name: Remove only this run's disposable resources
-        if: always()
-        shell: bash
-        run: |
-          if [ -n "${BACKLOG_CI_NAME:-}" ]; then
-            for suffix in node sqlite pgsql audit db; do docker rm -fv "$BACKLOG_CI_NAME-$suffix" 2>/dev/null || true; done
-            docker image rm "backlog-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" || true
-          fi
-          if [[ "${BACKLOG_CI_DIR:-}" == "$RUNNER_TEMP"/backlog-ci.* ]]; then rm -rf -- "$BACKLOG_CI_DIR"; fi
+    needs: focused
+    uses: ./.github/workflows/backlog-isolated-run.yml
+    with:
+      scope: complete

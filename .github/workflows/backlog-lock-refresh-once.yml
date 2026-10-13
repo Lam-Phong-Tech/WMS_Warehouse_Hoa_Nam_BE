@@ -1,3 +1,4 @@
+# Exact-source preparation; the independent full matrix remains a required gate.
 name: Reviewed Backlog Dependency Lock Refresh
 on:
   push:

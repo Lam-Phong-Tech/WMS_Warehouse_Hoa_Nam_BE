@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 suite = sys.argv[1]
-assert suite in {"core", "extra", "cached", "race"}
+assert suite in {"core", "extra", "cached", "race", "focused"}
 path = Path("backlog-results") / (suite + ".xml")
 root = ET.parse(path).getroot()
 cases = list(root.iter("testcase"))
@@ -22,7 +22,7 @@ if suite in {"core", "cached"}:
     ok = ok and len(cases) >= 191 and required in {c.get("name") for c in cases}
 report = {
     "sha": os.environ["BACKLOG_SOURCE_SHA"], "database": os.environ["DB_CONNECTION"],
-    "suite": suite, "counts": counts, "missing_classes": missing, "passed": bool(ok),
+    "scope": os.environ["BACKLOG_CI_SCOPE"], "suite": suite, "counts": counts, "missing_classes": missing, "passed": bool(ok),
     "junit_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
     "live_verified": False, "production_activation": False,
 }
