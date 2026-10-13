@@ -302,15 +302,33 @@ jobs:
             -v "$PWD:/var/www/html" \
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
-            -lc 'php artisan key:generate --force && php artisan jwt:secret --force'
+            -lc 'php artisan key:generate --force && php artisan jwt:secret --force > /dev/null'
 
       # `db:seed` đọc WMS_FIXTURE_PASSWORD từ .env (bước "Prepare Laravel environment");
       # thiếu mật khẩu thì seeder dừng chứ không rơi về mật khẩu mặc định.
       - name: Prepare Laravel database and OpenAPI
+        # Explicit fourteen-day fixture coverage in disposable CI only, never a
+        # production/default seeder policy. Keep the runtime-required guard intact.
+        env:
+          HN_DAILY_COVERAGE_DAYS: "14"
+          CI_POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        shell: bash
         run: |
+          set -euo pipefail
+          # Only the PostgreSQL service created for this CI job may receive fixtures.
+          test "$APP_ENV" = testing
+          test "$CI_DB_HOST" = 127.0.0.1
+          test "$CI_DB_PORT" = 55432
+          test -n "$CI_POSTGRES_SERVICE_ID"
+          test "$(docker inspect -f '{{.State.Running}}' "$CI_POSTGRES_SERVICE_ID")" = true
+          test "$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' "$CI_POSTGRES_SERVICE_ID")" = 55432
           docker run --rm --network host \
             --user "$(id -u):$(id -g)" \
             -e HOME=/tmp \
+            -e HN_DAILY_COVERAGE_DAYS \
+            -e APP_ENV=testing -e DB_CONNECTION=pgsql -e DB_URL= \
+            -e DB_HOST=127.0.0.1 -e DB_PORT=55432 \
+            -e DB_DATABASE="$CI_DB_DATABASE" -e DB_USERNAME="$CI_DB_USERNAME" -e DB_PASSWORD="$CI_DB_PASSWORD" \
             -v "$PWD:/var/www/html" \
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
@@ -418,10 +436,28 @@ jobs:
       # docker/ci/local-smoke.sh; mọi biến của probe được truyền tường minh, mật
       # khẩu fixture chỉ đi bằng tên biến (`-e WMS_FIXTURE_PASSWORD`).
       - name: Run local smoke
+        # Explicit fourteen-day fixture coverage in disposable CI only, never a
+        # production/default seeder policy. Keep the runtime-required guard intact.
+        env:
+          HN_DAILY_COVERAGE_DAYS: "14"
+          CI_POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        shell: bash
         run: |
+          set -euo pipefail
+          # Only the PostgreSQL service created for this CI job may receive fixtures.
+          test "$APP_ENV" = testing
+          test "$CI_DB_HOST" = 127.0.0.1
+          test "$CI_DB_PORT" = 55432
+          test -n "$CI_POSTGRES_SERVICE_ID"
+          test "$(docker inspect -f '{{.State.Running}}' "$CI_POSTGRES_SERVICE_ID")" = true
+          test "$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' "$CI_POSTGRES_SERVICE_ID")" = 55432
           docker run --rm --network host \
             --user "$(id -u):$(id -g)" \
             -e HOME=/tmp \
+            -e HN_DAILY_COVERAGE_DAYS \
+            -e APP_ENV=testing -e DB_CONNECTION=pgsql -e DB_URL= \
+            -e DB_HOST=127.0.0.1 -e DB_PORT=55432 \
+            -e DB_DATABASE="$CI_DB_DATABASE" -e DB_USERNAME="$CI_DB_USERNAME" -e DB_PASSWORD="$CI_DB_PASSWORD" \
             -v "$PWD:/var/www/html" \
             -e CI_SERVER_HOST="$CI_SERVER_HOST" \
             -e CI_SERVER_PORT="$CI_SERVER_PORT" \

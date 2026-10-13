@@ -17,6 +17,7 @@ on:
       - 'tools/ci/backlog/**'
       - '.github/workflows/p11-p24-backlog-regression.yml'
       - '.github/workflows/backlog-isolated-run.yml'
+      - '.github/workflows/hn-devops-ci-cd.yml'
 permissions:
   contents: read
 concurrency:
