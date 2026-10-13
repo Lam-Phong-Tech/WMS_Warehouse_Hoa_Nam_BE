@@ -1,0 +1,145 @@
+name: P01-P14 Lifecycle Integration
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'app/Support/P14*'
+      - 'app/Http/Middleware/P14*'
+      - 'Modules/Warehouse/app/Support/MiniAppWorkShiftService.php'
+      - 'Modules/Warehouse/app/Http/Controllers/P04InboundController.php'
+      - 'Modules/Warehouse/app/Http/Controllers/P07NfcController.php'
+      - 'config/p14.php'
+      - 'tests/Feature/P14*'
+      - 'contracts/p14/**'
+      - '.github/workflows/p01-p14-lifecycle.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ${{ github.run_id }}-isolated-p14
+          POSTGRES_DB: p12_contract_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d p12_contract_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'sqlite' && ':memory:' || 'p12_contract_test' }}
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${{ github.run_id }}-isolated-p14
+      DB_SSLMODE: disable
+      DB_URL: ''
+      PGOPTIONS: '-c lock_timeout=5000 -c statement_timeout=30000'
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+      P14_SHIFT_ENABLED: 'false'
+      P14_SHIFT_DRAIN_ENABLED: 'false'
+      P14_RECOVERY_ENABLED: 'false'
+      P19_COMMAND_RECOVERY_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Exact source and isolated target guard
+        run: |
+          test "$APP_ENV" = testing && test "$DB_HOST" = 127.0.0.1 && test -z "$DB_URL"
+          case "$DB_DATABASE" in ':memory:'|p12_contract_test) ;; *) exit 1 ;; esac
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
+          sha256sum composer.lock
+      - name: Install locked dependencies and prepare isolated runtime
+        run: |
+          cp .env.example .env
+          composer install --no-interaction --prefer-dist --no-progress > /tmp/p14-install.log 2>&1 || { tail -60 /tmp/p14-install.log; exit 1; }
+          php artisan key:generate
+          php artisan config:clear
+          php <<'PHP'
+          <?php
+          require 'vendor/autoload.php';
+          $app = require 'bootstrap/app.php';
+          $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+          $db = Illuminate\Support\Facades\DB::connection();
+          $safe = $db->getDriverName() === 'sqlite' ? $db->getDatabaseName() === ':memory:'
+              : $db->getDriverName() === 'pgsql' && $db->getDatabaseName() === 'p12_contract_test' && $db->getConfig('host') === '127.0.0.1';
+          if (! $app->environment('testing') || ! $safe || getenv('DB_URL') !== '') { exit(1); }
+          PHP
+      - name: Lifecycle and unchanged owner regressions
+        run: |
+          tests=(P14LifecycleIntegrationTest P14RecoveryShiftContractTest P14RecoveryBoundaryTest MiniAppWorkShiftTest AuthWarehouseContextTest AuthSessionPersistenceTest P03DraftContractTest P04InboundContractTest P05OutboundContractTest P07NfcContractTest)
+          printf '%s\n' "${tests[@]}" > /tmp/p14-expected.txt
+          paths=(); for name in "${tests[@]}"; do paths+=("tests/Feature/$name.php"); done
+          php artisan test "${paths[@]}" --log-junit p14-lifecycle.xml > /tmp/p14-tests.log 2>&1 || { tail -150 /tmp/p14-tests.log; exit 1; }
+          tail -8 /tmp/p14-tests.log
+      - name: Cached routes lifecycle rerun
+        if: success() || failure()
+        run: |
+          trap 'php artisan route:clear' EXIT
+          php artisan route:cache
+          php artisan test tests/Feature/P14LifecycleIntegrationTest.php tests/Feature/P14RecoveryShiftContractTest.php tests/Feature/MiniAppWorkShiftTest.php tests/Feature/AuthWarehouseContextTest.php --log-junit p14-cached.xml > /tmp/p14-cached.log 2>&1 || { tail -150 /tmp/p14-cached.log; exit 1; }
+          tail -8 /tmp/p14-cached.log
+      - name: Scoped syntax style and contract
+        if: success() || failure()
+        run: |
+          files=(app/Support/P14ShiftLifecycle.php app/Support/P14ShiftOwnerEvidence.php app/Support/P14ShiftService.php app/Http/Middleware/P14ShiftOwnerFence.php Modules/Warehouse/app/Support/MiniAppWorkShiftService.php config/p14.php tests/Feature/P14LifecycleIntegrationTest.php)
+          for f in "${files[@]}"; do php -l "$f"; done
+          vendor/bin/pint --test "${files[@]}"
+          python3 -m json.tool contracts/p14/lifecycle-v1.json > /dev/null
+      - name: Locked Composer audit
+        if: success() || failure()
+        run: composer audit --locked --no-interaction
+      - name: Strict exact-source evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os, json, hashlib
+          import xml.etree.ElementTree as E
+          from pathlib import Path
+          good = True
+          for label in ['lifecycle', 'cached']:
+              path = Path('p14-' + label + '.xml')
+              if not path.exists():
+                  print('MISSING', str(path)); good = False; continue
+              root = E.parse(path).getroot(); cases = list(root.iter('testcase'))
+              expected = set(Path('/tmp/p14-expected.txt').read_text().splitlines()) if label == 'lifecycle' else {'P14LifecycleIntegrationTest','P14RecoveryShiftContractTest','MiniAppWorkShiftTest','AuthWarehouseContextTest'}
+              seen = {c.get('class', c.get('classname', '')).split('\\')[-1] for c in cases}
+              counts = {'tests': len(cases), 'assertions': sum(int(c.get('assertions', '0')) for c in cases), **{k: len(list(root.iter(k))) for k in ['failure','error','skipped']}}
+              report = {'sha': os.environ['GITHUB_SHA'], 'db': os.environ['DB_CONNECTION'], 'suite': label, 'counts': counts, 'missing_classes': sorted(expected-seen), 'junit_sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'live_verified': False, 'deployment': False}
+              print(json.dumps(report, sort_keys=True))
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f: f.write('```json\n' + json.dumps(report, indent=2) + '\n```\n')
+              good = good and bool(cases) and expected.issubset(seen) and not any(counts[k] for k in ['failure','error','skipped'])
+          if not good: raise SystemExit('Missing or unsuccessful lifecycle evidence')
+          PY
+      - name: No test-time source rewrites
+        if: always()
+        run: git diff --exit-code

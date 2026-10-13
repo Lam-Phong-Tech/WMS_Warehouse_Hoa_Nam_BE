@@ -1,0 +1,76 @@
+{
+  "contract": "p01-p14-lifecycle-v1",
+  "date": "2026-10-13",
+  "source_base_sha": "27e69d21e350b5a112ac08a648c8fa41f54ce302",
+  "status": "IMPLEMENTED_SOURCE_PENDING_RELEASE_AND_NATIVE_ACCEPTANCE",
+  "new_routes": [],
+  "new_migrations": [],
+  "source_scope": [
+    "Additive START/current tracking and lifecycle capability",
+    "Typed P04 native P03 SAVE/CANCEL/RECORD evidence, P05/P03 and linked P03 receipts",
+    "P07 successful confirmation from exact durable native receipt",
+    "Trace/key/contract/file fingerprint binding",
+    "Explicit drain mode without legacy backfill"
+  ],
+  "identity": ["shift_id", "actor_id", "auth_session_id", "warehouse_id"],
+  "payload": {
+    "data.tracking_contract": "Persisted p14-shift-v1 or null; never backfilled",
+    "data.lifecycle.contract": "p01-p14-lifecycle-v1",
+    "data.lifecycle.mode": ["DISABLED", "ENABLED", "DRAINING"],
+    "data.lifecycle.end_supported": "Protocol availability only; ACTIVE, tracked and enabled/draining. Never equivalent to can_end or local CLEAN.",
+    "data.lifecycle.owner_coverage": "PARTIAL_EXPLICIT_OWNER_PROTOCOLS",
+    "current_without_shift": "data remains null; no synthetic shift",
+    "close_check": "Existing p14-shift-v1; additive actor_id/auth_session_id. GET is read-only and rejects request bodies.",
+    "end": "Existing receipt remains directly at data. New receipts add actor_id. Historical stored receipts are returned unchanged."
+  },
+  "owners": {
+    "P04": "Typed inbound uses its existing P03 row, form.p04_contract and exact native receipt. No duplicate snapshot; typed RECORD contributes one business ID to INBOUND.",
+    "P05": "Existing outbound P03 SAVE and source-linked RECORD unchanged. No invented typed SAVE route.",
+    "P07": "Successful PATCH confirm requires idempotency_keys done, canonical v2 request hash, exact actor/session/warehouse/item/tag and stored confirmation. It is not a draft or quantity/Post evidence.",
+    "audit": "WORK_SHIFT_OWNER_VERIFIED stores receipt identity/hash and scope, never raw form/code/password/access/refresh/reservation/written payload. Native receipt remains authoritative.",
+    "202_and_old_unsupported": "Remain PENDING_OWNER_RESULT/UNSUPPORTED_OWNER_SAVE blockers. No automatic journal resolution, deletion or synthetic negative outcome. Future async adapters require exact owner evidence integration.",
+    "unreviewed_owners": "Existing guards remain; this revision is NOT complete coverage of all Mini App writers, uploads or hardware side effects."
+  },
+  "headers": {
+    "owner": "X-Work-Shift-ID and stable X-Request-ID plus original native Idempotency-Key/If-Match/X-Draft-* and contract headers.",
+    "conflict": "Changing native identity with the same shift request ID is SHIFT_REQUEST_CONFLICT. Rotating trace or ca does not bypass a tracked identical native intent; use owner GET.",
+    "end": "Only its own Idempotency-Key, If-Match and existing body. Timeout remains CHECK_ONLY using original END key."
+  },
+  "drain": {
+    "config": "p14.shift_drain_enabled",
+    "env": "P14_SHIFT_DRAIN_ENABLED",
+    "default": false,
+    "precedence": "Drain wins over admission, including when both flags are true.",
+    "new_start": "503 SHIFT_START_PAUSED before creating a shift or start key. Existing START keys still return their own historical shift.",
+    "fence": "With shift_enabled=false and drain=true, known tracked login families remain fenced, including after END even if client strips headers. Other login families are not implicitly enrolled.",
+    "closure": "Close-check/END/reconcile/summary stay available under normal rights/scope/blockers. Drain does not authorize legacy END or UNKNOWN cleanup.",
+    "check_invalidation": "Changing mode requires a fresh close-check. Previously committed END receipts remain replayable under the same original identity.",
+    "rollout": "Do not change live flags from this source delivery. An approved operator applies configuration consistently across workers; no single-account canary is provided.",
+    "rollback": "First stop admission with drain enabled while retaining source/schema/receipts and owner reconciliation. Finish or explicitly resolve tracked ACTIVE/UNKNOWN work before disabling both flags. Do not revert to old non-drain code while draining."
+  },
+  "kpis": {
+    "successful_request_count": "TRACKED_OWNER_REQUEST, not documents or views",
+    "recorded_documents": "Distinct canonical business IDs on explicit supported RECORD routes, including typed P04",
+    "quantity_total": null,
+    "posted_total": null,
+    "draft_scope": "AUTH_SESSION_AT_CLOSE_NOT_SHIFT_OWNERSHIP"
+  },
+  "retained_boundaries": [
+    "No legacy shift upgrade or administrative closure",
+    "No cross-login takeover",
+    "No logout-as-END",
+    "No flag activation, deployment, real DB seed or migration",
+    "No recovery mailbox enablement",
+    "No claims of hardware E2E, FE wiring, whole-repository CI or live acceptance"
+  ],
+  "tests": {
+    "class": "tests/Feature/P14LifecycleIntegrationTest.php",
+    "workflow": ".github/workflows/p01-p14-lifecycle.yml",
+    "source_only": true,
+    "result": "Read exact commit workflow; no predicted PASS"
+  },
+  "production_activation": false,
+  "deployment": false,
+  "frontend_changed": false,
+  "live_verified": false
+}

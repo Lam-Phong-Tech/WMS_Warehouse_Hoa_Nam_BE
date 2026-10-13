@@ -23,6 +23,7 @@ final class P14ShiftService
 
     public function check(Request $request, string $id): array
     {
+        $id = strtolower($id);
         $this->query($request, ['warehouse_id']);
 
         return DB::transaction(function () use ($request, $id): array {
@@ -38,6 +39,7 @@ final class P14ShiftService
 
             return [
                 'shift_id' => $id, 'warehouse_id' => $shift->warehouse_id,
+                'actor_id' => $shift->actor_id, 'auth_session_id' => $shift->auth_session_id,
                 'can_end' => $blockers === [], 'can_end_scope' => 'SERVER_CHECK_ONLY', 'blockers' => $blockers,
                 'expected_version' => (int) $shift->version, 'check_token' => $blockers === [] ? $token : null,
                 'client_confirmation_required' => ['local_state' => 'CLEAN', 'pending_request_ids' => []],
@@ -49,6 +51,7 @@ final class P14ShiftService
 
     public function end(Request $request, string $id): array
     {
+        $id = strtolower($id);
         $this->enabled();
         $body = $request->isJson() ? $request->json()->all() : $request->request->all();
         if (array_diff(array_keys($body), ['warehouse_id', 'check_token', 'local_state', 'pending_request_ids']) !== []
@@ -117,6 +120,7 @@ final class P14ShiftService
             $receipt = [
                 'shift_id' => $id, 'request_id' => $key, 'command' => 'END', 'outcome' => 'SUCCEEDED',
                 'warehouse_id' => $shift->warehouse_id, 'auth_session_id' => $shift->auth_session_id,
+                'actor_id' => $shift->actor_id,
                 'status' => 'ENDED', 'version' => $expected + 1,
                 'ended_at' => $ended->toISOString(), 'summary_id' => $id, 'login_preserved' => true,
             ];
@@ -153,6 +157,7 @@ final class P14ShiftService
 
     public function reconcile(Request $request, string $id, string $requestId): array
     {
+        $id = strtolower($id);
         $this->query($request, ['warehouse_id']);
         $this->owned($request, $id, true, false);
         $row = DB::table('p14_shift_closures')->where('shift_id', $id)->where('request_id', strtolower($requestId))->first();
@@ -165,6 +170,7 @@ final class P14ShiftService
 
     public function summary(Request $request, string $id): array
     {
+        $id = strtolower($id);
         $this->query($request, ['warehouse_id', 'page', 'per_page']);
         [$actor] = $this->owned($request, $id, false, false);
         $page = (int) $request->query('page', 1);
@@ -198,6 +204,7 @@ final class P14ShiftService
     /** End and owner mutations share the existing user-row lock, then warehouse, then shift. */
     public function owned(Request $request, string $id, bool $sameSession = true, bool $lock = true, bool $requireWarehouse = true): array
     {
+        $id = strtolower($id);
         $this->enabled();
         $user = $request->user() ?? auth('api')->user();
         if (! $user instanceof User) {
@@ -212,7 +219,7 @@ final class P14ShiftService
         if (! Str::isUuid($id)) {
             ApiError::abort(404, 'SHIFT_NOT_FOUND', 'Không tìm thấy ca.');
         }
-        $shift = DB::table('mini_app_work_shifts')->where('shift_id', strtolower($id))->where('actor_id', $actor->user_id)
+        $shift = DB::table('mini_app_work_shifts')->where('shift_id', $id)->where('actor_id', $actor->user_id)
             ->when($sameSession, fn ($q) => $q->where('auth_session_id', $session))->first();
         if ($shift === null) {
             ApiError::abort(404, 'SHIFT_NOT_FOUND', 'Không tìm thấy ca.');
@@ -264,8 +271,8 @@ final class P14ShiftService
                 $blockers[] = 'DRAFT_SNAPSHOT_FORBIDDEN';
             }
         }
-        // Native typed snapshots remain owned by their modules. P14 will not
-        // pretend their save receipts are a complete P03 snapshot.
+        // Unproven legacy/async evidence is never retrospectively upgraded.
+        // Typed P04 uses the same native P03 row above, not a shadow draft.
         if (DB::table('p14_shift_operations')->where('shift_id', $shift->shift_id)->whereIn('operation', ['UNSUPPORTED_OWNER_SAVE', 'PENDING_OWNER_RESULT'])->exists()) {
             $blockers[] = 'OWNER_SNAPSHOT_UNSUPPORTED';
         }
@@ -275,20 +282,20 @@ final class P14ShiftService
 
     private function fingerprint(object $shift, array $drafts): string
     {
-        return hash('sha256', json_encode([$shift->shift_id, $shift->version, $drafts], JSON_THROW_ON_ERROR));
+        return hash('sha256', json_encode([$shift->shift_id, $shift->version, $drafts, P14ShiftLifecycle::mode()], JSON_THROW_ON_ERROR));
     }
 
     private function query(Request $request, array $keys): void
     {
-        if (array_diff(array_keys($request->query()), $keys) !== []) {
-            ApiError::abort(422, 'SHIFT_UNEXPECTED_FIELD', 'Truy vấn có trường không được hỗ trợ.');
+        if (array_diff(array_keys($request->query()), $keys) !== [] || $request->getContent() !== '' || $request->allFiles() !== []) {
+            ApiError::abort(422, 'SHIFT_UNEXPECTED_FIELD', 'Truy vấn có trường hoặc body không được hỗ trợ.');
         }
         Validator::make($request->query(), ['warehouse_id' => ['required', 'uuid'], 'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'between:1,100']])->validate();
     }
 
     private function enabled(): void
     {
-        if (! config('p14.shift_enabled')) {
+        if (! P14ShiftLifecycle::closureEnabled()) {
             ApiError::abort(503, 'P14_SHIFT_NOT_ENABLED', 'Tích hợp kết thúc ca chưa được kích hoạt.');
         }
     }

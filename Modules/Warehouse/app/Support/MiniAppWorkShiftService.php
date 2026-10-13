@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Support;
 
 use App\Support\ApiError;
+use App\Support\P14ShiftLifecycle;
 use App\Support\P14ShiftService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -71,6 +72,7 @@ final class MiniAppWorkShiftService
             $this->assertWarehouse($actor, $warehouseId, true);
             $created = $shift === null;
             if ($created) {
+                P14ShiftLifecycle::assertNewStartAllowed();
                 if (! config('p14.shift_enabled') && DB::table('mini_app_work_shifts')->where('auth_session_id', $sessionId)->exists()) {
                     ApiError::abort(409, 'SHIFT_LIFECYCLE_NOT_ENABLED', 'Vòng đời ca tiếp theo chưa được kích hoạt.');
                 }
@@ -133,6 +135,8 @@ final class MiniAppWorkShiftService
             'started_at' => Carbon::parse((string) $shift->started_at, 'UTC')->utc()->toIso8601String(),
             'ended_at' => $shift->ended_at === null ? null : Carbon::parse($shift->ended_at)->utc()->toISOString(),
             'preview_ready' => $shift->ended_at === null,
+            'tracking_contract' => $shift->tracking_contract ?? null,
+            'lifecycle' => P14ShiftLifecycle::payload($shift),
         ];
     }
 }

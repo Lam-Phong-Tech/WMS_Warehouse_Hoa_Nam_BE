@@ -3,11 +3,15 @@
 namespace App\Http\Middleware;
 
 use App\Support\ApiError;
+use App\Support\IdempotencyStore;
+use App\Support\P14ShiftLifecycle;
+use App\Support\P14ShiftOwnerEvidence;
 use App\Support\P14ShiftService;
 use Closure;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Auth\Support\WarehouseContext;
@@ -18,8 +22,8 @@ final class P14ShiftOwnerFence
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! config('p14.shift_enabled') || ! $request->is('api/v1/mini-app/*') || $request->isMethodSafe()
-            || $request->is('api/v1/mini-app/work-shifts/*')) {
+        if (! $request->is('api/v1/mini-app/*') || $request->isMethodSafe()
+            || $request->is('api/v1/mini-app/work-shifts/*') || ! P14ShiftLifecycle::fenceRequired($request)) {
             return $next($request);
         }
 
@@ -42,13 +46,20 @@ final class P14ShiftOwnerFence
                     ApiError::abort(409, 'WAREHOUSE_CONTEXT_MISMATCH', 'Kho của thao tác không khớp ca.');
                 }
             }
-            $hash = hash_hmac('sha256', json_encode([$request->method(), $request->path(), $request->query(),
-                $request->isJson() ? $request->json()->all() : $request->request->all(), $request->header('If-Match')], JSON_THROW_ON_ERROR), (string) config('app.key'));
+            // Capture before a typed owner adds internal handoff headers.
+            $hash = $this->fingerprint($request);
+            $nfcHash = $request->isMethod('PATCH') && $request->is('api/v1/mini-app/items/*/nfc')
+                ? IdempotencyStore::requestHash($request) : null;
             $existing = DB::table('p14_shift_operations')->where('shift_id', $id)->where('request_id', $requestId)->first();
             if ($existing !== null) {
-                // The native owner owns its replay/receipt; P14 never fabricates one.
                 ApiError::abort(409, hash_equals($existing->request_hash, $hash) ? 'OWNER_RECONCILE_REQUIRED' : 'SHIFT_REQUEST_CONFLICT',
                     'Yêu cầu đã có kết quả; đối chiếu tại đúng nghiệp vụ trước khi gửi lại.');
+            }
+            if ($request->hasHeader('Idempotency-Key') && DB::table('p14_shift_operations as o')
+                ->join('mini_app_work_shifts as s', 's.shift_id', '=', 'o.shift_id')
+                ->where('s.actor_id', $actor->user_id)->where('s.auth_session_id', $shift->auth_session_id)
+                ->where('s.warehouse_id', $shift->warehouse_id)->where('o.request_hash', $hash)->exists()) {
+                ApiError::abort(409, 'OWNER_RECONCILE_REQUIRED', 'Đổi mã trace hoặc ca không tạo ý định owner mới; đối chiếu yêu cầu gốc.');
             }
             $response = $next($request);
             if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
@@ -66,11 +77,18 @@ final class P14ShiftOwnerFence
                 $kind = 'UNSUPPORTED_OWNER_SAVE';
             }
             $body = $response instanceof JsonResponse ? $response->getData(true) : [];
+            $proof = null;
             if ($response->getStatusCode() === 202) {
                 $kind = 'PENDING_OWNER_RESULT';
+            } else {
+                $proof = P14ShiftOwnerEvidence::p03($request, $body, $shift)
+                    ?? P14ShiftOwnerEvidence::nfc($request, $body, $shift, $nfcHash);
+                if ($proof !== null) {
+                    $kind = $proof['journal_kind'];
+                }
             }
             $business = null;
-            $candidates = [data_get($body, 'data.document_id'), data_get($body, 'data.document.id'),
+            $candidates = $proof !== null ? [$proof['business_id']] : [data_get($body, 'data.document_id'), data_get($body, 'data.document.id'),
                 data_get($body, 'data.id'), data_get($body, 'data.warranty_case_id'), data_get($body, 'data.component_issue_document_id')];
             foreach ($candidates as $candidate) {
                 if (! is_string($candidate) || ! Str::isUuid($candidate)) {
@@ -91,6 +109,9 @@ final class P14ShiftOwnerFence
             if (in_array($kind, ['INBOUND', 'OUTBOUND', 'WARRANTY', 'COMPONENT_ISSUE'], true) && $business === null) {
                 ApiError::abort(502, 'SHIFT_OWNER_RECEIPT_INVALID', 'Nghiệp vụ chưa xác nhận được business ID; giao dịch được hoàn tác.');
             }
+            if ($proof !== null) {
+                P14ShiftOwnerEvidence::audit($proof, $shift, $requestId);
+            }
             DB::table('p14_shift_operations')->insert([
                 'shift_id' => $id, 'request_id' => $requestId, 'request_hash' => $hash,
                 'operation' => $kind, 'business_id' => $business, 'completed_at' => now()->utc(),
@@ -99,5 +120,34 @@ final class P14ShiftOwnerFence
 
             return $response;
         });
+    }
+
+    private function fingerprint(Request $request): string
+    {
+        $headers = [];
+        foreach ($request->headers->all() as $key => $values) {
+            if (in_array($key, ['idempotency-key', 'if-match', 'x-draft-id', 'x-draft-scan-session-id', 'x-draft-version'], true)
+                || (str_starts_with($key, 'x-') && str_contains($key, 'contract'))) {
+                $headers[$key] = $values;
+            }
+        }
+        ksort($headers);
+        $files = [];
+        $walk = function (array $nodes, string $prefix = '') use (&$walk, &$files): void {
+            foreach ($nodes as $key => $node) {
+                $name = $prefix.(string) $key;
+                if (is_array($node)) {
+                    $walk($node, $name.'.');
+                } elseif ($node instanceof UploadedFile) {
+                    $digest = $node->isValid() ? hash_file('sha256', $node->getPathname()) : false;
+                    $files[$name] = [$digest, $node->getClientOriginalName(), $node->getClientMimeType()];
+                }
+            }
+        };
+        $walk($request->allFiles());
+        ksort($files);
+
+        return hash_hmac('sha256', json_encode([$request->method(), $request->path(), $request->query(),
+            $request->isJson() ? $request->json()->all() : $request->request->all(), $headers, $files], JSON_THROW_ON_ERROR), (string) config('app.key'));
     }
 }
