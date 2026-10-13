@@ -24,6 +24,9 @@ files=(app/Support/P14ShiftLifecycle.php app/Support/P14ShiftOwnerEvidence.php a
 for f in "${files[@]}"; do php -l "$f"; done
 vendor/bin/pint --test "${files[@]}"
 python3 -m json.tool contracts/p14/lifecycle-v1.json >/dev/null
+# Additional unchanged-case probes, not a substitute for either complete matrix.
+php artisan test tools/ci/p14/P14NfcProbeTest.php tools/ci/p14/P14SnapshotProbeTest.php --filter='test_p07_confirm_uses_native_durable_receipt_not_a_fake_saved_draft|test_saved_p03_snapshot_is_immutable_paged_and_does_not_change_owner' > /tmp/p14-probe.log 2>&1 || true
+cat /tmp/p14-probe.log
 core=(P14LifecycleIntegrationTest P14RecoveryShiftContractTest P14RecoveryBoundaryTest MiniAppWorkShiftTest AuthWarehouseContextTest AuthSessionPersistenceTest P03DraftContractTest P04InboundContractTest P05OutboundContractTest P07NfcContractTest)
 cached=(P14LifecycleIntegrationTest P14RecoveryShiftContractTest MiniAppWorkShiftTest AuthWarehouseContextTest)
 result=0
