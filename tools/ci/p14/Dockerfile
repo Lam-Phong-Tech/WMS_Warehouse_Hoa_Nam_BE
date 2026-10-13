@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 ENV COMPOSER_ALLOW_SUPERUSER=1
 WORKDIR /app
-# The workflow builds from git archive only, never a runtime directory or .env.
+# Only exact committed files are copied, never a runtime directory or .env.
 COPY source/ /app/
 RUN composer install --no-scripts --no-interaction --prefer-dist --no-progress
+
+# Isolated CI only; bounded below the 1 GiB test-container limit.
+RUN printf 'memory_limit=512M\n' > "$PHP_INI_DIR/conf.d/zz-p14-ci.ini"

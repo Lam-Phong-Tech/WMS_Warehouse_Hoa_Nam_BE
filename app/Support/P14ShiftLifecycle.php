@@ -4,6 +4,7 @@ namespace App\Support;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\StableAuthSession;
 
@@ -58,17 +59,25 @@ final class P14ShiftLifecycle
         if (config('p14.shift_enabled', false)) {
             return true;
         }
-        if (self::mode() !== 'DRAINING') {
+        // An absent pre-P14 schema cannot contain a tracked family. A query
+        // failure is not caught: unavailable evidence must not bypass fencing.
+        if (self::mode() === 'DISABLED' && ! Schema::hasColumn('mini_app_work_shifts', 'tracking_contract')) {
             return false;
         }
         $actor = $request->user() ?? auth('api')->user();
         if (! $actor instanceof User) {
             return false; // Existing authentication middleware remains authoritative.
         }
-        $session = app(StableAuthSession::class)->requireId($actor);
+        $sessions = app(StableAuthSession::class);
+        $session = self::mode() === 'DRAINING' ? $sessions->requireId($actor) : $sessions->id($actor);
+        if ($session === null) {
+            return false; // Preserve existing legacy authentication, never infer a family.
+        }
 
-        // Include ended tracked shifts: removing the header after END must not
-        // bypass the fence. Other login families are not silently enrolled.
+        // Include ended tracked shifts, even when both flags are accidentally
+        // OFF. The owner guard then fails closed (503), not untracked writes.
+        // Recovery requires an approved return to ENABLED/DRAINING; no flag is
+        // automatically enabled and unrelated login families remain unchanged.
         return DB::table('mini_app_work_shifts')->where('actor_id', $actor->user_id)
             ->where('auth_session_id', $session)->where('tracking_contract', P14ShiftService::CONTRACT)->exists();
     }

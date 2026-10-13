@@ -99,9 +99,16 @@ class P14LifecycleIntegrationTest extends TestCase
         $f = $this->fixture();
         $sku = $this->productSkuFixture('P14-TYPED-'.Str::upper(Str::random(6)));
         $items = [['raw_code' => $this->compositeProductQr($sku->sku_code, 'P14-ITEM-001'), 'quantity' => 1, 'scan_source' => 'CAMERA']];
-        [$id, , , $body] = $this->typedSave($f, $items);
-        $record = $this->postJson('/api/v1/mini-app/inbound/drafts/'.$id.'/record', $body,
+        [$id, $scan, , $body] = $this->typedSave($f, $items);
+        // RECORD consumes the saved owner snapshot, never the SAVE body.
+        $this->postJson('/api/v1/mini-app/inbound/drafts/'.$id.'/record', $body,
             $this->ownerHeaders($f) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"1"'])
+            ->assertUnprocessable()->assertJsonPath('error.code', 'UNEXPECTED_FIELD');
+        $this->assertDatabaseCount('p14_shift_operations', 1);
+        $this->assertDatabaseCount('stock_documents', 0);
+        $record = $this->postJson('/api/v1/mini-app/inbound/drafts/'.$id.'/record', [
+            'warehouse_id' => $f['warehouse_id'], 'scan_session_id' => $scan,
+        ], $this->ownerHeaders($f) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"1"'])
             ->assertCreated()->assertJsonPath('data.posted', false);
         $this->assertDatabaseHas('p14_shift_operations', ['shift_id' => $f['shift']['shift_id'], 'operation' => 'INBOUND', 'business_id' => $record->json('data.document_id')]);
         $this->end($f);
@@ -247,6 +254,97 @@ class P14LifecycleIntegrationTest extends TestCase
         $this->end($f);
         $this->assertDatabaseCount('stock_movements', 1);
         $this->assertSame(1, DB::table('physical_codes')->where('item_id', $item)->where('carrier_type', 'NFC')->count());
+    }
+
+    public function test_disabling_both_flags_never_unfences_a_tracked_active_family(): void
+    {
+        $f = $this->fixture();
+        [$id, $scan, $key] = $this->typedSave($f);
+        $before = DB::table('mini_app_drafts')->where('document_id', $id)->first();
+        config(['p14.shift_enabled' => false, 'p14.shift_drain_enabled' => false]);
+        $url = '/api/v1/mini-app/inbound/drafts/'.Str::uuid();
+        $this->putJson($url, [], $this->headers($f))->assertStatus(428)
+            ->assertJsonPath('error.code', 'SHIFT_COMMAND_IDENTITY_REQUIRED');
+        $this->putJson($url, [], $this->ownerHeaders($f))->assertStatus(503)
+            ->assertJsonPath('error.code', 'P14_SHIFT_NOT_ENABLED');
+        $this->getJson(self::SHIFTS.'/current', $this->headers($f))->assertOk()
+            ->assertJsonPath('data.shift_id', $f['shift']['shift_id'])
+            ->assertJsonPath('data.lifecycle.mode', 'DISABLED')->assertJsonPath('data.lifecycle.end_supported', false);
+        $this->getJson($this->url($f, 'close-check'), $this->headers($f))->assertStatus(503);
+        $this->getJson('/api/v1/mini-app/inbound/drafts/'.$id.'/requests/'.$key.'?'.http_build_query([
+            'warehouse_id' => $f['warehouse_id'], 'scan_session_id' => $scan, 'command' => 'SAVE',
+        ]), $this->headers($f))->assertOk()->assertJsonPath('data.outcome', 'SUCCEEDED');
+        $this->assertEquals($before, DB::table('mini_app_drafts')->where('document_id', $id)->first());
+        $this->assertDatabaseCount('p14_shift_operations', 1);
+        $this->assertDatabaseCount('p14_shift_closures', 0);
+        $this->assertDatabaseCount('mini_app_draft_receipts', 1);
+        config(['p14.shift_drain_enabled' => true]);
+        $this->end($f);
+        $this->assertDatabaseCount('p14_shift_closures', 1);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_disabling_both_flags_after_end_cannot_enable_late_owner_writes(): void
+    {
+        $f = $this->fixture();
+        $receipt = $this->end($f);
+        $closure = DB::table('p14_shift_closures')->where('shift_id', $receipt['shift_id'])->first();
+        config(['p14.shift_enabled' => false, 'p14.shift_drain_enabled' => false]);
+        $url = '/api/v1/mini-app/inbound/drafts/'.Str::uuid();
+        $this->putJson($url, [], $this->headers($f))->assertStatus(428);
+        $this->putJson($url, [], $this->ownerHeaders($f))->assertStatus(503);
+        $this->postJson(self::SHIFTS.'/start', ['warehouse_id' => $f['warehouse_id']],
+            $this->headers($f) + ['Idempotency-Key' => (string) Str::uuid()])
+            ->assertConflict()->assertJsonPath('error.code', 'SHIFT_LIFECYCLE_NOT_ENABLED');
+        $this->assertEquals($closure, DB::table('p14_shift_closures')->where('shift_id', $receipt['shift_id'])->first());
+        $this->assertDatabaseCount('mini_app_work_shifts', 1);
+        $this->assertDatabaseCount('mini_app_drafts', 0);
+        config(['p14.shift_drain_enabled' => true]);
+        $this->getJson($this->url($f, 'requests/'.$receipt['request_id']), $this->headers($f))->assertOk()->assertJsonPath('data', $receipt);
+    }
+
+    public function test_disabled_mode_preserves_untracked_family_behavior_without_fake_tracking(): void
+    {
+        config(['p14.shift_enabled' => false]);
+        $f = $this->fixture();
+        $this->assertNull($f['shift']['tracking_contract']);
+        $id = (string) Str::uuid();
+        $this->putJson('/api/v1/mini-app/inbound/drafts/'.$id, [
+            'warehouse_id' => $f['warehouse_id'], 'scan_session_id' => (string) Str::uuid(),
+            'inbound_type' => 'receipt', 'items' => [],
+        ], $this->headers($f) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"0"'])->assertCreated();
+        $this->assertDatabaseCount('mini_app_drafts', 1);
+        $this->assertDatabaseCount('mini_app_draft_receipts', 1);
+        $this->assertDatabaseCount('p14_shift_operations', 0);
+        $this->assertDatabaseCount('p14_shift_closures', 0);
+        $this->assertNull(DB::table('mini_app_work_shifts')->where('shift_id', $f['shift']['shift_id'])->value('tracking_contract'));
+    }
+
+    public function test_close_check_and_end_require_exact_save_receipt_not_another_command_or_202(): void
+    {
+        $f = $this->fixture();
+        [$id, $scan, $key] = $this->typedSave($f);
+        $check = $this->check($f);
+        $native = DB::table('mini_app_draft_receipts')->where('document_id', $id)->where('request_id', $key)->first();
+        // Fault injection only in the disposable test DB; no production repair.
+        foreach ([['scan_session_id' => (string) Str::uuid()], ['operation' => 'OUTBOUND'], ['command' => 'RECORD'], ['response_status' => 202]] as $change) {
+            DB::table('mini_app_draft_receipts')->where('document_id', $id)->where('request_id', $key)->update($change);
+            $this->getJson($this->url($f, 'close-check'), $this->headers($f))->assertOk()
+                ->assertJsonPath('data.can_end', false)->assertJsonPath('data.check_token', null)
+                ->assertJsonPath('data.blockers.0', 'DRAFT_RECEIPT_UNCONFIRMED');
+            $this->postJson(self::SHIFTS.'/'.$f['shift']['shift_id'].'/end', [
+                'warehouse_id' => $f['warehouse_id'], 'check_token' => $check['check_token'], 'local_state' => 'CLEAN', 'pending_request_ids' => [],
+            ], $this->headers($f) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"'.$check['expected_version'].'"'])
+                ->assertConflict()->assertJsonPath('error.code', 'SHIFT_END_BLOCKED');
+            $this->assertDatabaseCount('p14_shift_closures', 0);
+            $restore = array_intersect_key((array) $native, $change);
+            DB::table('mini_app_draft_receipts')->where('document_id', $id)->where('request_id', $key)->update($restore);
+        }
+        $this->assertEquals($native, DB::table('mini_app_draft_receipts')->where('document_id', $id)->where('request_id', $key)->first());
+        $this->end($f);
+        $this->assertDatabaseCount('mini_app_drafts', 1);
+        $this->assertDatabaseCount('mini_app_draft_receipts', 1);
+        $this->assertDatabaseCount('stock_movements', 0);
     }
 
     private function fixture(): array

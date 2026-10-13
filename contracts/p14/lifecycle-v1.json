@@ -1,6 +1,8 @@
 {
   "contract": "p01-p14-lifecycle-v1",
   "date": "2026-10-13",
+  "safety_revision": "p01-p14-safety-r2",
+  "reviewed_source_sha": "1e8beb066ea74104012ff21026c9a320ab34b326",
   "source_base_sha": "27e69d21e350b5a112ac08a648c8fa41f54ce302",
   "status": "IMPLEMENTED_SOURCE_PENDING_RELEASE_AND_NATIVE_ACCEPTANCE",
   "new_routes": [],
@@ -10,7 +12,9 @@
     "Typed P04 native P03 SAVE/CANCEL/RECORD evidence, P05/P03 and linked P03 receipts",
     "P07 successful confirmation from exact durable native receipt",
     "Trace/key/contract/file fingerprint binding",
-    "Explicit drain mode without legacy backfill"
+    "Explicit drain mode without legacy backfill",
+    "Fail-closed protection for already tracked families if both flags are disabled",
+    "Exact SAVE receipt identity and non-202 completion required at close-check and END"
   ],
   "identity": ["shift_id", "actor_id", "auth_session_id", "warehouse_id"],
   "payload": {
@@ -25,6 +29,8 @@
   },
   "owners": {
     "P04": "Typed inbound uses its existing P03 row, form.p04_contract and exact native receipt. No duplicate snapshot; typed RECORD contributes one business ID to INBOUND.",
+    "P04_record_request": "POST /api/v1/mini-app/inbound/drafts/{id}/record sends warehouse_id and scan_session_id, plus optional client_request_id matching Idempotency-Key. Do not send SAVE items/metadata; the owner reads its persisted snapshot. Keep native If-Match and request identity.",
+    "close_check_receipt": "A DRAFT snapshot requires its exact actor/auth-session/warehouse/document/scan-session/operation/last-request/version SAVE receipt with final 2xx other than 202. Another command or scan family is not SAVE proof. Missing proof blocks END without changing the draft or journal.",
     "P05": "Existing outbound P03 SAVE and source-linked RECORD unchanged. No invented typed SAVE route.",
     "P07": "Successful PATCH confirm requires idempotency_keys done, canonical v2 request hash, exact actor/session/warehouse/item/tag and stored confirmation. It is not a draft or quantity/Post evidence.",
     "audit": "WORK_SHIFT_OWNER_VERIFIED stores receipt identity/hash and scope, never raw form/code/password/access/refresh/reservation/written payload. Native receipt remains authoritative.",
@@ -43,6 +49,7 @@
     "precedence": "Drain wins over admission, including when both flags are true.",
     "new_start": "503 SHIFT_START_PAUSED before creating a shift or start key. Existing START keys still return their own historical shift.",
     "fence": "With shift_enabled=false and drain=true, known tracked login families remain fenced, including after END even if client strips headers. Other login families are not implicitly enrolled.",
+    "both_flags_off": "Already tracked active or ended login families remain fenced: missing headers=428; identified owner writes=503 P14_SHIFT_NOT_ENABLED. Close-check/END remain unavailable, not auto-enabled. Existing owner GET receipts remain readable. No conversion to untracked work. Untracked/legacy families keep existing behavior. Restore approved ENABLED/DRAINING configuration to complete reconciliation; this code does not change live flags.",
     "closure": "Close-check/END/reconcile/summary stay available under normal rights/scope/blockers. Drain does not authorize legacy END or UNKNOWN cleanup.",
     "check_invalidation": "Changing mode requires a fresh close-check. Previously committed END receipts remain replayable under the same original identity.",
     "rollout": "Do not change live flags from this source delivery. An approved operator applies configuration consistently across workers; no single-account canary is provided.",
@@ -66,6 +73,9 @@
   "tests": {
     "class": "tests/Feature/P14LifecycleIntegrationTest.php",
     "workflow": ".github/workflows/p01-p14-lifecycle.yml",
+    "isolated_workflow": ".github/workflows/p01-p14-isolated.yml",
+    "integrity": "Copy and verify every tracked file from the clean exact-SHA checkout, including export-ignore files; preserve full SHA256 check after tests. No skipped missing-file verification.",
+    "test_memory": "512M only in the disposable PHP CI image; no production PHP configuration change.",
     "source_only": true,
     "result": "Read exact commit workflow; no predicted PASS"
   },

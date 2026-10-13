@@ -263,7 +263,9 @@ final class P14ShiftService
             $confirmed = DB::table(MiniAppDraftService::RECEIPTS)->where('document_id', $draft['document_id'])
                 ->where('actor_id', $actor->user_id)->where('auth_session_id', $shift->auth_session_id)
                 ->where('warehouse_id', $shift->warehouse_id)->where('request_id', $draft['last_request_id'])
-                ->where('version', $draft['version'])->where('response_status', '>=', 200)->where('response_status', '<', 300)->exists();
+                ->where('scan_session_id', $draft['scan_session_id'])->where('operation', $draft['operation'])
+                ->where('command', 'SAVE')->where('version', $draft['version'])
+                ->where('response_status', '>=', 200)->where('response_status', '<', 300)->where('response_status', '!=', 202)->exists();
             if (! $confirmed) {
                 $blockers[] = 'DRAFT_RECEIPT_UNCONFIRMED';
             }

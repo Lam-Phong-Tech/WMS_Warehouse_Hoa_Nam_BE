@@ -27,7 +27,7 @@ jobs:
           ref: ${{ github.sha }}
           path: p14-source
           persist-credentials: false
-      - name: Build archive-only test image
+      - name: Build exact committed-source test image
         working-directory: p14-source
         shell: bash
         run: |
@@ -37,7 +37,10 @@ jobs:
           echo "P14_CI_DIR=$ctx" >> "$GITHUB_ENV"
           echo "P14_CI_NAME=p14-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
           mkdir "$ctx/source" "$ctx/evidence"
-          git archive HEAD | tar -x -C "$ctx/source"
+          # git archive honors export-ignore and omitted files from the hash set.
+          # Copy every tracked file from the clean exact-SHA checkout instead.
+          git diff --exit-code HEAD
+          git ls-files -z | tar --null --verbatim-files-from -T - -cf - | tar -xf - -C "$ctx/source"
           # Refuse tracked deployment env/caches; never copy live configuration.
           test ! -f "$ctx/source/.env"
           test ! -f "$ctx/source/.env.testing"
@@ -45,6 +48,7 @@ jobs:
           test -z "$(find "$ctx/source" -type l -print -quit)"
           printf '%s' "$GITHUB_SHA" > "$ctx/source/.p14-source-sha"
           git ls-files -z | xargs -0 sha256sum > "$ctx/source/.p14-source-hashes"
+          (cd "$ctx/source" && sha256sum --check --quiet .p14-source-hashes)
           docker build --tag "p14-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             --file "$ctx/source/tools/ci/p14/Dockerfile" "$ctx"
       - name: Locked Composer audit without runtime credentials
