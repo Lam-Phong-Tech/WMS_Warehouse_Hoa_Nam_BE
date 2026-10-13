@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Models\AuditLog;
@@ -12,7 +11,6 @@ use Tests\TestCase;
 
 class P22OutboxRaceTest extends TestCase
 {
-    use DatabaseMigrations;
     use RunsIsolatedPostgresRace;
 
     public function test_two_publishers_contend_and_only_one_audit_event_is_committed(): void

@@ -69,6 +69,46 @@ class P22OutboxPublicationTest extends TestCase
         $this->assertSame($entry->payload, $entry->fresh()->payload);
     }
 
+    public function test_delayed_publication_does_not_run_before_its_due_time(): void
+    {
+        $this->freezeTime();
+        $entry = $this->entry();
+        $due = now()->addMinutes(2);
+        $entry->update(['available_at' => $due]);
+        $this->artisan('audit:reconcile', ['--limit' => 1])->assertExitCode(0);
+        $this->assertSame(0, AuditLog::query()->where('object_id', $entry->payload['object_id'])->count());
+        $this->assertNull($entry->fresh()->processed_at);
+        $this->assertSame(0, (int) $entry->fresh()->attempts);
+        $this->travelTo($due->copy()->addSecond());
+        $this->artisan('audit:reconcile', ['--limit' => 1])->assertExitCode(0);
+        $this->assertSame(1, AuditLog::query()->where('object_id', $entry->payload['object_id'])->count());
+        $this->assertNotNull($entry->fresh()->processed_at);
+        $this->assertSame($entry->payload, $entry->fresh()->payload);
+    }
+
+    public function test_failed_publication_cannot_retry_until_backoff_is_due(): void
+    {
+        $this->freezeTime();
+        $entry = $this->entry();
+        $fail = true;
+        AuditLog::creating(function (AuditLog $event) use (&$fail): void {
+            if ($fail && $event->action === 'ASSIGN_ITEM_NFC') {
+                throw new RuntimeException('Isolated backoff fault');
+            }
+        });
+        $this->artisan('audit:reconcile', ['--limit' => 1])->assertExitCode(1);
+        $this->assertSame(1, (int) $entry->fresh()->attempts);
+        $fail = false;
+        $this->artisan('audit:reconcile', ['--limit' => 1])->assertExitCode(0);
+        $this->assertSame(0, AuditLog::query()->where('object_id', $entry->payload['object_id'])->count());
+        $this->assertSame(1, (int) $entry->fresh()->attempts);
+        $this->assertNull($entry->fresh()->processed_at);
+        $this->travel(3)->minutes();
+        $this->artisan('audit:reconcile', ['--limit' => 1])->assertExitCode(0);
+        $this->assertSame(1, AuditLog::query()->where('object_id', $entry->payload['object_id'])->count());
+        $this->assertSame($entry->payload, $entry->fresh()->payload);
+    }
+
     private function entry(): AuditOutbox
     {
         $object = (string) Str::uuid();

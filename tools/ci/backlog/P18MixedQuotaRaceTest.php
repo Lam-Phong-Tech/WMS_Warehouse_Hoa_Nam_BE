@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Services\AttachmentUploadReceipts;
@@ -14,7 +13,6 @@ use Tests\TestCase;
 class P18MixedQuotaRaceTest extends TestCase
 {
     use BuildsP18QuotaFixtures;
-    use DatabaseMigrations;
     use RunsIsolatedPostgresRace;
 
     public function test_mixed_legacy_and_receipt_writers_share_the_last_slot_in_both_orders(): void

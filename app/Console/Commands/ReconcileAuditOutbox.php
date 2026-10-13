@@ -28,8 +28,13 @@ class ReconcileAuditOutbox extends Command
                 $outcome = DB::transaction(function () use ($id): string {
                     // A candidate list is not ownership. Recheck after acquiring the
                     // row lock so concurrent workers cannot publish the same entry.
-                    $entry = AuditOutbox::query()->whereKey($id)->lockForUpdate()->first();
-                    if ($entry === null || $entry->processed_at !== null || $entry->available_at->isFuture()) {
+                    // Use the same SQL clock/binding as candidate selection. A PHP
+                    // datetime cast can interpret a PostgreSQL offset differently
+                    // from the existing wall-clock binding and skip a due entry.
+                    $entry = AuditOutbox::query()->whereKey($id)
+                        ->whereNull('processed_at')->where('available_at', '<=', now())
+                        ->lockForUpdate()->first();
+                    if ($entry === null) {
                         return 'SKIPPED';
                     }
                     try {

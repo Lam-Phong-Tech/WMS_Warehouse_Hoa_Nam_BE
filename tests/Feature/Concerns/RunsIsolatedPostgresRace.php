@@ -3,6 +3,7 @@
 namespace Tests\Feature\Concerns;
 
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
@@ -10,6 +11,20 @@ use Throwable;
 /** Explicit loopback disposable PostgreSQL only; never used by SQLite suites. */
 trait RunsIsolatedPostgresRace
 {
+    use DatabaseTruncation;
+
+    /** Check the resolved target before DatabaseTruncation can migrate or wipe. */
+    protected function beforeTruncatingDatabase(): void
+    {
+        $connection = DB::connection();
+        $this->assertTrue(app()->environment('testing'));
+        $this->assertSame('pgsql', $connection->getDriverName());
+        $this->assertSame('p12_contract_test', $connection->getDatabaseName());
+        $this->assertSame('127.0.0.1', $connection->getConfig('host'));
+        $this->assertEmpty($connection->getConfig('url'));
+        $this->assertSame(0, $connection->transactionLevel());
+    }
+
     private function runDatabaseRace(string $lockedTable, callable $first, callable $second): array
     {
         $connection = DB::connection();
