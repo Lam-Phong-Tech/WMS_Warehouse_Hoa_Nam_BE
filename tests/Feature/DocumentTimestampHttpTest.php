@@ -16,6 +16,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Middleware\DocumentTimestampResponse;
 use Modules\Warehouse\Models\StockDocument;
+use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\DocumentTimestampSql;
 use Modules\Warehouse\Support\P12MixedDocumentReadModel;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
@@ -247,7 +248,11 @@ final class DocumentTimestampHttpTest extends TestCase
     public function test_foreign_warehouse_document_remains_hidden_on_timestamp_owner_read(): void
     {
         [$user, $token, $warehouse] = $this->actor();
-        $foreign = $this->ensureActiveWarehouse('TS-FOREIGN', 'Timestamp denied warehouse');
+        // The shared active-warehouse helper reuses and renames the canonical
+        // warehouse. A foreign fixture must instead be a distinct inactive row.
+        $foreign = Warehouse::create(['code' => 'TS-FOREIGN', 'name' => 'Timestamp denied warehouse', 'status' => 'INACTIVE']);
+        $this->assertNotSame((string) $warehouse->id, (string) $foreign->id);
+        $this->assertSame('KHO-TONG-HN', $warehouse->fresh()->code);
         $id = $this->stock($foreign, $user, 'INBOUND', '2026-10-11 21:40:07');
         $before = DB::table('stock_documents')->where('id', $id)->first();
         $this->getJson('/api/v1/mini-app/inbound/documents/'.$id.'?warehouse_id='.$warehouse->id, $this->headers($token))
