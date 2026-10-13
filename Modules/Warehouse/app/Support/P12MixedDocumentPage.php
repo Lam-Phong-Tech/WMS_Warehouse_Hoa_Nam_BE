@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Support;
 
 use App\Support\ApiError;
+use App\Support\DocumentTimestamp;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
@@ -16,6 +17,7 @@ final class P12MixedDocumentPage
         if ($cursor === 'start') {
             return [
                 'v' => 3, 'binding' => $binding, 'issued_at' => now()->timestamp,
+                'time_contract' => DocumentTimestamp::CONTRACT.':'.DocumentTimestamp::legacyTimezone(),
                 'expires' => now()->timestamp + 900,
                 'upper_bound' => now()->utc()->format('Y-m-d H:i:s.u'),
                 'after' => null,
@@ -31,6 +33,9 @@ final class P12MixedDocumentPage
             || ! is_int($state['issued_at'] ?? null) || ! self::timestamp($state['upper_bound'] ?? null)
             || ! is_array($state['after'] ?? null)) {
             ApiError::abort(422, 'DOCUMENTS_CURSOR_INVALID', 'Cursor không hợp lệ hoặc thuộc phiên bản cũ; tải lại trang đầu.');
+        }
+        if (($state['time_contract'] ?? null) !== DocumentTimestamp::CONTRACT.':'.DocumentTimestamp::legacyTimezone()) {
+            ApiError::abort(409, 'DOCUMENTS_CURSOR_CONTEXT_CHANGED', 'Quy ước thời gian đã thay đổi; tải lại trang đầu.');
         }
         if (! hash_equals($binding, $state['binding'])) {
             ApiError::abort(409, 'DOCUMENTS_CURSOR_CONTEXT_CHANGED', 'Cursor khác tài khoản, phiên, quyền, kho hoặc bộ lọc.');

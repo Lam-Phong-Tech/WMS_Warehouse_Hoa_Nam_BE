@@ -17,6 +17,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Middleware\DocumentTimestampResponse;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Support\DocumentTimestampSql;
+use Modules\Warehouse\Support\P12MixedDocumentReadModel;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -101,10 +102,19 @@ final class DocumentTimestampHttpTest extends TestCase
         $after = $this->stock($warehouse, $user, 'INBOUND', '2026-10-12 00:00:00');
         $day = ['date_from' => '2026-10-11', 'date_to' => '2026-10-11', 'timezone' => 'Asia/Ho_Chi_Minh'];
         $this->read($token, $warehouse, $day)->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $before);
-        $utc = $this->read($token, $warehouse, array_replace($day, ['timezone' => 'UTC', 'per_page' => 1]))->assertOk()
-            ->assertJsonPath('meta.total', 2)->assertJsonPath('data.0.id', $after);
-        $this->read($token, $warehouse, array_replace($day, ['timezone' => 'UTC', 'per_page' => 1, 'cursor' => $utc->json('meta.nextCursor')]))
-            ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('data.0.id', $before);
+        // Public date selection remains Vietnam-only; UTC serialization does not
+        // expand the existing query contract or move the business-day boundary.
+        $this->read($token, $warehouse, array_replace($day, ['timezone' => 'UTC']))->assertStatus(422);
+        $range = array_replace($day, ['date_to' => '2026-10-12', 'per_page' => 1]);
+        foreach (['UTC', 'Asia/Ho_Chi_Minh'] as $appZone) {
+            config(['app.timezone' => $appZone]);
+            $first = $this->read($token, $warehouse, $range)->assertOk()
+                ->assertJsonPath('meta.total', 2)->assertJsonPath('data.0.id', $after)
+                ->assertJsonPath('data.0.created_at', '2026-10-11T17:00:00.000000Z');
+            $this->read($token, $warehouse, $range + ['cursor' => $first->json('meta.nextCursor')])
+                ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('data.0.id', $before)
+                ->assertJsonPath('data.0.created_at', '2026-10-11T16:59:59.000000Z');
+        }
     }
 
     public function test_ties_null_and_old_cursor_require_exact_keys(): void
@@ -112,21 +122,30 @@ final class DocumentTimestampHttpTest extends TestCase
         [$user, $token, $warehouse] = $this->actor();
         $a = $this->stock($warehouse, $user, 'INBOUND', '2026-10-11 21:40:07');
         $b = $this->stock($warehouse, $user, 'OUTBOUND', '2026-10-11 21:40:07');
-        $n = $this->stock($warehouse, $user, 'INBOUND', null);
+        // Preserve owner NOT NULL constraints. Null belongs to a nullable read
+        // projection and the pure serializer tests, not a malformed stored row.
         foreach (['created_at_asc', 'created_at_desc'] as $sort) {
             $first = $this->read($token, $warehouse, ['per_page' => 1, 'sort' => $sort])->assertOk()->assertJsonPath('data.0.id', $a);
             $cursor = $first->json('meta.nextCursor');
             $state = json_decode(Crypt::decryptString($cursor), true, 512, JSON_THROW_ON_ERROR);
             $this->assertSame(3, $state['v']);
+            config(['document_timestamps.legacy_naive_timezone' => 'UTC']);
+            $this->read($token, $warehouse, ['per_page' => 1, 'sort' => $sort, 'cursor' => $cursor])
+                ->assertStatus(409)->assertJsonPath('error_code', 'DOCUMENTS_CURSOR_CONTEXT_CHANGED');
+            config(['document_timestamps.legacy_naive_timezone' => 'Asia/Ho_Chi_Minh']);
             $old = $state;
             $old['v'] = 2;
             $this->read($token, $warehouse, ['per_page' => 1, 'sort' => $sort, 'cursor' => Crypt::encryptString(json_encode($old, JSON_THROW_ON_ERROR))])
                 ->assertStatus(422)->assertJsonPath('error_code', 'DOCUMENTS_CURSOR_INVALID');
-            $second = $this->read($token, $warehouse, ['per_page' => 1, 'sort' => $sort, 'cursor' => $cursor])->assertOk()->assertJsonPath('data.0.id', $b);
-            $this->read($token, $warehouse, ['per_page' => 1, 'sort' => $sort, 'cursor' => $second->json('meta.nextCursor')])->assertOk()
-                ->assertJsonPath('data.0.id', $n)->assertJsonPath('data.0.created_at', null)->assertJsonPath('meta.hasMore', false);
+            $this->read($token, $warehouse, ['per_page' => 1, 'sort' => $sort, 'cursor' => $cursor])->assertOk()
+                ->assertJsonPath('data.0.id', $b)->assertJsonPath('meta.hasMore', false);
         }
-        $this->getJson('/api/v1/mini-app/inbound-documents/'.$n.'?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()->assertJsonPath('data.created_at', null);
+        $nullable = DB::table('stock_documents')->where('id', $a)
+            ->selectRaw("CAST(id AS VARCHAR(36)) AS id, 'INBOUND' AS source, CAST(dst_warehouse_id AS VARCHAR(36)) AS warehouse_id, doc_no AS document_no, status, source_name AS partner_name, NULL AS created_at")->first();
+        $projection = P12MixedDocumentReadModel::record($nullable);
+        $this->assertNull($projection['created_at']);
+        $this->assertSame('NOT_RECORDED', $projection['time_status']);
+        $this->assertSame('2026-10-11 21:40:07', DB::table('stock_documents')->where('id', $a)->value('created_at'));
     }
 
     public function test_sql_projection_preserves_microseconds_without_timezone_session_inference(): void
@@ -176,9 +195,9 @@ final class DocumentTimestampHttpTest extends TestCase
             }
         }
         $this->assertEqualsCanonicalizing(DocumentTimestampResponse::READ_ROUTES, $matched);
-        $this->getJson('/api/v1/mini-app/documents')->assertUnauthorized();
+        $this->get('/api/v1/mini-app/documents', ['Accept' => 'application/json'])->assertUnauthorized();
         [$user, $token, $warehouse] = $this->actor();
-        $this->getJson('/api/v1/mini-app/documents?warehouse_id='.(string) Str::uuid(), $this->headers($token))->assertForbidden();
+        $this->get('/api/v1/mini-app/documents?warehouse_id='.(string) Str::uuid(), $this->headers($token) + ['Accept' => 'application/json'])->assertForbidden();
     }
 
     private function actor(): array
@@ -222,7 +241,8 @@ final class DocumentTimestampHttpTest extends TestCase
 
     private function read(string $token, object $warehouse, array $query = [])
     {
-        return $this->getJson('/api/v1/mini-app/documents?'.http_build_query(['warehouse_id' => $warehouse->id] + $query), $this->headers($token));
+        return $this->get('/api/v1/mini-app/documents?'.http_build_query(['warehouse_id' => $warehouse->id] + $query),
+            $this->headers($token) + ['Accept' => 'application/json']);
     }
 
     private function headers(string $token): array
