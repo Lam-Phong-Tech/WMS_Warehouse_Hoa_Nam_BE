@@ -383,7 +383,7 @@ class P14LifecycleIntegrationTest extends TestCase
         $scan = (string) Str::uuid();
         $key = (string) Str::uuid();
         $trace = (string) Str::uuid();
-        $body = ['warehouse_id' => $f['warehouse_id'], 'scan_session_id' => $scan, 'inbound_type' => 'receipt', 'items' => $items, 'note' => 'P14 private typed snapshot'];
+        $body = ['warehouse_id' => $f['warehouse_id'], 'scan_session_id' => $scan, 'inbound_type' => 'receipt', 'name' => 'P14 isolated inbound', 'items' => $items, 'note' => 'P14 private typed snapshot'];
         $this->putJson('/api/v1/mini-app/inbound/drafts/'.$id, $body, $this->ownerHeaders($f, $trace) + ['Idempotency-Key' => $key, 'If-Match' => '"0"'])->assertCreated();
 
         return [$id, $scan, $key, $body, $trace];
