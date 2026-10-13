@@ -128,6 +128,10 @@ class P11LegacyCredentialBoundaryTest extends TestCase
 
     private function resetGuards(): void
     {
+        // PHPUnit reuses the JWT factory across HTTP requests, unlike PHP-FPM.
+        // Clear its accumulated claims so a prior signed sid cannot contaminate
+        // the separately signed legacy/no-sid token under test.
+        $this->app['tymon.jwt.payload.factory']->emptyClaims()->customClaims([]);
         $this->app['auth']->forgetGuards();
         $this->app['tymon.jwt']->unsetToken();
         $this->app['tymon.jwt.auth']->unsetToken();

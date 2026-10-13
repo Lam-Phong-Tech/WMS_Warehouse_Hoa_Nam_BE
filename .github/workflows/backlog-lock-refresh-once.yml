@@ -1,0 +1,111 @@
+name: Reviewed Backlog Dependency Lock Refresh
+on:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/backlog-lock-refresh-once.yml']
+permissions:
+  contents: write
+concurrency:
+  group: backlog-reviewed-lock-refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    if: >-
+      github.event.head_commit.message == 'ci(backlog): prepare reviewed critical dependency lock refresh'
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: reviewed-lock-source
+      - name: Prepare isolated exact source, no Git credentials inside Node
+        working-directory: reviewed-lock-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code HEAD
+          work="$(mktemp -d "$RUNNER_TEMP/reviewed-lock.XXXXXXXX")"
+          echo "LOCK_REVIEW_DIR=$work" >> "$GITHUB_ENV"
+          git ls-files -z | tar --null --verbatim-files-from -T - -cf - | tar -xf - -C "$work"
+          test ! -d "$work/.git" && test ! -f "$work/.env"
+          cp "$work/package.json" "$work/package.before.json"
+          cp "$work/package-lock.json" "$work/package-lock.before.json"
+      - name: Apply only reviewed versions and verify unchanged non-target dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --cpus=1 --memory=1g --cap-drop=ALL --security-opt=no-new-privileges \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$LOCK_REVIEW_DIR:/workspace" -w /workspace node:22-alpine sh -c '
+              set -eu
+              node - <<'"'"'JS'"'"'
+          const fs = require("node:fs");
+          const p = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          if (p.overrides.handlebars !== "^4.7.9" || p.overrides["shell-quote"]) throw Error("Base override changed; review required");
+          p.overrides.handlebars = "4.7.10";
+          p.overrides["shell-quote"] = "1.11.0";
+          fs.writeFileSync("package.json", JSON.stringify(p, null, 4) + "\n");
+          JS
+              npm install --package-lock-only --ignore-scripts --no-audit
+              node - <<'"'"'JS'"'"'
+          const fs = require("node:fs"), assert = require("node:assert/strict");
+          const before = JSON.parse(fs.readFileSync("package-lock.before.json"));
+          const after = JSON.parse(fs.readFileSync("package-lock.json"));
+          const changed = [];
+          for (const key of new Set([...Object.keys(before.packages), ...Object.keys(after.packages)])) {
+            if (JSON.stringify(before.packages[key]) === JSON.stringify(after.packages[key])) continue;
+            assert.match(key, /(?:^|\/)node_modules\/(handlebars|shell-quote)$/);
+            const p = after.packages[key];
+            assert.ok(p, "No dependency removal");
+            assert.equal(p.version, key.endsWith("/handlebars") ? "4.7.10" : "1.11.0");
+            assert.match(p.resolved, /^https:\/\/registry\.npmjs\.org\//);
+            assert.match(p.integrity, /^sha512-/);
+            changed.push({path: key, from: before.packages[key]?.version, to: p.version, integrity: p.integrity});
+          }
+          assert.ok(changed.some(x => x.path.endsWith("/handlebars")));
+          assert.ok(changed.some(x => x.path.endsWith("/shell-quote")));
+          const a = JSON.parse(fs.readFileSync("package.before.json")), b = JSON.parse(fs.readFileSync("package.json"));
+          a.overrides.handlebars = "4.7.10"; a.overrides["shell-quote"] = "1.11.0";
+          assert.deepEqual(a, b);
+          console.log("REVIEWED_LOCK_DELTA", JSON.stringify(changed));
+          JS
+              npm ci --ignore-scripts --no-audit
+              npm audit --omit=dev --audit-level=high
+              npm audit --audit-level=critical
+              npm run build
+              npm test
+            '
+      - name: Dependency integration with loopback only
+        shell: bash
+        run: |
+          docker run --rm --network none --cpus=1 --memory=1g --cap-drop=ALL --security-opt=no-new-privileges \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$LOCK_REVIEW_DIR:/workspace" -w /workspace \
+            node:22-alpine node tools/ci/backlog/dependency-smoke.cjs
+      - name: Commit only verified package files, never force-push or deploy
+        working-directory: reviewed-lock-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          remote="$(git ls-remote origin refs/heads/dev | cut -f1)"
+          test "$remote" = "$GITHUB_SHA"
+          cp "$LOCK_REVIEW_DIR/package.json" package.json
+          cp "$LOCK_REVIEW_DIR/package-lock.json" package-lock.json
+          git diff --check
+          git add -- package.json package-lock.json
+          test "$(git diff --cached --name-only | wc -l)" = 2
+          git diff --cached --stat
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(deps): lock reviewed handlebars and shell-quote security patches'
+          git push origin HEAD:refs/heads/dev
+          sha="$(git rev-parse HEAD)"
+          test "$(git ls-remote origin refs/heads/dev | cut -f1)" = "$sha"
+          echo "PUSHED_REVIEWED_LOCK_SHA=$sha"
+          printf 'Verified dependency-only commit: `%s`\nNo deployment or feature activation.\n' "$sha" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove disposable Node workspace
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${LOCK_REVIEW_DIR:-}" == "$RUNNER_TEMP"/reviewed-lock.* ]]; then rm -rf -- "$LOCK_REVIEW_DIR"; fi

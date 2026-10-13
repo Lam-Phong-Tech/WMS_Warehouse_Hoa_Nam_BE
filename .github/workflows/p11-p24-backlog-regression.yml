@@ -6,6 +6,7 @@ on:
     paths:
       - 'Modules/Auth/**'
       - 'Modules/Warehouse/app/**'
+      - 'app/Console/Commands/ReconcileAuditOutbox.php'
       - 'app/Support/P14*'
       - 'app/Http/Middleware/P14*'
       - 'tests/Feature/**'
@@ -23,7 +24,7 @@ concurrency:
 jobs:
   contract:
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
-    timeout-minutes: 35
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,7 +112,7 @@ jobs:
               --cpus=1 --memory=1g --cap-drop=ALL --security-opt=no-new-privileges \
               -e APP_ENV=testing -e APP_DEBUG=false -e DB_CONNECTION="$db" -e DB_DATABASE="$database" \
               -e DB_HOST=127.0.0.1 -e DB_PORT=5432 -e DB_USERNAME=postgres -e DB_PASSWORD="$secret" \
-              -e DB_SSLMODE=disable -e DB_URL= -e JWT_SECRET="$secret" -e BACKLOG_SOURCE_SHA="$GITHUB_SHA" \
+              -e DOCUMENT_LEGACY_NAIVE_TIMEZONE=UTC -e DB_SSLMODE=disable -e DB_URL= -e JWT_SECRET="$secret" -e BACKLOG_SOURCE_SHA="$GITHUB_SHA" \
               -e PGOPTIONS='-c lock_timeout=5000 -c statement_timeout=30000' \
               -e CACHE_STORE=array -e SESSION_DRIVER=array -e QUEUE_CONNECTION=sync \
               -e BROADCAST_CONNECTION=null -e MAIL_MAILER=array \
@@ -134,7 +135,7 @@ jobs:
           from pathlib import Path
           ok = bool(os.environ.get('BACKLOG_CI_DIR'))
           for db in ['sqlite', 'pgsql']:
-              for suite in ['core', 'extra', 'cached']:
+              for suite in ['core', 'extra', 'cached'] + (['race'] if db == 'pgsql' else []):
                   path = Path(os.environ.get('BACKLOG_CI_DIR', '/nonexistent')) / 'evidence' / db / (suite + '.json')
                   if not path.is_file():
                       print('MISSING_EVIDENCE', db, suite); ok = False; continue

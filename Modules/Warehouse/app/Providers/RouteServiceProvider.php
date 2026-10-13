@@ -6,6 +6,7 @@ use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvi
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\MiniAppNfcController;
 use Modules\Warehouse\Http\Controllers\P07NfcController;
+use Modules\Warehouse\Http\Middleware\AttachmentQuotaFence;
 use Modules\Warehouse\Http\Middleware\DocumentTimestampResponse;
 use Modules\Warehouse\Http\Middleware\MiniAppDraftHandoff;
 use Modules\Warehouse\Http\Middleware\P05OutboundSource;
@@ -75,6 +76,11 @@ class RouteServiceProvider extends ServiceProvider
             }
             if (in_array('POST', $route->methods(), true) && isset(AttachmentUploadReceipts::UPLOAD_ROUTES[$route->uri()])) {
                 $route->middleware(AttachmentUploadReceipts::class);
+            }
+            // Inside receipt handling, but also present for legacy/Web uploads.
+            // Parent quota counts and writes use one common serialization lock.
+            if (in_array('POST', $route->methods(), true) && isset(AttachmentQuotaFence::UPLOAD_ROUTES[$route->uri()])) {
+                $route->middleware(AttachmentQuotaFence::class);
             }
             if (isset(MiniAppDraftService::RECORD_ROUTES[$route->uri()]) && in_array('POST', $route->methods(), true)) {
                 $route->middleware(MiniAppDraftHandoff::class);

@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 suite = sys.argv[1]
-assert suite in {"core", "extra", "cached"}
+assert suite in {"core", "extra", "cached", "race"}
 path = Path("backlog-results") / (suite + ".xml")
 root = ET.parse(path).getroot()
 cases = list(root.iter("testcase"))
