@@ -80,23 +80,30 @@ final class P14ShiftOwnerEvidence
         $row = DB::table(IdempotencyStore::TABLE)->where('operation', 'mini_app_nfc_confirm')
             ->where('user_id', $shift->actor_id)->where('idem_key', $key)->where('status', 'done')->first();
         $confirmation = data_get($body, 'data.confirmation');
-        if ($row === null || ! is_array($confirmation) || $originalHash === null
-            || ! str_starts_with((string) $row->request_hash, 'v2:')
-            || ! hash_equals(explode('|', (string) $row->request_hash)[0], explode('|', $originalHash)[0])
-            || (int) $row->response_code < 200 || (int) $row->response_code >= 300 || (int) $row->response_code === 202) {
-            self::invalid();
+        if ($row === null) {
+            self::invalid('NFC_NATIVE_RECEIPT_ABSENT');
+        }
+        if (! is_array($confirmation)) {
+            self::invalid('NFC_CONFIRMATION_ABSENT');
+        }
+        if ($originalHash === null || ! str_starts_with((string) $row->request_hash, 'v2:')
+            || ! hash_equals(explode('|', (string) $row->request_hash)[0], explode('|', $originalHash)[0])) {
+            self::invalid('NFC_REQUEST_DIGEST_MISMATCH');
+        }
+        if ((int) $row->response_code < 200 || (int) $row->response_code >= 300 || (int) $row->response_code === 202) {
+            self::invalid('NFC_NATIVE_RESULT_UNCONFIRMED');
         }
         $saved = is_string($row->response_body) ? json_decode($row->response_body, true, 512, JSON_THROW_ON_ERROR) : (array) $row->response_body;
         $native = data_get($saved, 'data.confirmation');
         foreach (['state' => 'SUCCEEDED', 'item_id' => strtolower($m[1]), 'actor_id' => $shift->actor_id,
             'auth_session_id' => $shift->auth_session_id, 'warehouse_id' => $shift->warehouse_id] as $field => $value) {
             if (($confirmation[$field] ?? null) !== $value || ($native[$field] ?? null) !== $value) {
-                self::invalid();
+                self::invalid('NFC_SCOPE_MISMATCH');
             }
         }
         $tag = $native['physical_code_id'] ?? null;
         if (! is_string($tag) || ! Str::isUuid($tag) || ($confirmation['physical_code_id'] ?? null) !== $tag) {
-            self::invalid();
+            self::invalid('NFC_TAG_IDENTITY_MISMATCH');
         }
 
         return [
@@ -116,8 +123,8 @@ final class P14ShiftOwnerEvidence
                 'warehouse_id' => $shift->warehouse_id, 'evidence' => $proof], result: 'SUCCESS');
     }
 
-    private static function invalid(): never
+    private static function invalid(string $check = 'OWNER_EVIDENCE_INVALID'): never
     {
-        ApiError::abort(502, 'SHIFT_OWNER_RECEIPT_INVALID', 'Chưa xác minh được receipt đúng thao tác và phạm vi; không chốt kết quả ca.');
+        ApiError::abort(502, 'SHIFT_OWNER_RECEIPT_INVALID', 'Chưa xác minh được receipt đúng thao tác và phạm vi; không chốt kết quả ca.', ['evidence_check' => $check]);
     }
 }

@@ -6,6 +6,12 @@ on:
     paths:
       - '.github/workflows/p01-p14-isolated.yml'
       - 'tools/ci/p14/**'
+      - 'app/Support/P14*'
+      - 'app/Http/Middleware/P14*'
+      - 'Modules/Warehouse/app/Support/MiniAppWorkShiftService.php'
+      - 'config/p14.php'
+      - 'tests/Feature/P14*'
+      - 'contracts/p14/**'
 permissions:
   contents: read
 concurrency:

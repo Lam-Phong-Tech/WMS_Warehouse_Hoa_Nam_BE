@@ -99,10 +99,9 @@ class P14LifecycleIntegrationTest extends TestCase
         $f = $this->fixture();
         $sku = $this->productSkuFixture('P14-TYPED-'.Str::upper(Str::random(6)));
         $items = [['raw_code' => $this->compositeProductQr($sku->sku_code, 'P14-ITEM-001'), 'quantity' => 1, 'scan_source' => 'CAMERA']];
-        [$id, $scan] = $this->typedSave($f, $items);
-        $record = $this->postJson('/api/v1/mini-app/inbound/drafts/'.$id.'/record', [
-            'warehouse_id' => $f['warehouse_id'], 'scan_session_id' => $scan,
-        ], $this->ownerHeaders($f) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"1"'])
+        [$id, , , $body] = $this->typedSave($f, $items);
+        $record = $this->postJson('/api/v1/mini-app/inbound/drafts/'.$id.'/record', $body,
+            $this->ownerHeaders($f) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"1"'])
             ->assertCreated()->assertJsonPath('data.posted', false);
         $this->assertDatabaseHas('p14_shift_operations', ['shift_id' => $f['shift']['shift_id'], 'operation' => 'INBOUND', 'business_id' => $record->json('data.document_id')]);
         $this->end($f);
@@ -111,6 +110,30 @@ class P14LifecycleIntegrationTest extends TestCase
             ->assertJsonPath('data.kpis.successful_request_count', 2)
             ->assertJsonPath('data.kpis.posted_total', null)->assertJsonPath('data.draft_snapshot.total', 0);
         $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_two_saved_native_snapshots_keep_exact_receipts_through_end(): void
+    {
+        $f = $this->fixture();
+        for ($i = 0; $i < 2; $i++) {
+            $id = (string) Str::uuid();
+            $scan = (string) Str::uuid();
+            $key = (string) Str::uuid();
+            $this->putJson('/api/v1/mini-app/drafts/'.$id, [
+                'warehouse_id' => $f['warehouse_id'], 'operation' => 'INBOUND', 'scan_session_id' => $scan,
+                'codes' => [], 'form' => [],
+            ], $this->ownerHeaders($f) + ['Idempotency-Key' => $key, 'If-Match' => '"0"'])->assertCreated();
+            $this->assertDatabaseHas('mini_app_draft_receipts', [
+                'document_id' => $id, 'request_id' => $key, 'actor_id' => $f['actor_id'],
+                'auth_session_id' => $f['shift']['auth_session_id'], 'warehouse_id' => $f['warehouse_id'],
+                'scan_session_id' => $scan, 'operation' => 'INBOUND', 'command' => 'SAVE', 'version' => 1,
+            ]);
+        }
+        $this->end($f);
+        $this->getJson($this->url($f, 'summary').'&per_page=1', $this->headers($f))->assertOk()
+            ->assertJsonPath('data.draft_snapshot.total', 2)->assertJsonCount(1, 'data.draft_snapshot.items');
+        $this->assertDatabaseCount('mini_app_drafts', 2);
+        $this->assertDatabaseCount('mini_app_draft_receipts', 2);
     }
 
     public function test_p05_outbound_snapshot_uses_its_existing_p03_owner(): void
