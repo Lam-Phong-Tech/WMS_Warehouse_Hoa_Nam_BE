@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Support;
 
 use App\Support\ApiError;
+use App\Support\DocumentTimestamp;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
@@ -48,15 +49,14 @@ final class P12MixedDocumentReadModel
                 continue;
             }
             $query = $source === 'WARRANTY' ? self::warranty($scope, $filters) : self::stock($scope, $filters, $source);
-            $time = $source === 'WARRANTY' ? 'c.created_at' : 'd.created_at';
+            $time = DocumentTimestampSql::createdAt($source);
             $status = $source === 'WARRANTY' ? 'c.status' : 'd.status';
-            $query->where(fn (Builder $bound) => $bound->where($time, '<=', $upperBound)->orWhereNull($time));
+            $query->where(fn (Builder $bound) => $bound->whereRaw($time.' <= ?', [$upperBound])->orWhereRaw($time.' IS NULL'));
             if ($filters['date_from'] !== null) {
                 $start = CarbonImmutable::parse($filters['date_from'], $filters['timezone'])->startOfDay();
                 $end = CarbonImmutable::parse($filters['date_to'], $filters['timezone'])->startOfDay()->addDay();
-                $storage = config('app.timezone', 'UTC');
-                $query->where($time, '>=', $start->setTimezone($storage)->format('Y-m-d H:i:s'))
-                    ->where($time, '<', $end->setTimezone($storage)->format('Y-m-d H:i:s'));
+                $query->whereRaw($time.' >= ?', [DocumentTimestamp::key($start)])
+                    ->whereRaw($time.' < ?', [DocumentTimestamp::key($end)]);
             }
             if ($filters['status'] !== 'ALL') {
                 [$statusSource, $canonical] = explode(':', $filters['status'], 2);
@@ -78,11 +78,12 @@ final class P12MixedDocumentReadModel
         $type = $source === 'INBOUND' ? 'receipt' : 'issue';
         $rank = $source === 'INBOUND' ? 1 : 2;
         self::requireColumns('stock_documents', ['id', 'doc_type', 'doc_no', 'created_at', 'status', 'deleted_at', $warehouse, $partner]);
+        $time = DocumentTimestampSql::createdAt($source);
         $query = DB::table('stock_documents as d')->where('d.doc_type', $type)
             ->where('d.'.$warehouse, $scope['warehouse_id'])->whereNull('d.deleted_at')
             ->selectRaw("CAST(d.id AS VARCHAR(36)) AS id, '{$source}' AS source, {$rank} AS source_rank,
                 d.doc_no AS document_no, CAST(d.{$warehouse} AS VARCHAR(36)) AS warehouse_id,
-                d.created_at, CASE WHEN d.created_at IS NULL THEN 1 ELSE 0 END AS time_missing,
+                {$time} AS created_at, CASE WHEN d.created_at IS NULL THEN 1 ELSE 0 END AS time_missing,
                 d.status, d.{$partner} AS partner_name");
         P09WarrantyScope::isolate($query, 'stock_documents', 'd', $scope);
         if ($filters['keyword'] !== '' && ! P12MixedDocumentSearch::typeMatches($source, $filters['keyword'])) {
@@ -99,6 +100,7 @@ final class P12MixedDocumentReadModel
     {
         self::requireColumns('warranty_case', ['warranty_case_id', 'warranty_case_code', 'created_at', 'status', 'temporary_item_code', 'item_id']);
         self::requireColumns(WarrantyWarehouseScope::TABLE, ['warranty_case_id', 'warehouse_id']);
+        $time = DocumentTimestampSql::createdAt('WARRANTY');
         $owner = DB::table(WarrantyWarehouseScope::TABLE.' as w')
             ->whereColumn('w.warranty_case_id', 'c.warranty_case_id')->where('w.warehouse_id', $scope['warehouse_id']);
         P09WarrantyScope::isolate($owner, WarrantyWarehouseScope::TABLE, 'w', $scope['warranty']);
@@ -106,8 +108,8 @@ final class P12MixedDocumentReadModel
             ->selectRaw("CAST(c.warranty_case_id AS VARCHAR(36)) AS id, 'WARRANTY' AS source, 3 AS source_rank,
                 c.warranty_case_code AS document_no")
             ->selectSub($owner->selectRaw('CAST(w.warehouse_id AS VARCHAR(36))')->limit(1), 'warehouse_id')
-            ->selectRaw('c.created_at, CASE WHEN c.created_at IS NULL THEN 1 ELSE 0 END AS time_missing,
-                c.status, CAST(NULL AS VARCHAR(255)) AS partner_name');
+            ->selectRaw("{$time} AS created_at, CASE WHEN c.created_at IS NULL THEN 1 ELSE 0 END AS time_missing,
+                c.status, CAST(NULL AS VARCHAR(255)) AS partner_name");
         if ($filters['keyword'] !== '' && ! P12MixedDocumentSearch::typeMatches('WARRANTY', $filters['keyword'])) {
             self::requireColumns('item_instances', ['item_id', 'serial_number']);
             $pattern = P09WarrantyPolicy::pattern($filters['keyword']);
@@ -141,6 +143,7 @@ final class P12MixedDocumentReadModel
         return ['ALL' => ['availability' => 'READY', 'total' => $total]] + $result;
     }
 
+    /** Rows have already been normalized to UTC by the SQL projection. */
     public static function record(object $row): array
     {
         if (! is_string($row->id ?? null) || ! Str::isUuid($row->id)
@@ -158,16 +161,10 @@ final class P12MixedDocumentReadModel
         $warehouseField = match ($source) {
             'INBOUND' => 'dst_warehouse_id', 'OUTBOUND' => 'src_warehouse_id', default => 'warehouse_id',
         };
-        $created = null;
-        if ($row->created_at !== null) {
-            try {
-                if (! preg_match('/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/', $row->created_at)) {
-                    throw new \InvalidArgumentException('Missing absolute source timestamp.');
-                }
-                $created = CarbonImmutable::parse($row->created_at, config('app.timezone', 'UTC'))->utc()->toISOString();
-            } catch (\InvalidArgumentException) {
-                ApiError::abort(503, 'DOCUMENTS_SOURCE_UNAVAILABLE', 'Thời gian nguồn không hợp lệ; không suy diễn mốc thay thế.');
-            }
+        try {
+            $created = DocumentTimestamp::utc($row->created_at, 'UTC');
+        } catch (\InvalidArgumentException) {
+            ApiError::abort(503, 'DOCUMENTS_SOURCE_UNAVAILABLE', 'Thời gian nguồn không hợp lệ; không suy diễn mốc thay thế.');
         }
         $p12 = P12DocumentPresentation::record([
             $source === 'WARRANTY' ? 'warranty_case_id' : 'id' => $row->id,

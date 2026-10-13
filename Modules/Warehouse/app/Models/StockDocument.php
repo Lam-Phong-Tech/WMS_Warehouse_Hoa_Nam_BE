@@ -10,10 +10,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Exceptions\WarehouseException;
+use Modules\Warehouse\Support\SerializesDocumentTimestamps;
 
 class StockDocument extends Model
 {
-    use HasUuids, SoftDeletes;
+    use HasUuids, SerializesDocumentTimestamps, SoftDeletes;
 
     public const TYPE_RECEIPT = 'receipt';
 

@@ -15,9 +15,9 @@ final class P12MixedDocumentPage
     {
         if ($cursor === 'start') {
             return [
-                'v' => 2, 'binding' => $binding, 'issued_at' => now()->timestamp,
+                'v' => 3, 'binding' => $binding, 'issued_at' => now()->timestamp,
                 'expires' => now()->timestamp + 900,
-                'upper_bound' => now()->setTimezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s.u'),
+                'upper_bound' => now()->utc()->format('Y-m-d H:i:s.u'),
                 'after' => null,
             ];
         }
@@ -26,7 +26,7 @@ final class P12MixedDocumentPage
         } catch (Throwable) {
             ApiError::abort(422, 'DOCUMENTS_CURSOR_INVALID', 'Cursor không hợp lệ; tải lại trang đầu.');
         }
-        if (! is_array($state) || ($state['v'] ?? null) !== 2
+        if (! is_array($state) || ($state['v'] ?? null) !== 3
             || ! is_string($state['binding'] ?? null) || ! is_int($state['expires'] ?? null)
             || ! is_int($state['issued_at'] ?? null) || ! self::timestamp($state['upper_bound'] ?? null)
             || ! is_array($state['after'] ?? null)) {
@@ -99,6 +99,6 @@ final class P12MixedDocumentPage
 
     private static function timestamp(mixed $value): bool
     {
-        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:[+-]\d{2}(?::\d{2})?|Z)?$/D', $value) === 1;
+        return is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/D', $value) === 1;
     }
 }

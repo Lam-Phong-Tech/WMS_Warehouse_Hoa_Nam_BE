@@ -6,6 +6,7 @@ use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvi
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\MiniAppNfcController;
 use Modules\Warehouse\Http\Controllers\P07NfcController;
+use Modules\Warehouse\Http\Middleware\DocumentTimestampResponse;
 use Modules\Warehouse\Http\Middleware\MiniAppDraftHandoff;
 use Modules\Warehouse\Http\Middleware\P05OutboundSource;
 use Modules\Warehouse\Http\Middleware\P07NfcReadbackGuard;
@@ -51,6 +52,10 @@ class RouteServiceProvider extends ServiceProvider
         Route::get('api/v1/mini-app/component-issue-requests/{requestId}', [P19ComponentCommand::class, 'check'])
             ->middleware(['api', 'auth:api', 'permission:warranty.component_issue'])->name('api.p19.command.check');
         foreach (Route::getRoutes() as $route) {
+            if (in_array('GET', $route->methods(), true)
+                && in_array($route->uri(), DocumentTimestampResponse::READ_ROUTES, true)) {
+                $route->middleware(DocumentTimestampResponse::class);
+            }
             if (str_starts_with($route->uri(), 'api/v1/mini-app/warranty-component-issues')
                 || str_starts_with($route->uri(), 'api/v1/mini-app/component-issue-documents')) {
                 if (in_array('POST', $route->methods(), true) && str_ends_with($route->uri(), '/resolve-code')) {

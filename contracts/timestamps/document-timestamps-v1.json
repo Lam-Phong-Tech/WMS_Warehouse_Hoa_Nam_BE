@@ -1,0 +1,52 @@
+{
+  "contract": "document-timestamps-v1",
+  "date": "2026-10-13",
+  "source_base_sha": "413cffe6b8c45b135fc41b9043cfbb347a1c18a5",
+  "status": "IMPLEMENTED_SOURCE_PENDING_EXACT_CI_AND_LIVE_HTTP_PAIRS",
+  "format": "RFC3339 UTC with six fractional digits (zero padding is not added measurement precision)",
+  "legacy_naive_timezone": "Asia/Ho_Chi_Minh",
+  "configuration": {
+    "key": "document_timestamps.legacy_naive_timezone",
+    "env": "DOCUMENT_LEGACY_NAIVE_TIMEZONE",
+    "default": "Asia/Ho_Chi_Minh",
+    "allowed": ["Asia/Ho_Chi_Minh", "UTC"],
+    "semantics": "Storage provenance only; never choose by display timezone or PostgreSQL session. UTC is permitted only for independently verified UTC-origin datasets, including original isolated UTC regression fixtures. This delivery does not change live environment or writer storage convention."
+  },
+  "offset_policy": "Explicit offsets preserve the same instant. Never strip Z, reattach +07, or compensate in FE.",
+  "null_policy": "null remains null; missing remains absent; invalid absolute timestamp fails closed without guessing now or doc_no.",
+  "microseconds": "Preserve available 0-6 digits. Runtime stock_documents.created_at precision 0 cannot recover subsecond information.",
+  "scope": {
+    "P02_recent": "Home recent uses P12 document reads; dashboard/summary KPI has no recent document timestamps and is not repurposed.",
+    "P12_aggregate": "Normalize each authorized source to UTC SQL timestamp before UNION, date filters, watermark, total, sort and keyset. PostgreSQL aware/naive types are inspected per source; SQLite deterministic scalar preserves microseconds.",
+    "P04_P05": "StockDocument serializes existing timestamp attributes from raw values instead of PHP-default ORM timezone. All model serialization consumers inherit this, including canonical reads; date-only doc_date and persistence/casts/getters remain unchanged.",
+    "P05_sources_P09": "Allowlisted Mini App list/detail response fields use the same helper. Existing read guards, ACL, PII redaction and request parameters are preserved.",
+    "excluded": "No normalization of stored historical receipts or unrelated nested scan/audit/media event timestamps. No new source mapping for checked/sent-to-web."
+  },
+  "metadata": ["meta.timestamp_contract=document-timestamps-v1", "meta.timestamps", "P12 meta.cursor_version=3"],
+  "cursor": {
+    "version": 3,
+    "old_cursor": "422 DOCUMENTS_CURSOR_INVALID; reload cursor=start with the same filters",
+    "order": "created_at instant, NULLS LAST, source_rank ASC, id ASC; secondary order is unchanged",
+    "ttl_seconds": 900
+  },
+  "cache": "P12 aggregate has no internal result cache. Old serialized canonical cache entries retain existing short TTL; release verification must use fresh entries. No cache flush or business version bump.",
+  "examples": [
+    {"raw_naive": "2026-10-11 21:40:07", "expected": "2026-10-11T14:40:07.000000Z"},
+    {"raw_naive": "2026-10-11 11:02:58", "expected": "2026-10-11T04:02:58.000000Z"},
+    {"raw_naive": "2026-10-09 15:11:50", "expected": "2026-10-09T08:11:50.000000Z"}
+  ],
+  "live_evidence": {
+    "status": "OPEN",
+    "runtime_sha_reported_by_handoff": "27e69d21e350b5a112ac08a648c8fa41f54ce302",
+    "not_independently_verified": true,
+    "required": "Same authorized warehouse/session; sanitized actual aggregate and canonical raw HTTP for the three supplied UUIDs; each response request_id; deployed artifact exact SHA and preserved hotfix checksums; PHP/app/PG/schema timezone evidence. Source tests do not close this."
+  },
+  "new_routes": [],
+  "new_migrations": [],
+  "db_changes": false,
+  "seed_backfill": false,
+  "frontend_changed": false,
+  "production_activation": false,
+  "deployed": false,
+  "live_verified": false
+}

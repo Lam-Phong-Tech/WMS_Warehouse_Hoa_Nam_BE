@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Support;
 
+use App\Support\DocumentTimestamp;
 use Carbon\CarbonImmutable;
 
 /** Public response metadata excludes actor/session IDs and raw search text. */
@@ -13,13 +14,16 @@ final class P12MixedDocumentMetadata
 
         return [
             'contract' => P12MixedDocumentReadModel::CONTRACT,
+            'timestamp_contract' => DocumentTimestamp::CONTRACT,
+            'timestamps' => DocumentTimestamp::metadata(),
+            'cursor_version' => 3,
             'warehouse_id' => $scope['warehouse_id'],
             'warehouse_context' => ['status' => 'READY', 'source' => 'CONFIRMED_SERVER_SESSION'],
             'source' => $filters['source'], 'total' => $facets[$filters['source']]['total'],
             'count_unit' => 'DOCUMENT_LIST_RECORD', 'per_page' => $filters['per_page'], ...$page,
             'pagination_mode' => 'KEYSET', 'cursor_ttl_seconds' => 900,
             'cursor_expires_at' => CarbonImmutable::createFromTimestampUTC($state['expires'])->toISOString(),
-            'upper_bound_created_at' => CarbonImmutable::parse($state['upper_bound'], config('app.timezone', 'UTC'))->utc()->toISOString(),
+            'upper_bound_created_at' => DocumentTimestamp::utc($state['upper_bound'], 'UTC'),
             'snapshot' => $snapshot, 'snapshot_consistent' => false, 'cross_request_snapshot' => false,
             'consistency' => 'SINGLE_RESPONSE_SNAPSHOT_LIVE_KEYSET_BETWEEN_REQUESTS',
             'source_facets' => $facets,

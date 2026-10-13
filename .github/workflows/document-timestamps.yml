@@ -1,0 +1,120 @@
+name: Document Timestamp Contract
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - 'app/Support/DocumentTimestamp.php'
+      - 'config/document_timestamps.php'
+      - 'Modules/Warehouse/app/Support/DocumentTimestampSql.php'
+      - 'Modules/Warehouse/app/Support/SerializesDocumentTimestamps.php'
+      - 'Modules/Warehouse/app/Models/StockDocument.php'
+      - 'Modules/Warehouse/app/Http/Middleware/DocumentTimestampResponse.php'
+      - 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
+      - 'Modules/Warehouse/app/Support/P12MixedDocument*.php'
+      - 'tests/Unit/DocumentTimestampContractTest.php'
+      - 'tests/Feature/DocumentTimestampHttpTest.php'
+      - 'contracts/timestamps/**'
+      - 'tools/ci/timestamps/**'
+      - '.github/workflows/document-timestamps.yml'
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: timestamp-contract-source
+          persist-credentials: false
+      - name: Build exact tracked source without runtime configuration
+        working-directory: timestamp-contract-source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          ctx="$(mktemp -d "$RUNNER_TEMP/timestamp-ci.XXXXXXXX")"
+          echo "TIMESTAMP_CI_DIR=$ctx" >> "$GITHUB_ENV"
+          echo "TIMESTAMP_CI_NAME=timestamp-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          mkdir "$ctx/source" "$ctx/evidence"
+          git ls-files -z | tar --null --verbatim-files-from -T - -cf - | tar -xf - -C "$ctx/source"
+          test ! -f "$ctx/source/.env"
+          test ! -f "$ctx/source/.env.testing"
+          test ! -f "$ctx/source/bootstrap/cache/config.php"
+          test -z "$(find "$ctx/source" -type l -print -quit)"
+          printf '%s' "$GITHUB_SHA" > "$ctx/source/.timestamp-source-sha"
+          git ls-files -z | xargs -0 sha256sum > "$ctx/source/.timestamp-source-hashes"
+          (cd "$ctx/source" && sha256sum --check --quiet .timestamp-source-hashes)
+          docker build --tag "timestamp-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --file "$ctx/source/tools/ci/p14/Dockerfile" "$ctx"
+      - name: Locked Composer audit without live credentials
+        run: |
+          docker run --rm --name "$TIMESTAMP_CI_NAME-audit" --cpus=1 --memory=768m \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            "timestamp-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" composer audit --locked --no-interaction
+      - name: SQLite and PostgreSQL isolated contracts and owner regressions
+        run: |
+          set -euo pipefail
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          docker run -d --name "$TIMESTAMP_CI_NAME-db" --network none --cpus=1 --memory=512m \
+            --tmpfs /var/lib/postgresql/data:rw,size=384m \
+            -e POSTGRES_USER=postgres -e POSTGRES_DB=p12_contract_test -e POSTGRES_PASSWORD="$secret" postgres:16
+          ready=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$TIMESTAMP_CI_NAME-db" pg_isready -U postgres -d p12_contract_test; then ready=1; break; fi
+            sleep 2
+          done
+          test "$ready" = 1
+          test "$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$TIMESTAMP_CI_NAME-db")" = none
+          result=0
+          for db in sqlite pgsql; do
+            database=p12_contract_test
+            if [ "$db" = sqlite ]; then database=':memory:'; fi
+            docker create --name "$TIMESTAMP_CI_NAME-$db" --network "container:$TIMESTAMP_CI_NAME-db" \
+              --cpus=1 --memory=1g --cap-drop=ALL --security-opt=no-new-privileges \
+              -e APP_ENV=testing -e APP_DEBUG=false -e DB_CONNECTION="$db" -e DB_DATABASE="$database" \
+              -e DB_HOST=127.0.0.1 -e DB_PORT=5432 -e DB_USERNAME=postgres -e DB_PASSWORD="$secret" \
+              -e DB_SSLMODE=disable -e DB_URL= -e JWT_SECRET="$secret" -e TIMESTAMP_SOURCE_SHA="$GITHUB_SHA" \
+              -e DOCUMENT_LEGACY_NAIVE_TIMEZONE=Asia/Ho_Chi_Minh \
+              -e PGOPTIONS='-c lock_timeout=5000 -c statement_timeout=30000' \
+              -e CACHE_STORE=array -e SESSION_DRIVER=array -e QUEUE_CONNECTION=sync \
+              -e BROADCAST_CONNECTION=null -e MAIL_MAILER=array \
+              -e CORS_ALLOWED_ORIGINS=http://localhost:5173 -e CORS_SUPPORTS_CREDENTIALS=true \
+              -e REFRESH_TOKEN_COOKIE_SECURE=false -e P14_SHIFT_ENABLED=false -e P14_SHIFT_DRAIN_ENABLED=false \
+              -e P14_RECOVERY_ENABLED=false -e P19_COMMAND_RECOVERY_ENABLED=false \
+              "timestamp-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" bash tools/ci/timestamps/run.sh
+            if ! docker start -a "$TIMESTAMP_CI_NAME-$db"; then result=1; fi
+            mkdir -p "$TIMESTAMP_CI_DIR/evidence/$db"
+            docker cp "$TIMESTAMP_CI_NAME-$db:/app/timestamp-results/." "$TIMESTAMP_CI_DIR/evidence/$db/" || result=1
+            docker rm "$TIMESTAMP_CI_NAME-$db"
+          done
+          exit "$result"
+      - name: Publish exact evidence without artifact quota dependency
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          good = True
+          for db in ['sqlite', 'pgsql']:
+              for suite in ['contract', 'legacy_p12', 'owners', 'cached']:
+                  path = Path(os.environ.get('TIMESTAMP_CI_DIR', '/nonexistent')) / 'evidence' / db / (suite + '.json')
+                  if not path.exists():
+                      print('MISSING', db, suite); good = False; continue
+                  r = json.loads(path.read_text())
+                  print(json.dumps(r, sort_keys=True))
+                  with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+                      out.write('```json\n' + json.dumps(r, indent=2) + '\n```\n')
+                  good = good and r['sha'] == os.environ['GITHUB_SHA'] and not r['missing_classes'] and r['counts']['tests'] > 0 and not any(r['counts'][k] for k in ['failure','error','skipped'])
+          if not good: raise SystemExit('Incomplete or failed evidence')
+          PY
+      - name: Remove only this run's disposable resources
+        if: always()
+        run: |
+          if [ -n "${TIMESTAMP_CI_NAME:-}" ]; then
+            for suffix in sqlite pgsql audit db; do docker rm -fv "$TIMESTAMP_CI_NAME-$suffix" 2>/dev/null || true; done
+            docker image rm "timestamp-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" || true
+          fi
+          if [[ "${TIMESTAMP_CI_DIR:-}" == "$RUNNER_TEMP"/timestamp-ci.* ]]; then rm -rf -- "$TIMESTAMP_CI_DIR"; fi
