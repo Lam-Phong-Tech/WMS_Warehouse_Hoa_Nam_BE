@@ -287,7 +287,10 @@ final class P14ShiftService
 
     private function query(Request $request, array $keys): void
     {
-        if (array_diff(array_keys($request->query()), $keys) !== [] || $request->getContent() !== '' || $request->allFiles() !== []) {
+        // Preserve the existing empty JSON envelope accepted by JSON clients.
+        // Any actual body field, scalar or malformed input is still rejected.
+        $body = trim((string) $request->getContent());
+        if (array_diff(array_keys($request->query()), $keys) !== [] || ! in_array($body, ['', '[]', '{}'], true) || $request->allFiles() !== []) {
             ApiError::abort(422, 'SHIFT_UNEXPECTED_FIELD', 'Truy vấn có trường hoặc body không được hỗ trợ.');
         }
         Validator::make($request->query(), ['warehouse_id' => ['required', 'uuid'], 'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'between:1,100']])->validate();

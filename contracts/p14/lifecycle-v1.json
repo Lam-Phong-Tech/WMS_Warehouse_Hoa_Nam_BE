@@ -20,7 +20,7 @@
     "data.lifecycle.end_supported": "Protocol availability only; ACTIVE, tracked and enabled/draining. Never equivalent to can_end or local CLEAN.",
     "data.lifecycle.owner_coverage": "PARTIAL_EXPLICIT_OWNER_PROTOCOLS",
     "current_without_shift": "data remains null; no synthetic shift",
-    "close_check": "Existing p14-shift-v1; additive actor_id/auth_session_id. GET is read-only and rejects request bodies.",
+    "close_check": "Existing p14-shift-v1; additive actor_id/auth_session_id. GET is read-only and rejects body data; existing empty JSON []/{} envelopes remain accepted.",
     "end": "Existing receipt remains directly at data. New receipts add actor_id. Historical stored receipts are returned unchanged."
   },
   "owners": {
