@@ -1,0 +1,118 @@
+name: P01-P14 Isolated Runner Verification
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/p01-p14-isolated.yml'
+      - 'tools/ci/p14/**'
+permissions:
+  contents: read
+concurrency:
+  group: p01-p14-isolated-runner
+  cancel-in-progress: false
+jobs:
+  verify-isolated:
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: p14-source
+          persist-credentials: false
+      - name: Build archive-only test image
+        working-directory: p14-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          ctx="$(mktemp -d "$RUNNER_TEMP/p14-ci.XXXXXXXX")"
+          echo "P14_CI_DIR=$ctx" >> "$GITHUB_ENV"
+          echo "P14_CI_NAME=p14-ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          mkdir "$ctx/source" "$ctx/evidence"
+          git archive HEAD | tar -x -C "$ctx/source"
+          # Refuse tracked deployment env/caches; never copy live configuration.
+          test ! -f "$ctx/source/.env"
+          test ! -f "$ctx/source/.env.testing"
+          test ! -f "$ctx/source/bootstrap/cache/config.php"
+          test -z "$(find "$ctx/source" -type l -print -quit)"
+          printf '%s' "$GITHUB_SHA" > "$ctx/source/.p14-source-sha"
+          git ls-files -z | xargs -0 sha256sum > "$ctx/source/.p14-source-hashes"
+          docker build --tag "p14-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --file "$ctx/source/tools/ci/p14/Dockerfile" "$ctx"
+      - name: Locked Composer audit without runtime credentials
+        shell: bash
+        run: |
+          docker run --rm --name "$P14_CI_NAME-audit" --cpus=1 --memory=768m \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            "p14-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" composer audit --locked --no-interaction
+      - name: SQLite and PostgreSQL without external networking
+        shell: bash
+        run: |
+          set -euo pipefail
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          docker run -d --name "$P14_CI_NAME-db" --network none --cpus=1 --memory=512m \
+            --tmpfs /var/lib/postgresql/data:rw,size=384m \
+            -e POSTGRES_USER=postgres -e POSTGRES_DB=p12_contract_test -e POSTGRES_PASSWORD="$secret" postgres:16
+          ready=0
+          for attempt in $(seq 1 30); do
+            if docker exec "$P14_CI_NAME-db" pg_isready -U postgres -d p12_contract_test; then ready=1; break; fi
+            sleep 2
+          done
+          test "$ready" = 1
+          test "$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$P14_CI_NAME-db")" = none
+          result=0
+          for db in sqlite pgsql; do
+            database=p12_contract_test
+            if [ "$db" = sqlite ]; then database=':memory:'; fi
+            # No host/runtime volumes, published ports, Docker socket or live secrets.
+            docker create --name "$P14_CI_NAME-$db" --network "container:$P14_CI_NAME-db" \
+              --cpus=1 --memory=1g --cap-drop=ALL --security-opt=no-new-privileges \
+              -e APP_ENV=testing -e APP_DEBUG=false -e DB_CONNECTION="$db" -e DB_DATABASE="$database" \
+              -e DB_HOST=127.0.0.1 -e DB_PORT=5432 -e DB_USERNAME=postgres -e DB_PASSWORD="$secret" \
+              -e DB_SSLMODE=disable -e DB_URL= -e JWT_SECRET="$secret" -e P14_SOURCE_SHA="$GITHUB_SHA" \
+              -e PGOPTIONS='-c lock_timeout=5000 -c statement_timeout=30000' \
+              -e CACHE_STORE=array -e SESSION_DRIVER=array -e QUEUE_CONNECTION=sync \
+              -e BROADCAST_CONNECTION=null -e MAIL_MAILER=array \
+              -e CORS_ALLOWED_ORIGINS=http://localhost:5173 -e CORS_SUPPORTS_CREDENTIALS=true \
+              -e REFRESH_TOKEN_COOKIE_SECURE=false -e P14_SHIFT_ENABLED=false -e P14_SHIFT_DRAIN_ENABLED=false \
+              -e P14_RECOVERY_ENABLED=false -e P19_COMMAND_RECOVERY_ENABLED=false \
+              "p14-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" bash tools/ci/p14/run.sh
+            if ! docker start -a "$P14_CI_NAME-$db"; then result=1; fi
+            mkdir -p "$P14_CI_DIR/evidence/$db"
+            docker cp "$P14_CI_NAME-$db:/app/p14-results/." "$P14_CI_DIR/evidence/$db/" || result=1
+            docker rm "$P14_CI_NAME-$db"
+          done
+          exit "$result"
+      - name: Publish exact-source counts
+        if: always()
+        shell: bash
+        run: |
+          test -n "${P14_CI_DIR:-}"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          ok = True
+          for db in ['sqlite', 'pgsql']:
+              for suite in ['lifecycle', 'cached']:
+                  path = Path(os.environ['P14_CI_DIR']) / 'evidence' / db / (suite + '.json')
+                  if not path.exists():
+                      print('MISSING', db, suite); ok = False; continue
+                  r = json.loads(path.read_text())
+                  print(json.dumps(r, sort_keys=True))
+                  with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+                      out.write('```json\n' + json.dumps(r, indent=2) + '\n```\n')
+                  ok = ok and r['sha'] == os.environ['GITHUB_SHA'] and not r['missing_classes'] and r['counts']['tests'] > 0 and not any(r['counts'][k] for k in ['failure','error','skipped'])
+          if not ok: raise SystemExit('Verification incomplete or failed')
+          PY
+      - name: Remove only this run's disposable resources
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${P14_CI_NAME:-}" ]; then
+            for suffix in sqlite pgsql audit db; do docker rm -fv "$P14_CI_NAME-$suffix" 2>/dev/null || true; done
+            docker image rm "p14-ci:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" || true
+          fi
+          if [[ "${P14_CI_DIR:-}" == "$RUNNER_TEMP"/p14-ci.* ]]; then rm -rf -- "$P14_CI_DIR"; fi
