@@ -50,18 +50,25 @@ final class DocumentTimestampHttpTest extends TestCase
     {
         [$user, $token, $warehouse] = $this->actor();
         $expected = [];
-        foreach (['2026-10-11 21:40:07', '2026-10-11 11:02:58', '2026-10-09 15:11:50'] as $raw) {
-            $expected[$this->stock($warehouse, $user, 'OUTBOUND', $raw)] = Time::utc($raw);
+        foreach ([
+            '2026-10-11 21:40:07' => '2026-10-11T14:40:07.000000Z',
+            '2026-10-11 11:02:58' => '2026-10-11T04:02:58.000000Z',
+            '2026-10-09 15:11:50' => '2026-10-09T08:11:50.000000Z',
+        ] as $raw => $timestamp) {
+            $expected[$this->stock($warehouse, $user, 'OUTBOUND', $raw)] = $timestamp;
         }
         $inbound = $this->stock($warehouse, $user, 'INBOUND', '2026-10-12 00:00:00');
         $before = DB::table('stock_documents')->orderBy('id')->get()->toJson();
         $old = date_default_timezone_get();
         try {
-            foreach (['UTC', 'Asia/Ho_Chi_Minh'] as $zone) {
-                config(['app.timezone' => $zone]);
-                date_default_timezone_set($zone);
+            // Vary app/PHP and PostgreSQL independently: the reported runtime
+            // is Asia/Ho_Chi_Minh + UTC, not two clocks in the same zone.
+            foreach ([['UTC', 'UTC'], ['UTC', 'Asia/Ho_Chi_Minh'],
+                ['Asia/Ho_Chi_Minh', 'UTC'], ['Asia/Ho_Chi_Minh', 'Asia/Ho_Chi_Minh']] as [$appZone, $pgZone]) {
+                config(['app.timezone' => $appZone]);
+                date_default_timezone_set($appZone);
                 if (DB::getDriverName() === 'pgsql') {
-                    DB::statement("SET LOCAL TIME ZONE '$zone'");
+                    DB::statement("SET LOCAL TIME ZONE '$pgZone'");
                 }
                 $recent = $this->read($token, $warehouse, ['source' => 'OUTBOUND', 'per_page' => 3])->assertOk()
                     ->assertJsonPath('meta.timestamp_contract', Time::CONTRACT)->assertJsonPath('meta.total', 3);
@@ -182,6 +189,29 @@ final class DocumentTimestampHttpTest extends TestCase
         $this->assertSame(Time::utc($raw), $all->json('data.0.created_at'));
         $this->assertEquals($before, DB::table('warranty_case')->where('warranty_case_id', $id)->first());
         $this->assertStringNotContainsString('Timestamp isolated customer', $all->getContent());
+
+        // Exercise naive stock and aware warranty in the SAME UNION and across
+        // keyset pages. Equal text alone does not prove equal instants.
+        $stockId = $this->stock($warehouse, $user, 'INBOUND', '2026-10-11 21:40:07');
+        foreach (['UTC', 'Asia/Ho_Chi_Minh'] as $pgZone) {
+            if (DB::getDriverName() === 'pgsql') {
+                DB::statement("SET LOCAL TIME ZONE '$pgZone'");
+            }
+            foreach (['created_at_asc', 'created_at_desc'] as $sort) {
+                $first = $this->read($token, $warehouse, ['per_page' => 1, 'sort' => $sort])->assertOk()
+                    ->assertJsonPath('meta.total', 2)->assertJsonPath('data.0.id', $stockId)
+                    ->assertJsonPath('data.0.created_at', '2026-10-11T14:40:07.000000Z');
+                $this->read($token, $warehouse, ['per_page' => 1, 'sort' => $sort, 'cursor' => $first->json('meta.nextCursor')])
+                    ->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('data.0.id', $id)
+                    ->assertJsonPath('data.0.created_at', '2026-10-11T14:40:07.000000Z')
+                    ->assertJsonPath('meta.hasMore', false);
+            }
+        }
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("SET LOCAL TIME ZONE 'UTC'");
+        }
+        $this->assertSame('2026-10-11 21:40:07', DB::table('stock_documents')->where('id', $stockId)->value('created_at'));
+        $this->assertDatabaseCount('stock_movements', 0);
     }
 
     public function test_timestamp_middleware_is_not_attached_to_writers_or_receipts_and_does_not_grant_access(): void
@@ -197,10 +227,37 @@ final class DocumentTimestampHttpTest extends TestCase
         $this->assertEqualsCanonicalizing(DocumentTimestampResponse::READ_ROUTES, $matched);
         $this->get('/api/v1/mini-app/documents', ['Accept' => 'application/json'])->assertUnauthorized();
         [$user, $token, $warehouse] = $this->actor();
-        $this->get('/api/v1/mini-app/documents?warehouse_id='.(string) Str::uuid(), $this->headers($token) + ['Accept' => 'application/json'])->assertForbidden();
+        // Scope owner rejects another warehouse as a context conflict before
+        // checking its ACL. Do not change production guard order to fit a test.
+        $this->get('/api/v1/mini-app/documents?warehouse_id='.(string) Str::uuid(), $this->headers($token) + ['Accept' => 'application/json'])
+            ->assertStatus(409)->assertJsonPath('error_code', 'WAREHOUSE_CONTEXT_MISMATCH')
+            ->assertJsonMissingPath('data')->assertJsonMissingPath('meta.timestamp_contract');
     }
 
-    private function actor(): array
+    public function test_missing_document_permissions_still_returns_403_without_timestamp_projection(): void
+    {
+        [, $token, $warehouse] = $this->actor(['sku.view']);
+        $before = DB::table('stock_documents')->count();
+        $this->read($token, $warehouse)->assertForbidden()
+            ->assertJsonMissingPath('data')->assertJsonMissingPath('meta.timestamp_contract');
+        $this->assertSame($before, DB::table('stock_documents')->count());
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_foreign_warehouse_document_remains_hidden_on_timestamp_owner_read(): void
+    {
+        [$user, $token, $warehouse] = $this->actor();
+        $foreign = $this->ensureActiveWarehouse('TS-FOREIGN', 'Timestamp denied warehouse');
+        $id = $this->stock($foreign, $user, 'INBOUND', '2026-10-11 21:40:07');
+        $before = DB::table('stock_documents')->where('id', $id)->first();
+        $this->getJson('/api/v1/mini-app/inbound/documents/'.$id.'?warehouse_id='.$warehouse->id, $this->headers($token))
+            ->assertNotFound()->assertJsonMissingPath('data')->assertJsonMissingPath('meta.timestamp_contract');
+        $this->read($token, $warehouse)->assertOk()->assertJsonPath('meta.total', 0)->assertJsonCount(0, 'data');
+        $this->assertEquals($before, DB::table('stock_documents')->where('id', $id)->first());
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    private function actor(array $permissions = ['inbound.view', 'outbound.view', 'warranty.view', 'warranty.manage']): array
     {
         $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN', 'Timestamp isolated warehouse');
         $suffix = substr((string) Str::uuid(), 0, 8);
@@ -208,7 +265,7 @@ final class DocumentTimestampHttpTest extends TestCase
             'password_hash' => Hash::make(TestCredentials::PASSWORD), 'status' => 'ACTIVE', 'version' => 1]);
         $role = Role::create(['role_code' => 'TIME_'.$suffix, 'role_name' => 'Timestamp test', 'scope_type' => 'WAREHOUSE', 'status' => 'ACTIVE']);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid(), 'scope_ref' => $warehouse->id]);
-        foreach (['inbound.view', 'outbound.view', 'warranty.view', 'warranty.manage'] as $key) {
+        foreach ($permissions as $key) {
             $p = Permission::firstOrCreate(['permission_key' => $key], ['permission_name' => $key, 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']);
             DB::table('role_permission')->insert(['role_permission_id' => (string) Str::uuid(), 'role_id' => $role->role_id,
                 'permission_id' => $p->permission_id, 'created_at' => now(), 'updated_at' => now()]);
