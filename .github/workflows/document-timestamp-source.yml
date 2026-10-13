@@ -1,0 +1,36 @@
+name: Document Timestamp Source Review
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths: ['.github/workflows/document-timestamp-source.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: timestamp-review-source
+          persist-credentials: false
+      - name: Archive tracked source only, never a deployed runtime
+        working-directory: timestamp-review-source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          test -z "$(git ls-files .env .env.testing bootstrap/cache/config.php)"
+          git archive --format=tar HEAD | gzip > "$RUNNER_TEMP/timestamp-source-$GITHUB_RUN_ID.tar.gz"
+          sha256sum "$RUNNER_TEMP/timestamp-source-$GITHUB_RUN_ID.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: timestamp-source-${{ github.sha }}
+          path: ${{ runner.temp }}/timestamp-source-${{ github.run_id }}.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+      - name: Remove only this run's archive
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/timestamp-source-$GITHUB_RUN_ID.tar.gz"
