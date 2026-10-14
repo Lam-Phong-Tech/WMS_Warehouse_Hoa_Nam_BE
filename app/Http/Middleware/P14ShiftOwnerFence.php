@@ -15,6 +15,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Auth\Support\WarehouseContext;
+use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Symfony\Component\HttpFoundation\Response;
 
 /** OFF by default. An explicitly identified shift fences Mini App owner commands against END. */
@@ -48,10 +49,19 @@ final class P14ShiftOwnerFence
             }
             // Capture before a typed owner adds internal handoff headers.
             $hash = $this->fingerprint($request);
+            $p18Upload = $request->isMethod('POST')
+                && isset(AttachmentUploadReceipts::UPLOAD_ROUTES[$request->route()?->uri() ?? ''])
+                && $request->header('X-Upload-Contract') === AttachmentUploadReceipts::CONTRACT;
             $nfcHash = $request->isMethod('PATCH') && $request->is('api/v1/mini-app/items/*/nfc')
                 ? IdempotencyStore::requestHash($request) : null;
             $existing = DB::table('p14_shift_operations')->where('shift_id', $id)->where('request_id', $requestId)->first();
             if ($existing !== null) {
+                // P18 owns the durable upload receipt. Let it replay a terminal
+                // owner response instead of treating the same upload intent as
+                // a duplicate shift command.
+                if ($p18Upload && hash_equals($existing->request_hash, $hash)) {
+                    return $next($request);
+                }
                 ApiError::abort(409, hash_equals($existing->request_hash, $hash) ? 'OWNER_RECONCILE_REQUIRED' : 'SHIFT_REQUEST_CONFLICT',
                     'Yêu cầu đã có kết quả; đối chiếu tại đúng nghiệp vụ trước khi gửi lại.');
             }
@@ -59,6 +69,9 @@ final class P14ShiftOwnerFence
                 ->join('mini_app_work_shifts as s', 's.shift_id', '=', 'o.shift_id')
                 ->where('s.actor_id', $actor->user_id)->where('s.auth_session_id', $shift->auth_session_id)
                 ->where('s.warehouse_id', $shift->warehouse_id)->where('o.request_hash', $hash)->exists()) {
+                if ($p18Upload) {
+                    return $next($request);
+                }
                 ApiError::abort(409, 'OWNER_RECONCILE_REQUIRED', 'Đổi mã trace hoặc ca không tạo ý định owner mới; đối chiếu yêu cầu gốc.');
             }
             $response = $next($request);
