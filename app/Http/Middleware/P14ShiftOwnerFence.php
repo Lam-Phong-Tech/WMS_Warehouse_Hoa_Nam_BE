@@ -52,6 +52,10 @@ final class P14ShiftOwnerFence
             $p18Upload = $request->isMethod('POST')
                 && isset(AttachmentUploadReceipts::UPLOAD_ROUTES[$request->route()?->uri() ?? ''])
                 && $request->header('X-Upload-Contract') === AttachmentUploadReceipts::CONTRACT;
+            $p03Handoff = $request->hasHeader('X-Draft-ID')
+                && $request->hasHeader('X-Draft-Scan-Session-ID')
+                && $request->hasHeader('X-Draft-Version')
+                && $request->hasHeader('Idempotency-Key');
             $nfcHash = $request->isMethod('PATCH') && $request->is('api/v1/mini-app/items/*/nfc')
                 ? IdempotencyStore::requestHash($request) : null;
             $existing = DB::table('p14_shift_operations')->where('shift_id', $id)->where('request_id', $requestId)->first();
@@ -59,7 +63,7 @@ final class P14ShiftOwnerFence
                 // P18 owns the durable upload receipt. Let it replay a terminal
                 // owner response instead of treating the same upload intent as
                 // a duplicate shift command.
-                if ($p18Upload && hash_equals($existing->request_hash, $hash)) {
+                if (($p18Upload || $p03Handoff) && hash_equals($existing->request_hash, $hash)) {
                     return $next($request);
                 }
                 ApiError::abort(409, hash_equals($existing->request_hash, $hash) ? 'OWNER_RECONCILE_REQUIRED' : 'SHIFT_REQUEST_CONFLICT',
@@ -69,7 +73,7 @@ final class P14ShiftOwnerFence
                 ->join('mini_app_work_shifts as s', 's.shift_id', '=', 'o.shift_id')
                 ->where('s.actor_id', $actor->user_id)->where('s.auth_session_id', $shift->auth_session_id)
                 ->where('s.warehouse_id', $shift->warehouse_id)->where('o.request_hash', $hash)->exists()) {
-                if ($p18Upload) {
+                if ($p18Upload || $p03Handoff) {
                     return $next($request);
                 }
                 ApiError::abort(409, 'OWNER_RECONCILE_REQUIRED', 'Đổi mã trace hoặc ca không tạo ý định owner mới; đối chiếu yêu cầu gốc.');
