@@ -7,6 +7,7 @@ use App\Support\DocumentTimestamp;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -14,7 +15,7 @@ use Illuminate\Support\Str;
 /** SQL UNION ALL over canonical owners; never merge paginated owner responses. */
 final class P12MixedDocumentReadModel
 {
-    public const CONTRACT = 'p12-mixed-documents-v2';
+    public const CONTRACT = 'p12-mixed-documents-v3';
 
     public const SOURCES = ['INBOUND', 'OUTBOUND', 'WARRANTY'];
 
@@ -78,6 +79,10 @@ final class P12MixedDocumentReadModel
         $type = $source === 'INBOUND' ? 'receipt' : 'issue';
         $rank = $source === 'INBOUND' ? 1 : 2;
         self::requireColumns('stock_documents', ['id', 'doc_type', 'doc_no', 'created_at', 'status', 'deleted_at', $warehouse, $partner]);
+        self::requireColumns('stock_document_lines', ['stock_document_id', 'product_id', 'qty_planned', 'scanned_qty']);
+        if ($source === 'INBOUND') {
+            self::requireColumns('sku', ['sku_id', 'sku_code', 'sku_name', 'unit']);
+        }
         $time = DocumentTimestampSql::createdAt($source);
         $query = DB::table('stock_documents as d')->where('d.doc_type', $type)
             ->where('d.'.$warehouse, $scope['warehouse_id'])->whereNull('d.deleted_at')
@@ -143,8 +148,50 @@ final class P12MixedDocumentReadModel
         return ['ALL' => ['availability' => 'READY', 'total' => $total]] + $result;
     }
 
+    /** Hydrate only the selected page. Facet/total queries never calculate readiness. */
+    public static function readiness(Collection $rows): array
+    {
+        $stock = $rows->filter(fn (object $row): bool => in_array($row->source, ['INBOUND', 'OUTBOUND'], true));
+        $ids = $stock->pluck('id')->all();
+        if ($ids === []) {
+            return [];
+        }
+        self::requireColumns('stock_document_lines', ['stock_document_id', 'product_id', 'qty_planned', 'scanned_qty']);
+        $lines = DB::table('stock_document_lines')->whereIn('stock_document_id', $ids)
+            ->get(['stock_document_id', 'product_id', 'qty_planned', 'scanned_qty'])->groupBy('stock_document_id');
+        $inboundIds = $stock->where('source', 'INBOUND')->pluck('id')->all();
+        $products = collect();
+        if ($inboundIds !== []) {
+            self::requireColumns('sku', ['sku_id', 'sku_code', 'sku_name', 'unit']);
+            $products = DB::table('stock_document_lines as p12_info')
+                ->join('sku as p12_sku', 'p12_sku.sku_id', '=', 'p12_info.product_id')
+                ->whereIn('p12_info.stock_document_id', $inboundIds)
+                ->get(['p12_info.stock_document_id', 'p12_sku.sku_id', 'p12_sku.sku_code', 'p12_sku.sku_name', 'p12_sku.unit'])
+                ->groupBy('stock_document_id');
+        }
+
+        $result = [];
+        foreach ($stock as $row) {
+            $documentLines = $lines->get($row->id, collect());
+            $scanComplete = $documentLines->isNotEmpty() && $documentLines->every(
+                fn (object $line): bool => (float) $line->qty_planned > 0
+                    && (float) $line->scanned_qty === (float) $line->qty_planned
+            );
+            $productInfoComplete = $row->source !== 'INBOUND'
+                || $products->get($row->id, collect())->every(fn (object $sku): bool => SkuInboundInfoRule::isComplete(
+                    $sku->sku_code, $sku->sku_name, $sku->unit
+                ));
+            $result[$row->source.':'.$row->id] = [
+                'scan_complete' => $scanComplete,
+                'product_info_complete' => $productInfoComplete,
+            ];
+        }
+
+        return $result;
+    }
+
     /** Rows have already been normalized to UTC by the SQL projection. */
-    public static function record(object $row): array
+    public static function record(object $row, array $readiness = []): array
     {
         if (! is_string($row->id ?? null) || ! Str::isUuid($row->id)
             || ! is_string($row->warehouse_id ?? null) || ! Str::isUuid($row->warehouse_id)
@@ -166,10 +213,18 @@ final class P12MixedDocumentReadModel
         } catch (\InvalidArgumentException) {
             ApiError::abort(503, 'DOCUMENTS_SOURCE_UNAVAILABLE', 'Thời gian nguồn không hợp lệ; không suy diễn mốc thay thế.');
         }
+        $scanComplete = ($readiness['scan_complete'] ?? false) === true;
+        $productInfoComplete = ($readiness['product_info_complete'] ?? false) === true;
+        $mapping = P12MixedDocumentStatus::make($source, $row->status, $scanComplete, $productInfoComplete);
         $p12 = P12DocumentPresentation::record([
             $source === 'WARRANTY' ? 'warranty_case_id' : 'id' => $row->id,
             $warehouseField => $row->warehouse_id, 'status' => $row->status,
+            'mini_app_status' => $mapping['mini_app_status'],
+            'ready_for_post' => $mapping['readiness']['ready_for_post'],
+            'ready_for_issue' => $mapping['readiness']['ready_for_issue'],
+            'can_post' => $mapping['readiness']['can_post'],
         ], $source, false);
+        $p12['status']['readiness'] = $mapping['readiness'];
         $statusKey = $row->status === null ? null : $source.':'.$row->status;
 
         return [
@@ -179,10 +234,10 @@ final class P12MixedDocumentReadModel
             'created_at' => $created,
             'timestamp_source' => ($source === 'WARRANTY' ? 'warranty_case' : 'stock_documents').'.created_at',
             'time_status' => $created === null ? 'NOT_RECORDED' : 'RECORDED',
-            'status' => $row->status, 'source_status' => $row->status, 'status_key' => $statusKey,
-            'mini_app_status' => null, 'readiness' => null,
-            'display_status' => ['value' => null, 'label' => null, 'availability' => 'PENDING_BA_MAPPING',
-                'source' => ($source === 'WARRANTY' ? 'warranty_case' : 'stock_documents').'.status'],
+            'status' => $row->status, 'canonical_status' => $mapping['canonical_status'],
+            'source_status' => $row->status, 'status_key' => $statusKey,
+            'mini_app_status' => $mapping['mini_app_status'], 'readiness' => $mapping['readiness'],
+            'display_status' => $mapping['display_status'],
             'partner' => ['display_name' => $row->partner_name,
                 'availability' => $source === 'WARRANTY' ? 'WITHHELD_IN_AGGREGATE' : ($row->partner_name === null ? 'NOT_RECORDED' : 'RECORDED'),
                 'redacted' => $source === 'WARRANTY'],

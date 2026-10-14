@@ -1,0 +1,137 @@
+{
+  "contract": "p12-p13-p16-all-documents-v1",
+  "status": "APPROVED_SOURCE_CONTRACT_PENDING_RELEASE",
+  "decision": {
+    "option": "OFFICIAL_AGGREGATE_ENDPOINT",
+    "frontend_page_merge": false,
+    "endpoint": {
+      "method": "GET",
+      "path": "/api/v1/mini-app/documents",
+      "runtime_contract": "p12-mixed-documents-v3",
+      "write_operations": []
+    }
+  },
+  "sources": {
+    "INBOUND": {
+      "owner": "P04/P12",
+      "table": "stock_documents",
+      "predicate": "doc_type=receipt, deleted_at IS NULL, dst_warehouse_id=current confirmed warehouse",
+      "business_id": "stock_documents.id",
+      "document_no": "stock_documents.doc_no",
+      "canonical_status": ["DRAFT", "SCANNING", "POSTED", "CANCELLED"],
+      "read_target": "/api/v1/mini-app/inbound-documents/{id}"
+    },
+    "OUTBOUND": {
+      "owner": "P05/P12",
+      "table": "stock_documents",
+      "predicate": "doc_type=issue, deleted_at IS NULL, src_warehouse_id=current confirmed warehouse",
+      "business_id": "stock_documents.id",
+      "document_no": "stock_documents.doc_no",
+      "canonical_status": ["DRAFT", "SCANNING", "POSTED", "CANCELLED"],
+      "read_target": "/api/v1/mini-app/outbound-documents/{id}"
+    },
+    "WARRANTY": {
+      "owner": "P09/P12",
+      "table": "warranty_case plus warranty_case_warehouse_scope",
+      "predicate": "persisted warranty owner matches current confirmed warehouse",
+      "business_id": "warranty_case.warranty_case_id",
+      "document_no": "warranty_case.warranty_case_code",
+      "canonical_status": ["RECEIVED", "CHECKING", "REPAIRING", "COMPLETED", "RETURNED", "CANCELLED"],
+      "read_target": "/api/v1/mini-app/warranty-cases/{id}"
+    }
+  },
+  "row_contract": {
+    "identity": {
+      "id": "canonical owner UUID",
+      "row_key": "source:id",
+      "deduplication": "Deduplicate only by source plus canonical owner UUID. Never deduplicate by document_no. Equal UUIDs from different sources remain distinct records."
+    },
+    "status": "Compatibility alias of canonical_status",
+    "canonical_status": "Unmodified status from the canonical owner",
+    "mini_app_status": "Source-owned projection defined by status_mapping; never a common inferred approval state",
+    "readiness": {
+      "state": ["UNKNOWN", "IN_PROGRESS", "READY", "BLOCKED", "TERMINAL", "OWNER_STATUS_ONLY"],
+      "applicable": "false for warranty; true for stock documents",
+      "ready_for_post": "INBOUND only; null for other sources",
+      "ready_for_issue": "OUTBOUND only; null for other sources",
+      "can_post": "INBOUND only; requires full scan and complete SKU name/unit",
+      "blockers": "Explicit source-owned blockers; never inferred from a display label",
+      "source": "Canonical columns used for the projection"
+    }
+  },
+  "status_mapping": {
+    "INBOUND": {
+      "DRAFT": {"mini_app_status": "DRAFT", "readiness": "IN_PROGRESS"},
+      "SCANNING_incomplete": {"mini_app_status": "SCANNING", "readiness": "IN_PROGRESS"},
+      "SCANNING_complete_product_complete": {"mini_app_status": "WAITING_APPROVAL", "readiness": "READY"},
+      "SCANNING_complete_product_incomplete": {"mini_app_status": "WAITING_APPROVAL", "readiness": "BLOCKED", "blocker": "INBOUND_SKU_INFO_INCOMPLETE"},
+      "POSTED": {"mini_app_status": "POSTED", "readiness": "TERMINAL"},
+      "CANCELLED": {"mini_app_status": "CANCELLED", "readiness": "TERMINAL"}
+    },
+    "OUTBOUND": {
+      "DRAFT_or_SCANNING_incomplete": {"mini_app_status": "PICKING", "readiness": "IN_PROGRESS"},
+      "SCANNING_complete": {"mini_app_status": "READY_TO_ISSUE", "readiness": "READY"},
+      "POSTED": {"mini_app_status": "COMPLETED", "readiness": "TERMINAL"},
+      "CANCELLED": {"mini_app_status": "CANCELLED", "readiness": "TERMINAL"}
+    },
+    "WARRANTY": {
+      "rule": "mini_app_status equals canonical_status",
+      "readiness": "OWNER_STATUS_ONLY",
+      "approval_inference": false
+    },
+    "p13_rule": "P13 historical RECORD receipt is handoff evidence only. It never overwrites current canonical_status, mini_app_status or readiness.",
+    "waiting_approval_rule": "WAITING_APPROVAL applies only to INBOUND SCANNING with every planned line fully scanned. It is never a cross-source default."
+  },
+  "query": {
+    "source": ["ALL", "INBOUND", "OUTBOUND", "WARRANTY"],
+    "status": "ALL or source-qualified canonical status, for example INBOUND:SCANNING",
+    "pagination": "KEYSET_CURSOR",
+    "cursor_version": 3,
+    "per_page": {"default": 20, "minimum": 1, "maximum": 100},
+    "sort": ["created_at_desc", "created_at_asc"],
+    "timezone": "Asia/Ho_Chi_Minh",
+    "date_semantics": "created_at normalized to UTC before UNION/filter/sort; local date bounds use Asia/Ho_Chi_Minh and an exclusive next-midnight upper bound",
+    "tie_break": ["source_rank ASC", "id ASC"],
+    "null_created_at": "LAST"
+  },
+  "counts": {
+    "meta.total": "Count of the complete authorized and filtered selected source scope before cursor pagination",
+    "meta.source_facets": "Counts of every authorized source under the same keyword/status/date/upper-bound filters before source selection and cursor pagination",
+    "count_unit": "DOCUMENT_LIST_RECORD",
+    "page_length_is_total": false,
+    "denied_source_total": null
+  },
+  "source_error": {
+    "policy": "FAIL_CLOSED_NO_PARTIAL_DATA_OR_TOTAL",
+    "http": 503,
+    "error_code": "DOCUMENTS_SOURCE_UNAVAILABLE",
+    "rules": [
+      "Any unavailable or malformed authorized source fails the complete aggregate response.",
+      "A failed source is never converted to an empty array or zero total.",
+      "A denied source is excluded by authorization and reported as DENIED with total null; this is not a source failure."
+    ]
+  },
+  "snapshot": {
+    "response": "One database read snapshot per response",
+    "cursor_upper_bound": "The first request fixes an upper_bound_created_at; newer records are excluded from later cursor pages",
+    "cross_request_frozen": false,
+    "late_backdated_changes": "May change later page totals/results; client must restart after cursor errors or explicit refresh",
+    "cursor_ttl_seconds": 900
+  },
+  "frontend": {
+    "all_tab_source": "/api/v1/mini-app/documents?source=ALL",
+    "must_not_merge_owner_pages": true,
+    "must_not_resort_page": true,
+    "must_not_infer_total_from_data_length": true,
+    "must_not_replace_source_error_with_empty": true,
+    "must_not_map_all_statuses_to_WAITING_APPROVAL": true,
+    "p13_notifications_are_not_list_rows": true
+  },
+  "release": {
+    "runtime_flag": "P12_MIXED_DOCUMENTS_ENABLED",
+    "default": false,
+    "production_activation": false,
+    "migration_required": false,
+    "seed_required": false
+  }
+}

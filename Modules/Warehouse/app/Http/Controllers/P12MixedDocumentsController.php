@@ -41,10 +41,13 @@ final class P12MixedDocumentsController extends Controller
                     $selected->where('source', $filters['source']);
                 }
                 [$rows, $page] = Page::read($selected, $state, $filters['per_page'], $filters['sort']);
+                $readiness = ReadModel::readiness($rows);
 
                 return response()->json([
                     'success' => true,
-                    'data' => $rows->map(ReadModel::record(...))->all(),
+                    'data' => $rows->map(fn (object $row): array => ReadModel::record(
+                        $row, $readiness[$row->source.':'.$row->id] ?? []
+                    ))->all(),
                     'meta' => Metadata::make($scope, $filters, $state, $facets, $page, $snapshot),
                 ]);
             });

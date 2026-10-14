@@ -85,15 +85,17 @@ final class P12MixedDocumentQuery
     public static function statusOptions(array $allowed): array
     {
         $options = [['value' => 'ALL', 'label' => 'Tất cả', 'source' => null, 'source_status' => null,
-            'label_availability' => 'SOURCE_SPEC', 'display_label' => null]];
+            'label_availability' => 'APPROVED', 'display_label' => 'Tất cả']];
         foreach (P12MixedDocumentReadModel::statusKeys() as $key) {
             [$source, $status] = explode(':', $key, 2);
             if (! $allowed[$source]) {
                 continue;
             }
             $options[] = [
-                'value' => $key, 'label' => $status, 'source' => $source, 'source_status' => $status,
-                'label_availability' => 'CANONICAL_ONLY_PENDING_BA_LABEL', 'display_label' => null,
+                'value' => $key, 'label' => P12MixedDocumentStatus::canonicalLabel($source, $status),
+                'source' => $source, 'source_status' => $status,
+                'label_availability' => 'APPROVED',
+                'display_label' => P12MixedDocumentStatus::canonicalLabel($source, $status),
                 'status_source' => ($source === 'WARRANTY' ? 'warranty_case' : 'stock_documents').'.status',
             ];
         }

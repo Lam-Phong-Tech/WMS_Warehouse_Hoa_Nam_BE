@@ -30,11 +30,11 @@ class P16DocumentsReadStateContractTest extends TestCase
 
     private const BASE = '/api/v1/mini-app/';
 
-    public function test_handoff_and_collection_reuse_four_existing_gets_not_an_aggregate(): void
+    public function test_handoff_keeps_owner_reads_and_approves_the_separate_aggregate(): void
     {
         $contract = json_decode(file_get_contents(base_path('contracts/p16/owner-read-v1.json')), true, 512, JSON_THROW_ON_ERROR);
         $collection = json_decode(file_get_contents(base_path('contracts/p16/P16-documents-read.postman_collection.json')), true, 512, JSON_THROW_ON_ERROR);
-        $this->assertSame('PENDING_OWNER_CONTRACT_AND_LIVE_TEST', $contract['status']);
+        $this->assertSame('AGGREGATE_CONTRACT_APPROVED_PENDING_RELEASE_AND_LIVE_TEST', $contract['status']);
         $this->assertSame(['GET'], $contract['methods']);
         foreach (['mutations', 'new_api_routes', 'fallbacks'] as $key) {
             $this->assertSame([], $contract[$key]);
@@ -42,9 +42,14 @@ class P16DocumentsReadStateContractTest extends TestCase
         foreach (['production_activation', 'live_test_verified', 'ui_wiring_verified'] as $key) {
             $this->assertFalse($contract[$key]);
         }
-        $this->assertFalse($contract['aggregate']['enabled']);
-        $this->assertNull($contract['aggregate']['path']);
-        $this->assertNull($contract['aggregate']['total']);
+        $this->assertTrue($contract['aggregate']['enabled']);
+        $this->assertSame('/api/v1/mini-app/documents', $contract['aggregate']['path']);
+        $this->assertSame('GET', $contract['aggregate']['method']);
+        $this->assertSame('p12-mixed-documents-v3', $contract['aggregate']['runtime_contract']);
+        $this->assertFalse($contract['aggregate']['merge_approved']);
+        $this->assertTrue($contract['aggregate']['frontend_merge_forbidden']);
+        $aggregate = Route::getRoutes()->match(Request::create($contract['aggregate']['path'], 'GET'));
+        $this->assertContains('auth:api', $aggregate->gatherMiddleware());
         $this->assertCount(4, $collection['item']);
         $this->assertFalse($collection['protocolProfileBehavior']['followRedirects']);
         foreach ($collection['item'] as $item) {

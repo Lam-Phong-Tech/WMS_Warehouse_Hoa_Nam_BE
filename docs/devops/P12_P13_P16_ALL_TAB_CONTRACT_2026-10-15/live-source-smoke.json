@@ -1,0 +1,20 @@
+{
+  "tested_at": "2026-10-15T05:36:44+07:00",
+  "environment": "DEV/TEST",
+  "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+  "deployed_aggregate_contract": "p12-mixed-documents-v2",
+  "candidate_contract": "p12-mixed-documents-v3",
+  "checks": [
+    {"source":"INBOUND","http":200,"total":440,"returned_rows":1,"request_id":"c64f2de0-b332-4237-9cbb-cc3d0fe52a91"},
+    {"source":"OUTBOUND","http":200,"total":257,"returned_rows":1,"request_id":"c1420ba0-6cba-4de5-bed5-9b8a368c7d2c"},
+    {"source":"WARRANTY","http":200,"total":1,"returned_rows":1,"request_id":"a5e48bef-3f02-479d-a94e-8eed2b84fbac"},
+    {"source":"ALL","http":200,"total":698,"returned_rows":1,"request_id":"0710a5d6-a720-4f88-a3a6-22cc52a2179b"}
+  ],
+  "full_set_total_matches_source_sum": true,
+  "source_sum": 698,
+  "mutations_performed": false,
+  "migration_run": false,
+  "seed_run": false,
+  "ci_run": false,
+  "production_touched": false
+}

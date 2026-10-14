@@ -146,16 +146,75 @@ final class P12MixedDocumentsTest extends TestCase
         $this->stock($warehouse, 'OUTBOUND', '2026-10-01 13:00:00');
         $this->read($token, $warehouse, ['status' => 'INBOUND:SCANNING'])->assertOk()
             ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.status', 'SCANNING')
+            ->assertJsonPath('data.0.canonical_status', 'SCANNING')
             ->assertJsonPath('data.0.source_status', 'SCANNING')
-            ->assertJsonPath('data.0.display_status.label', null)
-            ->assertJsonPath('data.0.display_status.availability', 'PENDING_BA_MAPPING')
+            ->assertJsonPath('data.0.mini_app_status', 'SCANNING')
+            ->assertJsonPath('data.0.readiness.state', 'IN_PROGRESS')
+            ->assertJsonPath('data.0.display_status.availability', 'MAPPED')
             ->assertJsonPath('data.0.p12.status.waiting_for_web', null)
-            ->assertJsonPath('data.0.p12.status.mini_app', null)
+            ->assertJsonPath('data.0.p12.status.mini_app', 'SCANNING')
             ->assertJsonPath('meta.source_facets.OUTBOUND.total', 0);
         foreach (['WAITING_APPROVAL', 'SENT_WAITING_WEB', 'SCANNING'] as $status) {
             $this->read($token, $warehouse, ['status' => $status])->assertStatus(422);
         }
         $this->read($token, $warehouse, ['source' => 'OUTBOUND', 'status' => 'INBOUND:DRAFT'])->assertStatus(422);
+    }
+
+    public function test_all_total_source_totals_and_owner_status_mapping_cover_the_full_set(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $inbound = $this->stock($warehouse, 'INBOUND', '2026-10-01 10:00:00');
+        $outbound = $this->stock($warehouse, 'OUTBOUND', '2026-10-01 11:00:00');
+        $warranty = $this->warranty($token, $warehouse, '2026-10-01 12:00:00');
+
+        $sku = $this->productSkuFixture('MIX-READY-'.Str::upper(Str::random(8)));
+        DB::table('sku')->where('sku_id', $sku->sku_id)->update([
+            'sku_name' => 'Ready inbound product', 'unit' => 'cai',
+        ]);
+        DB::table('stock_document_lines')->insert([
+            'id' => (string) Str::uuid(), 'stock_document_id' => $inbound, 'line_no' => 1,
+            'product_id' => $sku->sku_id, 'qty_planned' => 1, 'qty_actual' => 0,
+            'scanned_qty' => 1,
+        ]);
+        DB::table('stock_documents')->where('id', $inbound)->update(['status' => 'SCANNING']);
+        DB::table('stock_document_lines')->where('stock_document_id', $outbound)
+            ->update(['qty_planned' => 1, 'scanned_qty' => 1]);
+        DB::table('stock_documents')->where('id', $outbound)->update(['status' => 'SCANNING']);
+
+        $response = $this->read($token, $warehouse, ['source' => 'ALL', 'per_page' => 10])->assertOk()
+            ->assertJsonPath('meta.contract', 'p12-mixed-documents-v3')
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.source_facets.ALL.total', 3)
+            ->assertJsonPath('meta.source_facets.INBOUND.total', 1)
+            ->assertJsonPath('meta.source_facets.OUTBOUND.total', 1)
+            ->assertJsonPath('meta.source_facets.WARRANTY.total', 1)
+            ->assertJsonPath('meta.source_failure_policy', 'FAIL_CLOSED_NO_PARTIAL_DATA_OR_TOTAL')
+            ->assertJsonCount(3, 'data');
+
+        $rows = collect($response->json('data'))->keyBy('source');
+        $this->assertSame($inbound, $rows['INBOUND']['id']);
+        $this->assertSame('SCANNING', $rows['INBOUND']['canonical_status']);
+        $this->assertSame('WAITING_APPROVAL', $rows['INBOUND']['mini_app_status']);
+        $this->assertSame('READY', $rows['INBOUND']['readiness']['state']);
+        $this->assertTrue($rows['INBOUND']['readiness']['ready_for_post']);
+        $this->assertTrue($rows['INBOUND']['readiness']['can_post']);
+
+        $this->assertSame($outbound, $rows['OUTBOUND']['id']);
+        $this->assertSame('SCANNING', $rows['OUTBOUND']['canonical_status']);
+        $this->assertSame('READY_TO_ISSUE', $rows['OUTBOUND']['mini_app_status']);
+        $this->assertSame('READY', $rows['OUTBOUND']['readiness']['state']);
+        $this->assertTrue($rows['OUTBOUND']['readiness']['ready_for_issue']);
+
+        $this->assertSame($warranty, $rows['WARRANTY']['id']);
+        $this->assertSame('RECEIVED', $rows['WARRANTY']['canonical_status']);
+        $this->assertSame('RECEIVED', $rows['WARRANTY']['mini_app_status']);
+        $this->assertSame('OWNER_STATUS_ONLY', $rows['WARRANTY']['readiness']['state']);
+
+        foreach (['INBOUND', 'OUTBOUND', 'WARRANTY'] as $source) {
+            $this->read($token, $warehouse, ['source' => $source, 'per_page' => 10])->assertOk()
+                ->assertJsonPath('meta.total', 1)->assertJsonCount(1, 'data')
+                ->assertJsonPath('data.0.source', $source);
+        }
     }
 
     public function test_created_date_uses_half_open_local_days_and_respects_native_storage_precision(): void
@@ -526,7 +585,9 @@ final class P12MixedDocumentsTest extends TestCase
         foreach ($response->json('meta.filter_options.status') as $option) {
             if ($option['value'] !== 'ALL') {
                 $this->assertSame($option['source'].':'.$option['source_status'], $option['value']);
-                $this->assertNull($option['display_label']);
+                $this->assertSame('APPROVED', $option['label_availability']);
+                $this->assertIsString($option['display_label']);
+                $this->assertNotSame('', $option['display_label']);
                 $this->assertContains($option['value'], ReadModel::statusKeys());
             }
         }

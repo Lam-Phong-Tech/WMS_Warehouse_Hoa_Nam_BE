@@ -31,6 +31,9 @@ final class P12MixedDocumentMetadata
             'facet_scope' => 'AUTHORIZED_FILTERED_BEFORE_SOURCE_SELECTION_AND_CURSOR',
             'coverage' => in_array(false, $scope['allowed'], true) ? 'AUTHORIZED_SOURCES_ONLY' : 'ALL_SOURCES',
             'source_failure_policy' => 'FAIL_CLOSED_NO_PARTIAL_DATA_OR_TOTAL',
+            'source_mapping_contract' => P12MixedDocumentStatus::CONTRACT,
+            'deduplication' => ['key' => 'source:id', 'policy' => 'CANONICAL_OWNER_PRIMARY_KEY',
+                'display_number_is_identity' => false, 'cross_source_uuid_collision' => 'KEEP_SEPARATE'],
             'date_field' => 'created_at', 'timezone' => $filters['timezone'],
             'date_window' => P12MixedDocumentQuery::dateWindow($state['issued_at']),
             'query' => ['source' => $filters['source'], 'status' => $filters['status'],
@@ -49,7 +52,7 @@ final class P12MixedDocumentMetadata
             'warranty_customer_search' => 'NOT_SUPPORTED',
             'quantity_semantics' => 'NOT_PROJECTED_USE_OWNER_DETAIL_AND_P12_SCAN_SUMMARY',
             'status_filter_keys' => array_column($options, 'value'),
-            'filter_options' => ['status' => $options, 'display_mapping_approval' => 'PENDING_BA'],
+            'filter_options' => ['status' => $options, 'display_mapping_approval' => 'APPROVED'],
             'cache_policy' => 'NO_INTERNAL_RESULT_CACHE', 'write_operations' => [],
         ];
     }
