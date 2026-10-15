@@ -155,7 +155,10 @@ class WarrantyReadinessTest extends TestCase
         $payloads = [
             'REPAIRING' => ['confirmed_defect' => 'Hong pin 20V, can thay'],
             'COMPLETED' => ['note' => 'Da thay pin 20V, chay thu 30 phut dat'],
-            'RETURNED' => ['note' => 'Ban giao cho Nguyen Van A, ky nhan 10:20'],
+            'RETURNED' => [
+                'receiver' => 'Nguyen Van A', 'handover_date' => now()->toDateString(),
+                'handover_checked' => true, 'note' => 'Ban giao cho Nguyen Van A, ky nhan 10:20',
+            ],
         ];
         foreach ($payloads as $target => $extra) {
             $response = $this->patchJson("/api/v1/warranty-cases/{$caseId}", [

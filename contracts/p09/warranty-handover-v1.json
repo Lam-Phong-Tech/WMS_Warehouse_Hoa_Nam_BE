@@ -1,0 +1,84 @@
+{
+  "contract": "p09-warranty-handover-v1",
+  "status": "IMPLEMENTED_SOURCE_PENDING_RELEASE_AND_DEV_SMOKE",
+  "owner": "P09 existing PATCH /api/v1/mini-app/warranty-cases/{case_id}",
+  "transition": "COMPLETED -> RETURNED only",
+  "request": {
+    "method": "PATCH",
+    "path": "/api/v1/mini-app/warranty-cases/{case_id}",
+    "headers": {
+      "If-Match": "quoted current warranty case version; stale value returns 412 STALE_VERSION",
+      "Idempotency-Key": "original P09 key; keep unchanged for retry",
+      "X-Request-ID": "original UUID; keep unchanged for retry and receipt correlation"
+    },
+    "query": {"warehouse_id": "optional assertion; must match confirmed owner warehouse when supplied"},
+    "body": {
+      "status": "RETURNED",
+      "receiver": "required string, max 200; persisted encrypted in warranty_handovers.receiver_ciphertext",
+      "handover_date": "required local calendar date YYYY-MM-DD entered by user; persisted separately",
+      "handover_checked": "required boolean true",
+      "note": "required string; persisted encrypted in warranty_handovers.note_ciphertext and copied only to RETURN warranty_event.note"
+    },
+    "forbidden": [
+      "Do not concatenate receiver/date/checkbox into note.",
+      "Do not use server returned_at as handover_date.",
+      "Do not submit structured handover fields for a non-RETURNED update."
+    ]
+  },
+  "guards": {
+    "authorization": "warranty.manage plus P09 owner scope",
+    "warehouse": "persisted warranty_case_warehouse_owners row, active warehouse, current confirmed session warehouse",
+    "case": "case exists, owner ACL passes, current case version matches If-Match, transition matrix allows COMPLETED -> RETURNED",
+    "component_issues": "all linked component_issue_documents for the case must belong to owner warehouse and have status POSTED; no linked documents is allowed",
+    "terminal": "RETURNED/CANCELLED are terminal",
+    "stock": "stock_effect=NONE and movement_created=false"
+  },
+  "persistence": {
+    "migration": "2026_10_15_060000_create_warranty_handovers_table.php",
+    "table": "warranty_handovers",
+    "primary_key": "warranty_case_id",
+    "columns": {
+      "warranty_case_id": "UUID FK to canonical warranty case",
+      "receiver_ciphertext": "encrypted PII, AAD warranty_handovers.receiver",
+      "handover_date": "DATE user-entered calendar date",
+      "handover_checked": "BOOLEAN true",
+      "note_ciphertext": "encrypted handover note, AAD warranty_handovers.note",
+      "recorded_by": "actor UUID",
+      "request_id": "original X-Request-ID UUID",
+      "created_at": "server persistence timestamp",
+      "updated_at": "server update timestamp"
+    },
+    "server_returned_at": {
+      "source": "warranty_case.returned_at",
+      "meaning": "server transition timestamp",
+      "separate_from": "warranty_handovers.handover_date"
+    }
+  },
+  "response": {
+    "data.handover": {
+      "contract": "p09-warranty-handover-v1",
+      "receiver": "full only with warranty.pii.view, otherwise masked",
+      "handover_date": "user-entered date",
+      "handover_checked": "boolean",
+      "note": "full only with warranty.pii.view, otherwise null",
+      "returned_at": "server timestamp from warranty_case",
+      "returned_at_source": "warranty_case.returned_at_server_time"
+    }
+  },
+  "retry": {
+    "same_key_same_request_id_same_body": "Idempotent replay of the original response; no second version/event/handover row",
+    "same_key_changed_body_or_request_id": "409 IDEMPOTENCY_CONFLICT",
+    "stale_version": "412 STALE_VERSION; case remains unchanged",
+    "unknown_or_timeout": "reconcile the original P09 request; do not create a compensating return"
+  },
+  "acceptance": {
+    "required": [
+      "HTTP 409/412 stale version evidence",
+      "same-key retry evidence with stable X-Request-ID",
+      "warehouse/permission/component POSTED guard evidence",
+      "DEV/TEST authenticated smoke with redacted raw HTTP"
+    ],
+    "production_activation": false,
+    "seed_required": false
+  }
+}

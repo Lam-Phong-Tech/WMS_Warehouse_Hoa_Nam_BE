@@ -53,9 +53,9 @@
     "rules": [
       "Reuse native COMPLETED to RETURNED, scope, permission, optimistic version and component issue guards; never POST RETURNED from P18.",
       "A successful historical UPDATE receipt does not replace a fresh authorized case read.",
-      "receiver, user handover date and checked checkbox are NOT in an approved structured P18 mapping; keep their submission disabled.",
+      "P09 now owns the approved structured handover mapping in contracts/p09/warranty-handover-v1.json; P18 upload remains forbidden from sending these fields.",
       "Do not concatenate structured form fields into note. UI limit 200 is stricter than P09 note validation max 2000; do not expand UI silently.",
-      "Server returned_at is not a user-entered handover date. Structured persistence/readback/privacy requires BA/owner decision.",
+      "Server returned_at remains distinct from the user-entered handover_date; receiver/note are protected by the P09 handover read contract.",
       "Preserve P09 native retry policy; do not substitute upload REJECTED for warranty FAILED or turn PROCESSING/UNKNOWN into failure."
     ]
   },

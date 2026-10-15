@@ -18,6 +18,7 @@ use Modules\Warehouse\Events\WarrantyStatusChanged;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\P09WarrantyHandover;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
@@ -292,8 +293,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             .'RETURNED/CANCELLED là terminal (mọi mutation trả 409 STATE_CONFLICT). '
             .'Guard nghiệp vụ: rời CHECKING sang REPAIRING/COMPLETED bắt buộc confirmed_defect '
             .'(422 WARRANTY_DIAGNOSIS_REQUIRED); COMPLETED bắt buộc note kết quả xử lý '
-            .'(422 WARRANTY_TREATMENT_RESULT_REQUIRED); RETURNED bắt buộc note biên bản bàn '
-            .'giao/người nhận (422 WARRANTY_HANDOVER_NOTE_REQUIRED); CANCELLED bắt buộc lý do '
+            .'(422 WARRANTY_TREATMENT_RESULT_REQUIRED); RETURNED bắt buộc receiver, handover_date, '
+            .'handover_checked=true và note tách biệt (422 WARRANTY_HANDOVER_REQUIRED); CANCELLED bắt buộc lý do '
             .'(422 CANCEL_REASON_REQUIRED). Transition ngoài ma trận: 409 '
             .'INVALID_WARRANTY_TRANSITION. If-Match bắt buộc (428/412). Idempotency-Key tuỳ chọn. '
             .'Sửa customer_name/phone/address cần warranty.pii.view (403 PERMISSION_DENIED); '
@@ -314,6 +315,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             new OA\Property(property: 'customer_phone', type: 'string', maxLength: 30, example: '0901234567', description: 'PII — cần warranty.pii.view.'),
             new OA\Property(property: 'customer_address', type: 'string', maxLength: 500, description: 'PII — cần warranty.pii.view.', example: '123 Đường Lê Lợi, Quận 1, TP.HCM'),
             new OA\Property(property: 'purchase_date', type: 'string', format: 'date', example: '2026-06-15'),
+            new OA\Property(property: 'receiver', type: 'string', maxLength: 200, nullable: true, description: 'Người nhận bàn giao; chỉ dùng khi COMPLETED -> RETURNED.', example: 'Nguyễn Văn A'),
+            new OA\Property(property: 'handover_date', type: 'string', format: 'date', nullable: true, description: 'Ngày bàn giao do người dùng nhập; không thay bằng returned_at.', example: '2026-10-15'),
+            new OA\Property(property: 'handover_checked', type: 'boolean', nullable: true, description: 'Xác nhận đã kiểm tra bàn giao; bắt buộc true khi RETURNED.', example: true),
         ])),
         responses: [new OA\Response(response: 200, description: 'Case đã cập nhật; ETag = version mới; stock_effect=NONE.')]
     )]
@@ -339,6 +343,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             new OA\Property(property: 'customer_phone', type: 'string', maxLength: 30, description: 'PII — cần warranty.pii.view.', example: '0912345678'),
             new OA\Property(property: 'customer_address', type: 'string', maxLength: 500, nullable: true, description: 'PII — cần warranty.pii.view.', example: '123 Đường Lê Lợi, Quận 1, TP.HCM'),
             new OA\Property(property: 'purchase_date', type: 'string', format: 'date', nullable: true, description: 'Không được sau ngày hiện tại.', example: '2026-06-15'),
+            new OA\Property(property: 'receiver', type: 'string', maxLength: 200, nullable: true, description: 'Người nhận bàn giao; chỉ dùng khi COMPLETED -> RETURNED.', example: 'Nguyễn Văn A'),
+            new OA\Property(property: 'handover_date', type: 'string', format: 'date', nullable: true, description: 'Ngày bàn giao do người dùng nhập; không thay bằng returned_at.', example: '2026-10-15'),
+            new OA\Property(property: 'handover_checked', type: 'boolean', nullable: true, description: 'Xác nhận đã kiểm tra bàn giao; bắt buộc true khi RETURNED.', example: true),
         ])),
         responses: [new OA\Response(response: 200, description: 'Case đã cập nhật; ETag = version mới; stock_effect=NONE.')]
     )]
@@ -373,6 +380,9 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'customer_phone' => ['sometimes', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'customer_address' => ['nullable', 'string', 'max:500'],
             'purchase_date' => array_merge(['nullable'], InputLimits::pastDate()),
+            'receiver' => ['sometimes', 'string', 'max:200', 'regex:/\S/u'],
+            'handover_date' => ['sometimes', 'date_format:Y-m-d', 'before_or_equal:today'],
+            'handover_checked' => ['sometimes', 'boolean'],
         ], [
             'customer_phone.regex' => 'Số điện thoại phải bắt đầu bằng số 0 và đủ 10 chữ số.',
         ]);
@@ -446,6 +456,15 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             if ($target !== $case->status && ! in_array($target, self::TRANSITIONS[$case->status] ?? [], true)) {
                 ApiError::abort(409, 'INVALID_WARRANTY_TRANSITION', "Không cho phép {$case->status} -> {$target}.");
             }
+            $handoverFields = array_values(array_intersect(
+                ['receiver', 'handover_date', 'handover_checked'],
+                array_keys($validated)
+            ));
+            if ($handoverFields !== [] && $target !== 'RETURNED') {
+                ApiError::abort(422, 'WARRANTY_HANDOVER_FIELDS_NOT_ALLOWED', 'Thông tin bàn giao chỉ hợp lệ cho COMPLETED -> RETURNED.', [
+                    'fields' => $handoverFields,
+                ]);
+            }
 
             if (array_key_exists('defect_ids', $validated)) {
                 $defectIds = $this->resolveDefectIds($validated);
@@ -474,22 +493,32 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
             // DEC-WAR-STATE-001 guard 2 - ket qua xu ly: COMPLETED phai kem mo ta da xu
             // ly gi, ghi vao warranty_event (§13.8 note timeline, khong de description).
-            $handoverNote = trim((string) ($validated['note'] ?? $validated['description'] ?? ''));
-            if ($target === 'COMPLETED' && $case->status !== 'COMPLETED' && $handoverNote === '') {
+            $treatmentNote = trim((string) ($validated['note'] ?? $validated['description'] ?? ''));
+            if ($target === 'COMPLETED' && $case->status !== 'COMPLETED' && $treatmentNote === '') {
                 ApiError::abort(422, 'WARRANTY_TREATMENT_RESULT_REQUIRED', 'Hoàn tất bảo hành bắt buộc ghi kết quả xử lý (note).', [
                     'target_status' => $target,
                     'required_field' => 'note',
                 ]);
             }
 
-            // DEC-WAR-STATE-001 guard 3 - ban giao/nguoi nhan: ERD §45 khong co cot
-            // receiver rieng, bien ban ban giao la warranty_event RETURN voi note bat
-            // buoc + created_by = actor. Thieu note thi khong co bang chung tra may.
-            if ($target === 'RETURNED' && $case->status !== 'RETURNED' && $handoverNote === '') {
-                ApiError::abort(422, 'WARRANTY_HANDOVER_NOTE_REQUIRED', 'Trả máy cho khách bắt buộc ghi biên bản bàn giao/người nhận (note).', [
-                    'target_status' => $target,
-                    'required_field' => 'note',
-                ]);
+            $returning = $target === 'RETURNED' && $case->status !== 'RETURNED';
+            if ($returning) {
+                $missing = [];
+                foreach (['receiver', 'handover_date', 'handover_checked', 'note'] as $field) {
+                    if (! array_key_exists($field, $validated)
+                        || ($field !== 'handover_checked' && trim((string) $validated[$field]) === '')
+                        || ($field === 'handover_checked' && $validated[$field] !== true)) {
+                        $missing[] = $field;
+                    }
+                }
+                if ($missing !== []) {
+                    ApiError::abort(422, 'WARRANTY_HANDOVER_REQUIRED', 'Bàn giao cần đủ người nhận, ngày người dùng nhập, xác nhận kiểm tra và ghi chú.', [
+                        'required_fields' => ['receiver', 'handover_date', 'handover_checked', 'note'],
+                        'missing_or_invalid_fields' => $missing,
+                    ]);
+                }
+                P09WarrantyHandover::requireSchema();
+                $this->assertReturnComponentIssuesPosted($id);
             }
 
             $closing = in_array($target, self::TERMINAL_STATUSES, true);
@@ -527,6 +556,14 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'updated_at' => now(),
                 'updated_by' => $this->currentActorId(),
             ]));
+            if ($returning) {
+                P09WarrantyHandover::store($id, [
+                    'receiver' => trim((string) $validated['receiver']),
+                    'handover_date' => $validated['handover_date'],
+                    'handover_checked' => true,
+                    'note' => trim((string) $validated['note']),
+                ], (string) $this->currentActorId(), (string) $request->attributes->get('request_id'));
+            }
             // GĐ1-REQ-009: warranty_case_defects là contract canonical — đồng bộ cả khi
             // client chỉ gửi defect_id/defect_code đơn, nếu không hai nguồn sẽ lệch nhau.
             if (
@@ -858,6 +895,11 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'received_at' => $case->received_at ?? $case->created_at,
             'completed_at' => $case->completed_at ?? null,
             'returned_at' => $case->returned_at ?? null,
+            'handover' => P09WarrantyHandover::read(
+                $id,
+                (bool) $request->user()?->hasPermission('warranty.pii.view'),
+                $case->returned_at ?? null
+            ),
             'cancel_reason' => $case->cancel_reason ?? null,
             'version' => (int) $case->version,
             'legal_hold_flag' => (bool) $case->legal_hold_flag,
@@ -870,6 +912,34 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             'stock_effect' => 'NONE',
             'movement_created' => false,
         ];
+    }
+
+    private function assertReturnComponentIssuesPosted(string $caseId): void
+    {
+        $required = ['id', 'warranty_case_id', 'warehouse_id', 'status'];
+        if (! SchemaCache::hasTable('component_issue_documents')
+            || array_diff($required, SchemaCache::columns('component_issue_documents')) !== []) {
+            ApiError::abort(503, 'WARRANTY_COMPONENT_ISSUE_SOURCE_UNAVAILABLE', 'Nguồn phiếu xuất linh kiện chưa sẵn sàng để xác minh bàn giao.');
+        }
+        $owner = DB::table(WarrantyWarehouseScope::TABLE)->where('warranty_case_id', $caseId)->first();
+        if ($owner === null) {
+            // The canonical back-office route predates persisted P09 warehouse
+            // ownership. P09's Mini App owner guard rejects this case before the
+            // callback; keep the legacy global route readable for old records.
+            return;
+        }
+        $linked = DB::table('component_issue_documents')->where('warranty_case_id', $caseId);
+        if ((clone $linked)->where('warehouse_id', '!=', $owner->warehouse_id)->exists()) {
+            ApiError::abort(409, 'WARRANTY_COMPONENT_ISSUE_SCOPE_MISMATCH', 'Có phiếu linh kiện không thuộc kho sở hữu hồ sơ.');
+        }
+        $notPosted = (clone $linked)->where(function ($query): void {
+            $query->whereNull('status')->orWhere('status', '!=', 'POSTED');
+        })->count();
+        if ($notPosted > 0) {
+            ApiError::abort(409, 'WARRANTY_COMPONENT_ISSUES_NOT_POSTED', 'Mọi phiếu linh kiện phải POSTED trước khi bàn giao.', [
+                'not_posted_count' => $notPosted,
+            ]);
+        }
     }
 
     private function expectedVersion(Request $request): int

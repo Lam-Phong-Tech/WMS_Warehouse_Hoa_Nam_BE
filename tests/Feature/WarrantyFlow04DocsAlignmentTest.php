@@ -523,7 +523,8 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
             ['status' => 'CHECKING'],
             ['status' => 'REPAIRING', 'confirmed_defect' => 'Chay cuon day motor'],
             ['status' => 'COMPLETED', 'note' => 'Da thay cuon day, chay thu dat'],
-            ['status' => 'RETURNED', 'note' => 'Ban giao khach, ky nhan 09:15'],
+            ['status' => 'RETURNED', 'receiver' => 'Khach hang', 'handover_date' => now()->toDateString(),
+                'handover_checked' => true, 'note' => 'Ban giao khach, ky nhan 09:15'],
         ] as $payload) {
             $this->patchJson("/api/v1/warranty-cases/{$caseId}", $payload,
                 $headers + ['If-Match' => (string) $version])->assertOk();
@@ -609,7 +610,10 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
 
         // Trả khách lúc 10/09 10:00:01: một ngày và đúng MỘT giây sau lúc tiếp nhận.
         $this->travelTo($now->copy()->addSecond());
-        $this->patchJson("/api/v1/warranty-cases/{$caseId}", ['status' => 'RETURNED', 'note' => 'Ban giao khach, ky nhan'],
+        $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
+            'status' => 'RETURNED', 'receiver' => 'Khach hang', 'handover_date' => $now->toDateString(),
+            'handover_checked' => true, 'note' => 'Ban giao khach, ky nhan',
+        ],
             $headers + ['If-Match' => (string) $version])->assertOk();
 
         $row = collect($this->getJson('/api/v1/reports/warranty-defects', $headers)->assertOk()->json('data.rows'))

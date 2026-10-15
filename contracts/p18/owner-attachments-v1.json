@@ -157,13 +157,13 @@
   },
   "handover": {
     "owner": "P09 existing UPDATE/receipt/current case",
-    "structured_fields": "PENDING_BA",
+    "structured_fields": "P09_APPROVED_OWNER_HANDOVER_V1",
     "do_not_send": [
       "receiver",
       "user handover date",
       "checked checkbox"
     ],
-    "rules": "Keep existing COMPLETED to RETURNED guard, exact owner permission/scope/version/component-posted validation and existing note field. Do not serialize missing structured fields into note. UI note200 is not proof of the owner storage limit. returned_at is server time, not a user-entered handover date."
+    "rules": "P09 owns receiver, handover_date, handover_checked and note through p09-warranty-handover-v1. P18 upload never sends these fields. Keep exact owner permission/scope/version/component-posted validation. Do not serialize structured fields into note. returned_at is server time, not a user-entered handover date."
   },
   "location": {
     "breakdown": "NOT_TRACKED",

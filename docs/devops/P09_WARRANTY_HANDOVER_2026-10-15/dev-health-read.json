@@ -1,0 +1,16 @@
+{
+  "tested_at": "2026-10-15T08:35:06+07:00",
+  "environment": "DEV/TEST",
+  "http": 200,
+  "serving_sha": "a137d815fde7921ed10603e9042e032d4aff8f78",
+  "build_ref": "dev@a137d815+preserved-runtime-hotfixes",
+  "runtime_environment": "testing",
+  "database": {"status": "ok", "driver": "pgsql"},
+  "migrations": {"status": "ok", "ran_count": 216},
+  "seed_markers": {"admin_user": true, "baseline_warehouse": true, "baseline_product": true},
+  "p09_candidate_migration_present": false,
+  "candidate_p09_deployed": false,
+  "authenticated_write_smoke": "NOT_RUN",
+  "mutation_performed": false,
+  "production_touched": false
+}

@@ -159,18 +159,61 @@ class Wwhn244WarrantyStateMatrixTest extends TestCase
 
         $this->patchCase($headers, $caseId, ['status' => 'RETURNED'], 4)
             ->assertStatus(422)
-            ->assertJsonPath('error.code', 'WARRANTY_HANDOVER_NOTE_REQUIRED');
+            ->assertJsonPath('error.code', 'WARRANTY_HANDOVER_REQUIRED');
 
-        $this->patchCase($headers, $caseId, [
+        $handover = [
             'status' => 'RETURNED',
-            'note' => 'Ban giao cho Nguyen Van A, ky nhan 10:20',
-        ], 4)->assertOk()->assertJsonPath('data.status', 'RETURNED');
+            'receiver' => 'Nguyen Van A',
+            'handover_date' => '2026-10-15',
+            'handover_checked' => true,
+            'note' => 'Khach da kiem tra va ky nhan.',
+        ];
+        $returned = $this->patchCase($headers, $caseId, $handover, 4)
+            ->assertOk()->assertJsonPath('data.status', 'RETURNED')
+            ->assertJsonPath('data.handover.receiver', 'Nguyen Van A')
+            ->assertJsonPath('data.handover.handover_date', '2026-10-15')
+            ->assertJsonPath('data.handover.handover_checked', true)
+            ->assertJsonPath('data.handover.note', 'Khach da kiem tra va ky nhan.')
+            ->assertJsonPath('data.handover.returned_at_source', 'warranty_case.returned_at_server_time');
+        $this->assertNotNull($returned->json('data.returned_at'));
+        $this->assertDatabaseHas('warranty_handovers', ['warranty_case_id' => $caseId, 'handover_date' => '2026-10-15']);
 
         $this->assertDatabaseHas('warranty_event', [
             'warranty_case_id' => $caseId,
             'event_type' => 'RETURN',
-            'note' => 'Ban giao cho Nguyen Van A, ky nhan 10:20',
+            'note' => 'Khach da kiem tra va ky nhan.',
         ]);
+    }
+
+    public function test_return_rejects_stale_version_and_replays_same_key_without_second_transition(): void
+    {
+        $headers = $this->authHeaders();
+        $caseId = $this->createCase($headers, $this->issuedItem('RETRY'));
+        $this->patchCase($headers, $caseId, ['status' => 'CHECKING'], 1)->assertOk();
+        $this->patchCase($headers, $caseId, ['status' => 'REPAIRING', 'confirmed_defect' => 'Da sua'], 2)->assertOk();
+        $this->patchCase($headers, $caseId, ['status' => 'COMPLETED', 'note' => 'Da sua xong'], 3)->assertOk();
+
+        $payload = [
+            'status' => 'RETURNED', 'receiver' => 'Nguoi nhan retry',
+            'handover_date' => '2026-10-15', 'handover_checked' => true,
+            'note' => 'Retry handover proof',
+        ];
+        $key = 'war244-return-'.Str::uuid();
+        $requestId = (string) Str::uuid();
+        $requestHeaders = $headers + ['If-Match' => '3', 'Idempotency-Key' => $key, 'X-Request-ID' => $requestId];
+        $this->patchJson("/api/v1/warranty-cases/{$caseId}", $payload, $requestHeaders)
+            ->assertStatus(412)->assertJsonPath('error.code', 'STALE_VERSION');
+        $this->assertDatabaseHas('warranty_case', ['warranty_case_id' => $caseId, 'status' => 'COMPLETED', 'version' => 4]);
+
+        $requestHeaders['If-Match'] = '4';
+        $first = $this->patchJson("/api/v1/warranty-cases/{$caseId}", $payload, $requestHeaders)
+            ->assertOk()->assertJsonPath('data.status', 'RETURNED');
+        $second = $this->patchJson("/api/v1/warranty-cases/{$caseId}", $payload, $requestHeaders)
+            ->assertOk()->assertHeader('Idempotent-Replay', 'true')
+            ->assertJsonPath('data.version', $first->json('data.version'));
+        $this->assertSame($first->json('data.returned_at'), $second->json('data.returned_at'));
+        $this->assertDatabaseCount('warranty_handovers', 1);
+        $this->assertCount(1, DB::table('warranty_event')->where('warranty_case_id', $caseId)->where('event_type', 'RETURN')->get());
     }
 
     /**
@@ -234,7 +277,8 @@ class Wwhn244WarrantyStateMatrixTest extends TestCase
             'RETURNED' => [
                 ['status' => 'CHECKING'],
                 ['status' => 'COMPLETED', 'confirmed_defect' => 'chan doan', 'note' => 'da xu ly'],
-                ['status' => 'RETURNED', 'note' => 'ban giao khach'],
+                ['status' => 'RETURNED', 'receiver' => 'Khach hang', 'handover_date' => '2026-10-15',
+                    'handover_checked' => true, 'note' => 'ban giao khach'],
             ],
             'CANCELLED' => [['status' => 'CANCELLED', 'cancel_reason' => 'Khach rut may']],
             default => [],
