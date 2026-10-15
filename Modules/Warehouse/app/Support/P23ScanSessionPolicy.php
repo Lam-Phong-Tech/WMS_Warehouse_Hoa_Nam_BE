@@ -5,14 +5,16 @@ namespace Modules\Warehouse\Support;
 /** Read-model semantics only; never a write receipt or a posting decision. */
 final class P23ScanSessionPolicy
 {
-    public const CONTRACT = 'mini-app-p23-read-v2';
+    public const CONTRACT = 'mini-app-p23-read-v3';
 
     public static function counts(?array $statuses): array
     {
         if ($statuses === null) {
             return ['total' => null, 'accepted' => null, 'duplicate' => null, 'other' => null,
                 'explicitRejected' => null, 'rejected' => null, 'statusTotals' => null,
-                'countStatus' => 'SOURCE_UNAVAILABLE', ...self::unknownQuantity()];
+                'countStatus' => 'SOURCE_UNAVAILABLE',
+                'statusMapping' => ['RESOLVED' => 'RESOLVED_NOT_ACCEPTED', 'REJECTED' => 'EXPLICIT_REJECTED_NOT_TOTAL_REJECTED',
+                    'OTHER' => 'OTHER_NOT_REJECTED'], ...self::unknownQuantity()];
         }
         $base = P08HistoryPolicy::scanCounts($statuses);
 
@@ -20,6 +22,8 @@ final class P23ScanSessionPolicy
         // rejection mapping has NOT been approved. Do not equate OTHER to it.
         return $base + ['explicitRejected' => (int) ($statuses['REJECTED'] ?? 0),
             'rejected' => null, 'countStatus' => 'AVAILABLE_RETAINED_EVENTS',
+            'statusMapping' => ['RESOLVED' => 'RESOLVED_NOT_ACCEPTED', 'REJECTED' => 'EXPLICIT_REJECTED_NOT_TOTAL_REJECTED',
+                'OTHER' => 'OTHER_NOT_REJECTED'],
             ...self::unknownQuantity()];
     }
 
@@ -27,7 +31,7 @@ final class P23ScanSessionPolicy
     {
         return ['quantity' => null, 'quantityStatus' => 'NOT_RECORDED_IN_SCAN_EVIDENCE',
             'issuedQuantity' => null, 'issuedQuantityStatus' => 'NO_AUTHORITATIVE_BATCH_POSTING_QUANTITY',
-            'rejectionMappingStatus' => 'PENDING_APPROVED_STATUS_MAP',
+            'rejectionMappingStatus' => 'RESOLVED_NOT_ACCEPTED_OTHER_NOT_REJECTED',
             'isConfirmationReceipt' => false];
     }
 }

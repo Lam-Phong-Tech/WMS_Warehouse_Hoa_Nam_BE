@@ -1,0 +1,41 @@
+{
+  "contract": "mini-app-p23-read-v3",
+  "status": "IMPLEMENTED_SOURCE_PENDING_RELEASE_AND_DEV_SMOKE",
+  "endpoint": "GET /api/v1/mini-app/scan-sessions",
+  "permission": {
+    "middleware": ["auth:api", "permission:history.read", "permission:inventory.view"],
+    "runtime_guard": "P08HistoryController::scope requires active actor, stable auth session, confirmed warehouse context, warehouse ACL and tenant/org match",
+    "direct_id_bypass": false
+  },
+  "sources": {
+    "batch_adapters": [
+      {"batch_table":"scan_batch","event_table":"scan_event","batch_columns":["scan_batch_id","warehouse_id","source_type","source_id","created_by","created_at"],"event_columns":["scan_event_id","scan_batch_id","raw_code","physical_code_id","resolved_object_type","resolved_object_id","result_status","message","created_at"]},
+      {"batch_table":"scan_batches","event_table":"scan_record_events","batch_columns":["scan_batch_id","warehouse_id","source_type","source_id","created_by","created_at"],"event_columns":["scan_event_id","scan_batch_id","raw_code","physical_code_id","resolved_object_type","resolved_object_id","result_status","message","created_at"]}
+    ],
+    "precedence": "Canonical scan_events adapter rank 0 wins duplicate event IDs over scan_record_events rank 1",
+    "scope_before_count": true,
+    "current_lookup_fallback": false
+  },
+  "projection": {
+    "session": {"sessionId":"batch.scan_batch_id","start":"batch.started_at when persisted, otherwise null","end":"batch.ended_at when persisted, otherwise null","status":"batch.status when persisted, otherwise null","createdAt":"batch.created_at only; never substituted for start/end"},
+    "actor": {"userId":"batch.created_by, or event.actor_id only when that event column is persisted","displayName":"null unless a historical display-name snapshot column is persisted","displayNameStatus":"NOT_PERSISTED_AS_HISTORY_SNAPSHOT when absent"},
+    "latestEvent": {
+      "selection":"All persisted events for the selected session before metricsAsOf, ordered created_at DESC then event ID DESC; not the last row of the current page",
+      "rawCode":"event.raw_code",
+      "reason":"event.reason when persisted, otherwise event.message when persisted, otherwise null",
+      "serial":"event.serial_number only when persisted; no item_instances lookup",
+      "sku":"event.sku_code only when persisted; no sku lookup",
+      "issuedQuantity":"event.issued_quantity only when persisted; otherwise null",
+      "eventType":"event.event_type only when persisted; otherwise null",
+      "status":"event.result_status",
+      "businessLink":"batch.source_type/source_id persisted reference only; URL remains null until approved target mapping"
+    },
+    "quantity":"issuedQuantity is null unless an authoritative persisted event field exists; scan count is not posting quantity"
+  },
+  "partial_source": {"total":null,"availableTotal":"readable persisted batch source only","coverage":"PARTIAL_SOURCE","latestEventStatus":"PARTIAL_SOURCE","rules":["Do not convert unavailable source to empty","Do not use current item/SKU lookup to repair history"]},
+  "status_mapping": {"ACCEPTED":"accepted only","RESOLVED":"RESOLVED_NOT_ACCEPTED; never promoted to ACCEPTED","REJECTED":"explicitRejected only; rejected aggregate remains null","OTHER":"other; never included in rejected total"},
+  "counts": {"source":"full persisted event sources grouped by session before page slicing","availableCounts":"readable event-source portion only","issuedQuantity":null,"rejected":null,"isConfirmationReceipt":false},
+  "production_activation": false,
+  "migration_required": false,
+  "seed_required": false
+}

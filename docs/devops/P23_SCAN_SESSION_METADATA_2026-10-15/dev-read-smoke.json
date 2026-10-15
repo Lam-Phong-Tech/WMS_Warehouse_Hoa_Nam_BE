@@ -1,0 +1,16 @@
+{
+  "tested_at": "2026-10-15T08:48:05+07:00",
+  "environment": "DEV/TEST",
+  "http": 200,
+  "request_id": "35b5a59d-32a5-4458-965b-3a69547aa0c9",
+  "contract": "mini-app-p23-read-v2",
+  "total": 6198,
+  "availableTotal": 6198,
+  "coverage": "SUPPORTED_PERSISTED_BATCHES",
+  "returned_rows": 1,
+  "candidate_v3_deployed": false,
+  "mutation_performed": false,
+  "migration_run": false,
+  "seed_run": false,
+  "production_touched": false
+}

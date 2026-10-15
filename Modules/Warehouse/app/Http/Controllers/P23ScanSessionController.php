@@ -89,13 +89,16 @@ final class P23ScanSessionController extends Controller
             $rows = (clone $q)->whereIn('s.session_id', $ids)->get()->keyBy('session_id');
             $asOf = DB::getDriverName() === 'pgsql' ? now()->utc()->format('Y-m-d\TH:i:s.uP') : now()->setTimezone($name)->format('Y-m-d H:i:s.u');
             $counts = $this->model->counts($scope, $ids, $asOf, $sources);
-            $data = array_map(fn (string $id): array => $this->model->serialize($rows[$id]) + ['counts' => $counts[$id]], $ids);
-            $batchComplete = ! in_array('UNAVAILABLE', array_column($sources, 'status'), true);
+            $latest = $this->model->latestEvents($scope, $ids, $asOf, $sources);
+            $data = array_map(fn (string $id): array => $this->model->serializeWithMetadata($rows[$id], $latest[$id] ?? []) + ['counts' => $counts[$id]], $ids);
+            $batchComplete = ! in_array('UNAVAILABLE', array_column($sources, 'status'), true)
+                && ! in_array('UNAVAILABLE', array_column($sources, 'eventStatus'), true);
             $page = array_replace($page, ['availableTotal' => $page['total'], 'total' => $batchComplete ? $page['total'] : null]);
+
             return response()->json(['success' => true, 'data' => $data, 'meta' => $page + [
                 'contract' => P23ScanSessionPolicy::CONTRACT, 'countUnit' => 'SCAN_SESSION',
                 'warehouseId' => $scope['warehouse_id'], 'batchSources' => $sources,
-                'coverage' => in_array('UNAVAILABLE', array_column($sources, 'status'), true) ? 'PARTIAL_SOURCE' : 'SUPPORTED_PERSISTED_BATCHES',
+                'coverage' => $batchComplete ? 'SUPPORTED_PERSISTED_BATCHES' : 'PARTIAL_SOURCE',
                 'scopePolicy' => 'PERSISTED_BATCH_WAREHOUSE_BEFORE_DEDUP_FILTER_TOTAL',
                 'tenantIsolation' => $scope['dimensions'] === [] ? 'SINGLE_TENANT_DATABASE_REQUIRED' : 'TRUSTED_ACTOR_WAREHOUSE_AND_SOURCE_COLUMNS',
                 'searchFields' => ['scan_batch_id', 'batch_no', 'source_type'],

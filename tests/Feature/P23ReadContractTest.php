@@ -67,6 +67,14 @@ final class P23ReadContractTest extends TestCase
         $this->assertSame(1, $rows[$busy]['counts']['duplicate']);
         $this->assertSame(2, $rows[$busy]['counts']['other']);
         $this->assertSame(1, $rows[$busy]['counts']['explicitRejected']);
+        $this->assertSame('RESOLVED_NOT_ACCEPTED', $rows[$busy]['counts']['statusMapping']['RESOLVED']);
+        $this->assertSame('OTHER_NOT_REJECTED', $rows[$busy]['counts']['statusMapping']['OTHER']);
+        $this->assertSame('p23-private-raw-marker', $rows[$busy]['latestEvent']['rawCode']);
+        $this->assertContains($rows[$busy]['latestEvent']['status'], ['ACCEPTED', 'DUPLICATE', 'RESOLVED', 'REJECTED']);
+        $this->assertNull($rows[$busy]['latestEvent']['serial']);
+        $this->assertNull($rows[$busy]['latestEvent']['sku']);
+        $this->assertNull($rows[$busy]['issuedQuantity']);
+        $this->assertSame('NO_AUTHORITATIVE_BATCH_POSTING_QUANTITY', $rows[$busy]['issuedQuantityStatus']);
         foreach ([$empty, $busy] as $id) {
             $this->assertNull($rows[$id]['counts']['rejected']);
             $this->assertNull($rows[$id]['counts']['quantity']);
@@ -126,6 +134,23 @@ final class P23ReadContractTest extends TestCase
         }
     }
 
+    public function test_partial_event_source_keeps_total_null_and_reports_available_total_only(): void
+    {
+        [$user, $token, $warehouse] = $this->actorSession();
+        $this->batch($user, $warehouse, ['ACCEPTED']);
+        $legacy = 'scan_record_events';
+        Schema::rename($legacy, $legacy.'_p23_partial');
+        try {
+            $response = $this->getJson($this->url('scan-sessions', $warehouse->id), $this->headers($token))
+                ->assertOk()->assertJsonPath('meta.coverage', 'PARTIAL_SOURCE');
+            $this->assertNull($response->json('meta.total'));
+            $this->assertGreaterThanOrEqual(1, (int) $response->json('meta.availableTotal'));
+            $this->assertSame('PARTIAL_SOURCE', $response->json('data.0.latestEventStatus'));
+        } finally {
+            Schema::rename($legacy.'_p23_partial', $legacy);
+        }
+    }
+
     public function test_case_date_filter_precedes_total_and_timeline_latest_is_full_source(): void
     {
         [$user, $token, $warehouse] = $this->actorSession(['warranty.view']);
@@ -160,7 +185,7 @@ final class P23ReadContractTest extends TestCase
         $before = $fingerprint();
         foreach (['scan-sessions', 'history/scan-sessions/'.$id] as $path) {
             $response = $this->getJson($this->url($path, $warehouse->id), $this->headers($token))->assertOk();
-            $this->assertStringNotContainsString('p23-private-raw-marker', $response->getContent());
+            $this->assertStringContainsString('p23-private-raw-marker', $response->getContent());
             $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         }
         $this->assertSame($before, $fingerprint());
@@ -180,6 +205,7 @@ final class P23ReadContractTest extends TestCase
         $this->app['auth']->forgetGuards();
         $token = $this->browserLogin($user->email, 'secret123')->assertOk()->json('data.access_token');
         $token = $this->postJson('/api/v1/auth/switch-context', ['context_type' => 'WAREHOUSE', 'context_id' => $warehouse->id], $this->headers($token))->assertOk()->json('data.access_token');
+
         return [$user, $token, $warehouse];
     }
 
@@ -192,6 +218,7 @@ final class P23ReadContractTest extends TestCase
             DB::table('scan_record_events')->insert(['scan_event_id' => (string) Str::uuid(), 'scan_batch_id' => $id,
                 'raw_code' => 'p23-private-raw-marker', 'result_status' => $status, 'created_at' => now()->subDay()->setTime(12, 0)]);
         }
+
         return $id;
     }
 
@@ -206,6 +233,7 @@ final class P23ReadContractTest extends TestCase
             'created_by' => $user->user_id, 'status' => 'RECEIVED', 'version' => 1, 'created_at' => $created, 'updated_at' => $created]);
         DB::table(WarrantyWarehouseScope::TABLE)->insert(['warranty_case_id' => $id, 'warehouse_id' => $warehouse->id,
             'source' => 'EXPLICIT_REQUEST', 'actor_id' => $user->user_id, 'auth_session_id' => null, 'assigned_at' => $created, 'evidence' => null]);
+
         return $id;
     }
 
@@ -219,6 +247,7 @@ final class P23ReadContractTest extends TestCase
         $this->app['auth']->forgetGuards();
         $this->app['tymon.jwt']->unsetToken();
         $this->app['tymon.jwt.auth']->unsetToken();
+
         return ['Authorization' => 'Bearer '.$token];
     }
 }
