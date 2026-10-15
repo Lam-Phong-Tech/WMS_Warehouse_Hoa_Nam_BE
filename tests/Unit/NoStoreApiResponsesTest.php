@@ -26,6 +26,23 @@ class NoStoreApiResponsesTest extends TestCase
         $this->assertSame('0', $response->headers->get('Expires'));
     }
 
+    public function test_api_response_merges_authenticated_vary_dimensions(): void
+    {
+        $request = Request::create('/api/v1/mini-app/documents', 'GET', server: [
+            'HTTP_AUTHORIZATION' => 'Bearer test-token',
+        ]);
+        $middleware = new NoStoreApiResponses;
+
+        $response = $middleware->handle(
+            $request,
+            static fn () => new Response('ok', 200, ['Vary' => 'Origin']),
+        );
+
+        $vary = array_map('strtolower', array_map('trim', explode(',', (string) $response->headers->get('Vary'))));
+        $this->assertContains('authorization', $vary);
+        $this->assertContains('origin', $vary);
+    }
+
     public function test_non_api_response_keeps_existing_cache_policy(): void
     {
         $request = Request::create('/docs', 'GET');

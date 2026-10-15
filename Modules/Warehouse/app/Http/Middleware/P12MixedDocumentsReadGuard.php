@@ -29,7 +29,7 @@ final class P12MixedDocumentsReadGuard
         }
         $response->headers->set('Cache-Control', 'private, no-store');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('Vary', 'Authorization');
+        $response->headers->set('Vary', 'Authorization, Origin');
 
         return $response;
     }

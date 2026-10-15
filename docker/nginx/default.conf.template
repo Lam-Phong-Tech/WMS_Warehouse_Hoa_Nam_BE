@@ -219,7 +219,7 @@ server {
         add_header Access-Control-Allow-Methods     $wms_gateway_cors_methods always;
         add_header Access-Control-Allow-Headers     $wms_gateway_cors_headers always;
         add_header Access-Control-Expose-Headers    $wms_gateway_cors_expose always;
-        add_header Vary Origin always;
+        add_header Vary "Authorization, Origin" always;
         add_header Cache-Control "no-store" always;
         add_header X-Content-Type-Options nosniff always;
         add_header X-Request-ID $request_id always;
@@ -241,7 +241,7 @@ server {
         add_header Access-Control-Allow-Methods     $wms_gateway_cors_methods always;
         add_header Access-Control-Allow-Headers     $wms_gateway_cors_headers always;
         add_header Access-Control-Expose-Headers    $wms_gateway_cors_expose always;
-        add_header Vary Origin always;
+        add_header Vary "Authorization, Origin" always;
         add_header Cache-Control "no-store" always;
         add_header X-Content-Type-Options nosniff always;
         add_header X-Request-ID $request_id always;

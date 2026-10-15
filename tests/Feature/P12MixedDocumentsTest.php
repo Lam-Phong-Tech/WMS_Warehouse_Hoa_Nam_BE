@@ -69,6 +69,25 @@ final class P12MixedDocumentsTest extends TestCase
         $this->assertStringContainsString("env('P12_MIXED_DOCUMENTS_ENABLED', false)", file_get_contents(config_path('p12_mixed_documents.php')));
     }
 
+    public function test_authenticated_v3_read_exposes_required_cache_dimensions(): void
+    {
+        config(['app.key' => 'base64:'.base64_encode(str_repeat('p12-header-test-key', 2))]);
+        [, $token, $warehouse] = $this->actor();
+        $response = $this->read($token, $warehouse)->assertOk()
+            ->assertJsonPath('meta.contract', 'p12-mixed-documents-v3')
+            ->assertJsonPath('meta.cursor_version', 3)
+            ->assertJsonPath('meta.timestamp_contract', 'document-timestamps-v1');
+
+        $vary = array_map('strtolower', array_map('trim', explode(',', (string) $response->headers->get('Vary'))));
+        $this->assertContains('authorization', $vary);
+        $this->assertContains('origin', $vary);
+        $cacheControl = array_map('strtolower', array_map('trim', explode(',', (string) $response->headers->get('Cache-Control'))));
+        $this->assertContains('private', $cacheControl);
+        $this->assertContains('no-store', $cacheControl);
+        $this->assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+        $this->assertNotEmpty($response->headers->get('X-Request-ID'));
+    }
+
     public function test_all_and_every_source_traverse_more_than_two_pages_without_missing_or_duplicate_keys(): void
     {
         [, $token, $warehouse] = $this->actor();

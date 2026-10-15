@@ -1,5 +1,7 @@
 {
   "contract": "p12-mixed-documents-v2",
+  "status": "SUPERSEDED_BY_P12_MIXED_DOCUMENTS_V3",
+  "superseded_by": "docs/contracts/p12-mixed-documents-v3.json",
   "implementation_status": "SPEC_ALIGNED_SOURCE_IMPLEMENTED",
   "approval_status": "PENDING_BA_LABEL_AND_RELEASE_ACCEPTANCE",
   "base_commit": "01a52d8441b453c01511ee4c60e14503cd6bf948",

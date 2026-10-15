@@ -1,0 +1,70 @@
+{
+  "contract": "p12-mixed-documents-v3",
+  "status": "OFFICIAL_SOURCE_CONTRACT_PENDING_PROXY_ACCEPTANCE",
+  "supersedes": [
+    "docs/contracts/p12-mixed-documents-v2.json",
+    "docs/contracts/p12-mixed-documents-openapi.json"
+  ],
+  "route": {
+    "method": "GET",
+    "path": "/api/v1/mini-app/documents",
+    "proxy_path": "/wms-api/api/v1/mini-app/documents",
+    "write_operations": []
+  },
+  "metadata": {
+    "contract": "p12-mixed-documents-v3",
+    "cursor_version": 3,
+    "timestamp_contract": "document-timestamps-v1",
+    "warehouse_context": ["status=READY", "source=CONFIRMED_SERVER_SESSION"],
+    "source": ["ALL", "INBOUND", "OUTBOUND", "WARRANTY"],
+    "required": [
+      "total", "per_page", "returned_count", "hasMore", "has_more",
+      "nextCursor", "next_cursor", "pagination_mode", "cursor_ttl_seconds",
+      "cursor_expires_at", "upper_bound_created_at", "source_facets",
+      "allowed_sources", "source_failure_policy", "cache_policy",
+      "filter_options", "status_filter_keys"
+    ],
+    "pagination_mode": "KEYSET",
+    "source_failure_policy": "FAIL_CLOSED_NO_PARTIAL_DATA_OR_TOTAL",
+    "cache_policy": "NO_INTERNAL_RESULT_CACHE",
+    "filter_options": {
+      "display_mapping_approval": "APPROVED"
+    },
+    "warranty_customer_search": "NOT_SUPPORTED",
+    "write_operations": null
+  },
+  "row": {
+    "required": [
+      "id", "row_key", "source", "resource_type", "document_no",
+      "warehouse_id", "created_at", "timestamp_source", "time_status",
+      "status", "canonical_status", "source_status", "status_key",
+      "mini_app_status", "readiness", "display_status", "p12", "read_target"
+    ],
+    "identity": "row_key=source:id; source-qualified canonical owner UUID is the only deduplication key",
+    "timestamp": "RFC3339 UTC Z using document-timestamps-v1; null remains null",
+    "status": "canonical_status and mini_app_status remain separate; FE must not infer a shared approval state"
+  },
+  "headers": {
+    "required": {
+      "Cache-Control": "private, no-store",
+      "Content-Type": "application/json",
+      "X-Content-Type-Options": "nosniff",
+      "Vary": "Authorization, Origin",
+      "X-Request-ID": "UUID"
+    },
+    "proxy_rule": "Preserve both Authorization and Origin tokens in Vary; do not replace the value with Origin only"
+  },
+  "acceptance": {
+    "authenticated_sources": ["ALL", "INBOUND", "OUTBOUND", "WARRANTY"],
+    "cursor_cases": ["start", "next_cursor", "expired"],
+    "authorization_cases": ["denied", "different_warehouse"],
+    "source_error": "503 DOCUMENTS_SOURCE_UNAVAILABLE with no partial rows or total",
+    "mutation": false,
+    "production": false
+  },
+  "canonical_documents": {
+    "openapi": "docs/contracts/p12-mixed-documents-openapi.json",
+    "integration": "contracts/p12-p13-p16/all-documents-v1.json",
+    "timestamp": "contracts/timestamps/document-timestamps-v1.json"
+  }
+}

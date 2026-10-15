@@ -31,8 +31,29 @@ class NoStoreApiResponses
             $response->headers->set('Cache-Control', self::CACHE_CONTROL);
             $response->headers->set('Pragma', 'no-cache');
             $response->headers->set('Expires', '0');
+
+            // Authenticated JSON reads must remain partitioned by both the
+            // bearer credential and the browser origin. Merge instead of
+            // replacing a Vary value set by a route-specific middleware.
+            self::mergeVary($response, ['Authorization', 'Origin']);
         }
 
         return $response;
+    }
+
+    /** @param list<string> $values */
+    private static function mergeVary(Response $response, array $values): void
+    {
+        $tokens = [];
+        $current = (string) $response->headers->get('Vary', '');
+        foreach ([$current, ...$values] as $value) {
+            foreach (preg_split('/\s*,\s*/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $token) {
+                $key = strtolower($token);
+                if (! isset($tokens[$key])) {
+                    $tokens[$key] = $token;
+                }
+            }
+        }
+        $response->headers->set('Vary', implode(', ', array_values($tokens)));
     }
 }
