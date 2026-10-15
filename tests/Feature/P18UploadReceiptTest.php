@@ -231,7 +231,7 @@ class P18UploadReceiptTest extends TestCase
         $contract = json_decode(file_get_contents(base_path('contracts/p18/owner-attachments-v1.json')), true, 512, JSON_THROW_ON_ERROR);
         $this->assertFalse($contract['production_activation']);
         $this->assertFalse($contract['cancel_supported']);
-        $this->assertSame('PENDING_BA', $contract['handover']['structured_fields']);
+        $this->assertSame('P09_APPROVED_OWNER_HANDOVER_V1', $contract['handover']['structured_fields']);
         $this->assertSame('NOT_TRACKED', $contract['location']['breakdown']);
     }
 

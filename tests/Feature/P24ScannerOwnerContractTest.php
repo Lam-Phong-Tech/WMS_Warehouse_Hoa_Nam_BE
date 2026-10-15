@@ -73,6 +73,33 @@ class P24ScannerOwnerContractTest extends TestCase
         $this->check($f, $key, 'POST')->assertOk()->assertJsonPath('data.outcome', 'UNKNOWN')->assertJsonPath('data.receipt', null);
     }
 
+    public function test_p19_native_receipt_replays_under_tracked_p14_shift(): void
+    {
+        config(['p14.shift_enabled' => true, 'p14.shift_drain_enabled' => false]);
+        $f = $this->fixture();
+        $shift = $this->postJson('/api/v1/mini-app/work-shifts/start', ['warehouse_id' => $f['warehouse_id']],
+            $this->plainHeaders($f['token']) + ['Idempotency-Key' => (string) Str::uuid()])
+            ->assertCreated()->json('data');
+        $key = (string) Str::uuid();
+        $trace = (string) Str::uuid();
+        $headers = $this->headers($f) + [
+            'Idempotency-Key' => $key,
+            'X-Work-Shift-ID' => $shift['shift_id'],
+            'X-Request-ID' => $trace,
+        ];
+        $first = $this->postJson(self::BASE, $this->createBody($f), $headers)
+            ->assertCreated()->assertJsonPath('data.receipt.outcome', 'SUCCEEDED');
+        $this->postJson(self::BASE, $this->createBody($f), $headers)
+            ->assertCreated()->assertHeader('Idempotent-Replay', 'true')
+            ->assertJsonPath('data.receipt', $first->json('data.receipt'));
+        $this->check($f, $key, 'CREATE')->assertOk()->assertJsonPath('data.outcome', 'SUCCEEDED');
+        $this->assertSame(1, DB::table('p14_shift_operations')->where('shift_id', $shift['shift_id'])
+            ->where('operation', 'COMPONENT_ISSUE')->count());
+        $this->getJson('/api/v1/mini-app/work-shifts/'.$shift['shift_id'].'/close-check?warehouse_id='.$f['warehouse_id'],
+            $this->plainHeaders($f['token']))->assertOk()->assertJsonPath('data.can_end', true)
+            ->assertJsonPath('data.blockers', []);
+    }
+
     public function test_box_scan_replay_does_not_add_quantity_or_attempts_twice(): void
     {
         $f = $this->fixture();

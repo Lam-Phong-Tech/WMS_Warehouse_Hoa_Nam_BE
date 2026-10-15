@@ -7,6 +7,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\MiniAppDraftService;
+use Modules\Warehouse\Services\P19ComponentCommand;
+use Modules\Warehouse\Support\P09WarrantyPolicy;
+use Modules\Warehouse\Support\P09WarrantyRequests;
+use Modules\Warehouse\Support\P09WarrantyScope;
+use Modules\Warehouse\Support\P19CommandScope;
 
 /** Verify existing native receipts; never save, replay or synthesize an owner result. */
 final class P14ShiftOwnerEvidence
@@ -111,6 +116,84 @@ final class P14ShiftOwnerEvidence
             'item_id' => strtolower($m[1]), 'physical_code_id' => $tag,
             'receipt_sha256' => hash('sha256', json_encode($saved, JSON_THROW_ON_ERROR)),
             'business_id' => null, 'journal_kind' => 'OWNER_REQUEST',
+        ];
+    }
+
+    public static function p09(Request $request, array $body, object $shift): ?array
+    {
+        if (! in_array($request->route()?->uri(), [
+            'api/v1/mini-app/warranty-cases', 'api/v1/mini-app/warranty-cases/{id}',
+        ], true) || ! in_array($request->method(), ['PATCH', 'POST'], true)) {
+            return null;
+        }
+        $receipt = data_get($body, 'data.receipt');
+        $requestId = strtolower((string) $request->header('X-Request-ID'));
+        if (! is_array($receipt) || ! Str::isUuid($requestId) || ($receipt['state'] ?? null) !== 'SUCCEEDED') {
+            self::invalid('P09_RECEIPT_UNCONFIRMED');
+        }
+        $scope = P09WarrantyScope::resolve($request, true);
+        if ($scope['actor_id'] !== $shift->actor_id || $scope['auth_session_id'] !== $shift->auth_session_id
+            || $scope['warehouse_id'] !== $shift->warehouse_id) {
+            self::invalid('P09_SCOPE_MISMATCH');
+        }
+        $scopeHash = P09WarrantyPolicy::digest(P09WarrantyScope::key($scope), (string) config('app.key'));
+        $native = DB::table(P09WarrantyRequests::TABLE)->where('scope_hash', $scopeHash)
+            ->where('request_id', $requestId)->where('state', 'SUCCEEDED')->first();
+        if ($native === null || ($receipt['request_id'] ?? null) !== $native->request_id
+            || ($receipt['warranty_case_id'] ?? null) !== $native->warranty_case_id
+            || ($receipt['version'] ?? null) !== (int) $native->committed_version
+            || ($receipt['status'] ?? null) !== $native->committed_status) {
+            self::invalid('P09_NATIVE_RECEIPT_MISMATCH');
+        }
+        if (! DB::table('warranty_case_warehouse_owners')->where('warranty_case_id', $native->warranty_case_id)
+            ->where('warehouse_id', $shift->warehouse_id)->exists()) {
+            self::invalid('P09_OWNER_MISMATCH');
+        }
+
+        return [
+            'protocol' => 'mini-app-p09-v1', 'command' => $native->operation,
+            'native_request_id' => $native->request_id, 'version' => (int) $native->committed_version,
+            'status' => $native->committed_status,
+            'receipt_sha256' => hash('sha256', json_encode($receipt, JSON_THROW_ON_ERROR)),
+            'business_id' => $native->warranty_case_id, 'journal_kind' => 'WARRANTY',
+        ];
+    }
+
+    public static function p19(Request $request, array $body, object $shift): ?array
+    {
+        $operation = P19ComponentCommand::ROUTES[$request->route()?->uri() ?? ''] ?? null;
+        if ($operation === null || $request->header(P19ComponentCommand::HEADER) !== P19ComponentCommand::CONTRACT) {
+            return null;
+        }
+        $key = strtolower(trim((string) $request->header('Idempotency-Key')));
+        $receipt = data_get($body, 'data.receipt');
+        if (! Str::isUuid($key) || ! is_array($receipt) || ($receipt['outcome'] ?? null) !== 'SUCCEEDED') {
+            self::invalid('P19_RECEIPT_UNCONFIRMED');
+        }
+        $scope = P19CommandScope::resolve($request);
+        if ($scope['actor_id'] !== $shift->actor_id || $scope['auth_session_id'] !== $shift->auth_session_id
+            || $scope['warehouse_id'] !== $shift->warehouse_id) {
+            self::invalid('P19_SCOPE_MISMATCH');
+        }
+        $native = DB::table(P19ComponentCommand::TABLE)->where('request_id', $key)
+            ->where('actor_id', $shift->actor_id)->where('auth_session_id', $shift->auth_session_id)
+            ->where('warehouse_id', $shift->warehouse_id)->where('scope_hash', P19CommandScope::digest($scope))
+            ->where('operation', $operation)->where('outcome', 'SUCCEEDED')->first();
+        $result = $native?->result_json === null ? null : json_decode($native->result_json, true, 512, JSON_THROW_ON_ERROR);
+        $business = $result['business_document_id'] ?? null;
+        if ($native === null || ($receipt['request_id'] ?? null) !== $key
+            || ($receipt['operation'] ?? null) !== $operation || ($receipt['result'] ?? null) !== $result
+            || ! is_string($business) || ! Str::isUuid($business)
+            || ! DB::table('component_issue_documents')->where('id', $business)
+                ->where('warehouse_id', $shift->warehouse_id)->exists()) {
+            self::invalid('P19_NATIVE_RECEIPT_MISMATCH');
+        }
+
+        return [
+            'protocol' => P19ComponentCommand::CONTRACT, 'command' => $operation,
+            'native_request_id' => $key, 'document_version' => $result['document_version'] ?? null,
+            'receipt_sha256' => hash('sha256', json_encode($receipt, JSON_THROW_ON_ERROR)),
+            'business_id' => $business, 'journal_kind' => 'COMPONENT_ISSUE',
         ];
     }
 

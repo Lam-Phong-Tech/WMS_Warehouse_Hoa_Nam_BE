@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Auth\Support\WarehouseContext;
 use Modules\Warehouse\Services\AttachmentUploadReceipts;
+use Modules\Warehouse\Services\P19ComponentCommand;
 use Symfony\Component\HttpFoundation\Response;
 
 /** OFF by default. An explicitly identified shift fences Mini App owner commands against END. */
@@ -24,7 +25,8 @@ final class P14ShiftOwnerFence
     public function handle(Request $request, Closure $next): Response
     {
         if (! $request->is('api/v1/mini-app/*') || $request->isMethodSafe()
-            || $request->is('api/v1/mini-app/work-shifts/*') || ! P14ShiftLifecycle::fenceRequired($request)) {
+            || $request->is('api/v1/mini-app/work-shifts/*') || $this->checkOnly($request)
+            || ! P14ShiftLifecycle::fenceRequired($request)) {
             return $next($request);
         }
 
@@ -56,6 +58,14 @@ final class P14ShiftOwnerFence
                 && $request->hasHeader('X-Draft-Scan-Session-ID')
                 && $request->hasHeader('X-Draft-Version')
                 && $request->hasHeader('Idempotency-Key');
+            $p09Owner = in_array($request->route()?->uri(), [
+                'api/v1/mini-app/warranty-cases', 'api/v1/mini-app/warranty-cases/{id}',
+            ], true) && in_array($request->method(), ['PATCH', 'POST'], true)
+                && $request->hasHeader('Idempotency-Key');
+            $p19Owner = $request->header(P19ComponentCommand::HEADER) === P19ComponentCommand::CONTRACT
+                && isset(P19ComponentCommand::ROUTES[$request->route()?->uri() ?? ''])
+                && $request->hasHeader('Idempotency-Key');
+            $nativeOwnerReplay = $p18Upload || $p03Handoff || $p09Owner || $p19Owner;
             $nfcHash = $request->isMethod('PATCH') && $request->is('api/v1/mini-app/items/*/nfc')
                 ? IdempotencyStore::requestHash($request) : null;
             $existing = DB::table('p14_shift_operations')->where('shift_id', $id)->where('request_id', $requestId)->first();
@@ -63,7 +73,7 @@ final class P14ShiftOwnerFence
                 // P18 owns the durable upload receipt. Let it replay a terminal
                 // owner response instead of treating the same upload intent as
                 // a duplicate shift command.
-                if (($p18Upload || $p03Handoff) && hash_equals($existing->request_hash, $hash)) {
+                if ($nativeOwnerReplay && hash_equals($existing->request_hash, $hash)) {
                     return $next($request);
                 }
                 ApiError::abort(409, hash_equals($existing->request_hash, $hash) ? 'OWNER_RECONCILE_REQUIRED' : 'SHIFT_REQUEST_CONFLICT',
@@ -73,7 +83,7 @@ final class P14ShiftOwnerFence
                 ->join('mini_app_work_shifts as s', 's.shift_id', '=', 'o.shift_id')
                 ->where('s.actor_id', $actor->user_id)->where('s.auth_session_id', $shift->auth_session_id)
                 ->where('s.warehouse_id', $shift->warehouse_id)->where('o.request_hash', $hash)->exists()) {
-                if ($p18Upload || $p03Handoff) {
+                if ($nativeOwnerReplay) {
                     return $next($request);
                 }
                 ApiError::abort(409, 'OWNER_RECONCILE_REQUIRED', 'Đổi mã trace hoặc ca không tạo ý định owner mới; đối chiếu yêu cầu gốc.');
@@ -99,7 +109,9 @@ final class P14ShiftOwnerFence
                 $kind = 'PENDING_OWNER_RESULT';
             } else {
                 $proof = P14ShiftOwnerEvidence::p03($request, $body, $shift)
-                    ?? P14ShiftOwnerEvidence::nfc($request, $body, $shift, $nfcHash);
+                    ?? P14ShiftOwnerEvidence::nfc($request, $body, $shift, $nfcHash)
+                    ?? P14ShiftOwnerEvidence::p09($request, $body, $shift)
+                    ?? P14ShiftOwnerEvidence::p19($request, $body, $shift);
                 if ($proof !== null) {
                     $kind = $proof['journal_kind'];
                 }
@@ -137,6 +149,26 @@ final class P14ShiftOwnerFence
 
             return $response;
         });
+    }
+
+    /** POST transport used for pure validation/resolution; no owner command receipt exists or is needed. */
+    private function checkOnly(Request $request): bool
+    {
+        if (! $request->isMethod('POST')) {
+            return false;
+        }
+
+        return in_array($request->route()?->uri(), [
+            'api/v1/mini-app/inbound/drafts/{id}/validate-code',
+            'api/v1/mini-app/inbound/drafts/{id}/review',
+            'api/v1/mini-app/inbound/resolve-code',
+            'api/v1/mini-app/outbound/resolve-code',
+            'api/v1/mini-app/warranty/resolve-code',
+            'api/v1/mini-app/warranty-component-issues/resolve-code',
+            'api/v1/mini-app/component-issue-documents/resolve-code',
+            'api/v1/mini-app/nfc/resolve-code',
+            'api/v1/mini-app/nfc/resolve-tag',
+        ], true);
     }
 
     private function fingerprint(Request $request): string

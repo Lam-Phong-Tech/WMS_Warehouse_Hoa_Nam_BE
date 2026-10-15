@@ -174,7 +174,7 @@ final class P12MixedDocumentsTest extends TestCase
         DB::table('stock_document_lines')->insert([
             'id' => (string) Str::uuid(), 'stock_document_id' => $inbound, 'line_no' => 1,
             'product_id' => $sku->sku_id, 'qty_planned' => 1, 'qty_actual' => 0,
-            'scanned_qty' => 1,
+            'scanned_qty' => 1, 'created_at' => now(), 'updated_at' => now(),
         ]);
         DB::table('stock_documents')->where('id', $inbound)->update(['status' => 'SCANNING']);
         DB::table('stock_document_lines')->where('stock_document_id', $outbound)

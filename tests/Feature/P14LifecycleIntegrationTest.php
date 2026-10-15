@@ -256,6 +256,58 @@ class P14LifecycleIntegrationTest extends TestCase
         $this->assertSame(1, DB::table('physical_codes')->where('item_id', $item)->where('carrier_type', 'NFC')->count());
     }
 
+    public function test_p04_validation_and_review_are_check_only_and_do_not_enter_shift_journal(): void
+    {
+        $f = $this->fixture();
+        [$id, $scan] = $this->typedSave($f);
+        $beforeVersion = (int) DB::table('mini_app_work_shifts')->where('shift_id', $f['shift']['shift_id'])->value('version');
+        $beforeOperations = DB::table('p14_shift_operations')->where('shift_id', $f['shift']['shift_id'])->count();
+        $base = ['warehouse_id' => $f['warehouse_id'], 'scan_session_id' => $scan];
+
+        $this->postJson('/api/v1/mini-app/inbound/drafts/'.$id.'/review', $base,
+            $this->headers($f) + ['If-Match' => '"1"'])->assertOk()
+            ->assertJsonPath('data.stock_effect', 'NONE')->assertJsonPath('data.scan_evidence_created', false);
+        $this->postJson('/api/v1/mini-app/inbound/drafts/'.$id.'/validate-code', $base + [
+            'client_event_id' => (string) Str::uuid(),
+            'item' => ['raw_code' => 'P14-CHECK-ONLY', 'quantity' => 1, 'scan_source' => 'MANUAL', 'new_sku_type' => 'PRODUCT'],
+        ], $this->headers($f) + ['If-Match' => '"1"'])->assertOk()
+            ->assertJsonPath('data.stock_effect', 'NONE')->assertJsonPath('data.scan_evidence_created', false)
+            ->assertJsonPath('data.event_persisted', false);
+
+        $this->assertSame($beforeOperations, DB::table('p14_shift_operations')->where('shift_id', $f['shift']['shift_id'])->count());
+        $this->assertSame($beforeVersion, (int) DB::table('mini_app_work_shifts')->where('shift_id', $f['shift']['shift_id'])->value('version'));
+        $this->assertDatabaseCount('scan_record_events', 0);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_p09_owner_receipt_replays_under_shift_and_close_check_remains_supported(): void
+    {
+        $f = $this->fixture();
+        $createKey = 'p09-create-'.Str::lower(Str::random(12));
+        $createTrace = (string) Str::uuid();
+        $create = $this->postJson('/api/v1/mini-app/warranty-cases', [
+            'warehouse_id' => $f['warehouse_id'], 'customer_name' => 'P14 P09 test',
+            'customer_phone' => '0901234567', 'description' => 'P14 owner coverage',
+            'missing_code_reason' => 'Test fixture', 'manual_product_description' => 'Test fixture',
+        ], $this->ownerHeaders($f, $createTrace) + ['Idempotency-Key' => $createKey])
+            ->assertCreated()->assertJsonPath('data.receipt.state', 'SUCCEEDED');
+        $caseId = $create->json('data.warranty_case_id');
+        $updateKey = 'p09-update-'.Str::lower(Str::random(12));
+        $updateTrace = (string) Str::uuid();
+        $body = ['warehouse_id' => $f['warehouse_id'], 'note' => 'P14 verified P09 note'];
+        $headers = $this->ownerHeaders($f, $updateTrace) + ['Idempotency-Key' => $updateKey, 'If-Match' => '1'];
+        $first = $this->patchJson('/api/v1/mini-app/warranty-cases/'.$caseId, $body, $headers)
+            ->assertOk()->assertJsonPath('data.receipt.state', 'SUCCEEDED');
+        $this->patchJson('/api/v1/mini-app/warranty-cases/'.$caseId, $body, $headers)
+            ->assertOk()->assertHeader('Idempotent-Replay', 'true')
+            ->assertJsonPath('data.receipt.version', $first->json('data.receipt.version'));
+
+        $this->assertSame(2, DB::table('p14_shift_operations')->where('shift_id', $f['shift']['shift_id'])->count());
+        $this->assertSame(2, DB::table('p14_shift_operations')->where('shift_id', $f['shift']['shift_id'])->where('operation', 'WARRANTY')->count());
+        $this->getJson($this->url($f, 'close-check'), $this->headers($f))->assertOk()
+            ->assertJsonPath('data.can_end', true)->assertJsonPath('data.blockers', []);
+    }
+
     public function test_disabling_both_flags_never_unfences_a_tracked_active_family(): void
     {
         $f = $this->fixture();

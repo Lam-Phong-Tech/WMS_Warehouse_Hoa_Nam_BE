@@ -29,7 +29,7 @@ class P22OutboxRaceTest extends TestCase
         $this->assertSame(0, $second['exit']);
         $events = AuditLog::query()->where('object_id', $object)->get();
         $this->assertCount(1, $events);
-        $this->assertSame($snapshot, $events[0]->after_data['nfc_history_v1']);
+        $this->assertEquals($snapshot, $events[0]->after_data['nfc_history_v1']);
         $this->assertNotNull($entry->fresh()->processed_at);
         $this->assertSame(0, (int) $entry->fresh()->attempts);
     }

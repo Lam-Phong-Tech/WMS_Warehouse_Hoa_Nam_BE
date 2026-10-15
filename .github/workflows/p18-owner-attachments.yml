@@ -89,7 +89,7 @@ jobs:
           contract = json.load(open('contracts/p18/owner-attachments-v1.json'))
           assert contract['production_activation'] is False and contract['live_verified'] is False
           assert contract['cancel_supported'] is False
-          assert contract['handover']['structured_fields'] == 'PENDING_BA'
+          assert contract['handover']['structured_fields'] == 'P09_APPROVED_OWNER_HANDOVER_V1'
           assert contract['location']['breakdown'] == 'NOT_TRACKED'
           integration = json.load(open('contracts/p18/integration-decisions-v1.json'))
           assert integration['owner_upload_contract'] == contract['contract']

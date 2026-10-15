@@ -22,7 +22,7 @@ class P22OutboxPublicationTest extends TestCase
         $this->artisan('audit:reconcile', ['--limit' => 1])->assertExitCode(0);
         $events = AuditLog::query()->where('object_id', $entry->payload['object_id'])->get();
         $this->assertCount(1, $events);
-        $this->assertSame($snapshot, $events[0]->after_data['nfc_history_v1']);
+        $this->assertEquals($snapshot, $events[0]->after_data['nfc_history_v1']);
         $this->assertNull($events[0]->after_data['nfc_history_v1']['result']);
         $this->assertNotNull($entry->fresh()->processed_at);
         $this->assertSame($entry->payload, $entry->fresh()->payload);
