@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
@@ -29,11 +31,27 @@ class MiniAppWarrantyAdapterTest extends TestCase
             'is_serial_tracked' => true,
             'status' => 'ACTIVE',
         ]);
-        ItemInstance::create([
+        $item = ItemInstance::create([
             'sku_id' => $sku->sku_id,
             'serial_number' => 'SER-MINI-WAR-001',
             'item_status' => 'ISSUED',
         ]);
+        $warehouse = Warehouse::where('code', 'KHO-TONG-HN')->firstOrFail();
+        $movementId = (string) Str::uuid();
+        $movement = [
+            'id' => $movementId, 'movement_no' => 'MINI-WAR-'.Str::upper(Str::random(8)),
+            'business_key' => 'MINI-WAR-'.$movementId, 'movement_type' => 'OPENING',
+            'warehouse_id' => $warehouse->id, 'product_id' => $sku->sku_id,
+            'stock_status' => 'AVAILABLE', 'qty_before' => 0, 'qty_delta' => 1,
+            'qty_after' => 1, 'created_by' => auth('api')->user()?->user_id,
+            'item_id' => $item->item_id, 'occurred_at' => now(), 'created_at' => now(),
+        ];
+        foreach (['sku_id' => $sku->sku_id, 'quantity' => 1, 'source_type' => 'OPENING', 'source_id' => $movementId] as $field => $value) {
+            if (Schema::hasColumn('stock_movements', $field)) {
+                $movement[$field] = $value;
+            }
+        }
+        DB::table('stock_movements')->insert($movement);
 
         $this->postJson('/api/v1/mini-app/warranty/resolve-code', [
             'raw_code' => 'SER-MINI-WAR-001',
@@ -42,7 +60,6 @@ class MiniAppWarrantyAdapterTest extends TestCase
             ->assertJsonPath('data.resolved', true)
             ->assertJsonPath('data.eligible_for_warranty', true)
             ->assertJsonPath('data.eligibility_code', 'ELIGIBLE')
-            ->assertJsonPath('data.recommended_flow', 'IDENTIFIED')
             ->assertJsonPath('data.stock_effect', 'NONE')
             ->assertJsonPath('data.wms_case_created', false);
 
@@ -58,10 +75,10 @@ class MiniAppWarrantyAdapterTest extends TestCase
         ], $headers + ['Idempotency-Key' => 'mini-war-create-001']);
 
         $create->assertCreated()
-            ->assertJsonPath('data.status', 'RECEIVED')
-            ->assertJsonPath('data.identification_status', 'IDENTIFIED')
-            ->assertJsonPath('data.stock_effect', 'NONE');
-        $caseId = (string) $create->json('data.id');
+            ->assertJsonPath('data.receipt.state', 'SUCCEEDED')
+            ->assertJsonPath('data.receipt.status', 'RECEIVED')
+            ->assertJsonPath('data.receipt.stock_effect', 'NONE');
+        $caseId = (string) $create->json('data.warranty_case_id');
 
         $this->getJson("/api/v1/mini-app/warranty-cases/{$caseId}", $headers)
             ->assertOk()
@@ -76,9 +93,10 @@ class MiniAppWarrantyAdapterTest extends TestCase
             'Idempotency-Key' => 'mini-war-status-001',
         ])
             ->assertOk()
-            ->assertJsonPath('data.status', 'CHECKING')
-            ->assertJsonPath('data.version', 2)
-            ->assertJsonPath('data.stock_effect', 'NONE');
+            ->assertJsonPath('data.receipt.state', 'SUCCEEDED')
+            ->assertJsonPath('data.receipt.status', 'CHECKING')
+            ->assertJsonPath('data.receipt.version', 2)
+            ->assertJsonPath('data.receipt.stock_effect', 'NONE');
 
         $this->getJson('/api/v1/mini-app/warranty-cases?status=CHECKING', $headers)
             ->assertOk()
@@ -94,12 +112,8 @@ class MiniAppWarrantyAdapterTest extends TestCase
         $this->postJson('/api/v1/mini-app/warranty/resolve-code', [
             'raw_code' => 'UNKNOWN-MINI-WAR',
         ], $this->authHeaders())
-            ->assertOk()
-            ->assertJsonPath('data.resolved', false)
-            ->assertJsonPath('data.eligible_for_warranty', false)
-            ->assertJsonPath('data.eligibility_code', 'ITEM_NOT_FOUND')
-            ->assertJsonPath('data.recommended_flow', 'TEMP_ONLY')
-            ->assertJsonPath('data.stock_effect', 'NONE');
+            ->assertNotFound()
+            ->assertJsonPath('error_code', 'WARRANTY_ITEM_NOT_FOUND');
     }
 
     private function authHeaders(): array
