@@ -90,8 +90,9 @@
     "post_baseline_amendments": {
       "note": "Operation có route runtime nhưng chưa từng được contract này đếm (contract đóng băng ở 81782ec, 23/08/2026). Liệt kê từng operation theo nhóm, mỗi nhóm có commit đưa vào, lý do và chủ sở hữu — không tăng số đếm trần. Commit là commit ĐẦU TIÊN mà route có mặt ở runtime, đo bằng `php artisan route:list` chụp ở 58 commit (thứ tự topo) từ 81782ec tới e5dbe0d; với commit merge, feature_commits là commit khai route ở nhánh con. Ghi bù ngày 10/09/2026; chưa có sign-off nào.",
       "baseline_frozen_at_commit": "81782ec",
-      "measured_at_commit": "e5dbe0d",
-      "recorded_at": "2026-09-10",
+      "measured_at_commit": "10ffe3c2",
+      "recorded_at": "2026-10-17",
+      "source_amendment_note": "AMD-API-029..042 record exact existing source registrations measured on 10ffe3c2. introduced_in identifies the source registration, not a reconstructed historical runtime or deployment approval. All release/BA/QA gates remain separate. auth/switch-context already belongs to the frozen base and is not counted again.",
       "groups": [
         {
           "id": "AMD-API-001",
@@ -566,6 +567,204 @@
           "operations": [
             "GET /api/v1/mini-app/dashboard/summary"
           ]
+        },
+        {
+          "id": "AMD-API-029",
+          "introduced_in": "a09b9839",
+          "introduced_at": "2026-10-05",
+          "title": "P01 work shift identity",
+          "rationale": "Start/current persist the actor and stable auth-session warehouse identity; source presence does not authorize END or production activation.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/mini-app/work-shifts/current",
+            "POST /api/v1/mini-app/work-shifts/start"
+          ]
+        },
+        {
+          "id": "AMD-API-030",
+          "introduced_in": "d1e2869e",
+          "introduced_at": "2026-10-07",
+          "title": "P03 scoped personal drafts and receipts",
+          "rationale": "Persist personal staging snapshots with per-operation permissions and exact actor/session/warehouse identity; reconcile does not replay an unknown write.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/mini-app/p03/context",
+            "GET /api/v1/mini-app/drafts",
+            "GET /api/v1/mini-app/drafts/{id}",
+            "GET /api/v1/mini-app/drafts/{id}/requests/{requestId}",
+            "PUT /api/v1/mini-app/drafts/{id}",
+            "POST /api/v1/mini-app/drafts/{id}/cancel"
+          ]
+        },
+        {
+          "id": "AMD-API-031",
+          "introduced_in": "af74e7f4",
+          "introduced_at": "2026-10-07",
+          "title": "P04 typed inbound owner adapter",
+          "rationale": "Typed staging reuses P03 receipts and canonical record ownership. It does not expose a new stock posting path; supplier lookup remains a permission-guarded global directory.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/mini-app/inbound/context",
+            "GET /api/v1/mini-app/inbound/types",
+            "GET /api/v1/mini-app/inbound/suppliers",
+            "GET /api/v1/mini-app/inbound/documents/{id}",
+            "PUT /api/v1/mini-app/inbound/drafts/{id}",
+            "GET /api/v1/mini-app/inbound/drafts/{id}",
+            "GET /api/v1/mini-app/inbound/drafts/{id}/scan-session",
+            "GET /api/v1/mini-app/inbound/drafts/{id}/requests/{requestId}",
+            "POST /api/v1/mini-app/inbound/drafts/{id}/validate-code",
+            "POST /api/v1/mini-app/inbound/drafts/{id}/review",
+            "POST /api/v1/mini-app/inbound/drafts/{id}/record",
+            "POST /api/v1/mini-app/inbound/drafts/{id}/cancel"
+          ]
+        },
+        {
+          "id": "AMD-API-032",
+          "introduced_in": "c8d6b88f",
+          "introduced_at": "2026-10-08",
+          "title": "P05 outbound source reads",
+          "rationale": "Read selected existing source documents under outbound rights and confirmed warehouse scope. No second outbound writer or new posting endpoint.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/mini-app/outbound/context",
+            "GET /api/v1/mini-app/outbound/sources",
+            "GET /api/v1/mini-app/outbound/sources/{id}",
+            "GET /api/v1/mini-app/outbound/documents/{id}"
+          ]
+        },
+        {
+          "id": "AMD-API-033",
+          "introduced_in": "691278fd",
+          "introduced_at": "2026-10-08",
+          "title": "P06 read-only catalog identities",
+          "rationale": "Distinct SKU and item reads, warehouse-scoped stock, gallery and timeline. Permission/context capabilities do not imply stock-write eligibility.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/mini-app/catalog/context",
+            "GET /api/v1/mini-app/catalog/skus",
+            "GET /api/v1/mini-app/catalog/skus/{id}",
+            "GET /api/v1/mini-app/catalog/skus/{id}/stock",
+            "GET /api/v1/mini-app/catalog/skus/{id}/gallery",
+            "GET /api/v1/mini-app/catalog/skus/{id}/timeline",
+            "GET /api/v1/mini-app/catalog/items",
+            "GET /api/v1/mini-app/catalog/items/{id}",
+            "GET /api/v1/mini-app/catalog/items/{id}/timeline"
+          ]
+        },
+        {
+          "id": "AMD-API-034",
+          "introduced_in": "416c59b5",
+          "introduced_at": "2026-10-08",
+          "title": "P07 NFC owner confirmation and reservation release",
+          "rationale": "Scoped tag reads and owner receipt reconciliation remain separate from audit history. Release is an existing explicit owner command, not permission to create physical test evidence.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA device/live acceptance)",
+          "operations": [
+            "GET /api/v1/mini-app/nfc-tags/{physicalCodeId}",
+            "GET /api/v1/mini-app/items/{itemId}/nfc/confirmation",
+            "POST /api/v1/mini-app/items/{itemId}/nfc/release"
+          ]
+        },
+        {
+          "id": "AMD-API-035",
+          "introduced_in": "97038afe",
+          "introduced_at": "2026-10-08",
+          "title": "P08 read-only persisted history",
+          "rationale": "Scoped record, summary, detail and session reads preserve source permission checks and partial-source semantics; no fixture fallback or history writer.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/mini-app/history/records",
+            "GET /api/v1/mini-app/history/summary",
+            "GET /api/v1/mini-app/history/records/{recordId}",
+            "GET /api/v1/mini-app/history/scan-sessions/{sessionId}"
+          ]
+        },
+        {
+          "id": "AMD-API-036",
+          "introduced_in": "41bdbaee",
+          "introduced_at": "2026-10-08",
+          "title": "P09 warranty command reconciliation",
+          "rationale": "Read the exact warranty owner command result under actor/session/warehouse identity; absence is UNKNOWN and never authorizes a replacement command.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": ["GET /api/v1/mini-app/warranty-requests/{requestId}"]
+        },
+        {
+          "id": "AMD-API-037",
+          "introduced_in": "189b92cf",
+          "introduced_at": "2026-10-08",
+          "title": "P14 gated recovery and shift closure",
+          "rationale": "Source routes remain gated. Closure requires owner tracking, server close-check, exact version/key/token and genuine local CLEAN. Recovery and END are separate activations.",
+          "owner": "BE owner + BA + QA + Security",
+          "approval": "PENDING (BA + QA live acceptance; not activation)",
+          "operations": [
+            "POST /api/v1/auth/recovery-requests",
+            "GET /api/v1/auth/recovery-requests/operations/{operationId}",
+            "GET /api/v1/mini-app/work-shifts/{shiftId}/close-check",
+            "POST /api/v1/mini-app/work-shifts/{shiftId}/end",
+            "GET /api/v1/mini-app/work-shifts/{shiftId}/requests/{requestId}",
+            "GET /api/v1/mini-app/work-shifts/{shiftId}/summary"
+          ]
+        },
+        {
+          "id": "AMD-API-038",
+          "introduced_in": "9703dc5a",
+          "introduced_at": "2026-10-09",
+          "title": "P18 owner upload receipt reads",
+          "rationale": "Read-only reconciliation for the existing upload owners; parent ACL plus actor/session/warehouse/key/file digest remain mandatory. UNKNOWN is CHECK_ONLY.",
+          "owner": "BE owner + BA + QA + Security",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/mini-app/inbound-documents/{id}/attachments/requests/{operationKey}",
+            "GET /api/v1/mini-app/outbound-documents/{id}/attachments/requests/{operationKey}",
+            "GET /api/v1/mini-app/warranty-cases/{id}/attachments/requests/{operationKey}"
+          ]
+        },
+        {
+          "id": "AMD-API-039",
+          "introduced_in": "3d70f199",
+          "introduced_at": "2026-10-11",
+          "title": "P19 gated canonical command reconciliation",
+          "rationale": "Check the original component command under the existing owner contract; no new stock writer or automatic recovery activation.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance; not activation)",
+          "operations": ["GET /api/v1/mini-app/component-issue-requests/{requestId}"]
+        },
+        {
+          "id": "AMD-API-040",
+          "introduced_in": "168a22d1",
+          "introduced_at": "2026-10-10",
+          "title": "P20 component history by warranty case",
+          "rationale": "Read existing linked component documents with warranty/component/documents permissions and persisted warehouse ownership; never manufactures history.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": ["GET /api/v1/mini-app/warranty-cases/{id}/component-issues"]
+        },
+        {
+          "id": "AMD-API-041",
+          "introduced_in": "6e478726",
+          "introduced_at": "2026-10-11",
+          "title": "P23 persisted scan-session aggregate",
+          "rationale": "Read-only persisted batch metadata and full-source latest event under history/inventory scope. Partial totals stay null and unsupported fields are not inferred.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": ["GET /api/v1/mini-app/scan-sessions"]
+        },
+        {
+          "id": "AMD-API-042",
+          "introduced_in": "da2b5f23",
+          "introduced_at": "2026-10-12",
+          "title": "P12 mixed document read list",
+          "rationale": "One permission- and warehouse-scoped SQL aggregate with server sort/keyset pagination and fail-closed sources. Contract v3 and timestamp metadata are revisions of this existing GET, not additional endpoints.",
+          "owner": "BE owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": ["GET /api/v1/mini-app/documents"]
         }
       ]
     },
