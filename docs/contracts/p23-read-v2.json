@@ -1,6 +1,8 @@
 {
   "contract": "mini-app-p23-read-v2",
-  "status": "SOURCE_IMPLEMENTED_PENDING_BA_AND_LIVE_TEST",
+  "status": "SUPERSEDED_BY_V3_SOURCE_PENDING_BA_AND_LIVE_TEST",
+  "superseded_by": "contracts/p23/scan-session-read-v3.json",
+  "contract_note": "This v2 document is retained for history only. Runtime source mapping and event-id columns are defined by the v3 contract; do not use this file as the active P23 schema.",
   "base_commit": "9325eff232f486484d268ae7b098e4ec25411f9b",
   "live_release": null,
   "business_approval": null,
