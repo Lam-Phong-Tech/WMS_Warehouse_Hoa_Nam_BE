@@ -2,17 +2,22 @@
 
 namespace Modules\Warehouse\Database\Seeders;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Seeder;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Auth\Support\SeedEnvironment;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineComponentFlowController;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -46,9 +51,6 @@ class WarrantyReportRangeSeeder extends Seeder
     private const END_DATE = '2026-09-30';
 
     private const TARGET_CASES = 160;
-
-    /** Mã case cuối cùng — dùng làm guard "đã seed đủ". */
-    private const GUARD_LAST_CASE = 'WC-RPTW-0160';
 
     private const COMPONENT_SKU = DongChengAnchorSkus::COMPONENT_WARRANTY;
 
@@ -105,13 +107,11 @@ class WarrantyReportRangeSeeder extends Seeder
 
     public function run(): void
     {
-        if (DB::getDriverName() !== 'pgsql') {
-            return;
+        if ((bool) config('deployment_safety.protect_database', true)) {
+            throw new RuntimeException('WARRANTY_REPORT_PROTECTED_DATABASE');
         }
-
-        if (DB::table('warranty_case')->where('warranty_case_code', self::GUARD_LAST_CASE)->exists()) {
-            $this->command?->info('WarrantyReportRangeSeeder: dữ liệu báo cáo bảo hành mẫu đã tồn tại đủ, bỏ qua.');
-
+        SeedEnvironment::assertFixtureAccountsAllowed(self::class);
+        if (DB::getDriverName() !== 'pgsql') {
             return;
         }
 
@@ -121,15 +121,55 @@ class WarrantyReportRangeSeeder extends Seeder
             ?? DB::table('app_user')->where('username', 'admin')->value('user_id')
             ?? DB::table('app_user')->orderBy('created_at')->value('user_id');
         if ($warehouse === null || $actorId === null) {
-            $this->command?->warn('WarrantyReportRangeSeeder: thiếu kho/user — chạy Warehouse*/Auth*Seeder trước.');
-
-            return;
+            throw new RuntimeException('WARRANTY_REPORT_PREREQUISITES_MISSING');
         }
 
         $this->stock = app(CurrentBaselineStockService::class);
         $this->actorId = (string) $actorId;
         $this->warehouseId = (string) $warehouse->id;
 
+        if (DB::table('warranty_case')->where('warranty_case_code', 'like', 'WC-RPTW-%')->exists()) {
+            if (! $this->completedFixture()) {
+                throw new RuntimeException('WARRANTY_REPORT_EXISTING_FIXTURE_REQUIRES_REVIEW');
+            }
+            $this->command?->info('WarrantyReportRangeSeeder: complete cases/component receipts verified; replay is read-only.');
+
+            return;
+        }
+        if (DB::table('containers')->where('container_code', self::BOX_CODE)->exists()
+            || DB::table('stock_documents')->where('doc_no', 'PN-RPTW-BOX-01')->exists()
+            || DB::table('component_issue_documents')->where('component_issue_no', 'like', 'CID-RPTW-%')->exists()) {
+            throw new RuntimeException('WARRANTY_REPORT_EXISTING_RESOURCES_REQUIRES_REVIEW');
+        }
+
+        try {
+            DB::transaction(fn () => $this->createFixture());
+            $this->command?->info('WarrantyReportRangeSeeder: report cases/component receipts verified; not full-chain acceptance.');
+        } catch (Throwable $error) {
+            // Console output must not include SQL bindings or encrypted customer data.
+            $code = 'UNCLASSIFIED_FAILURE';
+            if ($error instanceof HttpResponseException) {
+                $body = json_decode($error->getResponse()->getContent(), true);
+                $candidate = $body['error_code'] ?? $body['error']['code'] ?? '';
+                if (is_string($candidate) && preg_match('/^[A-Z][A-Z0-9_]{0,100}$/D', $candidate)) {
+                    $code = $candidate;
+                }
+            } elseif ($error instanceof QueryException) {
+                $state = $error->errorInfo[0] ?? '';
+                if (is_string($state) && preg_match('/^[A-Z0-9]{5}$/D', $state)) {
+                    $code = 'SQLSTATE_'.$state;
+                }
+            } elseif ($error instanceof RuntimeException && preg_match('/^WARRANTY_REPORT_[A-Z0-9_]{1,100}$/D', $error->getMessage())) {
+                $code = $error->getMessage();
+            }
+            throw new RuntimeException('WARRANTY_REPORT_FIXTURE_FAILED: '.$code);
+        }
+    }
+
+    private function createFixture(): void
+    {
+        $componentSku = $this->ensureComponentSku();
+        $openingBalance = $this->availableBalance($componentSku);
         $defects = DB::table('defect_catalogs')->pluck('defect_id', 'defect_code');
         $this->defectCycle = DB::table('defect_catalogs')
             ->where('status', 'ACTIVE')
@@ -201,19 +241,19 @@ class WarrantyReportRangeSeeder extends Seeder
                 'manual_description' => self::MANUAL_DESCRIPTIONS[$i % count(self::MANUAL_DESCRIPTIONS)],
             ]);
 
-            // Gom case active REPAIRING/COMPLETED để đính kèm component issue.
-            if (in_array($status, ['REPAIRING', 'COMPLETED'], true) && $isIdentified) {
+            if (in_array($status, CurrentBaselineComponentFlowController::CASE_STATUSES_ALLOWING_ISSUE, true) && $isIdentified) {
                 $activeCasesForComponents[] = ['case_id' => $caseId, 'status' => $status];
             }
         }
 
-        $this->command?->info('WarrantyReportRangeSeeder: đã seed '.self::TARGET_CASES.' warranty case ('.self::START_DATE.'..'.self::END_DATE.', đủ 6 trạng thái).');
-
-        // "Linh kiện đã xuất" — bổ sung, không được phép làm hỏng lõi case ở trên.
-        try {
-            $this->seedComponentIssues($activeCasesForComponents);
-        } catch (Throwable $e) {
-            $this->command?->warn('WarrantyReportRangeSeeder: bỏ qua phần component issue ("linh kiện đã xuất") — '.$e->getMessage());
+        $this->seedComponentIssues($activeCasesForComponents);
+        if (! $this->completedFixture()) {
+            throw new RuntimeException('WARRANTY_REPORT_COMPLETION_UNPROVEN_'.$this->completionFailureCode());
+        }
+        $remaining = (int) DB::table('container_items as ci')->join('containers as c', 'c.container_id', '=', 'ci.container_id')
+            ->where('c.container_code', self::BOX_CODE)->where('ci.is_active', true)->sum('ci.quantity');
+        if ($this->availableBalance($componentSku) !== $openingBalance + $remaining) {
+            throw new RuntimeException('WARRANTY_REPORT_BALANCE_DELTA_INVALID');
         }
     }
 
@@ -426,51 +466,132 @@ class WarrantyReportRangeSeeder extends Seeder
         $componentSku = $this->ensureComponentSku();
         $boxId = $this->ensureStockedBox($componentSku, 120);
 
-        // Chọn ~1/3 case active để đính linh kiện — vừa đủ "sinh động", không lạm.
-        $picked = array_values(array_filter($cases, fn ($_c, $idx): bool => $idx % 3 === 0, ARRAY_FILTER_USE_BOTH));
-        $seq = 0;
-        foreach ($picked as $case) {
-            $seq++;
-            $issueNo = 'CID-RPTW-'.sprintf('%02d', $seq);
-            if (DB::table('component_issue_documents')->where('component_issue_no', $issueNo)->exists()) {
+        foreach ($this->componentPlan($cases) as $entry) {
+            $this->postComponentIssueForCase($entry['issue_no'], $entry['case_id'], $componentSku, $boxId, $entry['quantity']);
+        }
+    }
+
+    private function componentPlan(array $cases): array
+    {
+        $plan = [];
+        foreach (array_values($cases) as $index => $case) {
+            if ($index % 3 !== 0) {
                 continue;
             }
-            $qty = 1 + ($seq % 3); // 1..3
-            $this->postComponentIssueForCase($issueNo, $case['case_id'], $componentSku, $boxId, $qty);
+            $sequence = count($plan) + 1;
+            $plan[] = ['issue_no' => 'CID-RPTW-'.sprintf('%02d', $sequence),
+                'case_id' => $case['case_id'], 'quantity' => 1 + ($sequence % 3)];
         }
+
+        return $plan;
     }
 
     private function ensureComponentSku(): string
     {
-        $existing = Sku::query()->where('sku_code', self::COMPONENT_SKU)->value('sku_id');
-        if ($existing !== null) {
-            return (string) $existing;
+        $sku = Sku::query()->where('sku_code', self::COMPONENT_SKU)->first();
+        if ($sku === null || $sku->sku_type !== 'COMPONENT' || $sku->is_serial_tracked || $sku->status !== 'ACTIVE') {
+            throw new RuntimeException('WARRANTY_REPORT_COMPONENT_ANCHOR_INCOMPATIBLE');
         }
 
-        $sku = Sku::query()->create([
-            'sku_code' => self::COMPONENT_SKU,
-            'sku_name' => 'Bo mạch điều khiển thay thế (mẫu báo cáo bảo hành)',
-            'sku_type' => 'COMPONENT',
-            'unit' => 'cái',
-            'is_serial_tracked' => false,
-            'brand_id' => DB::table('brands')->where('brand_code', 'DONGCHENG')->value('id'),
-            'category_id' => DB::table('product_categories')->where('category_code', 'SPARE_PART')->value('id'),
-            'model_id' => DB::table('product_models')->where('model_code', 'DC-DCA')->value('id'),
-            'version_code' => 'V1',
-            'warranty_applicable' => false,
-            'published_to_app' => true,
-            'status' => 'ACTIVE',
-        ]);
-
         return (string) $sku->sku_id;
+    }
+
+    private function completedFixture(): bool
+    {
+        return $this->completionFailureCode() === null;
+    }
+
+    private function completionFailureCode(): ?string
+    {
+        $cases = DB::table('warranty_case')->where('warranty_case_code', 'like', 'WC-RPTW-%')
+            ->orderBy('warranty_case_code')->get()->keyBy('warranty_case_code');
+        if ($cases->count() !== self::TARGET_CASES) {
+            return 'CASE_SET_INCOMPLETE';
+        }
+        $eligible = [];
+        for ($index = 0; $index < self::TARGET_CASES; $index++) {
+            $case = $cases->get('WC-RPTW-'.sprintf('%04d', $index + 1));
+            if ($case === null || $case->status !== $this->statusForIndex($index) || $case->created_by !== $this->actorId) {
+                return 'CASE_IDENTITY_OR_STATE_CHANGED';
+            }
+            if ($case->item_id !== null && in_array($case->status, CurrentBaselineComponentFlowController::CASE_STATUSES_ALLOWING_ISSUE, true)) {
+                $eligible[] = ['case_id' => $case->warranty_case_id];
+            }
+        }
+        $plan = $this->componentPlan($eligible);
+        if ($plan === []) {
+            return 'COMPONENT_CASES_UNAVAILABLE';
+        }
+        $skuId = $this->ensureComponentSku();
+        $box = DB::table('containers')->where('container_code', self::BOX_CODE)->first();
+        $receipt = DB::table('stock_documents')->where('doc_no', 'PN-RPTW-BOX-01')->first();
+        if ($box === null || $receipt === null || $box->primary_sku_id !== $skuId
+            || $receipt->status !== 'POSTED' || $receipt->dst_warehouse_id !== $this->warehouseId
+            || $box->created_by !== $this->actorId || $receipt->created_by !== $this->actorId) {
+            return 'RECEIPT_OR_BOX_UNPROVEN';
+        }
+        $movement = DB::table('stock_movements')->where('stock_document_id', $receipt->id)
+            ->where('warehouse_id', $this->warehouseId)->where('product_id', $skuId)->get();
+        if ($movement->count() !== 1 || $movement[0]->movement_type !== 'RECEIPT' || (int) $movement[0]->qty_delta !== 120
+            || (int) $movement[0]->qty_after !== (int) $movement[0]->qty_before + 120) {
+            return 'RECEIPT_MOVEMENT_UNPROVEN';
+        }
+        $after = (int) $movement[0]->qty_after;
+        $remaining = 120;
+        $issues = DB::table('component_issue_documents')->where('component_issue_no', 'like', 'CID-RPTW-%')
+            ->get()->keyBy('component_issue_no');
+        if ($issues->count() !== count($plan)) {
+            return 'COMPONENT_PLAN_INCOMPLETE';
+        }
+        foreach ($plan as $entry) {
+            $issue = $issues->get($entry['issue_no']);
+            if ($issue === null || $issue->status !== 'POSTED' || $issue->purpose !== 'WARRANTY'
+                || $issue->warranty_case_id !== $entry['case_id'] || $issue->warehouse_id !== $this->warehouseId
+                || $issue->created_by !== $this->actorId) {
+                return 'COMPONENT_DOCUMENT_UNPROVEN';
+            }
+            $lines = DB::table('component_issue_lines')->where('component_issue_document_id', $issue->id)->get();
+            if ($lines->count() !== 1 || $lines[0]->sku_id !== $skuId
+                || (int) $lines[0]->required_qty !== $entry['quantity'] || (int) $lines[0]->scanned_qty !== $entry['quantity']) {
+                return 'COMPONENT_LINE_UNPROVEN';
+            }
+            $targets = DB::table('component_issue_items')->where('component_issue_line_id', $lines[0]->id)->get();
+            if ($targets->count() !== 1 || $targets[0]->container_id !== $box->container_id
+                || $targets[0]->item_id !== null || (int) $targets[0]->quantity !== $entry['quantity']) {
+                return 'COMPONENT_TARGET_UNPROVEN';
+            }
+            // Business sequence, not second-resolution timestamps or random UUID order.
+            $movements = DB::table('stock_movements')->where('source_type', 'COMPONENT_ISSUE_DOCUMENT')->where('source_id', $issue->id)
+                ->where('warehouse_id', $this->warehouseId)->where('product_id', $skuId)->get();
+            if ($movements->count() !== 1 || (int) $movements[0]->qty_delta !== -$entry['quantity']
+                || (int) $movements[0]->qty_before !== $after || (int) $movements[0]->qty_after !== $after - $entry['quantity']) {
+                return 'COMPONENT_MOVEMENT_CHAIN_INVALID';
+            }
+            $after -= $entry['quantity'];
+            $remaining -= $entry['quantity'];
+        }
+        $mappings = DB::table('container_items')->where('container_id', $box->container_id)->get();
+        if ($mappings->count() !== 1 || $mappings[0]->sku_id !== $skuId || $mappings[0]->source_id !== $receipt->id
+            || $mappings[0]->source_type !== 'RECEIPT' || (int) $mappings[0]->quantity !== $remaining
+            || ! $mappings[0]->is_active) {
+            return 'BOX_SUBLEDGER_UNPROVEN';
+        }
+
+        return null;
+    }
+
+    private function availableBalance(string $skuId): int
+    {
+        return (int) DB::table('inventory_balances')->where('warehouse_id', $this->warehouseId)
+            ->where('product_id', $skuId)->where('stock_status', 'AVAILABLE')->sum('quantity');
     }
 
     /** Tạo BOX + nhập tồn qua service thật (RECEIPT +qty) để đủ tồn cho Post issue. */
     private function ensureStockedBox(string $componentSku, int $qty): string
     {
         $existing = DB::table('containers')->where('container_code', self::BOX_CODE)->value('container_id');
-        if ($existing !== null) {
-            return (string) $existing;
+        if ($existing !== null || DB::table('stock_documents')->where('doc_no', 'PN-RPTW-BOX-01')->exists()) {
+            throw new RuntimeException('WARRANTY_REPORT_EXISTING_BOX_REQUIRES_REVIEW');
         }
 
         $boxId = (string) Str::uuid();
@@ -536,30 +657,18 @@ class WarrantyReportRangeSeeder extends Seeder
             $key = 'seed-rptw-receipt-'.$documentId;
             $this->stock->postStockDocument($documentId, 'receipt', $this->actorId, $key, sha1($key));
 
-            DB::table('container_items')->insert([
-                'container_item_id' => (string) Str::uuid(),
-                'container_id' => $boxId,
-                'item_id' => null,
-                'sku_id' => $componentSku,
-                'quantity' => $qty,
-                'status' => 'ACTIVE',
-                'is_active' => true,
-                'source_type' => 'STOCK_DOCUMENT',
-                'source_id' => $documentId,
-                'placed_at' => now(),
-                'placed_by' => $this->actorId,
-                'created_by' => $this->actorId,
-                'updated_by' => $this->actorId,
-                'version' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            // Post Receipt owns the single BOX mapping and its stock-bearing status.
         }
 
         return $boxId;
     }
 
     private function postComponentIssueForCase(string $issueNo, string $caseId, string $componentSku, string $boxId, int $qty): void
+    {
+        DB::transaction(fn () => $this->createAndPostComponentIssue($issueNo, $caseId, $componentSku, $boxId, $qty));
+    }
+
+    private function createAndPostComponentIssue(string $issueNo, string $caseId, string $componentSku, string $boxId, int $qty): void
     {
         $documentId = (string) Str::uuid();
         DB::table('component_issue_documents')->insert([

@@ -304,6 +304,28 @@ jobs:
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'php artisan key:generate --force && php artisan jwt:secret --force > /dev/null'
 
+      - name: Warranty report seed rollback and replay on disposable PostgreSQL
+        env:
+          CI_POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$APP_ENV" = testing
+          test "$CI_DB_HOST" = 127.0.0.1 && test "$CI_DB_PORT" = 55432
+          test -n "$CI_POSTGRES_SERVICE_ID"
+          test "$(docker inspect -f '{{.State.Running}}' "$CI_POSTGRES_SERVICE_ID")" = true
+          test "$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' "$CI_POSTGRES_SERVICE_ID")" = 55432
+          docker exec "$CI_POSTGRES_SERVICE_ID" createdb -U "$CI_DB_USERNAME" wms_warranty_seed_test
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -e APP_ENV=testing -e DB_CONNECTION=pgsql -e DB_URL= \
+            -e DB_HOST=127.0.0.1 -e DB_PORT=55432 -e DB_SSLMODE=disable \
+            -e DB_DATABASE=wms_warranty_seed_test -e DB_USERNAME="$CI_DB_USERNAME" -e DB_PASSWORD="$CI_DB_PASSWORD" \
+            -e CACHE_STORE=array -e SESSION_DRIVER=array -e QUEUE_CONNECTION=sync \
+            -e BROADCAST_CONNECTION=null -e MAIL_MAILER=array \
+            -v "$PWD:/var/www/html" --entrypoint sh "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan test tests/Feature/WarrantyReportRangeSeederTest.php --log-junit warranty-seed-pgsql.xml'
+
       # `db:seed` đọc WMS_FIXTURE_PASSWORD từ .env (bước "Prepare Laravel environment");
       # thiếu mật khẩu thì seeder dừng chứ không rơi về mật khẩu mặc định.
       - name: Prepare Laravel database and OpenAPI
