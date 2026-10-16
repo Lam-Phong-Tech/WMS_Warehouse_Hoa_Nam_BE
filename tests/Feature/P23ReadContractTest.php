@@ -12,6 +12,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\P23ScanSessionReadModel;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
@@ -25,6 +26,27 @@ final class P23ReadContractTest extends TestCase
     use RefreshDatabase;
 
     private const BASE = '/api/v1/mini-app/';
+
+    public function test_published_adapters_match_runtime_sources_and_persisted_columns(): void
+    {
+        $contract = json_decode(file_get_contents(base_path('contracts/p23/scan-session-read-v3.json')), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('mini-app-p23-read-v3', $contract['contract']);
+        $sources = app(P23ScanSessionReadModel::class)->sources();
+        $adapters = $contract['sources']['batch_adapters'];
+        $this->assertSame(array_keys($sources), array_column($adapters, 'batch_table'));
+
+        foreach ($adapters as $adapter) {
+            $source = $sources[$adapter['batch_table']];
+            $this->assertSame('INCLUDED', $source['status']);
+            $this->assertSame($source['eventSource'], $adapter['event_table']);
+            $this->assertSame('INCLUDED', $source['eventStatus']);
+            foreach (['batch', 'event'] as $kind) {
+                $columns = Schema::getColumnListing($adapter[$kind.'_table']);
+                $this->assertSame([], array_values(array_diff($adapter[$kind.'_columns'], $columns)), $adapter[$kind.'_table']);
+            }
+            $this->assertContains($adapter['event_id_column'], $adapter['event_columns']);
+        }
+    }
 
     public function test_only_one_aggregate_get_is_added_and_p08_routes_remain_four(): void
     {

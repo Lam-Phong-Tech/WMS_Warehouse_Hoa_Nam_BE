@@ -1,5 +1,6 @@
 {
   "contract": "mini-app-p23-read-v3",
+  "revision": "p23-persisted-source-map-r1",
   "status": "IMPLEMENTED_SOURCE_PENDING_RELEASE_AND_DEV_SMOKE",
   "endpoint": "GET /api/v1/mini-app/scan-sessions",
   "permission": {
@@ -9,8 +10,8 @@
   },
   "sources": {
     "batch_adapters": [
-      {"batch_table":"scan_batch","event_table":"scan_event","batch_columns":["scan_batch_id","warehouse_id","source_type","source_id","created_by","created_at"],"event_columns":["scan_event_id","scan_batch_id","raw_code","physical_code_id","resolved_object_type","resolved_object_id","result_status","message","created_at"]},
-      {"batch_table":"scan_batches","event_table":"scan_record_events","batch_columns":["scan_batch_id","warehouse_id","source_type","source_id","created_by","created_at"],"event_columns":["scan_event_id","scan_batch_id","raw_code","physical_code_id","resolved_object_type","resolved_object_id","result_status","message","created_at"]}
+      {"batch_table":"scan_batch","event_table":"scan_events","event_id_column":"id","batch_columns":["scan_batch_id","warehouse_id","source_type","source_id","created_by","created_at"],"event_columns":["id","scan_batch_id","raw_code","physical_code_id","resolved_object_type","resolved_object_id","result_status","message","created_at"]},
+      {"batch_table":"scan_batches","event_table":"scan_record_events","event_id_column":"scan_event_id","batch_columns":["scan_batch_id","warehouse_id","source_type","source_id","created_by","created_at"],"event_columns":["scan_event_id","scan_batch_id","raw_code","physical_code_id","resolved_object_type","resolved_object_id","result_status","message","created_at"]}
     ],
     "precedence": "Canonical scan_events adapter rank 0 wins duplicate event IDs over scan_record_events rank 1",
     "scope_before_count": true,
