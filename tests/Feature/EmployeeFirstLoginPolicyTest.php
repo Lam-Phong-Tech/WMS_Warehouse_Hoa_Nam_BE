@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 use Tests\TestCredentials;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -20,6 +21,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
  */
 class EmployeeFirstLoginPolicyTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -97,6 +99,8 @@ class EmployeeFirstLoginPolicyTest extends TestCase
 
     public function test_must_change_password_blocks_other_endpoints_but_allows_change_password_and_logout(): void
     {
+        $this->travelTo(now()->startOfSecond());
+        $newPassword = bin2hex(random_bytes(24)).'aA1!';
         $user = User::create([
             'username' => 'nhanvien.buoc',
             'display_name' => 'Nhan Vien Buoc Doi MK',
@@ -116,14 +120,21 @@ class EmployeeFirstLoginPolicyTest extends TestCase
 
         $this->postJson('/api/v1/auth/change-password', [
             'current_password' => TestCredentials::PASSWORD,
-            'new_password' => 'NewCntt@2026',
-            'new_password_confirmation' => 'NewCntt@2026',
+            'new_password' => $newPassword,
+            'new_password_confirmation' => $newPassword,
         ], $headers)->assertOk();
 
         $this->assertFalse((bool) $user->fresh()->must_change_password);
 
-        // Sau khi đổi mật khẩu, cờ đã gỡ nên /auth/me phải truy cập được bình thường.
-        $newToken = JWTAuth::fromUser($user->fresh());
+        $this->getJson('/api/v1/auth/me', $headers)->assertUnauthorized();
+
+        // A real new login proves a fresh sid family in the same second. A
+        // fabricated legacy/no-sid JWT cannot prove credential ordering.
+        $this->app['auth']->forgetGuards();
+        $login = $this->browserLogin($user->email, $newPassword)->assertOk();
+        $newToken = $login->json('data.access_token');
+        $this->assertNotEmpty($newToken);
+        $this->assertNotEmpty($login->json('data.user.auth_session_id'));
         $this->getJson('/api/v1/auth/me', ['Authorization' => "Bearer {$newToken}"])->assertOk();
     }
 
