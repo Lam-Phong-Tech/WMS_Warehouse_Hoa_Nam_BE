@@ -3,6 +3,11 @@
 namespace Modules\Auth\Support;
 
 use Illuminate\Support\Facades\Route;
+use Modules\Warehouse\Http\Controllers\P03DraftController;
+use Modules\Warehouse\Http\Controllers\P04InboundController;
+use Modules\Warehouse\Http\Controllers\P05OutboundController;
+use Modules\Warehouse\Http\Controllers\P06CatalogController;
+use Modules\Warehouse\Services\AttachmentUploadReceipts;
 
 /**
  * Nguồn sự thật DUY NHẤT về "mã quyền nào thực sự có cổng chặn".
@@ -15,10 +20,11 @@ use Illuminate\Support\Facades\Route;
  * tưởng đã cấp quyền quản lý người dùng, trong khi cổng thật là `iam.user.manage`.
  *
  * Lớp này KHÔNG duy trì một danh sách thứ hai để lệch pha: tập "được cưỡng chế"
- * được suy ra trực tiếp từ bảng route lúc chạy. Chỉ hai thứ phải khai tay:
+ * được suy ra trực tiếp từ bảng route lúc chạy. Các ngoại lệ phải khai tay:
  *
  *  - ENFORCED_IN_CODE: quyền chặn bên trong controller (mask PII, bypass scope
  *    audit) nên không xuất hiện dưới dạng middleware `permission:`.
+ *  - IN_CODE_GUARDED_ROUTES: route dùng guard của owner, ghim đúng action.
  *  - DEPRECATED: mã cũ còn tồn tại vì hợp đồng đã chốt, nhưng không còn cổng nào
  *    đọc tới. Giữ lại thì phải nói rõ mã canonical thay thế, để UI hiển thị được
  *    "không còn hiệu lực" thay vì bày ra như một quyền dùng được.
@@ -37,6 +43,7 @@ final class PermissionEnforcementMap
         'warranty.pii.view' => 'Bỏ mask PII bảo hành (CurrentBaselineWarrantyController, OperationalReportController, StockMovementController, CanonicalMvpController)',
         'warranty.pii.export' => 'Cho phép xuất báo cáo bảo hành kèm PII (AlignedWarrantyReportController, OperationalReportController::assertPiiExportAllowed)',
         'audit_log.view_all' => 'Bỏ giới hạn audit log theo module của actor (AuditLogController::allowedModulesFor)',
+        'documents.read' => 'P09WarrantyScope, P09WarrantyAttachmentGuard, AttachmentUploadReceipts, P08HistoryController và P20ComponentHistoryController kiểm quyền đọc tài liệu/liên kết trước khi trả dữ liệu.',
     ];
 
     /**
@@ -88,6 +95,53 @@ final class PermissionEnforcementMap
         'PATCH api/v1/notifications/{id}/read',
         'POST api/v1/notifications/read-all',
         'POST api/v1/broadcasting/auth',
+    ];
+
+    /**
+     * Exact owner actions with transactional permission/scope checks in code.
+     * These are not permission-free routes or a prefix-wide exemption. Binding
+     * each declaration to its action makes redirects/renames fail the invariant.
+     *
+     * @var array<string, string>
+     */
+    public const IN_CODE_GUARDED_ROUTES = [
+        // Context returns only this actor's session and effective capabilities;
+        // it does not grant permission to read any business record.
+        'GET api/v1/mini-app/p03/context' => P03DraftController::class.'@context',
+        'GET api/v1/mini-app/inbound/context' => P04InboundController::class.'@context',
+        'GET api/v1/mini-app/outbound/context' => P05OutboundController::class.'@context',
+        'GET api/v1/mini-app/catalog/context' => P06CatalogController::class.'@context',
+        // MiniAppDraftService authorizes the operation matrix before reading or
+        // replaying, and intersects actor + stable session + confirmed warehouse.
+        'GET api/v1/mini-app/drafts' => P03DraftController::class.'@index',
+        'GET api/v1/mini-app/drafts/{id}' => P03DraftController::class.'@show',
+        'GET api/v1/mini-app/drafts/{id}/requests/{requestId}' => P03DraftController::class.'@reconcile',
+        'PUT api/v1/mini-app/drafts/{id}' => P03DraftController::class.'@save',
+        'POST api/v1/mini-app/drafts/{id}/cancel' => P03DraftController::class.'@cancel',
+        // P04 scope uses INBOUND read/save/cancel rights (including the AND/OR
+        // rules in MiniAppDraftService), active canonical warehouse and session.
+        // Suppliers is a global directory but still requires INBOUND read.
+        'GET api/v1/mini-app/inbound/types' => P04InboundController::class.'@types',
+        'GET api/v1/mini-app/inbound/suppliers' => P04InboundController::class.'@suppliers',
+        'PUT api/v1/mini-app/inbound/drafts/{id}' => P04InboundController::class.'@save',
+        'GET api/v1/mini-app/inbound/drafts/{id}' => P04InboundController::class.'@show',
+        'GET api/v1/mini-app/inbound/drafts/{id}/scan-session' => P04InboundController::class.'@scanSession',
+        'POST api/v1/mini-app/inbound/drafts/{id}/validate-code' => P04InboundController::class.'@validateCode',
+        'POST api/v1/mini-app/inbound/drafts/{id}/review' => P04InboundController::class.'@review',
+        'POST api/v1/mini-app/inbound/drafts/{id}/record' => P04InboundController::class.'@record',
+        'GET api/v1/mini-app/inbound/drafts/{id}/requests/{requestId}' => P04InboundController::class.'@reconcile',
+        'POST api/v1/mini-app/inbound/drafts/{id}/cancel' => P04InboundController::class.'@cancel',
+        'GET api/v1/mini-app/inbound/documents/{id}' => P04InboundController::class.'@document',
+        // Canonical P05 documents are warehouse-shared, not personal drafts.
+        // scope() requires OUTBOUND read and the confirmed active warehouse.
+        'GET api/v1/mini-app/outbound/sources' => P05OutboundController::class.'@sources',
+        'GET api/v1/mini-app/outbound/sources/{id}' => P05OutboundController::class.'@source',
+        'GET api/v1/mini-app/outbound/documents/{id}' => P05OutboundController::class.'@document',
+        // P18 checks the parent's read ACL before querying a receipt, then exact
+        // actor/session/warehouse/parent/key/digest; UNKNOWN never bypasses ACL.
+        'GET api/v1/mini-app/inbound-documents/{id}/attachments/requests/{operationKey}' => AttachmentUploadReceipts::class.'@show',
+        'GET api/v1/mini-app/outbound-documents/{id}/attachments/requests/{operationKey}' => AttachmentUploadReceipts::class.'@show',
+        'GET api/v1/mini-app/warranty-cases/{id}/attachments/requests/{operationKey}' => AttachmentUploadReceipts::class.'@show',
     ];
 
     /** @var array<int, string>|null */

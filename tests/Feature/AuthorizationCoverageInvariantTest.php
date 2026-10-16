@@ -42,9 +42,8 @@ class AuthorizationCoverageInvariantTest extends TestCase
     /**
      * Bất biến 1 — mọi endpoint API cần đăng nhập đều phải có cổng phân quyền.
      *
-     * Ngoại lệ duy nhất là các route tự giới hạn theo chính user đang đăng nhập,
-     * và chúng phải được khai tường minh trong SELF_SCOPED_ROUTES để việc "không
-     * gate" luôn là lựa chọn có chủ ý chứ không phải sơ suất.
+     * Route tự giới hạn theo user hoặc guard của owner phải được khai tường minh.
+     * Guard owner còn phải khớp đúng controller/action, không miễn theo prefix.
      */
     public function test_moi_route_can_dang_nhap_deu_co_permission_hoac_duoc_khai_la_tu_scope(): void
     {
@@ -71,7 +70,9 @@ class AuthorizationCoverageInvariantTest extends TestCase
                     continue;
                 }
                 $signature = $method.' '.$route->uri();
-                if (! in_array($signature, PermissionEnforcementMap::SELF_SCOPED_ROUTES, true)) {
+                $inCodeOwner = PermissionEnforcementMap::IN_CODE_GUARDED_ROUTES[$signature] ?? null;
+                if (! in_array($signature, PermissionEnforcementMap::SELF_SCOPED_ROUTES, true)
+                    && ($inCodeOwner === null || $inCodeOwner !== $route->getActionName())) {
                     $missing[] = $signature;
                 }
             }
@@ -83,6 +84,7 @@ class AuthorizationCoverageInvariantTest extends TestCase
             ['Route sau có auth:api nhưng KHÔNG có middleware permission: — mọi tài khoản đã đăng nhập đều gọi được.'],
             ['Thêm `->middleware(\'permission:<CODE>\')`, hoặc nếu route thực sự tự giới hạn theo user thì khai vào'],
             ['PermissionEnforcementMap::SELF_SCOPED_ROUTES kèm lý do:'],
+            ['Owner guard có kiểm quyền trong code phải khai đúng action tại IN_CODE_GUARDED_ROUTES:'],
             $missing,
         )));
     }
@@ -110,6 +112,27 @@ class AuthorizationCoverageInvariantTest extends TestCase
         ));
 
         $this->assertSame([], $stale, 'SELF_SCOPED_ROUTES còn dòng trỏ tới route không tồn tại: '.implode(', ', $stale));
+    }
+
+    public function test_inline_owner_declarations_remain_exact_authenticated_actions(): void
+    {
+        $registered = [];
+        foreach (Route::getRoutes() as $route) {
+            foreach ($route->methods() as $method) {
+                if ($method !== 'HEAD') {
+                    $registered[$method.' '.$route->uri()] = $route;
+                }
+            }
+        }
+        foreach (PermissionEnforcementMap::IN_CODE_GUARDED_ROUTES as $signature => $owner) {
+            $this->assertArrayHasKey($signature, $registered, $signature);
+            $route = $registered[$signature];
+            $this->assertSame($owner, $route->getActionName(), $signature);
+            $this->assertContains('auth:api', $route->gatherMiddleware(), $signature);
+            [$class, $action] = explode('@', $owner, 2);
+            $this->assertTrue(method_exists($class, $action), $signature);
+            $this->assertNotContains($signature, PermissionEnforcementMap::SELF_SCOPED_ROUTES, $signature);
+        }
     }
 
     /**
