@@ -128,10 +128,10 @@ jobs:
           # Seeder không còn mật khẩu mặc định (P0 bảo mật 10/09/2026): `db:seed` và
           # `migrate:fresh --seed` ở APP_ENV=testing BẮT BUỘC có WMS_FIXTURE_PASSWORD.
           # Sinh mới cho MỖI lần chạy, che trong log bằng ::add-mask:: trước mọi lần
-          # dùng, không bao giờ in giá trị. Chỉ gồm [A-Za-z0-9-]: `#` mở chú thích
-          # trong phpdotenv nên sẽ bị cắt cụt khi nằm trong .env.
-          fixture_password="Ci-$(openssl rand -hex 24)"
-          test "${#fixture_password}" -eq 51
+          # dùng, không bao giờ in giá trị. The fixed suffix guarantees every
+          # character group; no # character can be truncated by phpdotenv.
+          fixture_password="$(openssl rand -hex 24)aA1!"
+          test "${#fixture_password}" -eq 52
           echo "::add-mask::${fixture_password}"
           # Bước smoke dùng lại đúng giá trị này cho probe hộp đen (truyền vào container
           # bằng `-e WMS_FIXTURE_PASSWORD` — chỉ tên biến, giá trị không nằm trên dòng
@@ -326,36 +326,6 @@ jobs:
             -v "$PWD:/var/www/html" --entrypoint sh "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'php artisan test tests/Feature/WarrantyReportRangeSeederTest.php --log-junit warranty-seed-pgsql.xml'
 
-      # `db:seed` đọc WMS_FIXTURE_PASSWORD từ .env (bước "Prepare Laravel environment");
-      # thiếu mật khẩu thì seeder dừng chứ không rơi về mật khẩu mặc định.
-      - name: Prepare Laravel database and OpenAPI
-        # Explicit fourteen-day fixture coverage in disposable CI only, never a
-        # production/default seeder policy. Keep the runtime-required guard intact.
-        env:
-          HN_DAILY_COVERAGE_DAYS: "14"
-          CI_POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Only the PostgreSQL service created for this CI job may receive fixtures.
-          test "$APP_ENV" = testing
-          test "$CI_DB_HOST" = 127.0.0.1
-          test "$CI_DB_PORT" = 55432
-          test -n "$CI_POSTGRES_SERVICE_ID"
-          test "$(docker inspect -f '{{.State.Running}}' "$CI_POSTGRES_SERVICE_ID")" = true
-          test "$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' "$CI_POSTGRES_SERVICE_ID")" = 55432
-          docker run --rm --network host \
-            --user "$(id -u):$(id -g)" \
-            -e HOME=/tmp \
-            -e HN_DAILY_COVERAGE_DAYS \
-            -e APP_ENV=testing -e DB_CONNECTION=pgsql -e DB_URL= \
-            -e DB_HOST=127.0.0.1 -e DB_PORT=55432 \
-            -e DB_DATABASE="$CI_DB_DATABASE" -e DB_USERNAME="$CI_DB_USERNAME" -e DB_PASSWORD="$CI_DB_PASSWORD" \
-            -v "$PWD:/var/www/html" \
-            --entrypoint sh \
-            "$IMAGE_NAME:${GITHUB_SHA}" \
-            -lc 'php artisan optimize:clear && php artisan migrate --force && php artisan db:seed --force && php artisan db:seed --force && php artisan l5-swagger:generate'
-
       # Nâng memory_limit qua PHP_INI_SCAN_DIR chứ KHÔNG qua `php -d`:
       # `artisan test` spawn một tiến trình con, nên `-d` của tiến trình cha không
       # truyền xuống và test đọc .xlsx chết ở 128M mặc định ("Allowed memory size
@@ -446,6 +416,35 @@ jobs:
             --entrypoint sh \
             "$IMAGE_NAME:${GITHUB_SHA}" \
             -lc 'mkdir -p /tmp/phpini && echo memory_limit=1G > /tmp/phpini/zz-memory.ini && PHP_INI_SCAN_DIR=/usr/local/etc/php/conf.d:/tmp/phpini php artisan test'
+
+      # The suites above own their disposable databases and do not need full
+      # fixtures. Keep their hard failures ahead of expensive fourteen-day seed.
+      # `db:seed` reads the per-run masked fixture secret prepared in .env.
+      - name: Prepare Laravel database and OpenAPI
+        env:
+          HN_DAILY_COVERAGE_DAYS: "14"
+          CI_POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only the PostgreSQL service created for this CI job may receive fixtures.
+          test "$APP_ENV" = testing
+          test "$CI_DB_HOST" = 127.0.0.1
+          test "$CI_DB_PORT" = 55432
+          test -n "$CI_POSTGRES_SERVICE_ID"
+          test "$(docker inspect -f '{{.State.Running}}' "$CI_POSTGRES_SERVICE_ID")" = true
+          test "$(docker inspect -f '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' "$CI_POSTGRES_SERVICE_ID")" = 55432
+          docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
+            -e HN_DAILY_COVERAGE_DAYS \
+            -e APP_ENV=testing -e DB_CONNECTION=pgsql -e DB_URL= \
+            -e DB_HOST=127.0.0.1 -e DB_PORT=55432 \
+            -e DB_DATABASE="$CI_DB_DATABASE" -e DB_USERNAME="$CI_DB_USERNAME" -e DB_PASSWORD="$CI_DB_PASSWORD" \
+            -v "$PWD:/var/www/html" \
+            --entrypoint sh \
+            "$IMAGE_NAME:${GITHUB_SHA}" \
+            -lc 'php artisan optimize:clear && php artisan migrate --force && php artisan db:seed --force --no-interaction && php artisan db:seed --force --no-interaction && php artisan l5-swagger:generate'
 
       # Cổng CỨNG: seed thật xong mới bật server rồi chờ health có giới hạn —
       # bản một dòng cũ để `sleep 5 && health` chạy đua với seed 10 phút nên
