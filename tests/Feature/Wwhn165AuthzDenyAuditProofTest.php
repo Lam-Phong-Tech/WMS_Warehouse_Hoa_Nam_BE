@@ -457,7 +457,7 @@ class Wwhn165AuthzDenyAuditProofTest extends TestCase
 
     private function seedAuthOnce(): void
     {
-        if (DB::table('permission')->count() === 0) {
+        if (Role::query()->count() === 0) {
             $this->seed(AuthDatabaseSeeder::class);
             Cache::flush();
         }

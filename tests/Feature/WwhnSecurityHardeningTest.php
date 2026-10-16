@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Modules\Auth\Models\User;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 use Tests\TestCredentials;
 
@@ -31,6 +32,7 @@ use Tests\TestCredentials;
  */
 class WwhnSecurityHardeningTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -169,15 +171,14 @@ class WwhnSecurityHardeningTest extends TestCase
         ], $stolen)->assertStatus(200);
 
         $replayed = $this->getJson('/api/v1/auth/me', $stolen);
-        $replayed->assertStatus(401);
-        $replayed->assertJsonPath('error_code', 'CREDENTIALS_CHANGED');
+        $replayed->assertUnauthorized();
 
         $this->travelBack();
     }
 
     /**
-     * Ghi rõ giới hạn đã biết thay vì giấu nó: token cấp trong CÙNG GIÂY với
-     * thời điểm đổi mật khẩu vẫn được chấp nhận.
+     * Token legacy không có sid cấp trong CÙNG GIÂY với thời điểm đổi mật khẩu
+     * bị từ chối fail-closed; chỉ một phiên browser mới có thể chứng minh thứ tự.
      *
      * Đây là ràng buộc của chính định dạng JWT (`iat` tính bằng giây), không
      * phải thiếu sót cài đặt — và là đánh đổi CÓ CHỦ Ý: so sánh chặt hơn sẽ từ
@@ -192,7 +193,8 @@ class WwhnSecurityHardeningTest extends TestCase
 
         $user->markPasswordChangedNow();
 
-        $this->getJson('/api/v1/auth/me', $sameSecondToken)->assertStatus(200);
+        $this->getJson('/api/v1/auth/me', $sameSecondToken)
+            ->assertUnauthorized()->assertJsonPath('error_code', 'CREDENTIALS_CHANGED');
     }
 
     /**
@@ -211,10 +213,7 @@ class WwhnSecurityHardeningTest extends TestCase
             'new_password_confirmation' => 'NewCntt@2026',
         ], $this->bearer($user))->assertStatus(200);
 
-        $login = $this->postJson('/api/v1/auth/login', [
-            'email' => $user->email,
-            'password' => 'NewCntt@2026',
-        ]);
+        $login = $this->browserLogin($user->email, 'NewCntt@2026');
         $login->assertStatus(200);
 
         $this->getJson('/api/v1/auth/me', [

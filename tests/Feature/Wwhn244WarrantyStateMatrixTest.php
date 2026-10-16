@@ -11,7 +11,9 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 
 /**
@@ -20,6 +22,7 @@ use Tests\TestCase;
  */
 class Wwhn244WarrantyStateMatrixTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use RefreshDatabase;
 
     private function authHeaders(): array
@@ -32,15 +35,20 @@ class Wwhn244WarrantyStateMatrixTest extends TestCase
         ]);
         $user = User::create([
             'username' => 'war244-'.Str::lower(Str::random(6)),
+            'email' => 'war244-'.Str::lower(Str::random(6)).'@wms-hoanam.test',
             'display_name' => 'Warranty Matrix Tester',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
-        $token = auth('api')->login($user);
+        $login = $this->browserLogin($user->email, 'secret123')->assertOk();
+        $warehouse = Warehouse::firstOrCreate(['code' => 'KHO-TONG-HN'], ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']);
+        $context = $this->postJson('/api/v1/auth/switch-context', [
+            'context_type' => 'WAREHOUSE', 'context_id' => (string) $warehouse->id,
+        ], ['Authorization' => 'Bearer '.(string) $login->json('data.access_token')])->assertOk();
 
-        return ['Authorization' => "Bearer {$token}"];
+        return ['Authorization' => 'Bearer '.(string) $context->json('data.access_token')];
     }
 
     private function idem(): array

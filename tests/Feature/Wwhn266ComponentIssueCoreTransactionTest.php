@@ -16,6 +16,7 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use RuntimeException;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
 
@@ -42,6 +43,7 @@ use Tests\TestCase;
 class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
 {
     use BuildsScanDrivenInbound;
+    use InteractsWithBrowserSession;
     use OpensWarrantyCaseForComponentIssue;
     use RefreshDatabase;
 
@@ -50,9 +52,9 @@ class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
     /** @var array<string, mixed> */
     private static array $evidence = [];
 
-    private function authHeadersWithRole(string $roleCode): array
+    private function authHeadersWithRole(string $roleCode, ?string $warehouseId = null): array
     {
-        if (DB::table('permission')->count() === 0) {
+        if (Role::query()->count() === 0) {
             $this->seed(AuthDatabaseSeeder::class);
             Cache::flush();
         }
@@ -60,15 +62,30 @@ class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
         $role = Role::where('role_code', $roleCode)->firstOrFail();
         $user = User::create([
             'username' => 'w266-'.Str::lower(Str::random(8)),
+            'email' => 'w266-'.Str::lower(Str::random(8)).'@wms-hoanam.test',
             'display_name' => 'WWHN-266 fixture',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
-        $token = auth('api')->login($user);
+        $login = $this->browserLogin($user->email, 'secret123')->assertOk();
+        $auth = ['Authorization' => 'Bearer '.(string) $login->json('data.access_token'), '__user_id' => (string) $user->user_id];
+        if ($warehouseId !== null) {
+            $auth = $this->confirmWarehouse($auth, $warehouseId);
+        }
 
-        return ['Authorization' => "Bearer {$token}", '__user_id' => (string) $user->user_id];
+        return $auth;
+    }
+
+    private function confirmWarehouse(array $auth, string $warehouseId): array
+    {
+        $response = $this->postJson('/api/v1/auth/switch-context', [
+            'context_type' => 'WAREHOUSE', 'context_id' => $warehouseId,
+        ], $auth)->assertOk();
+        $auth['Authorization'] = 'Bearer '.(string) $response->json('data.access_token');
+
+        return $auth;
     }
 
     private function headers(array $auth): array
@@ -95,6 +112,8 @@ class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
             );
             $warehouseId = (string) $warehouse->id;
         }
+        $auth = $this->confirmWarehouse($auth, $warehouseId);
+        $headers = $this->headers($auth);
 
         $sku = Sku::create([
             'sku_code' => 'LK-266-'.Str::upper(Str::random(6)),
@@ -330,7 +349,7 @@ class Wwhn266ComponentIssueCoreTransactionTest extends TestCase
         [$documentId] = $this->scannedComponentIssue($fixture, 2);
 
         $before = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
-        $stranger = $this->headers($this->authHeadersWithRole('LEADERSHIP'));
+        $stranger = $this->headers($this->authHeadersWithRole('LEADERSHIP', $fixture['warehouse_id']));
 
         $response = $this->postJson("/api/v1/component-issue-documents/{$documentId}/post", [], $stranger + [
             'If-Match' => '2',

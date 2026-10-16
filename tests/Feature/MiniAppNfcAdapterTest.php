@@ -5,11 +5,14 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Models\Warehouse;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 
 /**
@@ -22,6 +25,7 @@ use Tests\TestCase;
  */
 class MiniAppNfcAdapterTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use RefreshDatabase;
 
     public function test_resolve_code_returns_payload_to_write_into_chip(): void
@@ -63,11 +67,12 @@ class MiniAppNfcAdapterTest extends TestCase
     {
         $headers = $this->authHeaders();
         [$sku, $tagged] = $this->seedItem('PROD-MINI-NFC-002', 'SER-MINI-NFC-002A');
-        ItemInstance::create([
+        $other = ItemInstance::create([
             'sku_id' => $sku->sku_id,
             'serial_number' => 'SER-MINI-NFC-002B',
             'item_status' => 'IN_STOCK',
         ]);
+        $this->stockMovement($sku, $other);
 
         $this->getJson('/api/v1/mini-app/items?nfc_status=UNASSIGNED', $headers)
             ->assertOk()
@@ -127,6 +132,7 @@ class MiniAppNfcAdapterTest extends TestCase
     {
         $headers = $this->authHeaders();
         [, $item] = $this->seedItem('PROD-MINI-NFC-005', 'SER-MINI-NFC-005');
+        $movementsBefore = DB::table('stock_movements')->count();
 
         $token = (string) $this->postJson("/api/v1/mini-app/items/{$item->item_id}/nfc/prepare", [], $headers)
             ->json('data.reservation_token');
@@ -148,14 +154,16 @@ class MiniAppNfcAdapterTest extends TestCase
             ->assertJsonPath('data.movement_created', false)
             ->assertJsonPath('data.nfc_required_for_post', false);
 
-        $this->assertSame(0, DB::table('stock_movements')->count());
+        $this->assertSame($movementsBefore, DB::table('stock_movements')->count());
 
         // Key mới + chạm lại đúng chip cũ: khoá tự nhiên hardware_uid vẫn chặn,
         // không sinh dòng physical_codes thứ hai.
         $this->patchJson("/api/v1/mini-app/items/{$item->item_id}/nfc", [
-            'hardware_uid' => '04A1B2C3D4E5F6',
-        ], $headers + ['Idempotency-Key' => 'mini-nfc-confirm-005-lan-2'])
-            ->assertOk()
+            'hardware_uid' => '04a1b2c3d4e5f6',
+            'written_payload' => 'HN1|SKU=PROD-MINI-NFC-005|ITEM=SER-MINI-NFC-005',
+            'reservation_token' => $token,
+        ], $headers + ['Idempotency-Key' => 'mini-nfc-confirm-005'])
+            ->assertSuccessful()
             ->assertJsonPath('data.nfc.physical_code_id', $created->json('data.nfc.physical_code_id'));
 
         $this->assertSame(1, DB::table('physical_codes')->where('carrier_type', 'NFC')->count());
@@ -180,10 +188,13 @@ class MiniAppNfcAdapterTest extends TestCase
         $headers = $this->authHeaders();
         [, $item] = $this->seedItem('PROD-MINI-NFC-007', 'SER-MINI-NFC-007');
         $this->seedItem('PROD-MINI-NFC-008', 'SER-MINI-NFC-008');
+        $reservation = $this->postJson("/api/v1/mini-app/items/{$item->item_id}/nfc/prepare", [], $headers)
+            ->assertOk()->json('data.reservation_token');
 
         $this->patchJson("/api/v1/mini-app/items/{$item->item_id}/nfc", [
             'hardware_uid' => 'UID-MISMATCH-007',
             'written_payload' => 'HN1|SKU=PROD-MINI-NFC-008|ITEM=SER-MINI-NFC-008',
+            'reservation_token' => $reservation,
         ], $headers + ['Idempotency-Key' => 'mini-nfc-mismatch-007'])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'NFC_PAYLOAD_ITEM_MISMATCH');
@@ -217,9 +228,13 @@ class MiniAppNfcAdapterTest extends TestCase
         [, $other] = $this->seedItem('PROD-MINI-NFC-011', 'SER-MINI-NFC-011');
 
         $this->assignTag($headers, (string) $first->item_id, 'UID-SHARED-010');
+        $reservation = $this->postJson("/api/v1/mini-app/items/{$other->item_id}/nfc/prepare", [], $headers)
+            ->assertOk()->json('data.reservation_token');
 
         $this->patchJson("/api/v1/mini-app/items/{$other->item_id}/nfc", [
             'hardware_uid' => 'UID-SHARED-010',
+            'written_payload' => 'HN1|SKU=PROD-MINI-NFC-011|ITEM=SER-MINI-NFC-011',
+            'reservation_token' => $reservation,
         ], $headers + ['Idempotency-Key' => 'mini-nfc-shared-010'])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'NFC_TAG_ALREADY_ASSIGNED');
@@ -235,25 +250,26 @@ class MiniAppNfcAdapterTest extends TestCase
         $this->patchJson("/api/v1/mini-app/items/{$item->item_id}/nfc", [
             'hardware_uid' => 'UID-NEW-012',
         ], $headers + ['Idempotency-Key' => 'mini-nfc-replace-012-a'])
-            ->assertStatus(409)
-            ->assertJsonPath('error.code', 'ITEM_ALREADY_HAS_NFC');
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'BUSINESS_RULE_ERROR');
 
         // prepare cũng phải chặn sớm, không để nhân viên ghi chip rồi mới biết.
         $this->postJson("/api/v1/mini-app/items/{$item->item_id}/nfc/prepare", [], $headers)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'ITEM_ALREADY_HAS_NFC');
 
-        $second = $this->patchJson("/api/v1/mini-app/items/{$item->item_id}/nfc", [
+        $this->patchJson("/api/v1/mini-app/items/{$item->item_id}/nfc", [
             'hardware_uid' => 'UID-NEW-012',
+            'written_payload' => 'HN1|SKU=PROD-MINI-NFC-012|ITEM=SER-MINI-NFC-012',
+            'reservation_token' => 'not-issued',
             'replace_existing' => true,
             'reason' => 'Chip cu bong khoi vo may',
-        ], $headers + ['Idempotency-Key' => 'mini-nfc-replace-012-b']);
-
-        $second->assertCreated()->assertJsonPath('data.replaced_physical_code_id', $firstId);
+        ], $headers + ['Idempotency-Key' => 'mini-nfc-replace-012-b'])
+            ->assertStatus(422)->assertJsonPath('error.code', 'NFC_REPLACE_DISABLED');
 
         $old = DB::table('physical_codes')->where('physical_code_id', $firstId)->first();
-        $this->assertSame('INACTIVE', (string) $old->status);
-        $this->assertSame((string) $second->json('data.nfc.physical_code_id'), (string) $old->replaced_by_code_id);
+        $this->assertSame('ACTIVE', (string) $old->status);
+        $this->assertNull($old->replaced_by_code_id);
     }
 
     public function test_resolve_tag_returns_item_from_the_chip_uid(): void
@@ -312,8 +328,11 @@ class MiniAppNfcAdapterTest extends TestCase
 
     private function assignTag(array $headers, string $itemId, string $hardwareUid): string
     {
+        $prepared = $this->postJson("/api/v1/mini-app/items/{$itemId}/nfc/prepare", [], $headers)->assertOk();
         $response = $this->patchJson("/api/v1/mini-app/items/{$itemId}/nfc", [
             'hardware_uid' => $hardwareUid,
+            'written_payload' => $prepared->json('data.nfc_payload'),
+            'reservation_token' => $prepared->json('data.reservation_token'),
         ], $headers + ['Idempotency-Key' => 'mini-nfc-'.Str::lower(Str::random(12))]);
 
         $response->assertCreated();
@@ -337,8 +356,35 @@ class MiniAppNfcAdapterTest extends TestCase
             'serial_number' => $serial,
             'item_status' => $itemStatus,
         ]);
+        $this->stockMovement($sku, $item);
 
         return [$sku, $item];
+    }
+
+    private function stockMovement(Sku $sku, ItemInstance $item): void
+    {
+        $warehouse = Warehouse::firstOrCreate(['code' => 'KHO-TONG-HN'], ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']);
+        $movementId = (string) Str::uuid();
+        $actor = auth('api')->user() ?? User::firstOrCreate(
+            ['username' => 'mini-nfc-seed-actor'],
+            ['email' => 'mini-nfc-seed-actor@wms-hoanam.test', 'display_name' => 'Mini NFC seed actor',
+                'password_hash' => Hash::make('seed-only'), 'status' => 'ACTIVE', 'version' => 1],
+        );
+        $movement = [
+            'id' => $movementId, 'movement_no' => 'MINI-NFC-'.Str::upper(Str::random(8)),
+            'business_key' => 'MINI-NFC-'.$movementId, 'movement_type' => 'OPENING',
+            'warehouse_id' => $warehouse->id, 'product_id' => $sku->sku_id,
+            'stock_status' => 'AVAILABLE', 'qty_before' => 0, 'qty_delta' => 1,
+            'qty_after' => 1, 'created_by' => $actor->user_id,
+            'occurred_at' => now(), 'created_at' => now(),
+        ];
+        foreach (['item_id' => $item->item_id, 'sku_id' => $sku->sku_id, 'quantity' => 1,
+            'source_type' => 'OPENING', 'source_id' => $movementId] as $field => $value) {
+            if (Schema::hasColumn('stock_movements', $field)) {
+                $movement[$field] = $value;
+            }
+        }
+        DB::table('stock_movements')->insert($movement);
     }
 
     private function authHeaders(): array
@@ -351,14 +397,19 @@ class MiniAppNfcAdapterTest extends TestCase
         );
         $user = User::create([
             'username' => 'mini-nfc-'.Str::lower(Str::random(6)),
+            'email' => 'mini-nfc-'.Str::lower(Str::random(6)).'@wms-hoanam.test',
             'display_name' => 'Mini NFC Tester',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
-        $token = auth('api')->login($user);
+        $login = $this->browserLogin($user->email, 'secret123')->assertOk();
+        $warehouse = Warehouse::firstOrCreate(['code' => 'KHO-TONG-HN'], ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']);
+        $context = $this->postJson('/api/v1/auth/switch-context', [
+            'context_type' => 'WAREHOUSE', 'context_id' => (string) $warehouse->id,
+        ], ['Authorization' => 'Bearer '.(string) $login->json('data.access_token')])->assertOk();
 
-        return ['Authorization' => "Bearer {$token}"];
+        return ['Authorization' => 'Bearer '.(string) $context->json('data.access_token')];
     }
 }

@@ -15,6 +15,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
 
@@ -41,6 +42,7 @@ use Tests\TestCase;
 class Wwhn266ComponentIssueReversalTest extends TestCase
 {
     use BuildsScanDrivenInbound;
+    use InteractsWithBrowserSession;
     use OpensWarrantyCaseForComponentIssue;
     use RefreshDatabase;
 
@@ -49,9 +51,9 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
     /** @var array<string, mixed> */
     private static array $evidence = [];
 
-    private function authHeadersWithRole(string $roleCode): array
+    private function authHeadersWithRole(string $roleCode, ?string $warehouseId = null): array
     {
-        if (DB::table('permission')->count() === 0) {
+        if (Role::query()->count() === 0) {
             $this->seed(AuthDatabaseSeeder::class);
             Cache::flush();
         }
@@ -59,15 +61,30 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
         $role = Role::where('role_code', $roleCode)->firstOrFail();
         $user = User::create([
             'username' => 'w266r-'.Str::lower(Str::random(8)),
+            'email' => 'w266r-'.Str::lower(Str::random(8)).'@wms-hoanam.test',
             'display_name' => 'WWHN-266 reversal fixture',
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
             'version' => 1,
         ]);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
-        $token = auth('api')->login($user);
+        $login = $this->browserLogin($user->email, 'secret123')->assertOk();
+        $auth = ['Authorization' => 'Bearer '.(string) $login->json('data.access_token')];
+        if ($warehouseId !== null) {
+            $auth = $this->confirmWarehouse($auth, $warehouseId);
+        }
 
-        return ['Authorization' => "Bearer {$token}"];
+        return $auth;
+    }
+
+    private function confirmWarehouse(array $auth, string $warehouseId): array
+    {
+        $response = $this->postJson('/api/v1/auth/switch-context', [
+            'context_type' => 'WAREHOUSE', 'context_id' => $warehouseId,
+        ], $auth)->assertOk();
+        $auth['Authorization'] = 'Bearer '.(string) $response->json('data.access_token');
+
+        return $auth;
     }
 
     /**
@@ -86,6 +103,7 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
             ['name' => 'Kho tổng Hoa Nam', 'status' => 'ACTIVE']
         );
         $warehouseId = (string) $warehouse->id;
+        $headers = $this->confirmWarehouse($headers, $warehouseId);
 
         $sku = Sku::create([
             'sku_code' => 'LKR-266-'.Str::upper(Str::random(6)),
@@ -501,12 +519,13 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
         $fixture = $this->postedComponentIssue(10, 3);
         $before = $this->balanceQty($fixture['warehouse_id'], $fixture['sku_id']);
 
-        $stranger = $this->authHeadersWithRole('LEADERSHIP');
+        $stranger = $this->authHeadersWithRole('LEADERSHIP', $fixture['warehouse_id']);
         $denied = $this->postJson('/api/v1/reversal-documents', $this->reversalPayload($fixture, 1), $stranger + [
             'If-Match' => (string) $fixture['doc_version'],
             'Idempotency-Key' => 'w266r-tc06-perm',
         ]);
         $this->assertContains($denied->getStatusCode(), [403, 404], 'Thiếu inventory.reversal.post phải 403/404 theo masking policy.');
+        $this->forgetAuthentication();
 
         $missingIfMatch = $this->postJson('/api/v1/reversal-documents', $this->reversalPayload($fixture, 1), $fixture['headers'] + [
             'Idempotency-Key' => 'w266r-tc06-428',
@@ -529,6 +548,12 @@ class Wwhn266ComponentIssueReversalTest extends TestCase
             'stale_version_http' => 412,
             'balance_unchanged' => $before,
         ]);
+    }
+
+    private function forgetAuthentication(): void
+    {
+        $this->app['auth']->forgetGuards();
+        app('tymon.jwt')->unsetToken();
     }
 
     /**
