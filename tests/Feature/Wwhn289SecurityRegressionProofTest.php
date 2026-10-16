@@ -47,6 +47,8 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
     /** @var array<string, mixed> */
     private static array $evidence = [];
 
+    private bool $authSeeded = false;
+
     /**
      * DEV289-P1-02R — xem giải thích đầy đủ ở Wwhn289StockInvariantProofTest: bản trước
      * dùng `base_path()` trong `tearDownAfterClass()` (container đã bị huỷ) và bọc `@`,
@@ -562,9 +564,11 @@ class Wwhn289SecurityRegressionProofTest extends TestCase
 
     private function seedAuthOnce(): void
     {
-        if (DB::table('permission')->count() === 0) {
+        // Migrations may add permissions before the auth role fixture exists.
+        if (! $this->authSeeded) {
             $this->seed(AuthDatabaseSeeder::class);
             Cache::flush();
+            $this->authSeeded = true;
         }
     }
 

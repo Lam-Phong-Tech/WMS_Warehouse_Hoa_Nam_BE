@@ -15,6 +15,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Monolog\Handler\TestHandler;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 
 /**
@@ -27,6 +28,7 @@ use Tests\TestCase;
  */
 class WwhnSecSuperAdminBootstrapTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use RefreshDatabase;
 
     private const SECRET_ENV = 'WMS_BOOTSTRAP_SUPER_ADMIN_PASSWORD';
@@ -232,6 +234,7 @@ class WwhnSecSuperAdminBootstrapTest extends TestCase
 
     public function test_first_login_forces_password_change_then_mfa_enrollment(): void
     {
+        $this->travelTo(now()->startOfSecond());
         $this->provideSecret(self::STRONG_PASSWORD);
         $this->assertSame(0, $this->bootstrap());
 
@@ -240,10 +243,7 @@ class WwhnSecSuperAdminBootstrapTest extends TestCase
         $this->pretendEnvironment('testing');
         config()->set('mfa.enforce', true);
 
-        $login = $this->postJson('/api/v1/auth/login', [
-            'email' => self::EMAIL,
-            'password' => self::STRONG_PASSWORD,
-        ])->assertOk();
+        $login = $this->browserLogin(self::EMAIL, self::STRONG_PASSWORD)->assertOk();
         $firstToken = (string) $login->json('data.access_token');
 
         $this->withToken($firstToken)->getJson('/api/v1/users')
@@ -262,11 +262,9 @@ class WwhnSecSuperAdminBootstrapTest extends TestCase
         // mọi request sau của test cho tới khi xoá header).
         $this->forgetAuthentication();
         $this->flushHeaders();
-        $relogin = $this->postJson('/api/v1/auth/login', [
-            'email' => self::EMAIL,
-            'password' => $newPassword,
-        ])->assertOk();
+        $relogin = $this->browserLogin(self::EMAIL, $newPassword)->assertOk();
         $secondToken = (string) $relogin->json('data.access_token');
+        $this->assertNotEmpty($relogin->json('data.user.auth_session_id'));
 
         // Đổi mật khẩu xong, SUPER_ADMIN vẫn chưa dùng được API nghiệp vụ cho tới khi đăng ký MFA...
         $this->forgetAuthentication();
