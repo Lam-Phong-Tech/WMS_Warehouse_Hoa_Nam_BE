@@ -53,6 +53,16 @@ def emit(event, data):
     print(json.dumps({'event': event, 'data': data}), flush=True)
 
 
+def safe_archive_member(root, member):
+    if Path(member.name).is_absolute() or not (member.isdir() or member.isfile()):
+        return False
+    try:
+        (root / member.name).resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
 def run(args, *, cwd=None, input_data=None, timeout=120):
     result = subprocess.run(args, cwd=cwd, input=input_data, text=True,
                             capture_output=True, timeout=timeout)
@@ -152,6 +162,10 @@ def main():
     vendor = f'{PROJECT}_vendor_{SOURCE_SHA[:8]}_{stamp.lower()}'
     report = ROOT / 'backups' / ('deploy-verified-' + SOURCE_SHA[:8] + '-' + stamp + '.json')
     evidence = {'source_sha': SOURCE_SHA, 'ops_sha': proof['ops_sha'], 'ci_run': proof['ci_run'],
+                'branch': 'dev', 'previous_source_sha': PREVIOUS_SHA,
+                'preserved_runtime_hotfixes': [
+                    {'file': filename, 'mode': 'PRESERVED_RUNTIME_VERIFIED', 'sha256': expected}
+                    for filename, expected in OVERLAYS.items()],
                 'retained_artifact_sha256': proof['retained_artifact_sha256'], 'image_id': IMAGE_ID,
                 'ci_conclusion': 'FAILURE_ARTIFACT_UPLOAD_QUOTA_ONLY', 'application_gates_passed': True,
                 'previous_release': str(previous), 'release': str(release), 'vendor_volume': vendor,
@@ -196,8 +210,7 @@ def main():
         os.chmod(release, 0o755)
         with tarfile.open(args.archive) as bundle:
             for member in bundle.getmembers():
-                target = (release / member.name).resolve()
-                assert target.is_relative_to(release) and (member.isdir() or member.isfile()), 'Unsafe source archive'
+                assert safe_archive_member(release, member), 'Unsafe source archive'
             bundle.extractall(release)
         for filename in OVERLAYS:
             target = release / filename

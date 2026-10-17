@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import subprocess
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +14,16 @@ spec.loader.exec_module(green)
 
 
 class GreenPromotionTest(unittest.TestCase):
+    def test_archive_scope_rejects_traversal_and_links(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertTrue(green.safe_archive_member(root, tarfile.TarInfo('app/example.php')))
+            self.assertFalse(green.safe_archive_member(root, tarfile.TarInfo('../escape.php')))
+            self.assertFalse(green.safe_archive_member(root, tarfile.TarInfo(str(root / 'absolute.php'))))
+            link = tarfile.TarInfo('app/link')
+            link.type = tarfile.SYMTYPE
+            self.assertFalse(green.safe_archive_member(root, link))
+
     def test_command_errors_do_not_expose_process_output(self):
         result = subprocess.CompletedProcess(['example'], 1, 'private-token', 'private-password')
         with patch.object(green.subprocess, 'run', return_value=result):
