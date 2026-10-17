@@ -227,6 +227,8 @@ jobs:
           echo "COMPOSER_LOCK_SHA256=$(git show 898d447eba868f0fb2ea6362b2e4766534ddf76a:composer.lock | sha256sum | cut -d ' ' -f1)" >> "$GITHUB_ENV"
       - name: Attest successful application gates and classify the distribution-only failure
         uses: actions/github-script@v7
+        env:
+          GH_VERIFICATION_TOKEN: ${{ github.token }}
         with:
           script: |
             const fs = require('fs');
@@ -258,8 +260,9 @@ jobs:
             }
             const logsResponse = await fetch(
               `https://api.github.com/repos/${repo.owner}/${repo.repo}/actions/jobs/${ci.id}/logs`,
-              {headers: {Authorization: `Bearer ${github.token}`, Accept: 'application/vnd.github+json'}});
-            if (!logsResponse.ok || !(await logsResponse.text()).includes('Artifact storage quota has been hit')) {
+              {headers: {Authorization: `Bearer ${process.env.GH_VERIFICATION_TOKEN}`, Accept: 'application/vnd.github+json'}});
+            if (!logsResponse.ok) throw new Error('Verification log HTTP ' + logsResponse.status);
+            if (!(await logsResponse.text()).includes('Artifact storage quota has been hit')) {
               throw new Error('Artifact quota failure was not confirmed');
             }
             const proof = {source_sha: source, ops_sha: context.sha, ci_run: runId,
