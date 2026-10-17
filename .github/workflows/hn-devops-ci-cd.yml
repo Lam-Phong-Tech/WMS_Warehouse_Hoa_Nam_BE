@@ -309,15 +309,6 @@ jobs:
               checked_at: new Date().toISOString(), successful_gates: required};
             fs.writeFileSync('devtest-ops-source/deploy-package/proof.json', JSON.stringify(proof, null, 2), {mode: 0o600});
             core.info('Application gates verified; original workflow remains FAILURE at artifact distribution.');
-      - name: Copy verified source and green-only deployment tooling
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.UAT_SSH_HOST }}
-          username: ${{ secrets.UAT_SSH_USER }}
-          password: ${{ secrets.UAT_SSH_PASSWORD }}
-          source: devtest-ops-source/deploy-package/source.tar,devtest-ops-source/deploy-package/proof.json,devtest-ops-source/deploy-package/deploy-green-verified.py
-          target: /tmp/hn-green-${{ github.sha }}
-          strip_components: 2
       - name: Promote green application with private vendor and automatic application-only rollback
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -331,8 +322,9 @@ jobs:
           script: |
             set -eu
             case "$OPS_SHA" in *[!0-9a-f]*|'') exit 1 ;; esac
-            package="/tmp/hn-green-$OPS_SHA"
-            python3 "$package/deploy-green-verified.py" --archive "$package/source.tar" --proof "$package/proof.json"
+            package=/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/devtest-ops-source/deploy-package
+            test -s "$package/source.tar" && test -s "$package/proof.json"
+            python3 "$package/deploy-green-verified.py" --archive "$package/source.tar" --proof "$package/proof.json" --ops-sha "$OPS_SHA"
   ci:
     if: inputs.devtest_preflight_only != true && inputs.devtest_deploy_only != true
     runs-on: ${{ fromJSON(inputs.runner_labels || vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}

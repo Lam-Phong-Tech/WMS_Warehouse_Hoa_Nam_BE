@@ -136,9 +136,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--archive', required=True)
     parser.add_argument('--proof', required=True)
+    parser.add_argument('--ops-sha', required=True)
     args = parser.parse_args()
     proof = json.loads(Path(args.proof).read_text())
     assert proof['source_sha'] == SOURCE_SHA and proof['ci_run'] == 39052882961
+    assert proof['ops_sha'] == args.ops_sha
     assert proof['application_gates_passed'] is True
     assert proof['distribution_failure'] == 'ARTIFACT_STORAGE_QUOTA'
     assert proof['image_id'] == IMAGE_ID and digest(args.archive) == proof['source_archive_sha256']
@@ -191,6 +193,7 @@ def main():
         evidence['capacity'] = {'free_before': free, 'required': required, 'reserve': RESERVE}
         assert free > required, 'Insufficient disk reserve; no automatic cleanup'
         release.mkdir()
+        os.chmod(release, 0o755)
         with tarfile.open(args.archive) as bundle:
             for member in bundle.getmembers():
                 target = (release / member.name).resolve()
