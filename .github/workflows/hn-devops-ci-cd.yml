@@ -206,7 +206,7 @@ jobs:
           sha256sum -c hoa-nam-backend-backend.tar.sha256
           expected=sha256:69aad9b47acd88192a463c72045fb8ae77789719bbcc7421226e93c91eadd44b
           test "$(docker image inspect hoa-nam-backend-backend:898d447eba868f0fb2ea6362b2e4766534ddf76a --format '{{.Id}}')" = "$expected"
-          test "$(jq -r '.[0].Id' image-inspect.json)" = "$expected"
+          test "$(python3 -c 'import json; print(json.load(open("image-inspect.json"))[0]["Id"])')" = "$expected"
           echo "RETAINED_IMAGE_ID=$expected" >> "$GITHUB_ENV"
           echo "RETAINED_ARTIFACT_SHA256=$(cut -d ' ' -f1 hoa-nam-backend-backend.tar.sha256)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
