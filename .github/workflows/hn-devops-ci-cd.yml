@@ -3,6 +3,11 @@ name: HN DEVOPS CI/CD
 on:
   workflow_dispatch:
     inputs:
+      devtest_owner_smoke:
+        description: With preflight only, run authenticated reads and the approved empty P04 TEST SAVE/CANCEL/END
+        required: false
+        default: false
+        type: boolean
       devtest_deploy_only:
         description: Promote verified 898d447e to green DEV/TEST without CI rerun, migration or seed
         required: false
@@ -173,6 +178,36 @@ jobs:
               Modules/Warehouse/database/seeders/DongChengCatalogSeeder.php \
               p04-draft-number-release.json p04-global-sendfix-release.json p04-ui-options-release.json
             docker system df
+  devtest-owner-smoke:
+    needs: devtest-preflight
+    if: github.event_name == 'workflow_dispatch' && inputs.devtest_preflight_only == true && inputs.devtest_owner_smoke == true && inputs.devtest_deploy_only != true
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    environment: staging
+    timeout-minutes: 10
+    steps:
+      - name: Require the approved TEST cleanup intent
+        env:
+          CONFIRMATION: ${{ inputs.devtest_confirmation }}
+        shell: bash
+        run: test "$CONFIRMATION" = P04-EMPTY-SAVE-CANCEL-END
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: devtest-smoke-source
+          persist-credentials: false
+      - name: Authenticated P23 reads and isolated P04 identity smoke, never RECORD or POST stock
+        uses: actions/github-script@v7
+        env:
+          SMOKE_EMAIL: ${{ secrets.UAT_SMOKE_EMAIL || secrets.UAT_SMOKE_USERNAME }}
+          SMOKE_PASSWORD: ${{ secrets.UAT_SMOKE_PASSWORD }}
+        with:
+          script: |
+            const {pathToFileURL} = require('url');
+            const moduleUrl = pathToFileURL(process.env.GITHUB_WORKSPACE + '/devtest-smoke-source/tools/deploy/green-owner-smoke.mjs');
+            const {smoke} = await import(moduleUrl.href);
+            const {evidence, ...summary} = await smoke({email: process.env.SMOKE_EMAIL,
+              password: process.env.SMOKE_PASSWORD, writeTest: true, log: line => core.info(line)});
+            core.info(JSON.stringify(summary));
   devtest-verified-deploy:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_deploy_only == true && inputs.devtest_preflight_only != true
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
@@ -219,7 +254,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          package="$GITHUB_WORKSPACE/devtest-ops-source/.deploy-package"
+          package="$GITHUB_WORKSPACE/devtest-ops-source/deploy-package"
           mkdir "$package"
           git archive --format=tar -o "$package/source.tar" 898d447eba868f0fb2ea6362b2e4766534ddf76a
           cp devtest-ops-source/tools/deploy/deploy-green-verified.py "$package/deploy-green-verified.py"
@@ -272,7 +307,7 @@ jobs:
               source_archive_sha256: process.env.SOURCE_ARCHIVE_SHA256,
               composer_lock_sha256: process.env.COMPOSER_LOCK_SHA256,
               checked_at: new Date().toISOString(), successful_gates: required};
-            fs.writeFileSync('devtest-ops-source/.deploy-package/proof.json', JSON.stringify(proof, null, 2), {mode: 0o600});
+            fs.writeFileSync('devtest-ops-source/deploy-package/proof.json', JSON.stringify(proof, null, 2), {mode: 0o600});
             core.info('Application gates verified; original workflow remains FAILURE at artifact distribution.');
       - name: Copy verified source and green-only deployment tooling
         uses: appleboy/scp-action@v0.1.7
@@ -280,7 +315,7 @@ jobs:
           host: ${{ secrets.UAT_SSH_HOST }}
           username: ${{ secrets.UAT_SSH_USER }}
           password: ${{ secrets.UAT_SSH_PASSWORD }}
-          source: devtest-ops-source/.deploy-package/*
+          source: devtest-ops-source/deploy-package/source.tar,devtest-ops-source/deploy-package/proof.json,devtest-ops-source/deploy-package/deploy-green-verified.py
           target: /tmp/hn-green-${{ github.sha }}
           strip_components: 2
       - name: Promote green application with private vendor and automatic application-only rollback
