@@ -11,7 +11,8 @@
     "selection": "Choose the initial cohort under a warehouse advisory transaction lock; do not choose the next no-stock cohort on each replay.",
     "atomicity": "Opening movements and their balance changes commit together; an unexpected error rolls back the entire cohort.",
     "key": "SEED-STKMIX:{warehouse_uuid}:{stock_status}:{sku_uuid}",
-    "legacy": "Any existing SEED-STKMIX movement in the warehouse preserves the existing cohort without adding or repairing rows. This is NOT a proof that a historical interrupted seed completed.",
+    "legacy": "Any existing SEED-STKMIX movement without the current completion marker preserves the existing cohort and raises a strict review warning. A cohort created and completed by this revision stores a deterministic completion marker in request_id; replay is read-only and produces informational output.",
+    "completion_marker": "seed-stkmix-v2-complete:{warehouse_uuid} on the final opening movement of the atomic cohort; it is a provenance marker, not an inventory quantity or authorization.",
     "availability": "Non-AVAILABLE fixture buckets do not increase available quantity.",
     "warehouse": "Exact KHO-TONG-HN only; missing reference is not permission to use the first warehouse."
   },

@@ -100,6 +100,7 @@ final class SeedReplayFixtureContractTest extends TestCase
         }
         $seeder->run();
         $this->assertGreaterThan(0, DB::table('stock_movements')->where('business_key', 'like', 'SEED-STKMIX:%')->count());
+        $this->assertSame(1, DB::table('stock_movements')->where('request_id', 'like', 'seed-stkmix-v2-complete:%')->count());
         $after = $this->stockFingerprint();
         $seeder->run();
         $this->assertSame($after, $this->stockFingerprint());

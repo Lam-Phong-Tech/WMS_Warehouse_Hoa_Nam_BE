@@ -20,6 +20,8 @@ class InventoryStockStatusMixSeeder extends Seeder
 
     private const BK_PREFIX = 'SEED-STKMIX';
 
+    private const COMPLETION_MARKER_PREFIX = 'seed-stkmix-v2-complete:';
+
     private const NON_AVAILABLE_STATUSES = ['DEFECTIVE', 'QUARANTINE', 'NON_SELLABLE'];
 
     private string $actorId;
@@ -62,14 +64,23 @@ class InventoryStockStatusMixSeeder extends Seeder
             }
             if (DB::table('stock_movements')->where('warehouse_id', $this->warehouseId)
                 ->where('business_key', 'like', self::BK_PREFIX.':%')->exists()) {
-                $this->command?->warn('Existing stock-mix cohort preserved; legacy completeness requires separate review.');
+                if (DB::table('stock_movements')->where('warehouse_id', $this->warehouseId)
+                    ->where('request_id', $this->completionMarker())->exists()) {
+                    $this->command?->info('Existing stock-mix cohort is complete for this seeder revision; replay is read-only.');
+                } else {
+                    $this->command?->warn('Existing stock-mix cohort preserved; legacy completeness requires separate review.');
+                }
 
                 return 0;
             }
 
             $added = 0;
-            foreach ($this->buckets() as [$skuCode, $status, $qty]) {
-                $added += $this->addMatchedBucket($skuCode, $status, $qty) ? 1 : 0;
+            $buckets = $this->buckets();
+            foreach ($buckets as $index => [$skuCode, $status, $qty]) {
+                $movementId = $this->addMatchedBucket($skuCode, $status, $qty, $index === array_key_last($buckets));
+                if ($movementId !== null) {
+                    $added++;
+                }
             }
 
             return $added;
@@ -103,7 +114,7 @@ class InventoryStockStatusMixSeeder extends Seeder
     }
 
     /** Must execute inside the atomic, warehouse-locked cohort transaction. */
-    private function addMatchedBucket(string $skuCode, string $status, int $qty): bool
+    private function addMatchedBucket(string $skuCode, string $status, int $qty, bool $complete): ?string
     {
         $skuId = DB::table('skus')->where('sku_code', $skuCode)->value('id');
         if ($skuId === null) {
@@ -118,15 +129,16 @@ class InventoryStockStatusMixSeeder extends Seeder
         $before = $balance === null ? 0 : (int) $balance->quantity;
         $after = $before + $qty;
         $available = $status === 'AVAILABLE' ? $qty : 0;
-        DB::table('stock_movements')->insert([
+        $movement = [
             'id' => (string) Str::uuid(), 'movement_no' => 'SM-STKMIX-'.Str::upper(Str::random(12)),
             'business_key' => $businessKey, 'movement_type' => 'OPENING',
             'warehouse_id' => $this->warehouseId, 'product_id' => $skuId, 'sku_id' => $skuId,
             'stock_status' => $status, 'qty_before' => $before, 'qty_delta' => $qty,
             'qty_after' => $after, 'quantity' => $qty, 'source_type' => 'SEEDER',
-            'created_by' => $this->actorId, 'request_id' => 'seed-stkmix-'.strtolower($status),
+            'created_by' => $this->actorId, 'request_id' => $complete ? $this->completionMarker() : 'seed-stkmix-'.strtolower($status),
             'occurred_at' => now(), 'created_at' => now(),
-        ]);
+        ];
+        DB::table('stock_movements')->insert($movement);
         if ($balance === null) {
             DB::table('inventory_balances')->insert([
                 'id' => (string) Str::uuid(), 'warehouse_id' => $this->warehouseId,
@@ -142,6 +154,11 @@ class InventoryStockStatusMixSeeder extends Seeder
             ]);
         }
 
-        return true;
+        return $movement['id'];
+    }
+
+    private function completionMarker(): string
+    {
+        return self::COMPLETION_MARKER_PREFIX.$this->warehouseId;
     }
 }
