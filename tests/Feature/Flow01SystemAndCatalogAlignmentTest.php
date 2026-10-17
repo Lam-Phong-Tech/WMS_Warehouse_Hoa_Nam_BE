@@ -12,6 +12,7 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
+use Tests\Feature\Concerns\PreparesWarrantyOwnerFixtures;
 use Tests\TestCase;
 
 /**
@@ -21,6 +22,7 @@ use Tests\TestCase;
 class Flow01SystemAndCatalogAlignmentTest extends TestCase
 {
     use PreparesOutboundFixtures;
+    use PreparesWarrantyOwnerFixtures;
     use RefreshDatabase;
 
     private function adminHeaders(): array
@@ -259,6 +261,7 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
             'updated_at' => now(),
         ]));
 
+        $this->bindWarrantyOwnerFixture($caseId, auth('api')->id(), $this->ensureActiveWarehouse('KHO-TONG-HN')->id);
         $this->postJson("/api/v1/warranty-cases/{$caseId}/temp-only", [
             'temporary_item_code' => 'TEMP-0001',
             'missing_code_reason' => 'Mất tem',

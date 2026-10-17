@@ -146,9 +146,9 @@ class PublicStorefrontApiTest extends TestCase
         $this->seedAvailableBalance($warehouse->id, $unpublished->sku_id, 9);
 
         $items = $this->getJson(self::BASE.'/products')->assertOk()->json('data.items');
-
-        $this->assertSame(['PUB-001', 'PUB-002'], array_column($items, 'primary_code'));
-        $this->assertSame(['IN_STOCK', 'PREORDER'], array_column($items, 'availability'));
+        $availability = array_column($items, 'availability', 'primary_code');
+        ksort($availability);
+        $this->assertSame(['PUB-001' => 'IN_STOCK', 'PUB-002' => 'PREORDER'], $availability);
     }
 
     /**

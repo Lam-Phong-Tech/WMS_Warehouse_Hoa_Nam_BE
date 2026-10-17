@@ -18,6 +18,7 @@ use Modules\Warehouse\Database\Seeders\WarrantyReportRangeSeeder;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Support\SeedStrictCommand;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use ReflectionClass;
 use RuntimeException;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
@@ -74,14 +75,14 @@ final class WarrantyReportRangeSeederTest extends TestCase
     {
         $box = $this->invoke('ensureStockedBox', $this->componentSku, 120);
         $case = (string) Str::uuid();
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $case, 'warranty_case_code' => 'WC-ISOLATED-COMPONENT',
             'identification_status' => 'TEMP_ONLY', 'temporary_item_code' => 'TEMP-ISOLATED',
             'missing_code_reason' => 'Isolated test has no product tag',
             'manual_product_description' => 'Isolated warranty fixture',
             'status' => 'REPAIRING', 'version' => 1, 'created_by' => $this->actorId,
             'created_at' => now(), 'updated_at' => now(),
-        ]);
+        ]));
         $this->invoke('postComponentIssueForCase', 'CID-ISOLATED-01', $case, $this->componentSku, $box, 2);
         $this->assertSame('POSTED', DB::table('component_issue_documents')->where('component_issue_no', 'CID-ISOLATED-01')->value('status'));
         $this->assertSame(118, $this->boxQuantity($box));
@@ -212,13 +213,13 @@ final class WarrantyReportRangeSeederTest extends TestCase
     private function temporaryCase(string $code, string $status): string
     {
         $id = (string) Str::uuid();
-        DB::table('warranty_case')->insert([
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode([
             'warranty_case_id' => $id, 'warranty_case_code' => $code, 'status' => $status,
             'identification_status' => 'TEMP_ONLY', 'temporary_item_code' => 'TEMP-'.$code,
             'missing_code_reason' => 'Isolated test has no physical tag',
             'manual_product_description' => 'Isolated test fixture', 'version' => 1,
             'created_by' => $this->actorId, 'created_at' => now(), 'updated_at' => now(),
-        ]);
+        ]));
 
         return $id;
     }

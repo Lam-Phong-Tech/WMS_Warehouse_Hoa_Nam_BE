@@ -155,8 +155,10 @@ class PublicQuoteSandboxTest extends TestCase
     private function prepare(): array
     {
         $exit = Artisan::call('wms:public-quote-sandbox', ['action' => 'prepare']);
-        $this->assertSame(0, $exit, Artisan::output());
+        $output = Artisan::output();
+        $this->assertSame(0, $exit, $output);
+        $this->assertJson($output);
 
-        return json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+        return json_decode($output, true, 512, JSON_THROW_ON_ERROR);
     }
 }

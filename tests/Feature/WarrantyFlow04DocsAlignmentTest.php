@@ -19,9 +19,9 @@ use Modules\Warehouse\Models\PhysicalCode;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * Khóa các điểm luồng 04 · Bảo hành & linh kiện vừa được đưa về khớp docs:
@@ -35,6 +35,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
  */
 class WarrantyFlow04DocsAlignmentTest extends TestCase
 {
+    use InteractsWithBrowserSession;
     use OpensWarrantyCaseForComponentIssue;
     use RefreshDatabase;
 
@@ -644,15 +645,7 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
     public function test_component_issue_create_does_not_require_non_erd_document_date(): void
     {
         $headers = $this->authHeaders('SUPER_ADMIN_W4L');
-        $warehouse = DB::table('warehouses')->insertGetId([
-            'id' => $warehouseId = (string) Str::uuid(),
-            'code' => 'KHO-W4',
-            'name' => 'Kho luong 04',
-            'status' => 'ACTIVE',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ], 'id');
-        $this->assertNotNull($warehouse);
+        $warehouseId = $this->ensureActiveWarehouse('KHO-W4', 'Kho luong 04')->id;
 
         $component = Sku::create([
             'sku_code' => 'LK-W4-PIN',
@@ -720,6 +713,7 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
 
         $user = User::create([
             'username' => Str::lower($roleCode).'-'.Str::lower(Str::random(6)),
+            'email' => Str::lower($roleCode).'-'.Str::lower(Str::random(6)).'@wms.test',
             'display_name' => $roleCode,
             'password_hash' => Hash::make('secret123'),
             'status' => 'ACTIVE',
@@ -727,6 +721,13 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
         ]);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
 
-        return ['Authorization' => 'Bearer '.JWTAuth::fromUser($user)];
+        $warehouse = $this->ensureActiveWarehouse('KHO-W4', 'Kho luong 04');
+        $this->app['auth']->forgetGuards();
+        $token = $this->browserLogin($user->email, 'secret123')->assertOk()->json('data.access_token');
+        $this->postJson('/api/v1/auth/switch-context', ['context_type' => 'WAREHOUSE', 'context_id' => $warehouse->id], [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertOk();
+
+        return ['Authorization' => 'Bearer '.$token];
     }
 }

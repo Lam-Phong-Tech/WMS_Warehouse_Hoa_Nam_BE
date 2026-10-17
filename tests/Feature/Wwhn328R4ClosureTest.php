@@ -15,6 +15,7 @@ use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Tests\Feature\Concerns\PreparesWarrantyOwnerFixtures;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -24,9 +25,8 @@ use Tymon\JWTAuth\Facades\JWTAuth;
  * Bổ sung đúng những khẳng định mà register R4 đòi QA2 phải chạy lại nhưng
  * `Wwhn328DashboardQuickContractTest` chưa hề khoá bằng test:
  *
- *  - DEV328-P1-01R4 "explicit WAREHOUSE_SCOPED vs warranty GLOBAL": ngoại lệ bảo hành
- *    mới chỉ được viết trong OpenAPI/matrix. Không có test nào chứng minh nó GLOBAL,
- *    nên một lần "sửa cho nhất quán" (thêm scope vào warranty) sẽ đi lọt.
+ *  - Warranty ownership now follows warranty-owner-v1, including TEMP_ONLY;
+ *    the earlier GLOBAL exception no longer applies to warehouse-scoped users.
  *  - DEV328-P1-06R4 "reconciliation": không có test nào đối chiếu
  *    `reconciliation_warning_count` với `/reports/inventory-balance` — hai màn hình có
  *    thể lệch định nghĩa MISMATCH mà cả hai vẫn xanh.
@@ -42,6 +42,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
  */
 class Wwhn328R4ClosureTest extends TestCase
 {
+    use PreparesWarrantyOwnerFixtures;
     use RefreshDatabase;
 
     private Warehouse $warehouseA;
@@ -88,12 +89,12 @@ class Wwhn328R4ClosureTest extends TestCase
 
     // ── DEV328-P1-01R4: ngoại lệ warranty GLOBAL ─────────────
 
-    public function test_warranty_kpi_stays_global_for_a_warehouse_scoped_user(): void
+    public function test_warranty_kpi_uses_persisted_owners_for_a_warehouse_scoped_user(): void
     {
         $this->seedTwoWarehouses();
-        $this->warrantyCase('RECEIVED');
-        $this->warrantyCase('RECEIVED');
-        $this->warrantyCase('COMPLETED');
+        $this->warrantyCase('RECEIVED', $this->warehouseA);
+        $this->warrantyCase('RECEIVED', $this->warehouseB);
+        $this->warrantyCase('COMPLETED', $this->warehouseA);
 
         $global = $this->get('/api/v1/reports/dashboard-quick', $this->auth($this->globalToken))
             ->assertOk()->json('data');
@@ -106,13 +107,7 @@ class Wwhn328R4ClosureTest extends TestCase
         $this->assertSame('WAREHOUSE_SCOPED', $scoped['data_scope']);
         $this->assertNotEquals($global['receipt_qty'], $scoped['receipt_qty']);
 
-        // …còn warranty thì phải bằng nhau: ERD entity `warranty_case` không có
-        // warehouse_id nên không có đường suy ra kho cho một ca bảo hành.
-        $this->assertSame(
-            $global['warranty_cases_by_status'],
-            $scoped['warranty_cases_by_status'],
-            'warranty_cases_by_status là ngoại lệ GLOBAL đã ký ở KPI matrix; cắt theo kho là sai contract.'
-        );
+        $this->assertSame(['COMPLETED' => 1, 'RECEIVED' => 1], $scoped['warranty_cases_by_status']);
         $this->assertSame(2, $global['warranty_cases_by_status']['RECEIVED']);
         $this->assertSame(1, $global['warranty_cases_by_status']['COMPLETED']);
     }
@@ -347,10 +342,11 @@ class Wwhn328R4ClosureTest extends TestCase
      * Cả hai CHECK chỉ tồn tại trên PostgreSQL, nên fixture sai hình dạng vẫn xanh trên
      * SQLite — đúng loại đỏ mà CI chạy SQLite không bắt được.
      */
-    private function warrantyCase(string $status): void
+    private function warrantyCase(string $status, Warehouse $warehouse): void
     {
+        $id = (string) Str::uuid();
         DB::table('warranty_case')->insert(WarrantyCasePii::encode([
-            'warranty_case_id' => (string) Str::uuid(),
+            'warranty_case_id' => $id,
             'warranty_case_code' => 'WC-328R4-'.Str::random(6),
             'product_id' => $this->product->id,
             'item_id' => null,
@@ -367,5 +363,6 @@ class Wwhn328R4ClosureTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]));
+        $this->bindWarrantyOwnerFixture($id, $this->globalUser->user_id, $warehouse->id);
     }
 }

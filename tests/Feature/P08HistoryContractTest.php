@@ -156,6 +156,10 @@ class P08HistoryContractTest extends TestCase
             $this->assertStringNotContainsString('access_token', $result->getContent());
         }
         $this->assertSame($before, array_map(fn (string $t): int => DB::table($t)->count(), $tables));
+        $this->getJson($this->url('scan-sessions/'.$batch, $warehouse->id), $this->headers($token))
+            ->assertOk()->assertJsonPath('data.p23.batch.latestEvent.rawCode', null)
+            ->assertJsonPath('data.p23.batch.latestEvent.reason', null)
+            ->assertJsonPath('data.p23.batch.latestEvent.rawCodePolicy', 'OMITTED_MAY_CONTAIN_PII_OR_SECRETS');
         foreach (['tenant_id', 'org_id', 'user_id'] as $field) {
             $this->getJson($this->url('records', $warehouse->id, [$field => (string) Str::uuid()]), $this->headers($token))->assertUnprocessable();
         }
@@ -187,7 +191,7 @@ class P08HistoryContractTest extends TestCase
         foreach ($statuses as $status) {
             // Identical timestamps exercise the immutable activityId tie-breaker.
             DB::table('scan_record_events')->insert(['scan_event_id' => (string) Str::uuid(),
-                'scan_batch_id' => $id, 'raw_code' => 'p08-private-raw-marker', 'result_status' => $status,
+                'scan_batch_id' => $id, 'raw_code' => 'p08-private-raw-marker', 'message' => 'p08-private-raw-marker', 'result_status' => $status,
                 'created_at' => now()->subDay()->setTime(12, 0)]);
         }
 

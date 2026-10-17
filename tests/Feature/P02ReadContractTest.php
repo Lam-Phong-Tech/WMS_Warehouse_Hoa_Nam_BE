@@ -12,6 +12,7 @@ use Modules\Auth\Models\User;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 use Tests\TestCredentials;
@@ -161,9 +162,9 @@ class P02ReadContractTest extends TestCase
             $this->assertTrue(Str::isUuid($id));
             $ids[] = $id;
         }
-        DB::table('warranty_case')->whereIn('warranty_case_id', $ids)->update([
+        DB::table('warranty_case')->whereIn('warranty_case_id', $ids)->update(WarrantyCasePii::encode([
             'created_at' => '2026-01-15 08:00:00', 'updated_at' => '2026-01-15 08:00:00',
-        ]);
+        ]));
         rsort($ids, SORT_STRING);
         foreach (['/api/v1/warranty-cases', '/api/v1/mini-app/warranty-cases'] as $path) {
             foreach ($ids as $index => $id) {

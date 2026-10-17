@@ -185,14 +185,13 @@ final class P23ScanSessionReadModel
                 continue;
             }
             $eventColumns = $this->columns($events);
-            $batchColumns = $this->columns($batches);
             $optional = static function (string $alias, string $field, array $columns, string $cast = 'VARCHAR(250)'): string {
                 return in_array($field, $columns, true) ? "CAST({$alias}.{$field} AS {$cast})" : "CAST(NULL AS {$cast})";
             };
             $raw = $optional('e', 'raw_code', $eventColumns);
             $reasonField = in_array('reason', $eventColumns, true) ? 'reason' : (in_array('message', $eventColumns, true) ? 'message' : null);
             $reason = $reasonField === null ? 'CAST(NULL AS VARCHAR(1000))' : "CAST(e.{$reasonField} AS VARCHAR(1000))";
-            $actor = in_array('actor_id', $eventColumns, true) ? $optional('e', 'actor_id', $eventColumns) : $optional('b', 'created_by', $batchColumns);
+            $actor = $optional('e', 'actor_id', $eventColumns);
             $serial = $optional('e', 'serial_number', $eventColumns);
             $sku = $optional('e', 'sku_code', $eventColumns);
             $quantity = in_array('issued_quantity', $eventColumns, true) ? 'CAST(e.issued_quantity AS DECIMAL(18,3))' : 'CAST(NULL AS DECIMAL(18,3))';
@@ -262,6 +261,7 @@ final class P23ScanSessionReadModel
                 'sku' => $latest->sku_code,
                 'issuedQuantity' => $latest->issued_quantity,
                 'actorId' => $latest->actor_id,
+                'actorIdStatus' => $latest->actor_id === null ? 'NOT_RECORDED' : 'PERSISTED_EVENT_ACTOR',
                 'displayName' => null,
                 'displayNameStatus' => 'NOT_PERSISTED_AS_HISTORY_SNAPSHOT',
                 'occurredAt' => $latest->created_at,
@@ -281,6 +281,12 @@ final class P23ScanSessionReadModel
         $row = $q->where('session_id', $id)->first();
         $complete = ($eventSource['status'] ?? null) === 'INCLUDED';
         $latest = $this->latestEvents($scope, [$id], now()->utc()->format('Y-m-d H:i:s.u'), $sources);
+        // P08 retains its redacted projection even when P23 metadata is embedded.
+        if (isset($latest[$id]['latestEvent'])) {
+            $latest[$id]['latestEvent']['rawCode'] = null;
+            $latest[$id]['latestEvent']['reason'] = null;
+            $latest[$id]['latestEvent']['rawCodePolicy'] = 'OMITTED_MAY_CONTAIN_PII_OR_SECRETS';
+        }
 
         return ['contract' => P23ScanSessionPolicy::CONTRACT, 'batch' => $row === null ? null : $this->serializeWithMetadata($row, $latest[$id] ?? []),
             'batchSources' => $sources, 'counts' => P23ScanSessionPolicy::counts($complete ? $counts : null),

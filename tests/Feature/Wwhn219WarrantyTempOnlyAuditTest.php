@@ -9,11 +9,13 @@ use Modules\AuditLog\Models\AuditLog;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\WarrantyCase;
+use Tests\Feature\Concerns\PreparesWarrantyOwnerFixtures;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class Wwhn219WarrantyTempOnlyAuditTest extends TestCase
 {
+    use PreparesWarrantyOwnerFixtures;
     use RefreshDatabase;
 
     public function test_temp_only_writes_audit_log_with_before_after_snapshot(): void
@@ -39,6 +41,7 @@ class Wwhn219WarrantyTempOnlyAuditTest extends TestCase
         ]);
 
         $before = AuditLog::query()->where('action', 'WARRANTY_TEMP_ONLY')->count();
+        $this->bindWarrantyOwnerFixture($case->warranty_case_id, $user->user_id, $this->ensureActiveWarehouse('KHO-TONG-HN')->id);
 
         $this->postJson(
             "/api/v1/warranty-cases/{$case->warranty_case_id}/temp-only",

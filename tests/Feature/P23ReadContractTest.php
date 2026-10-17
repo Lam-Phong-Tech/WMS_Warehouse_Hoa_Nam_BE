@@ -13,6 +13,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\P23ScanSessionReadModel;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
@@ -95,6 +96,9 @@ final class P23ReadContractTest extends TestCase
         $this->assertContains($rows[$busy]['latestEvent']['status'], ['ACCEPTED', 'DUPLICATE', 'RESOLVED', 'REJECTED']);
         $this->assertNull($rows[$busy]['latestEvent']['serial']);
         $this->assertNull($rows[$busy]['latestEvent']['sku']);
+        $this->assertNull($rows[$busy]['latestEvent']['actorId']);
+        $this->assertSame('NOT_RECORDED', $rows[$busy]['latestEvent']['actorIdStatus']);
+        $this->assertSame($user->user_id, $rows[$busy]['actor']['userId']);
         $this->assertNull($rows[$busy]['issuedQuantity']);
         $this->assertSame('NO_AUTHORITATIVE_BATCH_POSTING_QUANTITY', $rows[$busy]['issuedQuantityStatus']);
         foreach ([$empty, $busy] as $id) {
@@ -207,7 +211,12 @@ final class P23ReadContractTest extends TestCase
         $before = $fingerprint();
         foreach (['scan-sessions', 'history/scan-sessions/'.$id] as $path) {
             $response = $this->getJson($this->url($path, $warehouse->id), $this->headers($token))->assertOk();
-            $this->assertStringContainsString('p23-private-raw-marker', $response->getContent());
+            if ($path === 'scan-sessions') {
+                $this->assertStringContainsString('p23-private-raw-marker', $response->getContent());
+            } else {
+                $this->assertStringNotContainsString('p23-private-raw-marker', $response->getContent());
+                $response->assertJsonPath('data.p23.batch.latestEvent.rawCode', null);
+            }
             $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         }
         $this->assertSame($before, $fingerprint());
@@ -247,12 +256,12 @@ final class P23ReadContractTest extends TestCase
     private function warranty(User $user, object $warehouse, mixed $created): string
     {
         $id = (string) Str::uuid();
-        DB::table('warranty_case')->insert(['warranty_case_id' => $id, 'warranty_case_code' => 'P23-'.$id,
+        DB::table('warranty_case')->insert(WarrantyCasePii::encode(['warranty_case_id' => $id, 'warranty_case_code' => 'P23-'.$id,
             'identification_status' => 'TEMP_ONLY', 'temporary_item_code' => 'TEMP-'.$id,
             // Match the existing TEMP_ONLY shape; never relax production constraints for a test.
             'missing_code_reason' => 'Isolated CI item has no physical label',
             'manual_product_description' => 'Isolated P23 warranty fixture',
-            'created_by' => $user->user_id, 'status' => 'RECEIVED', 'version' => 1, 'created_at' => $created, 'updated_at' => $created]);
+            'created_by' => $user->user_id, 'status' => 'RECEIVED', 'version' => 1, 'created_at' => $created, 'updated_at' => $created]));
         DB::table(WarrantyWarehouseScope::TABLE)->insert(['warranty_case_id' => $id, 'warehouse_id' => $warehouse->id,
             'source' => 'EXPLICIT_REQUEST', 'actor_id' => $user->user_id, 'auth_session_id' => null, 'assigned_at' => $created, 'evidence' => null]);
 

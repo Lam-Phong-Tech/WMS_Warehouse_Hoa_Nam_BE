@@ -20,6 +20,7 @@ use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\P12MixedDocumentPage as Page;
 use Modules\Warehouse\Support\P12MixedDocumentReadModel as ReadModel;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use Normalizer;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
@@ -239,16 +240,16 @@ final class P12MixedDocumentsTest extends TestCase
     public function test_created_date_uses_half_open_local_days_and_respects_native_storage_precision(): void
     {
         [, $token, $warehouse] = $this->actor();
-        foreach (['2026-10-08 16:59:59', '2026-10-08 17:00:00', '2026-10-09 16:59:59', '2026-10-09 17:00:00'] as $at) {
+        foreach (['2026-10-08 23:59:59', '2026-10-09 00:00:00', '2026-10-09 23:59:59', '2026-10-10 00:00:00'] as $at) {
             $this->stock($warehouse, 'INBOUND', $at);
         }
-        $this->warranty($token, $warehouse, '2026-10-08 17:10:00');
+        $this->warranty($token, $warehouse, '2026-10-09 00:10:00');
         $this->read($token, $warehouse, ['date_from' => '2026-10-09', 'date_to' => '2026-10-09'])->assertOk()
             ->assertJsonPath('meta.source_facets.WARRANTY.total', 1)->assertJsonPath('meta.total', 3)
             ->assertJsonPath('meta.date_field', 'created_at')->assertJsonPath('meta.timezone', 'Asia/Ho_Chi_Minh');
-        $fractional = $this->stock($warehouse, 'INBOUND', '2026-10-09 16:59:59.999999');
+        $fractional = $this->stock($warehouse, 'INBOUND', '2026-10-09 23:59:59.999999');
         $stored = DB::table('stock_documents')->where('id', $fractional)->value('created_at');
-        $localDate = (new \DateTimeImmutable($stored, new \DateTimeZone('UTC')))
+        $localDate = (new \DateTimeImmutable($stored, new \DateTimeZone('Asia/Ho_Chi_Minh')))
             ->setTimezone(new \DateTimeZone('Asia/Ho_Chi_Minh'))->format('Y-m-d');
         $included = $localDate === '2026-10-09';
         $page = $this->read($token, $warehouse, ['date_from' => '2026-10-09', 'date_to' => '2026-10-09'])->assertOk()
@@ -539,9 +540,9 @@ final class P12MixedDocumentsTest extends TestCase
         // second source. Separate source-term matching from literal-code matching.
         DB::table('stock_documents')->where('id', $receipt)->update(['doc_no' => 'TYPE-IN-001', 'source_name' => 'Alpha supplier']);
         DB::table('stock_documents')->where('id', $issue)->update(['doc_no' => 'TYPE-OUT-001', 'recipient_name' => 'Beta receiver']);
-        DB::table('warranty_case')->where('warranty_case_id', $case)->update([
+        DB::table('warranty_case')->where('warranty_case_id', $case)->update(WarrantyCasePii::encode([
             'warranty_case_code' => 'TYPE-WC-001', 'temporary_item_code' => 'TYPE-TMP-001',
-        ]);
+        ]));
         foreach (['PN' => 'INBOUND', 'Nhập kho' => 'INBOUND', 'PX' => 'OUTBOUND', 'XUẤT' => 'OUTBOUND', 'BH' => 'WARRANTY', 'BẢO HÀNH' => 'WARRANTY'] as $q => $source) {
             $this->read($token, $warehouse, ['q' => $q])->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.source', $source);
         }
@@ -560,7 +561,7 @@ final class P12MixedDocumentsTest extends TestCase
         $day = now()->setTimezone('Asia/Ho_Chi_Minh')->startOfDay();
         $min = $day->copy()->subDays(90)->toDateString();
         $today = $day->toDateString();
-        $this->stock($warehouse, 'INBOUND', $day->copy()->subDays(90)->utc()->format('Y-m-d H:i:s'));
+        $this->stock($warehouse, 'INBOUND', $day->copy()->subDays(90)->format('Y-m-d H:i:s'));
         $this->read($token, $warehouse, ['date_from' => $min, 'date_to' => $today])->assertOk()->assertJsonPath('meta.total', 1);
         $all = $this->read($token, $warehouse)->assertOk()->assertJsonPath('meta.total', 2);
         $this->assertContains($old, array_column($all->json('data'), 'id'));
@@ -697,7 +698,7 @@ final class P12MixedDocumentsTest extends TestCase
             'manual_product_description' => 'Isolated unidentifiable product',
         ], $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid(), 'X-Request-ID' => (string) Str::uuid()])->assertCreated();
         $id = $response->json('data.warranty_case_id');
-        DB::table('warranty_case')->where('warranty_case_id', $id)->update(['created_at' => $at]);
+        DB::table('warranty_case')->where('warranty_case_id', $id)->update(WarrantyCasePii::encode(['created_at' => $at]));
 
         return $id;
     }

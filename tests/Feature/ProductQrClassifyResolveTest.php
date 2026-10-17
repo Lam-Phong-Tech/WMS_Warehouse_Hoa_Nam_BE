@@ -156,6 +156,7 @@ class ProductQrClassifyResolveTest extends TestCase
         $fixture = $this->issuedItemFixture('QR-WAR-01', 'SN-WAR-0001');
 
         $response = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $fixture['warehouse_id'],
             'item_code' => $this->composite('QR-WAR-01', 'SN-WAR-0001'),
             'customer_name' => 'Khach QR',
             'customer_phone' => '0900000001',
@@ -181,6 +182,7 @@ class ProductQrClassifyResolveTest extends TestCase
         // QR-15 warranty: parse OK nhưng item unknown -> khong auto-link, bao
         // WARRANTY_ITEM_NOT_FOUND de UI mo nhanh TEMP_ONLY.
         $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $fixture['warehouse_id'],
             'item_code' => $this->composite('QR-WAR-02', 'SN-WAR-GHOST'),
             'customer_name' => 'Khach QR 2',
             'customer_phone' => '0900000002',
@@ -196,6 +198,7 @@ class ProductQrClassifyResolveTest extends TestCase
         $this->productSkuFixture('QR-WAR-03B');
 
         $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $fixture['warehouse_id'],
             'item_code' => $this->composite('QR-WAR-03B', 'SN-WAR-0003'),
             'customer_name' => 'Khach QR 3',
             'customer_phone' => '0900000003',

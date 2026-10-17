@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Http\Controllers\P14RecoveryController;
 use App\Http\Middleware\EnsureApiDocsEnabled;
 use App\Support\HoaNamErdSchema;
 use App\Support\Security\PiiKeyring;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Schema;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\CredentialPolicy;
+use Modules\Auth\Support\PermissionEnforcementMap;
 use Modules\Warehouse\Database\Seeders\DongChengAnchorSkus;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
@@ -1370,7 +1372,12 @@ class BackendGoLiveCheck extends Command
             $key = implode('|', $route->methods()).' '.$uri;
 
             if (! in_array('auth:api', $middleware, true)) {
-                $map[$key] = in_array($uri, self::PUBLIC_ROUTES, true) ? 'PUBLIC_ANONYMOUS' : 'UNAUTHENTICATED';
+                $recoveryOwner = [
+                    'POST api/v1/auth/recovery-requests' => P14RecoveryController::class.'@store',
+                    'GET|HEAD api/v1/auth/recovery-requests/operations/{operationId}' => P14RecoveryController::class.'@show',
+                ][$key] ?? null;
+                $map[$key] = in_array($uri, self::PUBLIC_ROUTES, true)
+                    || ($recoveryOwner !== null && $recoveryOwner === $route->getActionName()) ? 'PUBLIC_ANONYMOUS' : 'UNAUTHENTICATED';
 
                 continue;
             }
@@ -1383,7 +1390,11 @@ class BackendGoLiveCheck extends Command
             }
 
             if ($permissions === []) {
-                $map[$key] = in_array($uri, self::SELF_SERVICE_ROUTES, true) ? 'SELF_SERVICE' : 'UNGATED';
+                $signature = $route->methods()[0].' '.$uri;
+                $owner = PermissionEnforcementMap::IN_CODE_GUARDED_ROUTES[$signature] ?? null;
+                $map[$key] = $owner !== null && $owner === $route->getActionName()
+                    ? 'OWNER_GUARDED:'.$owner
+                    : (in_array($uri, self::SELF_SERVICE_ROUTES, true) ? 'SELF_SERVICE' : 'UNGATED');
 
                 continue;
             }

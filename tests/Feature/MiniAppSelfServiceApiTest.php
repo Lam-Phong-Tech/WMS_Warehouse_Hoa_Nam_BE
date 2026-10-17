@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\Role;
@@ -149,13 +150,21 @@ class MiniAppSelfServiceApiTest extends TestCase
         $this->deleteJson('/api/v1/auth/sessions/khong-phai-uuid', [], $headers)->assertNotFound();
 
         $this->deleteJson("/api/v1/auth/sessions/{$ownerSid}", [], $headers)
+            ->assertConflict()->assertJsonPath('error_code', 'CURRENT_SESSION_PROTECTED');
+        $this->assertNull(RefreshToken::query()->findOrFail($ownerSid)->revoked_at);
+
+        $otherToken = $this->browserLogin($owner->email, 'secret123')->assertOk()->json('data.access_token');
+        $this->app['auth']->forgetGuards();
+        $this->app['tymon.jwt']->unsetToken();
+        $otherHeaders = ['Authorization' => 'Bearer '.$otherToken];
+        $this->deleteJson("/api/v1/auth/sessions/{$ownerSid}", [], $otherHeaders)
             ->assertOk()
             ->assertJsonPath('data.revoked', true)
             ->assertJsonPath('data.already_revoked', false)
-            ->assertJsonPath('data.was_current', true);
+            ->assertJsonPath('data.was_current', false);
 
         // Bấm lại không lỗi.
-        $this->deleteJson("/api/v1/auth/sessions/{$ownerSid}", [], $headers)
+        $this->deleteJson("/api/v1/auth/sessions/{$ownerSid}", [], $otherHeaders)
             ->assertOk()
             ->assertJsonPath('data.already_revoked', true);
 
@@ -206,7 +215,10 @@ class MiniAppSelfServiceApiTest extends TestCase
     public function test_lich_su_chip_nfc_tra_lan_gan_va_lan_thu_hoi_moi_nhat_truoc(): void
     {
         $admin = $this->selfServiceUser('nfc_history', superAdmin: true);
-        $headers = ['Authorization' => 'Bearer '.auth('api')->login($admin)];
+        $warehouse = $this->warehouseFixture();
+        $token = $this->browserLogin($admin->email, 'secret123')->assertOk()->json('data.access_token');
+        $headers = ['Authorization' => 'Bearer '.$token];
+        $this->postJson('/api/v1/auth/switch-context', ['context_type' => 'WAREHOUSE', 'context_id' => $warehouse->id], $headers)->assertOk();
 
         $sku = Sku::create([
             'sku_code' => 'PROD-NFC-HISTORY-001',
@@ -221,9 +233,25 @@ class MiniAppSelfServiceApiTest extends TestCase
             'serial_number' => 'SER-NFC-HISTORY-001',
             'item_status' => 'IN_STOCK',
         ]);
+        $movementId = (string) Str::uuid();
+        $movement = ['id' => $movementId, 'movement_no' => 'NF-'.$movementId,
+            'business_key' => 'NFC-HISTORY-'.$movementId, 'movement_type' => 'OPENING',
+            'warehouse_id' => $warehouse->id, 'product_id' => $sku->sku_id, 'stock_status' => 'AVAILABLE',
+            'qty_before' => 0, 'qty_delta' => 1, 'qty_after' => 1, 'created_by' => $admin->user_id,
+            'occurred_at' => now(), 'created_at' => now()];
+        foreach (['item_id' => $item->item_id, 'sku_id' => $sku->sku_id, 'quantity' => 1,
+            'source_type' => 'OPENING', 'source_id' => $movementId] as $field => $value) {
+            if (Schema::hasColumn('stock_movements', $field)) {
+                $movement[$field] = $value;
+            }
+        }
+        DB::table('stock_movements')->insert($movement);
 
+        $prepared = $this->postJson("/api/v1/mini-app/items/{$item->item_id}/nfc/prepare", [], $headers)->assertOk();
         $physicalCodeId = (string) $this->patchJson("/api/v1/mini-app/items/{$item->item_id}/nfc", [
             'hardware_uid' => '04ABCDEF123456',
+            'reservation_token' => $prepared->json('data.reservation_token'),
+            'written_payload' => $prepared->json('data.nfc_payload'),
         ], $headers + ['Idempotency-Key' => 'nfc-history-assign'])
             ->assertCreated()
             ->json('data.nfc.physical_code_id');

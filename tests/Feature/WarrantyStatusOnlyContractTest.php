@@ -16,11 +16,13 @@ use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
+use Tests\Feature\Concerns\PreparesWarrantyOwnerFixtures;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class WarrantyStatusOnlyContractTest extends TestCase
 {
+    use PreparesWarrantyOwnerFixtures;
     use RefreshDatabase;
 
     public function test_temp_only_is_status_only_and_replay_does_not_duplicate_event(): void
@@ -218,7 +220,7 @@ class WarrantyStatusOnlyContractTest extends TestCase
         ?string $productId,
         string $code
     ): WarrantyCase {
-        return WarrantyCase::query()->create([
+        $case = WarrantyCase::query()->create([
             'warranty_case_id' => (string) Str::uuid(),
             'warranty_case_code' => $code,
             'inventory_serial_id' => $serialId,
@@ -236,6 +238,9 @@ class WarrantyStatusOnlyContractTest extends TestCase
             'created_by' => $user->user_id,
             'version' => 1,
         ]);
+        $this->bindWarrantyOwnerFixture($case->warranty_case_id, $user->user_id, $this->ensureActiveWarehouse('KHO-TONG-HN')->id);
+
+        return $case;
     }
 
     private function headers(string $token, string $idempotencyKey): array

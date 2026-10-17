@@ -9,11 +9,13 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\WarrantyCase;
 use Modules\Warehouse\Models\WarrantyEvent;
+use Tests\Feature\Concerns\PreparesWarrantyOwnerFixtures;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class WarrantyIdempotencyKeyContractTest extends TestCase
 {
+    use PreparesWarrantyOwnerFixtures;
     use RefreshDatabase;
 
     public function test_missing_idempotency_key_returns_428_without_warranty_effect(): void
@@ -87,6 +89,7 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
         [, $token] = $this->createSuperAdmin();
         $headers = ['Authorization' => "Bearer {$token}"];
         $payload = [
+            'warehouse_id' => $this->ensureActiveWarehouse('KHO-TONG-HN')->id,
             'customer_name' => 'Khach Idem Baseline',
             'customer_phone' => '0900000001',
             'description' => 'May hong nguon',
@@ -124,6 +127,7 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
         $headers = ['Authorization' => "Bearer {$token}"];
 
         $create = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $this->ensureActiveWarehouse('KHO-TONG-HN')->id,
             'customer_name' => 'Khach Update Idem',
             'customer_phone' => '0900000002',
             'description' => 'Loi motor',
@@ -231,7 +235,7 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
 
     private function createWarrantyCase(User $user, string $code): WarrantyCase
     {
-        return WarrantyCase::query()->create([
+        $case = WarrantyCase::query()->create([
             'warranty_case_id' => (string) Str::uuid(),
             'warranty_case_code' => $code,
             'inventory_serial_id' => null,
@@ -249,5 +253,8 @@ class WarrantyIdempotencyKeyContractTest extends TestCase
             'created_by' => $user->user_id,
             'version' => 1,
         ]);
+        $this->bindWarrantyOwnerFixture($case->warranty_case_id, $user->user_id, $this->ensureActiveWarehouse('KHO-TONG-HN')->id);
+
+        return $case;
     }
 }

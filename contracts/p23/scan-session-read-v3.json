@@ -1,6 +1,6 @@
 {
   "contract": "mini-app-p23-read-v3",
-  "revision": "p23-persisted-source-map-r1",
+  "revision": "p23-persisted-source-map-r2",
   "status": "IMPLEMENTED_SOURCE_PENDING_RELEASE_AND_DEV_SMOKE",
   "endpoint": "GET /api/v1/mini-app/scan-sessions",
   "permission": {
@@ -29,6 +29,8 @@
       "issuedQuantity":"event.issued_quantity only when persisted; otherwise null",
       "eventType":"event.event_type only when persisted; otherwise null",
       "status":"event.result_status",
+      "actorId":"event.actor_id only when persisted; otherwise null, never batch.created_by",
+      "actorIdStatus":"PERSISTED_EVENT_ACTOR or NOT_RECORDED",
       "businessLink":"batch.source_type/source_id persisted reference only; URL remains null until approved target mapping"
     },
     "quantity":"issuedQuantity is null unless an authoritative persisted event field exists; scan count is not posting quantity"
@@ -36,6 +38,7 @@
   "partial_source": {"total":null,"availableTotal":"readable persisted batch source only","coverage":"PARTIAL_SOURCE","latestEventStatus":"PARTIAL_SOURCE","rules":["Do not convert unavailable source to empty","Do not use current item/SKU lookup to repair history"]},
   "status_mapping": {"ACCEPTED":"accepted only","RESOLVED":"RESOLVED_NOT_ACCEPTED; never promoted to ACCEPTED","REJECTED":"explicitRejected only; rejected aggregate remains null","OTHER":"other; never included in rejected total"},
   "counts": {"source":"full persisted event sources grouped by session before page slicing","availableCounts":"readable event-source portion only","issuedQuantity":null,"rejected":null,"isConfirmationReceipt":false},
+  "p08_compatibility": {"embedded_latest_event_rawCode":null,"embedded_latest_event_reason":null,"policy":"P08 retains OMITTED_MAY_CONTAIN_PII_OR_SECRETS; raw persisted fields are projected only by the P23 scan-sessions owner"},
   "production_activation": false,
   "migration_required": false,
   "seed_required": false

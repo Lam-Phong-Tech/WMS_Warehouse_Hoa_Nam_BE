@@ -79,6 +79,7 @@ class WarrantyReadinessTest extends TestCase
 
         $movementBefore = DB::table('stock_movements')->count();
         $create = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $this->ensureActiveWarehouse('KHO-TONG-HN')->id,
             'item_code' => 'PHY-WAR-001',
             'defect_code' => $defect->defect_code,
             'customer_name' => 'Nguyen Van A',
@@ -188,6 +189,7 @@ class WarrantyReadinessTest extends TestCase
         $movementBefore = DB::table('stock_movements')->count();
 
         $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $this->ensureActiveWarehouse('KHO-TONG-HN')->id,
             'customer_name' => 'Khach TEMP',
             'customer_phone' => '0911111111',
             'description' => 'Khong doc duoc ma san pham',
@@ -196,6 +198,7 @@ class WarrantyReadinessTest extends TestCase
             ->assertJsonPath('error.code', 'TEMP_ONLY_EVIDENCE_REQUIRED');
 
         $create = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $this->ensureActiveWarehouse('KHO-TONG-HN')->id,
             'customer_name' => 'Khach TEMP',
             'customer_phone' => '0911111111',
             'description' => 'Khong doc duoc ma san pham',
@@ -217,6 +220,7 @@ class WarrantyReadinessTest extends TestCase
         $before = DB::table('warranty_case')->count();
 
         $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $this->ensureActiveWarehouse('KHO-TONG-HN')->id,
             'item_code' => 'DOES-NOT-EXIST',
             'customer_name' => 'Khach Hang',
             'customer_phone' => '0922222222',

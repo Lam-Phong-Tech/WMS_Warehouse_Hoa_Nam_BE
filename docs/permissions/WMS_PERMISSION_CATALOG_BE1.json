@@ -1,128 +1,267 @@
 {
     "schema_version": "1.3.0",
-    "generated_at_utc": "2026-09-10T09:36:18+00:00",
+    "generated_at_utc": "2026-10-17T09:36:12+00:00",
     "approval_status": "PENDING_FE_BA_REVIEW",
     "changes_since_previous": {
         "summary": {
-            "routes_added": 26,
+            "routes_added": 60,
             "routes_removed": 0,
             "route_permission_changed": 0,
-            "permissions_added": 0,
+            "permissions_added": 2,
             "permissions_removed": 0,
             "permission_status_changed": 0,
             "roles_with_permission_changes": 0
         },
-        "previous_generated_at_utc": "2026-09-07T09:40:10+00:00",
-        "previous_schema_version": "1.2.0",
+        "previous_generated_at_utc": "2026-09-10T09:36:18+00:00",
+        "previous_schema_version": "1.3.0",
         "routes_added": [
             {
-                "route": "DELETE api/v1/component-issue-documents/{id}/lines/{lineId}",
-                "permission": "warranty.component_issue"
-            },
-            {
-                "route": "DELETE api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
-                "permission": "warranty.component_issue"
-            },
-            {
-                "route": "DELETE api/v1/warranty-component-issues/{id}/lines/{lineId}",
-                "permission": "warranty.component_issue"
-            },
-            {
-                "route": "GET api/v1/auth/mfa/status",
+                "route": "DELETE api/v1/auth/sessions/{id}",
                 "permission": null
             },
             {
-                "route": "PATCH api/v1/component-issue-documents/{id}/lines/{lineId}",
-                "permission": "warranty.component_issue"
-            },
-            {
-                "route": "PATCH api/v1/inbound-documents/{id}/lines/{lineId}/sku",
-                "permission": "inbound.scan"
-            },
-            {
-                "route": "PATCH api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}",
-                "permission": "warranty.component_issue"
-            },
-            {
-                "route": "PATCH api/v1/warranty-component-issues/{id}/lines/{lineId}",
-                "permission": "warranty.component_issue"
-            },
-            {
-                "route": "POST api/v1/auth/mfa/confirm",
+                "route": "GET api/v1/auth/recovery-requests/operations/{operationId}",
                 "permission": null
             },
             {
-                "route": "POST api/v1/auth/mfa/disable",
+                "route": "GET api/v1/auth/sessions",
                 "permission": null
             },
             {
-                "route": "POST api/v1/auth/mfa/enroll",
+                "route": "GET api/v1/mini-app/catalog/context",
                 "permission": null
             },
             {
-                "route": "POST api/v1/auth/mfa/verify",
+                "route": "GET api/v1/mini-app/catalog/items",
+                "permission": "sku.view"
+            },
+            {
+                "route": "GET api/v1/mini-app/catalog/items/{id}",
+                "permission": "sku.view"
+            },
+            {
+                "route": "GET api/v1/mini-app/catalog/items/{id}/timeline",
+                "permission": "sku.view"
+            },
+            {
+                "route": "GET api/v1/mini-app/catalog/skus",
+                "permission": "sku.view"
+            },
+            {
+                "route": "GET api/v1/mini-app/catalog/skus/{id}",
+                "permission": "sku.view"
+            },
+            {
+                "route": "GET api/v1/mini-app/catalog/skus/{id}/gallery",
+                "permission": "sku.view"
+            },
+            {
+                "route": "GET api/v1/mini-app/catalog/skus/{id}/stock",
+                "permission": "sku.view"
+            },
+            {
+                "route": "GET api/v1/mini-app/catalog/skus/{id}/timeline",
+                "permission": "sku.view"
+            },
+            {
+                "route": "GET api/v1/mini-app/component-issue-requests/{requestId}",
+                "permission": "warranty.component_issue"
+            },
+            {
+                "route": "GET api/v1/mini-app/dashboard/summary",
+                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage"
+            },
+            {
+                "route": "GET api/v1/mini-app/documents",
+                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage"
+            },
+            {
+                "route": "GET api/v1/mini-app/drafts",
                 "permission": null
             },
             {
-                "route": "POST api/v1/component-issue-documents/record",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/drafts/{id}",
+                "permission": null
             },
             {
-                "route": "POST api/v1/component-issue-documents/resolve-code",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/drafts/{id}/requests/{requestId}",
+                "permission": null
             },
             {
-                "route": "POST api/v1/component-issue-documents/{id}/lines",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/history/records",
+                "permission": "history.read"
             },
             {
-                "route": "POST api/v1/component-issue-documents/{id}/unscan",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/history/records/{recordId}",
+                "permission": "history.read"
             },
             {
-                "route": "POST api/v1/mini-app/component-issue-documents/record",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/history/scan-sessions/{sessionId}",
+                "permission": "history.read"
             },
             {
-                "route": "POST api/v1/mini-app/component-issue-documents/resolve-code",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/history/summary",
+                "permission": "history.read"
             },
             {
-                "route": "POST api/v1/mini-app/warranty-component-issues/record",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/inbound-documents/{id}/attachments/requests/{operationKey}",
+                "permission": null
             },
             {
-                "route": "POST api/v1/mini-app/warranty-component-issues/resolve-code",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/inbound/context",
+                "permission": null
             },
             {
-                "route": "POST api/v1/mini-app/warranty-component-issues/{id}/lines",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/inbound/documents/{id}",
+                "permission": null
             },
             {
-                "route": "POST api/v1/mini-app/warranty-component-issues/{id}/unscan",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/inbound/drafts/{id}",
+                "permission": null
             },
             {
-                "route": "POST api/v1/warranty-component-issues/record",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/inbound/drafts/{id}/requests/{requestId}",
+                "permission": null
             },
             {
-                "route": "POST api/v1/warranty-component-issues/resolve-code",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/inbound/drafts/{id}/scan-session",
+                "permission": null
             },
             {
-                "route": "POST api/v1/warranty-component-issues/{id}/lines",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/inbound/suppliers",
+                "permission": null
             },
             {
-                "route": "POST api/v1/warranty-component-issues/{id}/unscan",
-                "permission": "warranty.component_issue"
+                "route": "GET api/v1/mini-app/inbound/types",
+                "permission": null
+            },
+            {
+                "route": "GET api/v1/mini-app/items/{itemId}/nfc/confirmation",
+                "permission": "physical_code.assign_rfid"
+            },
+            {
+                "route": "GET api/v1/mini-app/nfc-tags/{physicalCodeId}",
+                "permission": "physical_code.assign_rfid|inventory.trace"
+            },
+            {
+                "route": "GET api/v1/mini-app/nfc-tags/{physicalCodeId}/events",
+                "permission": "physical_code.assign_rfid|inventory.trace"
+            },
+            {
+                "route": "GET api/v1/mini-app/outbound-documents/{id}/attachments/requests/{operationKey}",
+                "permission": null
+            },
+            {
+                "route": "GET api/v1/mini-app/outbound/context",
+                "permission": null
+            },
+            {
+                "route": "GET api/v1/mini-app/outbound/documents/{id}",
+                "permission": null
+            },
+            {
+                "route": "GET api/v1/mini-app/outbound/sources",
+                "permission": null
+            },
+            {
+                "route": "GET api/v1/mini-app/outbound/sources/{id}",
+                "permission": null
+            },
+            {
+                "route": "GET api/v1/mini-app/p03/context",
+                "permission": null
+            },
+            {
+                "route": "GET api/v1/mini-app/scan-sessions",
+                "permission": "history.read"
+            },
+            {
+                "route": "GET api/v1/mini-app/warranty-cases/{id}/attachments/requests/{operationKey}",
+                "permission": null
+            },
+            {
+                "route": "GET api/v1/mini-app/warranty-cases/{id}/component-issues",
+                "permission": "warranty.view|warranty.manage"
+            },
+            {
+                "route": "GET api/v1/mini-app/warranty-requests/{requestId}",
+                "permission": "warranty.view|warranty.manage"
+            },
+            {
+                "route": "GET api/v1/mini-app/work-shifts/current",
+                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            },
+            {
+                "route": "GET api/v1/mini-app/work-shifts/{shiftId}/close-check",
+                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            },
+            {
+                "route": "GET api/v1/mini-app/work-shifts/{shiftId}/requests/{requestId}",
+                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            },
+            {
+                "route": "GET api/v1/mini-app/work-shifts/{shiftId}/summary",
+                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            },
+            {
+                "route": "GET api/v1/notifications/{id}",
+                "permission": null
+            },
+            {
+                "route": "PATCH api/v1/auth/me",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/auth/recovery-requests",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/mini-app/drafts/{id}/cancel",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/mini-app/inbound/drafts/{id}/cancel",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/mini-app/inbound/drafts/{id}/record",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/mini-app/inbound/drafts/{id}/review",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/mini-app/inbound/drafts/{id}/validate-code",
+                "permission": null
+            },
+            {
+                "route": "POST api/v1/mini-app/items/{itemId}/nfc/release",
+                "permission": "physical_code.assign_rfid"
+            },
+            {
+                "route": "POST api/v1/mini-app/work-shifts/start",
+                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            },
+            {
+                "route": "POST api/v1/mini-app/work-shifts/{shiftId}/end",
+                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            },
+            {
+                "route": "PUT api/v1/mini-app/drafts/{id}",
+                "permission": null
+            },
+            {
+                "route": "PUT api/v1/mini-app/inbound/drafts/{id}",
+                "permission": null
             }
         ],
         "routes_removed": [],
         "route_permission_changed": [],
-        "permissions_added": [],
+        "permissions_added": [
+            "documents.read",
+            "history.read"
+        ],
         "permissions_removed": [],
         "permission_status_changed": [],
         "roles_added": [],
@@ -140,7 +279,7 @@
         },
         "auth_routes": {
             "path": "Modules/Auth/routes/api.php",
-            "sha256": "e23a3d7127a5a5225ba97f982b323597af27dec770bf859de781e64ed80e5b6b"
+            "sha256": "81133dc0d9b0f49ccf78fd391b79745de5c8395af216adf40296bf0aea5f278d"
         },
         "audit_routes": {
             "path": "Modules/AuditLog/routes/api.php",
@@ -160,8 +299,8 @@
         }
     },
     "integrity": {
-        "active_permission_count": 73,
-        "route_permission_count": 67,
+        "active_permission_count": 75,
+        "route_permission_count": 68,
         "missing_route_permissions": [],
         "status": "PASS"
     },
@@ -229,6 +368,18 @@
         {
             "permission_key": "defect.view",
             "permission_name": "Xem danh mục lỗi",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "documents.read",
+            "permission_name": "Mở chứng từ từ lịch sử",
+            "scope_type": "FUNCTION",
+            "status": "ACTIVE"
+        },
+        {
+            "permission_key": "history.read",
+            "permission_name": "Đọc lịch sử hoạt động",
             "scope_type": "FUNCTION",
             "status": "ACTIVE"
         },
@@ -1198,6 +1349,19 @@
         },
         {
             "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/auth/me",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@updateMe",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/auth/mfa/confirm",
@@ -1264,6 +1428,30 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/recovery-requests/operations/{operationId}",
+            "action": "App\\Http\\Controllers\\P14RecoveryController@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/recovery-requests",
+            "action": "App\\Http\\Controllers\\P14RecoveryController@store",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/auth/refresh",
@@ -1290,10 +1478,36 @@
         },
         {
             "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/auth/sessions/{id}",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@revokeSession",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/sessions",
+            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@sessions",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/auth/switch-context",
-            "action": "Modules\\Auth\\Http\\Controllers\\AuthController@switchContext",
+            "action": "Modules\\Auth\\Http\\Controllers\\WarehouseContextController@switchContext",
             "permission": null,
             "accepted_permissions": [],
             "middleware": [
@@ -2079,7 +2293,8 @@
                 "api",
                 "auth:api",
                 "permission:inbound.create|inbound.scan",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\AttachmentQuotaFence"
             ]
         },
         {
@@ -2607,6 +2822,162 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/context",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@context",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/items/{id}/timeline",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@itemTimeline",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "permission:sku.view",
+                "permission:item_instance.view",
+                "permission:inventory.trace|warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/items/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@item",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "permission:sku.view",
+                "permission:item_instance.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/items",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@items",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "permission:sku.view",
+                "permission:item_instance.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus/{id}/gallery",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@gallery",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "permission:sku.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus/{id}/stock",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@stock",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "permission:sku.view",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus/{id}/timeline",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@skuTimeline",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "permission:sku.view",
+                "permission:inventory.trace|warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@sku",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "permission:sku.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@skus",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "permission:sku.view"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/component-issue-documents/record",
@@ -2619,7 +2990,9 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand",
+                "Modules\\Warehouse\\Http\\Middleware\\MiniAppDraftHandoff"
             ]
         },
         {
@@ -2636,7 +3009,45 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\P19ScannerReadGuard"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/component-issue-requests/{requestId}",
+            "action": "Modules\\Warehouse\\Services\\P19ComponentCommand@check",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.component_issue"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/dashboard/summary",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppDashboardController@summary",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view|outbound.view|warranty.view|warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
             ]
         },
         {
@@ -2670,7 +3081,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:inbound.view|outbound.view|inventory.view"
+                "permission:inbound.view|outbound.view|inventory.view",
+                "Modules\\Warehouse\\Http\\Middleware\\P12DocumentReadMetadata"
             ]
         },
         {
@@ -2690,6 +3102,186 @@
                 "api",
                 "auth:api",
                 "permission:inbound.create|inbound.scan|outbound.scan|outbound.post"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/documents",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P12MixedDocumentsController",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P12MixedDocumentsReadGuard",
+                "permission:inbound.view|outbound.view|warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/drafts/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P03DraftController@cancel",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\P21ResumeRead"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/drafts/{id}/requests/{requestId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P03DraftController@reconcile",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\P21ResumeRead"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/drafts/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P03DraftController@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\P21ResumeRead"
+            ]
+        },
+        {
+            "methods": [
+                "PUT"
+            ],
+            "uri": "api/v1/mini-app/drafts/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P03DraftController@save",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\P21ResumeRead"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/drafts",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P03DraftController@index",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\P21ResumeRead"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/history/records/{recordId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P08HistoryController@detail",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:history.read",
+                "Modules\\Warehouse\\Http\\Middleware\\P22NfcHistoryRead",
+                "Modules\\Warehouse\\Http\\Middleware\\P08HistoryReadContract"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/history/records",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P08HistoryController@records",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:history.read",
+                "Modules\\Warehouse\\Http\\Middleware\\P22NfcHistoryRead",
+                "Modules\\Warehouse\\Http\\Middleware\\P08HistoryReadContract"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/history/scan-sessions/{sessionId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P08HistoryController@scanSession",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:history.read",
+                "Modules\\Warehouse\\Http\\Middleware\\P22NfcHistoryRead",
+                "Modules\\Warehouse\\Http\\Middleware\\P08HistoryReadContract"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/history/summary",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P08HistoryController@summary",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:history.read",
+                "Modules\\Warehouse\\Http\\Middleware\\P22NfcHistoryRead",
+                "Modules\\Warehouse\\Http\\Middleware\\P08HistoryReadContract"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/attachments/requests/{operationKey}",
+            "action": "Modules\\Warehouse\\Services\\AttachmentUploadReceipts@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
             ]
         },
         {
@@ -2724,7 +3316,9 @@
                 "api",
                 "auth:api",
                 "permission:inbound.create|inbound.scan",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
+                "Modules\\Warehouse\\Services\\AttachmentUploadReceipts",
+                "Modules\\Warehouse\\Http\\Middleware\\AttachmentQuotaFence"
             ]
         },
         {
@@ -2862,7 +3456,9 @@
                 "api",
                 "auth:api",
                 "permission:inbound.view",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse",
+                "Modules\\Warehouse\\Http\\Middleware\\P12DocumentReadMetadata"
             ]
         },
         {
@@ -2879,7 +3475,9 @@
                 "api",
                 "auth:api",
                 "permission:inbound.view",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse",
+                "Modules\\Warehouse\\Http\\Middleware\\P12DocumentReadMetadata"
             ]
         },
         {
@@ -2902,6 +3500,147 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/context",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@context",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/documents/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@document",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/cancel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@cancel",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/record",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@record",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/requests/{requestId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@reconcile",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/review",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@review",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/scan-session",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@scanSession",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/validate-code",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@validateCode",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "PUT"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@save",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/inbound/record",
@@ -2916,7 +3655,8 @@
                 "permission:inbound.create",
                 "permission:inbound.scan",
                 "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope",
-                "Modules\\Warehouse\\Http\\Middleware\\EnsureCanonicalInboundWarehouse"
+                "Modules\\Warehouse\\Http\\Middleware\\EnsureCanonicalInboundWarehouse",
+                "Modules\\Warehouse\\Http\\Middleware\\MiniAppDraftHandoff"
             ]
         },
         {
@@ -2938,6 +3678,51 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/suppliers",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@suppliers",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/types",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P04InboundController@types",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/items/{itemId}/nfc/confirmation",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P07NfcController@confirmation",
+            "permission": "physical_code.assign_rfid",
+            "accepted_permissions": [
+                "physical_code.assign_rfid"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:physical_code.assign_rfid",
+                "Modules\\Warehouse\\Http\\Middleware\\P07NfcRecoveryGuard"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/items/{itemId}/nfc/prepare",
@@ -2949,7 +3734,25 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:physical_code.assign_rfid"
+                "permission:physical_code.assign_rfid",
+                "Modules\\Warehouse\\Http\\Middleware\\P07NfcRecoveryGuard"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/items/{itemId}/nfc/release",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P07NfcController@release",
+            "permission": "physical_code.assign_rfid",
+            "accepted_permissions": [
+                "physical_code.assign_rfid"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:physical_code.assign_rfid",
+                "Modules\\Warehouse\\Http\\Middleware\\P07NfcRecoveryGuard"
             ]
         },
         {
@@ -2965,7 +3768,9 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:physical_code.assign_rfid"
+                "permission:physical_code.assign_rfid",
+                "Modules\\Warehouse\\Http\\Middleware\\P07NfcReadbackGuard",
+                "Modules\\Warehouse\\Http\\Middleware\\P07NfcRecoveryGuard"
             ]
         },
         {
@@ -3000,6 +3805,40 @@
                 "api",
                 "auth:api",
                 "permission:physical_code.assign_rfid"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/nfc-tags/{physicalCodeId}/events",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppNfcController@tagEvents",
+            "permission": "physical_code.assign_rfid|inventory.trace",
+            "accepted_permissions": [
+                "physical_code.assign_rfid",
+                "inventory.trace"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:physical_code.assign_rfid|inventory.trace"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/nfc-tags/{physicalCodeId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P07NfcController@showTag",
+            "permission": "physical_code.assign_rfid|inventory.trace",
+            "accepted_permissions": [
+                "physical_code.assign_rfid",
+                "inventory.trace"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:physical_code.assign_rfid|inventory.trace"
             ]
         },
         {
@@ -3050,7 +3889,21 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:physical_code.assign_rfid|inventory.trace|warranty.view"
+                "permission:physical_code.assign_rfid|inventory.trace|warranty.view",
+                "Modules\\Warehouse\\Http\\Middleware\\P07NfcReadbackGuard"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/attachments/requests/{operationKey}",
+            "action": "Modules\\Warehouse\\Services\\AttachmentUploadReceipts@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
             ]
         },
         {
@@ -3085,7 +3938,9 @@
                 "api",
                 "auth:api",
                 "permission:outbound.scan|outbound.post",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope",
+                "Modules\\Warehouse\\Services\\AttachmentUploadReceipts",
+                "Modules\\Warehouse\\Http\\Middleware\\AttachmentQuotaFence"
             ]
         },
         {
@@ -3293,7 +4148,9 @@
                 "api",
                 "auth:api",
                 "permission:outbound.view",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse",
+                "Modules\\Warehouse\\Http\\Middleware\\P12DocumentReadMetadata"
             ]
         },
         {
@@ -3310,7 +4167,9 @@
                 "api",
                 "auth:api",
                 "permission:outbound.view",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse",
+                "Modules\\Warehouse\\Http\\Middleware\\P12DocumentReadMetadata"
             ]
         },
         {
@@ -3333,6 +4192,35 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound/context",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P05OutboundController@context",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound/documents/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P05OutboundController@document",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/outbound/record",
@@ -3347,7 +4235,9 @@
                 "auth:api",
                 "permission:outbound.request.manual_create|outbound.import",
                 "permission:outbound.scan",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\MiniAppDraftHandoff",
+                "Modules\\Warehouse\\Http\\Middleware\\P05OutboundSource"
             ]
         },
         {
@@ -3365,6 +4255,51 @@
                 "auth:api",
                 "permission:outbound.scan",
                 "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound/sources/{id}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P05OutboundController@source",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound/sources",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P05OutboundController@sources",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/p03/context",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P03DraftController@context",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "Modules\\Warehouse\\Http\\Middleware\\P03JsonEnvelope",
+                "Modules\\Warehouse\\Http\\Middleware\\P21ResumeRead"
             ]
         },
         {
@@ -3419,6 +4354,23 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/mini-app/scan-sessions",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P23ScanSessionController@index",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:history.read",
+                "permission:inventory.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/mini-app/warranty-attachments/{attachmentId}/download",
             "action": "Modules\\Warehouse\\Http\\Controllers\\CurrentBaselineWarrantyAttachmentController@download",
             "permission": "warranty.view|warranty.manage",
@@ -3429,7 +4381,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.view|warranty.manage"
+                "permission:warranty.view|warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\P09WarrantyAttachmentGuard"
             ]
         },
         {
@@ -3445,7 +4398,21 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.manage"
+                "permission:warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\P09WarrantyAttachmentGuard"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/attachments/requests/{operationKey}",
+            "action": "Modules\\Warehouse\\Services\\AttachmentUploadReceipts@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
             ]
         },
         {
@@ -3462,7 +4429,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.view|warranty.manage"
+                "permission:warranty.view|warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\P09WarrantyAttachmentGuard"
             ]
         },
         {
@@ -3478,7 +4446,27 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.manage"
+                "permission:warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\P09WarrantyAttachmentGuard",
+                "Modules\\Warehouse\\Services\\AttachmentUploadReceipts",
+                "Modules\\Warehouse\\Http\\Middleware\\AttachmentQuotaFence"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/component-issues",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\P20ComponentHistoryController@index",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.view|warranty.manage"
             ]
         },
         {
@@ -3528,7 +4516,9 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.view|warranty.manage"
+                "permission:warranty.view|warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse",
+                "Modules\\Warehouse\\Http\\Middleware\\P12DocumentReadMetadata"
             ]
         },
         {
@@ -3561,7 +4551,9 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.view|warranty.manage"
+                "permission:warranty.view|warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\DocumentTimestampResponse",
+                "Modules\\Warehouse\\Http\\Middleware\\P12DocumentReadMetadata"
             ]
         },
         {
@@ -3577,7 +4569,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.manage"
+                "permission:warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\MiniAppDraftHandoff"
             ]
         },
         {
@@ -3594,7 +4587,9 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand",
+                "Modules\\Warehouse\\Http\\Middleware\\MiniAppDraftHandoff"
             ]
         },
         {
@@ -3611,7 +4606,8 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\P19ScannerReadGuard"
             ]
         },
         {
@@ -3628,7 +4624,8 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand"
             ]
         },
         {
@@ -3645,7 +4642,8 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand"
             ]
         },
         {
@@ -3662,7 +4660,8 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand"
             ]
         },
         {
@@ -3679,7 +4678,8 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand"
             ]
         },
         {
@@ -3696,7 +4696,8 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand"
             ]
         },
         {
@@ -3713,7 +4714,8 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand"
             ]
         },
         {
@@ -3730,7 +4732,8 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand"
             ]
         },
         {
@@ -3780,7 +4783,26 @@
                 "api",
                 "auth:api",
                 "permission:warranty.component_issue",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceComponentIssueWarehouseScope",
+                "Modules\\Warehouse\\Services\\P19ComponentCommand"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-requests/{requestId}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWarrantyController@reconcile",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:warranty.view|warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\P12DocumentReadMetadata"
             ]
         },
         {
@@ -3798,6 +4820,132 @@
                 "api",
                 "auth:api",
                 "permission:warranty.view|warranty.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/current",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWorkShiftController@current",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/start",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\MiniAppWorkShiftController@start",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/{shiftId}/close-check",
+            "action": "App\\Http\\Controllers\\P14ShiftController@check",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/{shiftId}/end",
+            "action": "App\\Http\\Controllers\\P14ShiftController@end",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/{shiftId}/requests/{requestId}",
+            "action": "App\\Http\\Controllers\\P14ShiftController@reconcile",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/{shiftId}/summary",
+            "action": "App\\Http\\Controllers\\P14ShiftController@summary",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
             ]
         },
         {
@@ -3832,6 +4980,19 @@
             ],
             "uri": "api/v1/notifications/{id}/read",
             "action": "Modules\\Notification\\Http\\Controllers\\NotificationController@markRead",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/notifications/{id}",
+            "action": "Modules\\Notification\\Http\\Controllers\\NotificationController@show",
             "permission": null,
             "accepted_permissions": [],
             "middleware": [
@@ -3884,7 +5045,8 @@
                 "api",
                 "auth:api",
                 "permission:outbound.scan|outbound.post",
-                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope",
+                "Modules\\Warehouse\\Http\\Middleware\\AttachmentQuotaFence"
             ]
         },
         {
@@ -6743,7 +7905,8 @@
             "middleware": [
                 "api",
                 "auth:api",
-                "permission:warranty.manage"
+                "permission:warranty.manage",
+                "Modules\\Warehouse\\Http\\Middleware\\AttachmentQuotaFence"
             ]
         },
         {
@@ -7214,6 +8377,16 @@
         },
         {
             "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/auth/me",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/auth/mfa/confirm",
@@ -7264,6 +8437,26 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/recovery-requests/operations/{operationId}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/recovery-requests",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/auth/refresh",
@@ -7277,6 +8470,26 @@
                 "POST"
             ],
             "uri": "api/v1/auth/reset-password",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/auth/sessions/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/sessions",
             "permission": null,
             "accepted_permissions": [],
             "roles": [],
@@ -8750,6 +9963,208 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/context",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/items/{id}/timeline",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/items/{id}",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/items",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus/{id}/gallery",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus/{id}/stock",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus/{id}/timeline",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus/{id}",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/catalog/skus",
+            "permission": "sku.view",
+            "accepted_permissions": [
+                "sku.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/component-issue-documents/record",
@@ -8778,6 +10193,49 @@
                 "ADMIN",
                 "SUPER_ADMIN",
                 "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/component-issue-requests/{requestId}",
+            "permission": "warranty.component_issue",
+            "accepted_permissions": [
+                "warranty.component_issue"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/dashboard/summary",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
                 "WARRANTY_STAFF"
             ],
             "backend_enforced": true
@@ -8851,6 +10309,148 @@
                 "WAREHOUSE_STAFF"
             ],
             "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/documents",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/drafts/{id}/cancel",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/drafts/{id}/requests/{requestId}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/drafts/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "PUT"
+            ],
+            "uri": "api/v1/mini-app/drafts/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/drafts",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/history/records/{recordId}",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "roles": [
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/history/records",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "roles": [
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/history/scan-sessions/{sessionId}",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "roles": [
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/history/summary",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "roles": [
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound-documents/{id}/attachments/requests/{operationKey}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
         },
         {
             "methods": [
@@ -9090,6 +10690,106 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/context",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/documents/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/cancel",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/record",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/requests/{requestId}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/review",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/scan-session",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}/validate-code",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "PUT"
+            ],
+            "uri": "api/v1/mini-app/inbound/drafts/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/inbound/record",
@@ -9126,9 +10826,63 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/suppliers",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/inbound/types",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/items/{itemId}/nfc/confirmation",
+            "permission": "physical_code.assign_rfid",
+            "accepted_permissions": [
+                "physical_code.assign_rfid"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/items/{itemId}/nfc/prepare",
+            "permission": "physical_code.assign_rfid",
+            "accepted_permissions": [
+                "physical_code.assign_rfid"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "SUPER_ADMIN",
+                "WAREHOUSE_KEEPER"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/items/{itemId}/nfc/release",
             "permission": "physical_code.assign_rfid",
             "accepted_permissions": [
                 "physical_code.assign_rfid"
@@ -9204,6 +10958,54 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/mini-app/nfc-tags/{physicalCodeId}/events",
+            "permission": "physical_code.assign_rfid|inventory.trace",
+            "accepted_permissions": [
+                "physical_code.assign_rfid",
+                "inventory.trace"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/nfc-tags/{physicalCodeId}",
+            "permission": "physical_code.assign_rfid|inventory.trace",
+            "accepted_permissions": [
+                "physical_code.assign_rfid",
+                "inventory.trace"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/mini-app/nfc-tags",
             "permission": "physical_code.assign_rfid|inventory.trace",
             "accepted_permissions": [
@@ -9265,6 +11067,16 @@
                 "WARRANTY_STAFF"
             ],
             "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound-documents/{id}/attachments/requests/{operationKey}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
         },
         {
             "methods": [
@@ -9573,6 +11385,26 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound/context",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound/documents/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/outbound/record",
@@ -9605,6 +11437,36 @@
                 "WAREHOUSE_STAFF"
             ],
             "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound/sources/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/outbound/sources",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/p03/context",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
         },
         {
             "methods": [
@@ -9675,6 +11537,20 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/mini-app/scan-sessions",
+            "permission": "history.read",
+            "accepted_permissions": [
+                "history.read"
+            ],
+            "roles": [
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/mini-app/warranty-attachments/{attachmentId}/download",
             "permission": "warranty.view|warranty.manage",
             "accepted_permissions": [
@@ -9713,6 +11589,16 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/attachments/requests/{operationKey}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/mini-app/warranty-cases/{id}/attachments",
             "permission": "warranty.view|warranty.manage",
             "accepted_permissions": [
@@ -9743,6 +11629,27 @@
                 "ADMIN",
                 "SUPER_ADMIN",
                 "WAREHOUSE_KEEPER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-cases/{id}/component-issues",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
                 "WARRANTY_STAFF"
             ],
             "backend_enforced": true
@@ -10067,6 +11974,27 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/warranty-requests/{requestId}",
+            "permission": "warranty.view|warranty.manage",
+            "accepted_permissions": [
+                "warranty.view",
+                "warranty.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/mini-app/warranty/resolve-code",
@@ -10082,6 +12010,180 @@
                 "WAREHOUSE_APPROVER",
                 "WAREHOUSE_KEEPER",
                 "WAREHOUSE_MANAGER",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/current",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/start",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/{shiftId}/close-check",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/{shiftId}/end",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/{shiftId}/requests/{requestId}",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
+                "WARRANTY_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/mini-app/work-shifts/{shiftId}/summary",
+            "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid",
+            "accepted_permissions": [
+                "inbound.view",
+                "outbound.view",
+                "warranty.view",
+                "warranty.manage",
+                "sku.view",
+                "physical_code.assign_rfid"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SKU_MANAGER",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF",
                 "WARRANTY_STAFF"
             ],
             "backend_enforced": true
@@ -10111,6 +12213,16 @@
                 "PATCH"
             ],
             "uri": "api/v1/notifications/{id}/read",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/notifications/{id}",
             "permission": null,
             "accepted_permissions": [],
             "roles": [],

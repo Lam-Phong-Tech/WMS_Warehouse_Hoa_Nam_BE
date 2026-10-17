@@ -23,6 +23,7 @@ use Modules\Warehouse\Support\P09WarrantyRequests;
 use Modules\Warehouse\Support\P09WarrantyScope as Scope;
 use Modules\Warehouse\Support\P23WarrantyDateFilter;
 use Modules\Warehouse\Support\P23WarrantyTimeline;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 
 /** P09 mobile transport; WMS remains the only warranty state-machine owner. */
@@ -43,6 +44,7 @@ class MiniAppWarrantyController extends Controller
         $input = Validator::make($request->query(), ['search' => ['sometimes', 'string', 'max:200'],
             'status' => ['sometimes', Rule::in(['ALL', ...Policy::STATUSES])],
             'sort' => ['sometimes', Rule::in(['created_at_desc', 'created_at_asc'])]])->validate();
+
         return P06ReadSnapshot::run(function (array $snapshot) use ($request, $input): JsonResponse {
             $scope = Scope::resolve($request);
             $q = Scope::cases($scope);
@@ -66,6 +68,7 @@ class MiniAppWarrantyController extends Controller
             [$ids, $page] = P09WarrantyPage::read($request, $q, $pageScope, 'c.warranty_case_id', 'c.created_at', ($input['sort'] ?? 'created_at_desc') === 'created_at_desc');
             // Bounded to per_page, reuse canonical PII masking rather than a second serializer.
             $rows = array_map(fn (string $id): array => $this->caseData($request, $scope, $id), $ids);
+
             return $this->reply($rows, $scope, $page + $dates + ['snapshot' => $snapshot, 'search_fields' => ['warranty_case_code', 'temporary_item_code', 'serial_number']]);
         });
     }
@@ -73,9 +76,11 @@ class MiniAppWarrantyController extends Controller
     public function show(Request $request, string $id): JsonResponse
     {
         $this->queryFields($request, ['warehouse_id']);
+
         return P06ReadSnapshot::run(function (array $snapshot) use ($request, $id): JsonResponse {
             $scope = Scope::resolve($request);
             $data = $this->caseData($request, $scope, $id);
+
             return $this->reply($data, $scope, ['snapshot' => $snapshot])->header('ETag', '"'.$data['version'].'"');
         });
     }
@@ -88,6 +93,7 @@ class MiniAppWarrantyController extends Controller
         $data['capabilities'] = ['attachments_read' => $scope['documents'],
             'attachments_download' => $scope['documents'] && $scope['pii'],
             'posted_component_issues_read' => $scope['documents'] && $scope['component']];
+
         return $data;
     }
 
@@ -95,6 +101,7 @@ class MiniAppWarrantyController extends Controller
     {
         $this->queryFields($request, ['warehouse_id', 'sort', 'cursor', 'page', 'per_page']);
         Validator::make($request->query(), ['sort' => ['sometimes', Rule::in(['event_at_asc', 'event_at_desc'])]])->validate();
+
         return P06ReadSnapshot::run(function (array $snapshot) use ($request, $id): JsonResponse {
             $scope = Scope::resolve($request);
             $case = Scope::requireCase($scope, $id);
@@ -105,6 +112,7 @@ class MiniAppWarrantyController extends Controller
             $events = $q->whereIn('e.warranty_event_id', $ids)->get(['e.warranty_event_id', 'e.warranty_case_id', 'e.event_type', 'e.from_status', 'e.to_status', 'e.note', 'e.created_by', 'e.event_at'])->keyBy('warranty_event_id');
             $rows = array_map(function (string $eventId) use ($events, $scope): array {
                 $e = $events[$eventId];
+
                 return ['event_id' => $e->warranty_event_id, 'warranty_case_id' => $e->warranty_case_id,
                     'event_type' => $e->event_type, 'from_status' => $e->from_status, 'status' => $e->to_status,
                     'to_status' => $e->to_status, 'event_at' => $e->event_at,
@@ -114,6 +122,7 @@ class MiniAppWarrantyController extends Controller
                     'message' => $scope['pii'] ? $e->note : null,
                     'message_redacted' => ! $scope['pii'], 'time_status' => $e->event_at === null ? 'NOT_RECORDED' : 'SOURCE_TIMESTAMP'];
             }, $ids);
+
             return $this->reply($rows, $scope, $page + $timeline + ['snapshot' => $snapshot, 'order' => $request->query('sort', 'event_at_asc')]);
         });
     }
@@ -126,11 +135,13 @@ class MiniAppWarrantyController extends Controller
         if ((empty($data['raw_code']) ? 0 : 1) + (empty($data['item_id']) ? 0 : 1) !== 1) {
             ApiError::abort(422, 'WARRANTY_IDENTITY_REQUIRED', 'Gửi đúng một raw_code hoặc item_id.');
         }
+
         return P06ReadSnapshot::run(function (array $snapshot) use ($request, $data): JsonResponse {
             $s = Scope::resolve($request);
             $item = ! empty($data['item_id']) ? Scope::requireItem($s, strtolower($data['item_id'])) : $this->resolveItem(trim($data['raw_code']), $s);
             $active = DB::table('warranty_case')->where('item_id', $item->item_id)->whereNotIn('status', ['RETURNED', 'CANCELLED'])->exists();
             $eligible = in_array($item->item_status, ['ISSUED', 'RETURNED_TO_CUSTOMER'], true) && ! $active;
+
             return $this->reply(['resolved' => true, 'item_id' => $item->item_id, 'serial_number' => $item->serial_number,
                 'sku_id' => $item->sku_id, 'item_status' => $item->item_status, 'active_warranty_exists' => $active,
                 'eligible_for_warranty' => $eligible, 'eligibility_code' => $active ? 'ACTIVE_WARRANTY_EXISTS' : ($eligible ? 'ELIGIBLE' : 'ITEM_NOT_ISSUED'),
@@ -152,6 +163,7 @@ class MiniAppWarrantyController extends Controller
                 ApiError::abort(404, 'WARRANTY_ITEM_NOT_FOUND', 'Không tìm thấy hiện vật.');
             }
             $this->identityResolver->assertItemMatchesSku($item, $sku, $p);
+
             return Scope::requireItem($scope, (string) $item->item_id, $lock);
         }
         $ids = DB::table('item_instances')->where('serial_number', $code)->limit(2)->pluck('item_id')->all();
@@ -171,6 +183,7 @@ class MiniAppWarrantyController extends Controller
         if (count($ids) !== 1) {
             ApiError::abort(count($ids) > 1 ? 409 : 404, count($ids) > 1 ? 'WARRANTY_IDENTITY_AMBIGUOUS' : 'WARRANTY_ITEM_NOT_FOUND', 'Không xác định được duy nhất hiện vật trong phạm vi kho.');
         }
+
         return Scope::requireItem($scope, (string) $ids[0], $lock);
     }
 
@@ -179,6 +192,7 @@ class MiniAppWarrantyController extends Controller
         $this->queryFields($request, ['warehouse_id']);
         $body = $this->body($request, Policy::CREATE_FIELDS);
         $s = Scope::resolve($request, true);
+
         return P09WarrantyRequests::execute($request, $s, 'CREATE', null, function (string $requestId) use ($request, $s, $body): JsonResponse {
             $inner = $this->commandRequest($request, $requestId);
             WarrantyWarehouseScope::prepareCreate($inner);
@@ -203,6 +217,7 @@ class MiniAppWarrantyController extends Controller
             }
             $response = $this->warranty->storeWarrantyCase($inner);
             $this->invalidateAfterWrite();
+
             return $response;
         });
     }
@@ -221,6 +236,7 @@ class MiniAppWarrantyController extends Controller
         } catch (\InvalidArgumentException) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là phiên bản số nguyên dương, ví dụ "1".');
         }
+
         return P09WarrantyRequests::execute($request, $s, 'UPDATE', strtolower($id), function (string $requestId) use ($request, $s, $id, $body, $version): JsonResponse {
             $inner = $this->commandRequest($request, $requestId);
             WarrantyWarehouseScope::assertCase($inner, $id, true);
@@ -240,7 +256,7 @@ class MiniAppWarrantyController extends Controller
                 $fields = $body;
                 unset($fields['note'], $fields['warehouse_id'], $fields['status']);
                 if ($fields === []) {
-                    DB::table('warranty_case')->where('warranty_case_id', $id)->update(['version' => $version + 1, 'updated_by' => $s['actor_id'], 'updated_at' => now()]);
+                    DB::table('warranty_case')->where('warranty_case_id', $id)->update(WarrantyCasePii::encode(['version' => $version + 1, 'updated_by' => $s['actor_id'], 'updated_at' => now()]));
                 } else {
                     $inner->replace($fields);
                     $this->warranty->updateWarrantyCase($inner, $id);
@@ -255,6 +271,7 @@ class MiniAppWarrantyController extends Controller
                 $response = $this->warranty->updateWarrantyCase($inner, $id);
             }
             $this->invalidateAfterWrite();
+
             return $response;
         });
     }
@@ -262,12 +279,14 @@ class MiniAppWarrantyController extends Controller
     public function reconcile(Request $request, string $requestId): JsonResponse
     {
         $this->queryFields($request, ['warehouse_id']);
+
         return P09WarrantyRequests::reconcile(Scope::resolve($request), $requestId);
     }
 
     public function componentIssues(Request $request, string $id): JsonResponse
     {
         $this->queryFields($request, ['warehouse_id', 'cursor', 'page', 'per_page']);
+
         return P06ReadSnapshot::run(function (array $snapshot) use ($request, $id): JsonResponse {
             $s = Scope::resolve($request);
             $case = Scope::requireCase($s, $id);
@@ -282,6 +301,7 @@ class MiniAppWarrantyController extends Controller
                 ->where('d.warehouse_id', $s['warehouse_id'])->where('d.status', 'POSTED');
             Scope::isolate($q, 'component_issue_documents', 'd', $s);
             [$ids, $page] = P09WarrantyPage::read($request, $q, $s, 'd.id', 'd.created_at');
+
             return $this->reply(array_map(fn (string $document): array => ['component_issue_document_id' => $document,
                 'warranty_case_id' => $case->warranty_case_id, 'status' => 'POSTED', 'can_open' => true,
                 'detail_url' => '/api/v1/mini-app/warranty-component-issues/'.$document], $ids), $s, $page + ['snapshot' => $snapshot]);
@@ -294,6 +314,7 @@ class MiniAppWarrantyController extends Controller
         // P09 owns the receipt. The canonical callback must not persist a second PII snapshot.
         $inner->headers->remove('Idempotency-Key');
         $inner->attributes->set('request_id', $requestId);
+
         return $inner;
     }
 
@@ -303,6 +324,7 @@ class MiniAppWarrantyController extends Controller
         if (array_diff(array_keys($body), $allowed) !== [] || $request->allFiles() !== []) {
             ApiError::abort(422, 'WARRANTY_UNKNOWN_FIELD', 'Payload có trường ngoài contract P09.');
         }
+
         return $body;
     }
 

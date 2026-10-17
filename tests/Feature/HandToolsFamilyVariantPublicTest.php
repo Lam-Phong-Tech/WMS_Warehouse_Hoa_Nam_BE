@@ -51,17 +51,18 @@ class HandToolsFamilyVariantPublicTest extends TestCase
         $this->publish($eight);
         $this->seedAvailableBalance($warehouse->id, $six->sku_id, 5);
         $this->seedAvailableBalance($warehouse->id, $seven->sku_id, 5);
-        // Biến thể thứ ba: published nhưng HẾT HÀNG -> không được xuất hiện trong variants.
+        // Published variants remain visible when out of stock, for preorder.
         $this->seedAvailableBalance($warehouse->id, $eight->sku_id, 0);
 
         $body = $this->getJson(self::BASE.'/products/dc-fam-6in')->assertOk()->json('data');
 
         $this->assertSame('Kìm điện đa năng', $body['family']['name']);
-        $this->assertSame(2, $body['family']['variant_count']);
+        $this->assertSame(3, $body['family']['variant_count']);
 
         $variantCodes = collect($body['variants'])->pluck('code')->all();
-        $this->assertEqualsCanonicalizing(['DC-FAM-6IN', 'DC-FAM-7IN'], $variantCodes);
-        $this->assertNotContains('DC-FAM-8IN', $variantCodes, 'Variant hết hàng không được selectable.');
+        $this->assertEqualsCanonicalizing(['DC-FAM-6IN', 'DC-FAM-7IN', 'DC-FAM-8IN'], $variantCodes);
+        $this->getJson(self::BASE.'/products/dc-fam-8in')->assertOk()
+            ->assertJsonPath('data.availability', 'PREORDER');
 
         $default = collect($body['variants'])->firstWhere('code', 'DC-FAM-6IN');
         $this->assertTrue($default['is_default']);

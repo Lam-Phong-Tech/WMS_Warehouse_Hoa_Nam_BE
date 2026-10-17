@@ -13,6 +13,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Controllers\P20ComponentHistoryController as P20;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\P19LinkedComponentIssue as P19;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
@@ -32,7 +33,7 @@ class P20ComponentHistoryTest extends TestCase
     {
         $f = $this->fixture();
         $id = $this->postBatch($f, 3);
-        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'RETURNED']);
+        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(WarrantyCasePii::encode(['status' => 'RETURNED']));
         $before = $this->snapshot();
         $case = $this->getJson('/api/v1/mini-app/warranty-cases/'.$f['case_id'].'?warehouse_id='.$f['warehouse_id'], $this->headers($f['token']))
             ->assertOk()->assertJsonPath('data.capabilities.posted_component_issues_read', true);

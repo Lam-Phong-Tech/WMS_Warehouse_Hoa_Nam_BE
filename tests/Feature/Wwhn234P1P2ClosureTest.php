@@ -90,6 +90,7 @@ class Wwhn234P1P2ClosureTest extends TestCase
     private function warrantyCaseId(array $adminHeaders): string
     {
         $case = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $this->canonicalWarehouse()->id,
             'customer_name' => 'Khách WWHN-234',
             'customer_phone' => '0933000234',
             'description' => 'Máy không lên nguồn',

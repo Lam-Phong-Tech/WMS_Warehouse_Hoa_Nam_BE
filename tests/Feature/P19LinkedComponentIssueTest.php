@@ -11,6 +11,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\MiniAppDraftService;
 use Modules\Warehouse\Services\P19LinkedComponentIssue as P19;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
@@ -127,13 +128,13 @@ class P19LinkedComponentIssueTest extends TestCase
     {
         $f = $this->fixture();
         $draft = $this->save($f);
-        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'COMPLETED']);
+        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(WarrantyCasePii::encode(['status' => 'COMPLETED']));
         $this->postJson(self::RECORD, $this->body($f), $this->recordHeaders($f, $draft))->assertUnprocessable()->assertJsonPath('error.code', 'WARRANTY_CASE_STATUS_NOT_ALLOWED');
         $this->unchanged($f);
-        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'REPAIRING']);
+        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(WarrantyCasePii::encode(['status' => 'REPAIRING']));
         $key = (string) Str::uuid();
         $this->postJson(self::RECORD, $this->body($f), $this->recordHeaders($f, $draft, $key))->assertCreated();
-        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'COMPLETED']);
+        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(WarrantyCasePii::encode(['status' => 'COMPLETED']));
         $this->postJson(self::RECORD, $this->body($f), $this->recordHeaders($f, $draft, $key))->assertCreated()->assertHeader('Idempotent-Replay', 'true');
         $this->assertSame(4, $this->balance($f));
         $this->assertDatabaseCount('component_issue_documents', 1);

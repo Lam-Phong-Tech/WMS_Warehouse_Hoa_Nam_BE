@@ -74,6 +74,7 @@ class WarrantyCaseActorTrackingTest extends TestCase
         ]);
 
         $created = $this->postJson('/api/v1/warranty-cases', [
+            'warehouse_id' => $this->ensureActiveWarehouse('KHO-TONG-HN')->id,
             'item_id' => $item->item_id,
             'customer_name' => 'Nguyen Van Actor',
             'customer_phone' => '0901234567',

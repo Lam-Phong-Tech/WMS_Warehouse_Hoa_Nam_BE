@@ -251,9 +251,10 @@ class Wwhn46OutboundPickScanDedupTest extends TestCase
         ], $headers);
 
         $import->assertCreated()
-            ->assertJsonPath('data.import.status', 'VALIDATED')
-            ->assertJsonPath('data.rows.0.normalized_payload.sku_id', $sku->sku_id)
-            ->assertJsonPath('data.rows.0.normalized_payload.sku_code', $sku->sku_code);
+            ->assertJsonPath('data.import.status', 'VALIDATED');
+        $normalized = json_decode($import->json('data.rows.0.normalized_payload'), true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame($sku->sku_id, $normalized['sku_id']);
+        $this->assertSame($sku->sku_code, $normalized['sku_code']);
     }
 
     public function test_outbound_request_intake_rejects_mismatched_sku_id_and_code(): void

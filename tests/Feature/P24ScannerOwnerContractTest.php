@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Services\P19ComponentCommand as Command;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use RuntimeException;
 use Tests\Feature\Concerns\BuildsScanDrivenInbound;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
@@ -188,7 +189,7 @@ class P24ScannerOwnerContractTest extends TestCase
             'Idempotency-Key' => $replacement, 'If-Match' => '"'.$receipt['result']['document_version'].'"',
         ])->assertConflict()->assertJsonPath('error.code', 'P19_DOCUMENT_NOT_WRITABLE');
         $this->check($f, $replacement, 'POST')->assertOk()->assertJsonPath('data.outcome', 'FAILED');
-        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'RETURNED']);
+        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(WarrantyCasePii::encode(['status' => 'RETURNED']));
         $this->postJson(self::BASE.'/'.$d['id'].'/post', [], $this->headers($f) + ['Idempotency-Key' => $key, 'If-Match' => '"'.$d['version'].'"'])
             ->assertOk()->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.receipt', $receipt);
         $this->check($f, $key, 'POST')->assertOk()->assertJsonPath('data.receipt', $receipt);
@@ -261,7 +262,7 @@ class P24ScannerOwnerContractTest extends TestCase
         $this->postJson(self::BASE.'/resolve-code', $body, $this->headers($f))->assertOk()
             ->assertJsonPath('data.available_qty', 7)->assertJsonPath('meta.p19_scanner.can_confirm_local', true)
             ->assertJsonPath('meta.p19_scanner.confirmation_is_scan', false);
-        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'RETURNED']);
+        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(WarrantyCasePii::encode(['status' => 'RETURNED']));
         DB::table('container_items')->where('container_id', $f['container_id'])->update(['is_active' => false]);
         $this->postJson(self::BASE.'/resolve-code', $body, $this->headers($f))->assertOk()
             ->assertJsonPath('data.available_qty', 0)->assertJsonPath('data.case_allows_issue', false)
@@ -281,7 +282,7 @@ class P24ScannerOwnerContractTest extends TestCase
             ->assertJsonPath('data.resolved', false)->assertJsonPath('data.available_qty', null)
             ->assertJsonPath('meta.p19_scanner.reason_kind', 'UNKNOWN')->assertJsonPath('meta.p19_scanner.can_confirm_local', false);
         $d = $this->createDocument($f);
-        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(['status' => 'RETURNED']);
+        DB::table('warranty_case')->where('warranty_case_id', $f['case_id'])->update(WarrantyCasePii::encode(['status' => 'RETURNED']));
         $this->scan($f, $d, ['line_id' => $d['line_id'], 'quantity' => 1], (string) Str::uuid())
             ->assertUnprocessable()->assertJsonPath('error.code', 'WARRANTY_CASE_NOT_ACTIVE');
         $this->assertDatabaseCount('component_issue_items', 0);

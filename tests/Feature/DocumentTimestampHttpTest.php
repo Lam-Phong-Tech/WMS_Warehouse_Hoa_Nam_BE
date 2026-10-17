@@ -19,6 +19,7 @@ use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\DocumentTimestampSql;
 use Modules\Warehouse\Support\P12MixedDocumentReadModel;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -182,7 +183,7 @@ final class DocumentTimestampHttpTest extends TestCase
         // PostgreSQL fixture sends an explicit instant, not an ambiguous naive value.
         $aware = in_array(strtolower(Schema::getColumnType('warranty_case', 'created_at')), ['timestamptz', 'timestamp with time zone'], true);
         $raw = $aware ? '2026-10-11 14:40:07+00:00' : '2026-10-11 21:40:07';
-        DB::table('warranty_case')->where('warranty_case_id', $id)->update(['created_at' => $raw]);
+        DB::table('warranty_case')->where('warranty_case_id', $id)->update(WarrantyCasePii::encode(['created_at' => $raw]));
         $before = DB::table('warranty_case')->where('warranty_case_id', $id)->first();
         $owner = $this->getJson('/api/v1/mini-app/warranty-cases/'.$id.'?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk();
         $all = $this->read($token, $warehouse, ['source' => 'WARRANTY'])->assertOk()->assertJsonPath('meta.total', 1);

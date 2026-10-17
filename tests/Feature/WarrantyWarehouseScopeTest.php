@@ -12,6 +12,7 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Http\Controllers\AlignedWarrantyReportController;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
@@ -137,7 +138,7 @@ class WarrantyWarehouseScopeTest extends TestCase
     {
         [$a, $b, $token, $idA, $idB] = $this->twoWarehouses();
         $idA2 = $this->createCase($token, $a);
-        DB::table('warranty_case')->whereIn('warranty_case_id', [$idA, $idA2, $idB])->update(['created_at' => '2026-01-15 08:00:00', 'updated_at' => '2026-01-15 08:00:00']);
+        DB::table('warranty_case')->whereIn('warranty_case_id', [$idA, $idA2, $idB])->update(WarrantyCasePii::encode(['created_at' => '2026-01-15 08:00:00', 'updated_at' => '2026-01-15 08:00:00']));
         $ordered = [$idA, $idA2];
         rsort($ordered, SORT_STRING);
         [$actor, $scoped] = $this->actor((string) $a->id);
@@ -298,7 +299,7 @@ class WarrantyWarehouseScopeTest extends TestCase
     {
         [$a, $b, $global, $idA, $idB] = $this->twoWarehouses();
         $second = $this->createCase($global, $a);
-        DB::table('warranty_case')->where('warranty_case_id', $second)->update(['status' => 'COMPLETED', 'completed_at' => now()]);
+        DB::table('warranty_case')->where('warranty_case_id', $second)->update(WarrantyCasePii::encode(['status' => 'COMPLETED', 'completed_at' => now()]));
         [$actor, $scoped] = $this->actor((string) $a->id);
         $summary = $this->getJson('/api/v1/mini-app/dashboard/summary?warehouse_id='.$a->id, $this->headers($scoped))->assertOk()
             ->assertJsonPath('data.warranty.open_count', 2)->assertJsonPath('data.warranty.open_statuses', WarrantyWarehouseScope::OPEN_STATUSES)

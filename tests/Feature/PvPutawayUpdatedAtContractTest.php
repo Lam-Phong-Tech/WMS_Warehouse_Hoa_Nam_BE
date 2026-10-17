@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -17,8 +17,8 @@ use Tests\TestCase;
 
 class PvPutawayUpdatedAtContractTest extends TestCase
 {
-    use DatabaseMigrations;
     use PreparesPutawayFixtures;
+    use RefreshDatabase;
 
     public function test_profile_create_list_and_update_expose_persisted_profile_time(): void
     {

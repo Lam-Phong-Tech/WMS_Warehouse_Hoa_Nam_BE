@@ -13,10 +13,12 @@ use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Tests\Feature\Concerns\PreparesWarrantyOwnerFixtures;
 use Tests\TestCase;
 
 class SchemaApiModulesTest extends TestCase
 {
+    use PreparesWarrantyOwnerFixtures;
     use RefreshDatabase;
 
     private function headers(): array
@@ -101,6 +103,7 @@ class SchemaApiModulesTest extends TestCase
             'updated_at' => now(),
         ]);
         $caseId = $this->warrantyCase(serialId: $serialId);
+        $this->bindWarrantyOwnerFixture($caseId, auth('api')->id(), $warehouse->id);
 
         // WarrantyController::tempOnly() chuyển phiếu sang chế độ "không xác định
         // được item" — chủ động NULL inventory_serial_id/product_id, thay bằng

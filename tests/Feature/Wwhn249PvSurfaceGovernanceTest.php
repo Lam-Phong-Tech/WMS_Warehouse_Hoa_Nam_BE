@@ -68,6 +68,10 @@ class Wwhn249PvSurfaceGovernanceTest extends TestCase
         // cộng hai lớp chống dò độc lập — throttle theo (IP + mfa_token) và trần
         // theo TÀI KHOẢN trong MfaService (failed_attempts/locked_until).
         'POST api/v1/auth/mfa/verify' => 'WWHN-SEC-08 — bước 2 xác thực hai bước (mfa_token dùng một lần)',
+        // p14-recovery-v1: support intake only; reads require the private proof.
+        // Both routes stay behind the recovery flag and never grant login/reset.
+        'POST api/v1/auth/recovery-requests' => 'HoaNam_Current_Baseline_Contract.json: support intake',
+        'GET api/v1/auth/recovery-requests/operations/{operationId}' => 'HoaNam_Current_Baseline_Contract.json: capability-scoped receipt',
         // Annex C: 4 operation PUBLIC_ANONYMOUS của App PV.
         'GET api/v1/pv/products' => 'Annex C listPvProducts (security: [])',
         'GET api/v1/pv/products/{skuId}' => 'Annex C getPvProduct (security: [])',

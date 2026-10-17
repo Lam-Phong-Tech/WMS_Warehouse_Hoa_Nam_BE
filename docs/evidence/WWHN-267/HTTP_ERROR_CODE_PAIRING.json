@@ -120,6 +120,33 @@
   ],
   "dualStatusCodes": [
     {
+      "code": "WAREHOUSE_CONTEXT_REQUIRED",
+      "statuses": [409, 422],
+      "reason": "422 when switch-context lacks a warehouse UUID; 409 when a business read/write has no confirmed warehouse context.",
+      "evidence": "WarehouseContextController::switch; WarrantyWarehouseScope::resolveCreate; P09WarrantyScope::resolve; P12MixedDocumentScope::resolve",
+      "disposition": "DOCUMENTED_CURRENT_BEHAVIOR_PENDING_OWNER_REVIEW",
+      "owner": "BE + FE/QA",
+      "constraint": "No third status; missing input and missing session context remain distinct."
+    },
+    {
+      "code": "WARRANTY_ITEM_NOT_FOUND",
+      "statuses": [404, 422],
+      "reason": "404 when an item cannot be read inside the authorized warehouse; 422 when an intake payload cannot resolve a valid item identity.",
+      "evidence": "P09WarrantyScope::requireItem; MiniAppWarrantyController::resolveItem; CurrentBaselineWarrantyController::resolveWarrantyItem",
+      "disposition": "DOCUMENTED_CURRENT_BEHAVIOR_PENDING_OWNER_REVIEW",
+      "owner": "BE + FE/QA",
+      "constraint": "No third status; never reveal whether an item exists in a foreign warehouse."
+    },
+    {
+      "code": "IDEMPOTENCY_KEY_REQUIRED",
+      "statuses": [422, 428],
+      "reason": "422 for a missing/invalid START UUID in the legacy shift owner; 428 for a required stable operation key in draft/public quote owners.",
+      "evidence": "MiniAppWorkShiftController::start; MiniAppDraftService; PublicQuoteRequestController::store",
+      "disposition": "DOCUMENTED_CURRENT_BEHAVIOR_PENDING_OWNER_REVIEW",
+      "owner": "BE + FE/QA",
+      "constraint": "No third status; this records current behavior, not a release approval."
+    },
+    {
       "code": "PHYSICAL_CODE_NOT_FOUND",
       "statuses": [404, 422],
       "reason": "404 khi định danh tài nguyên theo path (SkuAggregateService, CurrentBaselineItemIdentityController); 422 khi giá trị code_value trong body scan không tồn tại hoặc không ACTIVE.",
