@@ -3,6 +3,11 @@ name: HN DEVOPS CI/CD
 on:
   workflow_dispatch:
     inputs:
+      devtest_preflight_only:
+        description: Read-only inspection of the green DEV/TEST target; never deploy or seed
+        required: false
+        default: false
+        type: boolean
       deploy_uat:
         description: Deploy the verified artifact to UAT
         required: true
@@ -61,7 +66,105 @@ env:
   CI_SERVER_PORT: ${{ vars.CI_SERVER_PORT || '8000' }}
 
 jobs:
+  devtest-preflight:
+    if: github.event_name == 'workflow_dispatch' && inputs.devtest_preflight_only == true
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    environment: staging
+    timeout-minutes: 10
+    steps:
+      - name: Verify retained build without cleaning the CI workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          printf 'retained_source_sha='
+          git rev-parse HEAD
+          if [ -f hoa-nam-backend-backend.tar.sha256 ]; then
+            sha256sum -c hoa-nam-backend-backend.tar.sha256
+            stat -c 'retained_artifact_bytes=%s' hoa-nam-backend-backend.tar
+          fi
+          docker image inspect hoa-nam-backend-backend:898d447eba868f0fb2ea6362b2e4766534ddf76a \
+            --format 'retained_image_id={{.Id}}' || true
+      - name: Verify the DEV/TEST SSH target without disclosing credentials
+        env:
+          TARGET_HOST: ${{ secrets.UAT_SSH_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$TARGET_HOST" = 42.96.16.197
+      - name: Read-only green DEV/TEST inspection
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          command_timeout: 5m
+          script: |
+            set -eu
+            root=/opt/hoa-nam-green
+            release=$(readlink -f "$root/current")
+            case "$release" in "$root"/releases/*) ;; *) exit 1 ;; esac
+            test "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' hoa_nam_green-backend-1)" = hoa_nam_green
+            printf 'release=%s\n' "$release"
+            date -u '+measured_at_utc=%Y-%m-%dT%H:%M:%SZ'
+            df -B1 -P "$root"
+            docker ps -a --filter label=com.docker.compose.project=hoa_nam_green --format '{{.Names}} {{.Status}} {{.Image}}'
+            docker inspect hoa_nam_green-backend-1 --format '{{range .Mounts}}{{.Type}} {{.Source}} {{.Destination}}{{println}}{{end}}'
+            docker exec -i -u www-data hoa_nam_green-backend-1 php <<'PHP'
+            <?php
+            require '/var/www/html/vendor/autoload.php';
+            $app = require '/var/www/html/bootstrap/app.php';
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $db = Illuminate\Support\Facades\DB::connection();
+            if ($db->getDatabaseName() !== 'wms_hoanam_green') { exit(2); }
+            $db->beginTransaction();
+            $db->statement('SET TRANSACTION READ ONLY');
+            try {
+                $versions = [];
+                foreach (['laravel/framework', 'symfony/http-foundation', 'symfony/yaml'] as $package) {
+                    $versions[$package] = Composer\InstalledVersions::getPrettyVersion($package);
+                }
+                echo json_encode([
+                    'sha' => config('health.build.sha'),
+                    'ref' => config('health.build.ref'),
+                    'app_env' => config('app.env'),
+                    'database' => $db->getDatabaseName(),
+                    'protected_database' => config('deployment_safety.protect_database'),
+                    'protected_seed_permission' => config('deployment_safety.allow_protected_database_seed'),
+                    'flags' => [
+                        'p12' => config('p12_mixed_documents.enabled'),
+                        'p14' => config('p14.shift_enabled'),
+                        'p19' => config('p19.commands_enabled'),
+                        'p19_recovery' => config('p19.command_recovery_enabled'),
+                    ],
+                    'migrations' => $db->table('migrations')->orderBy('migration')->pluck('migration'),
+                    'sku_total' => $db->table('sku')->count(),
+                    'published_skus' => $db->table('sku')->where('published_to_app', true)->count(),
+                    'media_total' => $db->table('pv_product_images')->count(),
+                    'in_stock_items' => $db->table('item_instances')->where('item_status', 'IN_STOCK')->count(),
+                    'configuration_cached' => app()->configurationIsCached(),
+                    'routes_cached' => app()->routesAreCached(),
+                    'dependencies' => $versions,
+                ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), PHP_EOL;
+            } finally {
+                $db->rollBack();
+            }
+            PHP
+            cd "$release"
+            sha256sum composer.lock config/cache.php docker-compose.yml \
+              database/migrations/2026_10_07_000003_add_p04_category_and_daily_numbers.php \
+              database/migrations/2026_10_08_000001_add_p04_draft_numbers.php \
+              Modules/Warehouse/app/Http/Controllers/InventoryBalanceController.php \
+              Modules/Warehouse/app/Http/Controllers/MiniAppInboundStagingController.php \
+              Modules/Warehouse/app/Http/Controllers/MiniAppProductController.php \
+              Modules/Warehouse/app/Http/Controllers/P04InboundController.php \
+              Modules/Warehouse/app/Services/InboundDocumentNumber.php \
+              Modules/Warehouse/app/Services/StockDocumentService.php \
+              Modules/Warehouse/database/seeders/DongChengCatalogSeeder.php \
+              p04-draft-number-release.json p04-global-sendfix-release.json p04-ui-options-release.json
+            docker system df
   ci:
+    if: inputs.devtest_preflight_only != true
     runs-on: ${{ fromJSON(inputs.runner_labels || vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     services:
       postgres:
@@ -510,7 +613,7 @@ jobs:
 
   deploy-uat:
     needs: ci
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true'
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true' && inputs.devtest_preflight_only != true
     runs-on: ${{ fromJSON(inputs.uat_runner_labels || vars.UAT_RUNNER_LABELS || '["ubuntu-latest"]') }}
     environment: staging
     steps:
