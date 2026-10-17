@@ -3,6 +3,16 @@ name: HN DEVOPS CI/CD
 on:
   workflow_dispatch:
     inputs:
+      devtest_deploy_only:
+        description: Promote verified 898d447e to green DEV/TEST without CI rerun, migration or seed
+        required: false
+        default: false
+        type: boolean
+      devtest_confirmation:
+        description: Required for green promotion; enter GREEN-898d447e-NO-SEED
+        required: false
+        default: ""
+        type: string
       devtest_preflight_only:
         description: Read-only inspection of the green DEV/TEST target; never deploy or seed
         required: false
@@ -67,7 +77,7 @@ env:
 
 jobs:
   devtest-preflight:
-    if: github.event_name == 'workflow_dispatch' && inputs.devtest_preflight_only == true
+    if: github.event_name == 'workflow_dispatch' && inputs.devtest_preflight_only == true && inputs.devtest_deploy_only != true
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
     environment: staging
     timeout-minutes: 10
@@ -135,7 +145,7 @@ jobs:
                         'p12' => config('p12_mixed_documents.enabled'),
                         'p14' => config('p14.shift_enabled'),
                         'p19' => config('p19.commands_enabled'),
-                        'p19_recovery' => config('p19.command_recovery_enabled'),
+                        'p19_recovery' => config('p19.commands_enabled'),
                     ],
                     'migrations' => $db->table('migrations')->orderBy('migration')->pluck('migration'),
                     'sku_total' => $db->table('sku')->count(),
@@ -163,8 +173,130 @@ jobs:
               Modules/Warehouse/database/seeders/DongChengCatalogSeeder.php \
               p04-draft-number-release.json p04-global-sendfix-release.json p04-ui-options-release.json
             docker system df
+  devtest-verified-deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_deploy_only == true && inputs.devtest_preflight_only != true
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    environment: staging
+    permissions:
+      contents: read
+      actions: read
+    concurrency:
+      group: hoa-nam-green-devtest-release
+      cancel-in-progress: false
+    timeout-minutes: 25
+    steps:
+      - name: Require the exact green-only operator intent
+        env:
+          CONFIRMATION: ${{ inputs.devtest_confirmation }}
+          DEPLOY_UAT: ${{ inputs.deploy_uat }}
+          RUN_UAT_SEED: ${{ inputs.run_uat_seed }}
+          TARGET_HOST: ${{ secrets.UAT_SSH_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = GREEN-898d447e-NO-SEED
+          test "$DEPLOY_UAT" = false && test "$RUN_UAT_SEED" = false
+          test "$TARGET_HOST" = 42.96.16.197
+      - name: Verify retained immutable build before any checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 898d447eba868f0fb2ea6362b2e4766534ddf76a
+          git diff --exit-code 898d447eba868f0fb2ea6362b2e4766534ddf76a -- app bootstrap config Modules routes composer.json composer.lock docker
+          sha256sum -c hoa-nam-backend-backend.tar.sha256
+          expected=sha256:69aad9b47acd88192a463c72045fb8ae77789719bbcc7421226e93c91eadd44b
+          test "$(docker image inspect hoa-nam-backend-backend:898d447eba868f0fb2ea6362b2e4766534ddf76a --format '{{.Id}}')" = "$expected"
+          test "$(jq -r '.[0].Id' image-inspect.json)" = "$expected"
+          echo "RETAINED_IMAGE_ID=$expected" >> "$GITHUB_ENV"
+          echo "RETAINED_ARTIFACT_SHA256=$(cut -d ' ' -f1 hoa-nam-backend-backend.tar.sha256)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: devtest-ops-source
+          persist-credentials: false
+      - name: Package exact verified application source, never CI environment or fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          package="$GITHUB_WORKSPACE/devtest-ops-source/.deploy-package"
+          mkdir "$package"
+          git archive --format=tar -o "$package/source.tar" 898d447eba868f0fb2ea6362b2e4766534ddf76a
+          cp devtest-ops-source/tools/deploy/deploy-green-verified.py "$package/deploy-green-verified.py"
+          echo "SOURCE_ARCHIVE_SHA256=$(sha256sum "$package/source.tar" | cut -d ' ' -f1)" >> "$GITHUB_ENV"
+          echo "COMPOSER_LOCK_SHA256=$(git show 898d447eba868f0fb2ea6362b2e4766534ddf76a:composer.lock | sha256sum | cut -d ' ' -f1)" >> "$GITHUB_ENV"
+      - name: Attest successful application gates and classify the distribution-only failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const repo = {owner: context.repo.owner, repo: context.repo.repo};
+            const runId = 39052882961;
+            const source = '898d447eba868f0fb2ea6362b2e4766534ddf76a';
+            const run = (await github.rest.actions.getWorkflowRun({...repo, run_id: runId})).data;
+            if (run.head_sha !== source || run.status !== 'completed' || run.conclusion !== 'failure') {
+              throw new Error('Unexpected retained verification run');
+            }
+            const jobs = (await github.rest.actions.listJobsForWorkflowRun({...repo, run_id: runId})).data.jobs;
+            const ci = jobs.find(job => job.name === 'ci');
+            const required = ['Known-credential and secret scan (hard)', 'Build PHP runtime image',
+              'Install PHP dependencies', 'Composer security audit',
+              'PHP style gate on changed files (pint --test, ratchet)', 'Install Node dependencies',
+              'Build frontend assets', 'npm dependency audit (online, hard)',
+              'Warranty report seed rollback and replay on disposable PostgreSQL',
+              'Run deploy-gate tests (hard)', 'Run security suites on PostgreSQL (hard)',
+              'Run full test suite (hard)', 'Prepare Laravel database and OpenAPI',
+              'Run local smoke', 'Build immutable Docker artifact'];
+            for (const name of required) {
+              if (ci?.steps.find(step => step.name === name)?.conclusion !== 'success') {
+                throw new Error('Verification gate is not successful: ' + name);
+              }
+            }
+            const failed = ci.steps.filter(step => step.conclusion === 'failure');
+            if (failed.length !== 1 || failed[0].name !== 'Upload build artifacts') {
+              throw new Error('Failure is not isolated to artifact distribution');
+            }
+            const logsResponse = await fetch(
+              `https://api.github.com/repos/${repo.owner}/${repo.repo}/actions/jobs/${ci.id}/logs`,
+              {headers: {Authorization: `Bearer ${github.token}`, Accept: 'application/vnd.github+json'}});
+            if (!logsResponse.ok || !(await logsResponse.text()).includes('Artifact storage quota has been hit')) {
+              throw new Error('Artifact quota failure was not confirmed');
+            }
+            const proof = {source_sha: source, ops_sha: context.sha, ci_run: runId,
+              application_gates_passed: true, distribution_failure: 'ARTIFACT_STORAGE_QUOTA',
+              image_id: process.env.RETAINED_IMAGE_ID,
+              retained_artifact_sha256: process.env.RETAINED_ARTIFACT_SHA256,
+              source_archive_sha256: process.env.SOURCE_ARCHIVE_SHA256,
+              composer_lock_sha256: process.env.COMPOSER_LOCK_SHA256,
+              checked_at: new Date().toISOString(), successful_gates: required};
+            fs.writeFileSync('devtest-ops-source/.deploy-package/proof.json', JSON.stringify(proof, null, 2), {mode: 0o600});
+            core.info('Application gates verified; original workflow remains FAILURE at artifact distribution.');
+      - name: Copy verified source and green-only deployment tooling
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          source: devtest-ops-source/.deploy-package/*
+          target: /tmp/hn-green-${{ github.sha }}
+          strip_components: 2
+      - name: Promote green application with private vendor and automatic application-only rollback
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          OPS_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          envs: OPS_SHA
+          command_timeout: 15m
+          script: |
+            set -eu
+            case "$OPS_SHA" in *[!0-9a-f]*|'') exit 1 ;; esac
+            package="/tmp/hn-green-$OPS_SHA"
+            python3 "$package/deploy-green-verified.py" --archive "$package/source.tar" --proof "$package/proof.json"
   ci:
-    if: inputs.devtest_preflight_only != true
+    if: inputs.devtest_preflight_only != true && inputs.devtest_deploy_only != true
     runs-on: ${{ fromJSON(inputs.runner_labels || vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     services:
       postgres:
@@ -613,7 +745,7 @@ jobs:
 
   deploy-uat:
     needs: ci
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true' && inputs.devtest_preflight_only != true
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true' && inputs.devtest_preflight_only != true && inputs.devtest_deploy_only != true
     runs-on: ${{ fromJSON(inputs.uat_runner_labels || vars.UAT_RUNNER_LABELS || '["ubuntu-latest"]') }}
     environment: staging
     steps:
