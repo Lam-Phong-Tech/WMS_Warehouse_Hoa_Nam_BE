@@ -3,6 +3,11 @@
 Tài liệu này chỉ bao phủ **phạm vi BE1**. Environment, pipeline, secret, backup/restore và
 quyết định Go/No-Go thuộc WWHN-298 (DevOps) và WWHN-80.
 
+> Cập nhật 17/10/2026: bằng chứng round-trip 140 migration bên dưới là lịch sử,
+> không phải chứng nhận rollback cho source hiện tại. Bốn ranh giới giữ bằng chứng
+> mới được đối chiếu tại `BASELINE_RECONCILIATION_20261017.md`. Nghiệm thu runtime
+> và production vẫn riêng biệt; không chạy rollback/restore để làm gate PASS.
+
 ## 1. Trước cutover (T-0)
 
 ```bash
@@ -29,8 +34,9 @@ Có **hai** loại rollback, đừng nhầm:
 
 | Tình huống | Hành động đúng | Ghi chú |
 |---|---|---|
-| Schema mới lỗi, **chưa có dữ liệu nghiệp vụ mới** | `php artisan migrate:rollback --force` | Sau WWHN-300, chuỗi này unwind trọn vẹn (140/140) và `migrate` forward lại được. Đây là *schema* rollback |
-| Đã phát sinh dữ liệu nghiệp vụ sau cutover | **Restore backup** theo authority DevOps | 75/140 migration là fail-forward: chúng đã copy/di chuyển dữ liệu sang bảng canonical và `down()` không dựng lại được dữ liệu cũ. `migrate:rollback` lúc này xóa schema **kèm dữ liệu** |
+| Schema mới lỗi, **chưa có dữ liệu nghiệp vụ mới** | Kiểm chứng exact batch trên bản sao cô lập trước khi duyệt phương án lùi | Không suy kết quả 140/140 cũ thành khả năng unwind source mới; `down()` fail-forward không khôi phục schema/trigger cũ |
+| Đã phát sinh dữ liệu nghiệp vụ hoặc receipt sau cutover | Ưu tiên sửa tiến; chỉ lùi code khi đã chứng minh tương thích | Giữ receipt, quyền đã gán và bằng chứng bàn giao; không phục hồi trigger idempotency đã biết lỗi |
+| Cần restore snapshot | Chỉ theo phương án được DevOps phê duyệt riêng | Xác minh backup và đối chiếu mọi dữ liệu phát sinh sau snapshot trước khi quyết định; không restore tự động |
 
 `php artisan wms:golive-check` liệt kê chính xác tập fail-forward ở dimension
 `migrations.reversible` — dùng nó để biết cutover đã đi qua ranh giới nào.
@@ -42,12 +48,12 @@ Có **hai** loại rollback, đừng nhầm:
 
 ```bash
 php artisan migrate --force
-php artisan db:seed --force        # chỉ khi rollback về schema rỗng
 php artisan wms:golive-check
 ```
 
-Round-trip này được CI chứng minh mỗi lần đụng vào `database/migrations` hoặc
-`Modules/*/database/migrations`: `.github/workflows/wwhn-300-backend-golive-check.yml`.
+Không tự kèm seed vào lệnh deploy/rollback. Mỗi lượt seed cần phạm vi và kế hoạch
+đã duyệt riêng; thử trên DB/storage/media cô lập trước. Workflow round-trip cũ
+không phải bằng chứng full seed hiện tại đã PASS.
 
 ## 5. Smoke tối thiểu phía backend
 

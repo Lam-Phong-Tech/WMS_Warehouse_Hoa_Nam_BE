@@ -15,6 +15,12 @@
  *   PUBLIC_ANONYMOUS   public theo đặc tả (SRS §3 + §8.4: App PV, health,
  *                      login/refresh)
  *   SELF_SERVICE       đã xác thực, chỉ tác động lên chính phiên của người gọi
+ *   OWNER_GUARDED:*    exact owner action with transactional permission/scope checks
+ *
+ * Source reconciliation 2026-10-17: 54 existing candidate operations and the
+ * warranty-readable dashboard union are pinned below. No route or runtime ACL
+ * is added by this file. BA/QA live acceptance and production activation remain
+ * separate; see docs/evidence/WWHN-300/BASELINE_RECONCILIATION_20261017.md.
  *
  * Sinh lại: `php artisan wms:golive-check --write-route-contract`.
  * DIFF CỦA FILE NÀY LÀ BẰNG CHỨNG REVIEW: thêm/xóa/đổi permission của một route
@@ -77,7 +83,7 @@ return [
     'GET|HEAD api/v1/label-print-events' => 'permission:label.print|packing_label.print|report.packing_label.view',
     'GET|HEAD api/v1/label-snapshots' => 'permission:label.print',
     'GET|HEAD api/v1/label-snapshots/{id}' => 'permission:label.print',
-    'GET|HEAD api/v1/mini-app/dashboard/summary' => 'permission:inbound.view|outbound.view',
+    'GET|HEAD api/v1/mini-app/dashboard/summary' => 'permission:inbound.view|outbound.view|warranty.view|warranty.manage',
     'GET|HEAD api/v1/mini-app/document-attachments/pending-evidence' => 'permission:inventory.view',
     'GET|HEAD api/v1/mini-app/document-attachments/{attachmentId}/download' => 'permission:inbound.view|outbound.view|inventory.view',
     'GET|HEAD api/v1/mini-app/inbound-documents' => 'permission:inbound.view',
@@ -400,4 +406,59 @@ return [
     'POST api/v1/warranty-component-issues/{id}/unscan' => 'permission:warranty.component_issue',
     'PUT api/v1/outbound-documents/{id}/items/{itemId}/rfid' => 'permission:physical_code.assign_rfid',
     'PUT api/v1/roles/{id}/permissions' => 'permission:iam.role.manage',
+    // Reviewed against source at e2d63af6; no prefix-wide guard exemptions.
+    'GET|HEAD api/v1/auth/recovery-requests/operations/{operationId}' => 'PUBLIC_ANONYMOUS',
+    'GET|HEAD api/v1/mini-app/catalog/context' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P06CatalogController@context',
+    'GET|HEAD api/v1/mini-app/catalog/items' => 'permission:item_instance.view+sku.view',
+    'GET|HEAD api/v1/mini-app/catalog/items/{id}' => 'permission:item_instance.view+sku.view',
+    'GET|HEAD api/v1/mini-app/catalog/items/{id}/timeline' => 'permission:inventory.trace|warranty.view|warranty.manage+item_instance.view+sku.view',
+    'GET|HEAD api/v1/mini-app/catalog/skus' => 'permission:sku.view',
+    'GET|HEAD api/v1/mini-app/catalog/skus/{id}' => 'permission:sku.view',
+    'GET|HEAD api/v1/mini-app/catalog/skus/{id}/gallery' => 'permission:sku.view',
+    'GET|HEAD api/v1/mini-app/catalog/skus/{id}/stock' => 'permission:inventory.view+sku.view',
+    'GET|HEAD api/v1/mini-app/catalog/skus/{id}/timeline' => 'permission:inventory.trace|warranty.view|warranty.manage+sku.view',
+    'GET|HEAD api/v1/mini-app/component-issue-requests/{requestId}' => 'permission:warranty.component_issue',
+    'GET|HEAD api/v1/mini-app/documents' => 'permission:inbound.view|outbound.view|warranty.view|warranty.manage',
+    'GET|HEAD api/v1/mini-app/drafts' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P03DraftController@index',
+    'GET|HEAD api/v1/mini-app/drafts/{id}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P03DraftController@show',
+    'GET|HEAD api/v1/mini-app/drafts/{id}/requests/{requestId}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P03DraftController@reconcile',
+    'GET|HEAD api/v1/mini-app/history/records' => 'permission:history.read',
+    'GET|HEAD api/v1/mini-app/history/records/{recordId}' => 'permission:history.read',
+    'GET|HEAD api/v1/mini-app/history/scan-sessions/{sessionId}' => 'permission:history.read',
+    'GET|HEAD api/v1/mini-app/history/summary' => 'permission:history.read',
+    'GET|HEAD api/v1/mini-app/inbound-documents/{id}/attachments/requests/{operationKey}' => 'OWNER_GUARDED:Modules\\Warehouse\\Services\\AttachmentUploadReceipts@show',
+    'GET|HEAD api/v1/mini-app/inbound/context' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@context',
+    'GET|HEAD api/v1/mini-app/inbound/documents/{id}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@document',
+    'GET|HEAD api/v1/mini-app/inbound/drafts/{id}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@show',
+    'GET|HEAD api/v1/mini-app/inbound/drafts/{id}/requests/{requestId}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@reconcile',
+    'GET|HEAD api/v1/mini-app/inbound/drafts/{id}/scan-session' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@scanSession',
+    'GET|HEAD api/v1/mini-app/inbound/suppliers' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@suppliers',
+    'GET|HEAD api/v1/mini-app/inbound/types' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@types',
+    'GET|HEAD api/v1/mini-app/items/{itemId}/nfc/confirmation' => 'permission:physical_code.assign_rfid',
+    'GET|HEAD api/v1/mini-app/nfc-tags/{physicalCodeId}' => 'permission:physical_code.assign_rfid|inventory.trace',
+    'GET|HEAD api/v1/mini-app/outbound-documents/{id}/attachments/requests/{operationKey}' => 'OWNER_GUARDED:Modules\\Warehouse\\Services\\AttachmentUploadReceipts@show',
+    'GET|HEAD api/v1/mini-app/outbound/context' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P05OutboundController@context',
+    'GET|HEAD api/v1/mini-app/outbound/documents/{id}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P05OutboundController@document',
+    'GET|HEAD api/v1/mini-app/outbound/sources' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P05OutboundController@sources',
+    'GET|HEAD api/v1/mini-app/outbound/sources/{id}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P05OutboundController@source',
+    'GET|HEAD api/v1/mini-app/p03/context' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P03DraftController@context',
+    'GET|HEAD api/v1/mini-app/scan-sessions' => 'permission:history.read+inventory.view',
+    'GET|HEAD api/v1/mini-app/warranty-cases/{id}/attachments/requests/{operationKey}' => 'OWNER_GUARDED:Modules\\Warehouse\\Services\\AttachmentUploadReceipts@show',
+    'GET|HEAD api/v1/mini-app/warranty-cases/{id}/component-issues' => 'permission:warranty.view|warranty.manage',
+    'GET|HEAD api/v1/mini-app/warranty-requests/{requestId}' => 'permission:warranty.view|warranty.manage',
+    'GET|HEAD api/v1/mini-app/work-shifts/current' => 'permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid',
+    'GET|HEAD api/v1/mini-app/work-shifts/{shiftId}/close-check' => 'permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid',
+    'GET|HEAD api/v1/mini-app/work-shifts/{shiftId}/requests/{requestId}' => 'permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid',
+    'GET|HEAD api/v1/mini-app/work-shifts/{shiftId}/summary' => 'permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid',
+    'POST api/v1/auth/recovery-requests' => 'PUBLIC_ANONYMOUS',
+    'POST api/v1/mini-app/drafts/{id}/cancel' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P03DraftController@cancel',
+    'POST api/v1/mini-app/inbound/drafts/{id}/cancel' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@cancel',
+    'POST api/v1/mini-app/inbound/drafts/{id}/record' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@record',
+    'POST api/v1/mini-app/inbound/drafts/{id}/review' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@review',
+    'POST api/v1/mini-app/inbound/drafts/{id}/validate-code' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@validateCode',
+    'POST api/v1/mini-app/items/{itemId}/nfc/release' => 'permission:physical_code.assign_rfid',
+    'POST api/v1/mini-app/work-shifts/start' => 'permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid',
+    'POST api/v1/mini-app/work-shifts/{shiftId}/end' => 'permission:inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid',
+    'PUT api/v1/mini-app/drafts/{id}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P03DraftController@save',
+    'PUT api/v1/mini-app/inbound/drafts/{id}' => 'OWNER_GUARDED:Modules\\Warehouse\\Http\\Controllers\\P04InboundController@save',
 ];

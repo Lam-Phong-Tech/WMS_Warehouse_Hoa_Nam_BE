@@ -198,4 +198,10 @@ return [
     // bản 2026_08_19_150000 rồi DROP hai cột.
     // TRẠNG THÁI: approved_by: PENDING (Tech Lead).
     '2026_08_27_130000_add_module_and_ip_address_to_audit_log' => 'down() rỗng có chủ ý — hoàn tác = DROP cột module/ip_address của audit_logs append-only, xoá bằng chứng audit đã ghi; approved_by: PENDING (Tech Lead)',
+    // Technical reconciliation 2026-10-17; runtime/production sign-off is separate.
+    // See docs/evidence/WWHN-300/BASELINE_RECONCILIATION_20261017.md.
+    '2026_09_15_120000_fix_idempotency_record_mirror_scope_key_upsert' => 'Fail-forward: retain the logical (scope, idempotency_key) upsert; restoring the id-only mirror reintroduces SQLSTATE 23505. Forward correction only; runtime sign-off PENDING.',
+    '2026_10_08_130000_register_p08_history_read_permissions' => 'Fail-forward: preserve capability names and administrator grants created after deployment; down must not revoke existing history/document access. Runtime sign-off PENDING.',
+    '2026_10_08_140000_create_p09_warranty_requests_table' => 'Fail-forward: retain persisted command receipts and UNKNOWN reconciliation evidence; dropping the table could permit duplicate commands. Runtime sign-off PENDING.',
+    '2026_10_15_060000_create_warranty_handovers_table' => 'Fail-forward: retain encrypted handover proof, user-entered date, checkbox and actor/request identity; down must not erase business evidence. Runtime sign-off PENDING.',
 ];

@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Support\HoaNamErdSchema;
+use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Tests\TestCase;
@@ -345,6 +348,51 @@ class Wwhn300BackendGoLiveCheckTest extends TestCase
 
         $this->assertSame('fail', $check['status']);
         $this->assertSame('missing', $check['detail']['allowlist']);
+    }
+
+    public function test_a_new_protected_route_still_requires_an_exact_baseline_entry(): void
+    {
+        $uri = 'api/v1/golive-unreviewed-probe';
+        Route::get($uri, fn () => response()->json([]))
+            ->middleware(['auth:api', 'permission:inventory.view']);
+
+        $check = $this->runCheck(expectFailure: true)['checks']['security.route_default_deny'];
+
+        $this->assertSame('fail', $check['status']);
+        $this->assertSame([], $check['detail']['unauthenticated_non_public']);
+        $this->assertSame([], $check['detail']['authenticated_without_permission']);
+        $this->assertSame(['GET|HEAD '.$uri], $check['detail']['not_in_contract']);
+    }
+
+    public function test_a_new_empty_down_migration_still_fails_closed(): void
+    {
+        $directory = storage_path('app/testing/golive-migration-'.Str::uuid());
+        $name = '2999_01_01_000000_unreviewed_fail_forward';
+        $path = $directory.'/'.$name.'.php';
+        File::makeDirectory($directory, 0755, true);
+        File::put($path, <<<'PHP'
+<?php
+
+return new class extends \Illuminate\Database\Migrations\Migration
+{
+    public function up(): void {}
+
+    public function down(): void
+    {
+        // Deliberately undispositioned fixture; never executed.
+    }
+};
+PHP);
+        app(Migrator::class)->path($directory);
+
+        try {
+            $check = $this->runCheck(expectFailure: true)['checks']['migrations.reversible'];
+            $this->assertSame('fail', $check['status']);
+            $this->assertSame([$name => 'down() is an empty fail-forward no-op'], $check['detail']['undispositioned']);
+        } finally {
+            File::delete($path);
+            rmdir($directory);
+        }
     }
 
     // -----------------------------------------------------------------------
