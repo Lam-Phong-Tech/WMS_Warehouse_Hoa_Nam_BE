@@ -2,7 +2,7 @@
   "contract": "auth-session-replacement-v1",
   "case": "TC_UAT_05",
   "date": "2026-10-18",
-  "status": "IMPLEMENTED_SOURCE_PENDING_RUNTIME_AND_TWO_DEVICE_ACCEPTANCE",
+  "status": "DEV_TEST_HTTP_ACCEPTED_PENDING_PHYSICAL_DEVICE_ACCEPTANCE",
   "scope": "ACCOUNT_ALL_CLIENTS",
   "role_exemptions": [],
   "rollout": {
@@ -65,5 +65,17 @@
     "tests/Feature/AuthSessionReplacementConcurrencyTest.php",
     "tests/Support/auth-session-race-worker.php"
   ],
-  "runtime_status": "NOT_DEPLOYED_NOT_ACTIVATED"
+  "runtime_status": "DEPLOYED_DEV_TEST_POLICY_ENABLED_HTTP_ACCEPTED",
+  "runtime_evidence": {
+    "application_sha": "9d9e87382eea39deb3f3d660b3955110b526ea3c",
+    "origin": "https://khohoanamdev.lptech.info.vn",
+    "release_run": 39124139975,
+    "observed_at": "2026-10-18T18:43:42+07:00",
+    "policy_enabled": true,
+    "migration_count": 218,
+    "http_two_cookie_jar_smoke": "PASS",
+    "physical_device_acceptance": "PENDING",
+    "document": "docs/evidence/TC_UAT_05_DEVTEST_RELEASE_20261018.md",
+    "production_activation": false
+  }
 }
