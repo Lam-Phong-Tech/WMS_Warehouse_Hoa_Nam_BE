@@ -54,6 +54,7 @@ final class AuthUserPayload
                 ])->values()->all(),
             'permissions' => $user->permissionCodes(),
             'warehouse_scope_ids' => $user->warehouseScopeIds(),
+            'account_session_policy' => AccountSessionPolicy::contract(),
             ...app(StableAuthSession::class)->payload($user),
         ];
     }

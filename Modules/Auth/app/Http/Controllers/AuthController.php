@@ -35,7 +35,7 @@ class AuthController extends Controller
     #[OA\Post(
         path: '/api/v1/auth/login', operationId: 'auth_login',
         summary: 'Đăng nhập bằng email và password',
-        description: 'Không có tài khoản hay mật khẩu mặc định trên môi trường triển khai: quản trị viên đầu tiên được cấp bằng `php artisan wms:bootstrap-super-admin`, người dùng khác tạo qua IAM.',
+        description: 'Không có tài khoản hay mật khẩu mặc định trên môi trường triển khai: quản trị viên đầu tiên được cấp bằng `php artisan wms:bootstrap-super-admin`, người dùng khác tạo qua IAM. Khi data.user.account_session_policy.enabled=true, login hoàn tất thay thế các phiên cũ trên toàn tài khoản; MFA challenge hoặc sai mật khẩu không thay phiên. Contract auth-session-replacement-v1; không tự END ca hoặc xóa nháp.',
         tags: ['01. Authentication'], security: [],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
             required: ['email', 'password'], properties: [
@@ -214,8 +214,6 @@ class AuthController extends Controller
             ], 'Nhập mã xác thực hai bước để hoàn tất đăng nhập.');
         }
 
-        $user->forceFill(['last_login_at' => now()])->save();
-
         // P1 10/09/2026: refresh token KHÔNG còn nằm trong JSON. Trình duyệt (Origin tin
         // cậy) nhận nó trong cookie HttpOnly; client không phải trình duyệt chỉ nhận qua kênh
         // body được bật tường minh; request không mang Origin nào (công cụ dòng lệnh) chỉ có
@@ -224,12 +222,9 @@ class AuthController extends Controller
         // Phiên refresh được tạo TRƯỚC khi dựng response, để access token trả về mang
         // claim `sid` trỏ đúng phiên đó (API /auth/sessions dựa vào nó cho cờ is_current).
         // Token mà attempt() vừa cấp ở trên chưa từng rời máy chủ, thay thế là an toàn.
-        $session = $this->tokenTransport->shouldIssueOnLogin($request)
-            ? $this->refreshTokens->issueSession($user, $request)
-            : null;
-        if ($session !== null) {
-            $accessToken = $this->refreshTokens->accessTokenFor($user, $session['id']);
-        }
+        $completed = $this->refreshTokens->completeLogin($user, $request, $this->tokenTransport->shouldIssueOnLogin($request));
+        $session = $completed['session'];
+        $accessToken = $completed['access_token'];
 
         $response = $this->respondSuccess([
             'access_token' => $accessToken,
@@ -250,7 +245,7 @@ class AuthController extends Controller
     #[OA\Post(
         path: '/api/v1/auth/refresh', operationId: 'auth_refresh',
         summary: 'Xoay vòng refresh token và cấp access token mới',
-        description: 'Trình duyệt: body RỖNG; refresh token đi trong cookie HttpOnly `wms_refresh_token` (Path=/api/v1/auth) và request phải mang Origin thuộc allowlist CORS. Response KHÔNG chứa refresh_token — token mới chỉ nằm trong Set-Cookie. Client không phải trình duyệt: gửi header `X-WMS-Token-Transport: body` kèm `refresh_token` trong body (chỉ khi máy chủ bật REFRESH_TOKEN_BODY_TRANSPORT_ENABLED); token mới trả trong JSON, không có cookie. Token cũ bị thu hồi; dùng lại token đã xoay vòng sẽ thu hồi toàn bộ phiên của tài khoản.',
+        description: 'Trình duyệt: body RỖNG; refresh token đi trong cookie HttpOnly `wms_refresh_token` (Path=/api/v1/auth) và request phải mang Origin thuộc allowlist CORS. Response KHÔNG chứa refresh_token — token mới chỉ nằm trong Set-Cookie. Client không phải trình duyệt: gửi header `X-WMS-Token-Transport: body` kèm `refresh_token` trong body (chỉ khi máy chủ bật REFRESH_TOKEN_BODY_TRANSPORT_ENABLED); token mới trả trong JSON, không có cookie. Token cũ bị thu hồi; replay giữ chính sách bảo mật hiện có. Riêng credential đã được login mới thay thế trả 401 AUTH_SESSION_REPLACED, không thu hồi phiên kế nhiệm và không cho refresh/retry tiếp.',
         tags: ['01. Authentication'], security: [],
         parameters: [
             new OA\Parameter(
@@ -298,14 +293,17 @@ class AuthController extends Controller
         $rotated = $this->refreshTokens->rotate($rawToken, $request);
 
         if ($rotated === null) {
+            $replaced = $request->attributes->get('wms.auth_refresh_failure') === 'AUTH_SESSION_REPLACED';
             $this->auditLogger->log(
                 'TOKEN_REFRESH_FAILED', 'refresh_token', null, null,
                 $this->currentRequestId(), [], ['token_fingerprint' => substr(hash('sha256', $rawToken), 0, 12)],
                 'Invalid, expired, revoked or replayed refresh token',
-                result: 'FAILED', errorCode: 'UNAUTHENTICATED',
+                result: 'FAILED', errorCode: $replaced ? 'AUTH_SESSION_REPLACED' : 'UNAUTHENTICATED',
             );
 
-            return $this->respondError('Refresh token không hợp lệ hoặc đã hết hạn.', [], 401, 'UNAUTHENTICATED');
+            return $replaced
+                ? $this->respondError('Tài khoản đã đăng nhập ở phiên khác. Vui lòng đăng nhập lại.', [], 401, 'AUTH_SESSION_REPLACED')
+                : $this->respondError('Refresh token không hợp lệ hoặc đã hết hạn.', [], 401, 'UNAUTHENTICATED');
         }
 
         $user = $rotated['user'];
@@ -376,6 +374,7 @@ class AuthController extends Controller
     #[OA\Get(
         path: '/api/v1/auth/me', operationId: 'auth_me',
         summary: 'Thông tin tài khoản, role, scope và permission hiện hành',
+        description: 'Có data.account_session_policy theo auth-session-replacement-v1. Phiên bị thay thế trả 401 AUTH_SESSION_REPLACED. Khi policy bật, JWT cũ thiếu sid trả 401 AUTH_SESSION_REQUIRED. Client kiểm tra khi foreground và trước lệnh; không có sự kiện đẩy tự ngắt thiết bị đang idle.',
         security: [['bearerAuth' => []]], tags: ['01. Authentication'],
         responses: [
             new OA\Response(response: 200, description: 'Thông tin tài khoản'),

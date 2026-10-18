@@ -263,11 +263,9 @@ class MfaController extends Controller
 
         // Chỉ tới đây mới phát token thật. Phiên refresh (nếu có) tạo TRƯỚC để access
         // token mang claim `sid` trỏ đúng phiên đó — cùng lý do với AuthController::login().
-        $session = $this->tokenTransport->shouldIssueOnLogin($request)
-            ? $this->refreshTokens->issueSession($user, $request)
-            : null;
-        $accessToken = $this->refreshTokens->accessTokenFor($user, $session['id'] ?? null);
-        $user->forceFill(['last_login_at' => now()])->save();
+        $completed = $this->refreshTokens->completeLogin($user, $request, $this->tokenTransport->shouldIssueOnLogin($request));
+        $session = $completed['session'];
+        $accessToken = $completed['access_token'];
 
         $this->auditLogger->log(
             'LOGIN', 'app_user', $user->user_id, $user->user_id,

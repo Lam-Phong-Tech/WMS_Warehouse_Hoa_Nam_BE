@@ -22,11 +22,16 @@ final class P10SessionFamily
 
     public static function current(User $user, bool $required = false): ?string
     {
+        AccountSessionPolicy::assertReady();
         $sid = app(RefreshTokenService::class)->currentSessionId();
         if ($sid === null) {
+            if (AccountSessionPolicy::enabled()) {
+                ApiError::abort(401, 'AUTH_SESSION_REQUIRED', 'Phiên cũ không có định danh ổn định. Vui lòng đăng nhập lại.');
+            }
             if ($required) {
                 ApiError::abort(409, 'AUTH_SESSION_REQUIRED', 'Đăng nhập lại bằng phiên hỗ trợ quản lý thiết bị.');
             }
+
             return null;
         }
         if (! Str::isUuid($sid)) {
@@ -36,10 +41,14 @@ final class P10SessionFamily
         if ($row === null) {
             ApiError::abort(401, 'AUTH_SESSION_EXPIRED', 'Phiên đăng nhập không còn hợp lệ.');
         }
+        if ($row->replaced_by_auth_session_id !== null) {
+            AccountSessionPolicy::replaced();
+        }
         $family = P10ProfilePolicy::family($row->auth_session_id, (string) $row->id);
         if (! self::query((string) $user->user_id, $family)->active()->exists()) {
             ApiError::abort(401, 'AUTH_SESSION_EXPIRED', 'Phiên đăng nhập đã hết hạn hoặc bị thu hồi.');
         }
+
         return $family;
     }
 

@@ -1,0 +1,69 @@
+{
+  "contract": "auth-session-replacement-v1",
+  "case": "TC_UAT_05",
+  "date": "2026-10-18",
+  "status": "IMPLEMENTED_SOURCE_PENDING_RUNTIME_AND_TWO_DEVICE_ACCEPTANCE",
+  "scope": "ACCOUNT_ALL_CLIENTS",
+  "role_exemptions": [],
+  "rollout": {
+    "env": "AUTH_SINGLE_ACTIVE_SESSION_ENABLED",
+    "default": false,
+    "schema": "2026_10_18_000001_add_refresh_session_replacement_metadata",
+    "missing_schema": "503 AUTH_SESSION_POLICY_NOT_READY for login completion, refresh and authenticated session checks",
+    "migration_effect": "Add nullable refresh_tokens.replaced_by_auth_session_id only; no backfill, seed, session revocation or business writes",
+    "schema_rollback": "Refuse down() while any persisted replacement marker exists; retain schema for application rollback",
+    "activation_effect": "Legacy JWTs without sid must log in again. Existing sid families remain usable until normal expiry/revocation or a completed replacement login; activation does not choose an old-family winner.",
+    "production_activation": false
+  },
+  "identity": {
+    "jwt_sid": "Signed individual refresh-token row UUID",
+    "family": "refresh_tokens.auth_session_id, fallback to row id for historical rows",
+    "new_login": "New family; revoke active account families and persistently supersede all previous account credentials, including rotated and logged-out ancestors. Preserve existing replacement markers.",
+    "access_only": "When enabled, persist a family and issue sid even if refresh transport is unavailable. Do not deliver any refresh token without the approved transport.",
+    "refresh_and_switch_context": "Keep original family; never replace another family"
+  },
+  "atomicity": {
+    "lock_order": "Parent user row, then token rows; same order as refresh/password/logout",
+    "commit_boundary": "Final-factor authentication accepted, new session persisted and access token generated in one database transaction",
+    "bad_password_inactive_account_denied_transport_failed_mfa": "No replacement",
+    "mfa_challenge_only": "No replacement; replace only after successful second factor",
+    "token_generation_failure": "Roll back session insertion, replacement markers and previous refresh revocation",
+    "lost_response": "Commit may have succeeded. HTTP delivery is not atomic with database commit; no transparent retry or restoration of the old family.",
+    "parallel_logins": "Serialized completion; last committed login is the only active family",
+    "login_refresh_race": "A pre-login rotation may finish but its family is replaced by the subsequent login. A post-replacement refresh is rejected without revoking the successor. Late access responses cannot revive a replaced family.",
+    "request_admission": "Global credential middleware checks persisted family state on protected requests without a revocation cache. Requests admitted before replacement are not cancelled or automatically rolled back."
+  },
+  "responses": {
+    "401_AUTH_SESSION_REPLACED": "Terminal access/refresh refusal from persisted replacement metadata; do not refresh, retry or transfer owner writes",
+    "401_AUTH_SESSION_REQUIRED": "Policy enabled, JWT has no stable sid; require explicit login",
+    "401_AUTH_SESSION_EXPIRED": "Existing family expiry/revocation contract; not proof of replacement",
+    "401_UNAUTHENTICATED": "Expired/invalid access JWT or generic invalid refresh credential; at most existing single-flight refresh rules, never hide a replacement error",
+    "403": "Permission/account/origin refusal, not automatic replacement",
+    "503_AUTH_SESSION_POLICY_NOT_READY": "Configuration/schema not ready; do not clear local journals or synthesize logout success",
+    "network_or_other_503": "Not proof that session was replaced"
+  },
+  "discovery": "data.account_session_policy on auth user/profile payload; version auth-session-replacement-v1",
+  "idle_client": {
+    "server_event": false,
+    "required_client_check": "GET /api/v1/auth/me when returning to foreground and before resuming commands",
+    "recommended_foreground_heartbeat_seconds": 60,
+    "guarantee": "Replacement is detected on the next authenticated request reaching the server, not instant disconnection of an idle/offline device",
+    "client_generation": "Discard late responses from superseded local auth generations. Stop new writes on terminal auth errors; retain unresolved owner identities without replaying them under a new login."
+  },
+  "retained_boundaries": [
+    "No work-shift END or ownership transfer",
+    "No draft/journal deletion, cancellation, recovery or UNKNOWN resolution",
+    "No source-linked receipt or business POST changes",
+    "No browser FE domain added to body-token allowlist",
+    "Public login/refresh/MFA/health routes still ignore stale bearer credentials as before",
+    "Existing non-replacement refresh replay security remains in effect",
+    "Turning the rollout flag off does not clear persisted replacement markers or revive those families",
+    "No live two-device or idle-client acceptance inferred from source tests"
+  ],
+  "tests": [
+    "tests/Feature/AuthSessionReplacementTest.php",
+    "tests/Feature/AuthSessionReplacementConcurrencyTest.php",
+    "tests/Support/auth-session-race-worker.php"
+  ],
+  "runtime_status": "NOT_DEPLOYED_NOT_ACTIVATED"
+}

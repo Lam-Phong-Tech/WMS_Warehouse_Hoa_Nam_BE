@@ -19,6 +19,11 @@ $bodyTransportOrigins = array_values(array_filter(
 ));
 
 return [
+    // Roll out only after the additive schema and account-wide policy are approved.
+    'single_active_session' => [
+        'enabled' => filter_var(env('AUTH_SINGLE_ACTIVE_SESSION_ENABLED', false), FILTER_VALIDATE_BOOL),
+    ],
+
     // Mặc định 20160 phút = 14 ngày.
     'ttl_minutes' => (int) env('REFRESH_TOKEN_TTL_MINUTES', 20160),
 
