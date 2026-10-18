@@ -270,19 +270,18 @@ jobs:
             set -eu
             case "$OPS_SHA" in *[!0-9a-f]*|'') exit 1 ;; esac
             ops=/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/devtest-auth-ops
-            test "$(git -C "$ops" rev-parse HEAD)" = "$OPS_SHA"
+            test "$(git -c safe.directory="$ops" -C "$ops" rev-parse HEAD)" = "$OPS_SHA"
             python3 "$ops/tools/deploy/deploy-green-auth-replacement.py" --source "$ops/auth-package" --ops-sha "$OPS_SHA"
       - name: Authenticated A/B smoke with explicitly approved admin account, no business writes
         uses: actions/github-script@v7
         env:
-          SMOKE_EMAIL: ${{ secrets.UAT_SMOKE_EMAIL || secrets.UAT_SMOKE_USERNAME }}
           SMOKE_PASSWORD: ${{ secrets.UAT_SMOKE_PASSWORD }}
         with:
           script: |
             const {pathToFileURL} = require('url');
             const url = pathToFileURL(process.env.GITHUB_WORKSPACE + '/devtest-auth-ops/tools/deploy/auth-replacement-smoke.mjs');
             const {smoke} = await import(url.href);
-            const {evidence, ...summary} = await smoke({email: process.env.SMOKE_EMAIL,
+            const {evidence, ...summary} = await smoke({email: 'admin@gmail.com',
               password: process.env.SMOKE_PASSWORD, log: line => core.info(line)});
             await core.summary.addHeading('TC_UAT_05 HTTP acceptance').addCodeBlock(JSON.stringify(summary, null, 2), 'json').write();
   devtest-verified-deploy:
