@@ -3,6 +3,11 @@ name: HN DEVOPS CI/CD
 on:
   workflow_dispatch:
     inputs:
+      devtest_auth_release_only:
+        description: Deploy approved TC_UAT_05 9d9e8738, additive migration and account policy; no CI/seed
+        required: false
+        default: false
+        type: boolean
       devtest_owner_smoke:
         description: With preflight only, run authenticated reads and the approved empty P04 TEST SAVE/CANCEL/END
         required: false
@@ -82,7 +87,7 @@ env:
 
 jobs:
   devtest-preflight:
-    if: github.event_name == 'workflow_dispatch' && inputs.devtest_preflight_only == true && inputs.devtest_deploy_only != true
+    if: github.event_name == 'workflow_dispatch' && inputs.devtest_preflight_only == true && inputs.devtest_deploy_only != true && inputs.devtest_auth_release_only != true
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
     environment: staging
     timeout-minutes: 10
@@ -208,8 +213,80 @@ jobs:
             const {evidence, ...summary} = await smoke({email: process.env.SMOKE_EMAIL,
               password: process.env.SMOKE_PASSWORD, writeTest: true, log: line => core.info(line)});
             core.info(JSON.stringify(summary));
+  devtest-auth-release:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_auth_release_only == true
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    environment: staging
+    concurrency:
+      group: hoa-nam-green-devtest-release
+      cancel-in-progress: false
+    timeout-minutes: 25
+    steps:
+      - name: Require the green-only migration and admin replacement intent
+        env:
+          CONFIRMATION: ${{ inputs.devtest_confirmation }}
+          DEPLOY_UAT: ${{ inputs.deploy_uat }}
+          RUN_UAT_SEED: ${{ inputs.run_uat_seed }}
+          PREFLIGHT_ONLY: ${{ inputs.devtest_preflight_only }}
+          OLD_DEPLOY_ONLY: ${{ inputs.devtest_deploy_only }}
+          TARGET_HOST: ${{ secrets.UAT_SSH_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = GREEN-UAT05-ADMIN-REPLACEMENT
+          test "$DEPLOY_UAT" = false && test "$RUN_UAT_SEED" = false
+          test "$PREFLIGHT_ONLY" = false && test "$OLD_DEPLOY_ONLY" = false
+          test "$TARGET_HOST" = 42.96.16.197
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: devtest-auth-ops
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 9d9e87382eea39deb3f3d660b3955110b526ea3c
+          path: devtest-auth-application
+          persist-credentials: false
+      - name: Package exact approved application; verify runtime and overlay ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 devtest-auth-ops/tools/deploy/prepare-green-auth-release.py \
+            --application "$GITHUB_WORKSPACE/devtest-auth-application" \
+            --base-repository "$GITHUB_WORKSPACE" --ops-sha "$GITHUB_SHA" \
+            --output "$GITHUB_WORKSPACE/devtest-auth-ops/auth-package"
+      - name: Deploy only green, preserve data and enable approved account-session replacement
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          OPS_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          envs: OPS_SHA
+          command_timeout: 15m
+          script: |
+            set -eu
+            case "$OPS_SHA" in *[!0-9a-f]*|'') exit 1 ;; esac
+            ops=/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/devtest-auth-ops
+            test "$(git -C "$ops" rev-parse HEAD)" = "$OPS_SHA"
+            python3 "$ops/tools/deploy/deploy-green-auth-replacement.py" --source "$ops/auth-package" --ops-sha "$OPS_SHA"
+      - name: Authenticated A/B smoke with explicitly approved admin account, no business writes
+        uses: actions/github-script@v7
+        env:
+          SMOKE_EMAIL: ${{ secrets.UAT_SMOKE_EMAIL || secrets.UAT_SMOKE_USERNAME }}
+          SMOKE_PASSWORD: ${{ secrets.UAT_SMOKE_PASSWORD }}
+        with:
+          script: |
+            const {pathToFileURL} = require('url');
+            const url = pathToFileURL(process.env.GITHUB_WORKSPACE + '/devtest-auth-ops/tools/deploy/auth-replacement-smoke.mjs');
+            const {smoke} = await import(url.href);
+            const {evidence, ...summary} = await smoke({email: process.env.SMOKE_EMAIL,
+              password: process.env.SMOKE_PASSWORD, log: line => core.info(line)});
+            await core.summary.addHeading('TC_UAT_05 HTTP acceptance').addCodeBlock(JSON.stringify(summary, null, 2), 'json').write();
   devtest-verified-deploy:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_deploy_only == true && inputs.devtest_preflight_only != true
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_deploy_only == true && inputs.devtest_preflight_only != true && inputs.devtest_auth_release_only != true
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
     environment: staging
     permissions:
@@ -326,7 +403,7 @@ jobs:
             test -s "$package/source.tar" && test -s "$package/proof.json"
             python3 "$package/deploy-green-verified.py" --archive "$package/source.tar" --proof "$package/proof.json" --ops-sha "$OPS_SHA"
   ci:
-    if: inputs.devtest_preflight_only != true && inputs.devtest_deploy_only != true
+    if: inputs.devtest_preflight_only != true && inputs.devtest_deploy_only != true && inputs.devtest_auth_release_only != true
     runs-on: ${{ fromJSON(inputs.runner_labels || vars.CI_RUNNER_LABELS || '["ubuntu-latest"]') }}
     services:
       postgres:
@@ -775,7 +852,7 @@ jobs:
 
   deploy-uat:
     needs: ci
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true' && inputs.devtest_preflight_only != true && inputs.devtest_deploy_only != true
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_uat == 'true' && inputs.devtest_preflight_only != true && inputs.devtest_deploy_only != true && inputs.devtest_auth_release_only != true
     runs-on: ${{ fromJSON(inputs.uat_runner_labels || vars.UAT_RUNNER_LABELS || '["ubuntu-latest"]') }}
     environment: staging
     steps:
