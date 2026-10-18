@@ -221,6 +221,7 @@ def main():
             raise RuntimeError('Candidate backend readiness timeout')
         green.artisan('package:discover')
         evidence['stage'] = 'migration'
+        evidence['migration_attempted'] = True
         green.artisan('migrate', '--force', '--no-interaction', '--path=' + MIGRATION)
         evidence['migration_run'] = True
         assert column_exists()
@@ -285,7 +286,8 @@ def main():
     except Exception as error:
         evidence['failure'] = str(error)
         green.emit('uat05_deploy_failed', {'stage': evidence['stage'], 'error': str(error)})
-        markers = column_exists() and green.pg('SELECT count(*) FROM refresh_tokens WHERE replaced_by_auth_session_id IS NOT NULL') != '0'
+        evidence['migration_column_exists_at_failure'] = column_exists()
+        markers = evidence['migration_column_exists_at_failure'] and green.pg('SELECT count(*) FROM refresh_tokens WHERE replaced_by_auth_session_id IS NOT NULL') != '0'
         if switched and markers:
             green.artisan('down', '--retry=30')
             green.compose(release, ['stop', '-t', '120', *[service for service in services if service != 'backend']])
