@@ -152,7 +152,9 @@ jobs:
             test "$(runuser -u "$owner" -- git -C "$source" rev-parse HEAD)" = "$RELEASE_SHA"
             case "$CONFIRMATION" in
               INSPECT-TC12) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" --inspect ;;
-              DEPLOY-TC12-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" ;;
+              DEPLOY-TC12-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" \
+                --remove-image sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9 \
+                --remove-image sha256:7c3b093add7c43400ee83b815ab2cda98794a10045bcf76ce9bb2f89b97cbc5c ;;
               *) exit 1 ;;
             esac
   devtest-preflight:

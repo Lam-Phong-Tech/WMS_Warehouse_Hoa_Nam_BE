@@ -55,6 +55,21 @@ class Tc12DeployTest(unittest.TestCase):
                 tc12.package(folder, 'not-a-sha', folder / 'out')
             self.assertFalse((folder / 'out').exists())
 
+    def test_only_two_inspected_tags_are_allowlisted(self):
+        self.assertEqual(sorted(tag for tags in tc12.APPROVED_CLEANUP_TAGS.values() for tag in tags),
+                         ['node:22-alpine', 'postgres:16'])
+        self.assertNotIn(tc12.green.IMAGE_ID, tc12.APPROVED_CLEANUP_TAGS)
+
+    def test_approved_tag_drift_blocks_removal(self):
+        image = next(iter(tc12.APPROVED_CLEANUP_TAGS))
+        row = {'Id': image, 'RepoTags': tc12.APPROVED_CLEANUP_TAGS[image],
+               'Created': '2026-01-01T00:00:00Z', 'Size': 100}
+        with patch.object(tc12, 'inspect_images', return_value=(set(), [row])), \
+                patch.object(tc12.green, 'run', side_effect=['', 'sha256:' + 'f' * 64]) as run:
+            with self.assertRaisesRegex(RuntimeError, 'tag changed'):
+                tc12.cleanup_images([image])
+            self.assertFalse(any(call.args[0][:3] == ['docker', 'image', 'rm'] for call in run.call_args_list))
+
 
 if __name__ == '__main__':
     unittest.main()

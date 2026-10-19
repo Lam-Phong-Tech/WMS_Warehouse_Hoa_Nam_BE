@@ -24,6 +24,11 @@ TESTED = '1375dfaa58dc212f4ca4ff52fe8ca68a2fb28a43'
 RELEASE_NAME = PREVIOUS + '-uat05-20261018T114034Z'
 RUNTIME_PATHS = ('app', 'bootstrap', 'config', 'database', 'docker', 'Modules', 'routes',
                  'composer.json', 'composer.lock', 'modules_statuses.json', 'artisan')
+# Inspected in run 39291454968; neither image is used by a container or retained rollback.
+APPROVED_CLEANUP_TAGS = {
+    'sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9': ['postgres:16'],
+    'sha256:7c3b093add7c43400ee83b815ab2cda98794a10045bcf76ce9bb2f89b97cbc5c': ['node:22-alpine'],
+}
 
 
 def require(condition, message):
@@ -126,14 +131,18 @@ def cleanup_images(requested):
         require(re.fullmatch('sha256:[0-9a-f]{64}', image), 'Full image ID required')
         require(image in by_id and image not in protected, 'Image referenced by container or rollback')
         row = by_id[image]
-        require(not row.get('RepoTags'), 'Only explicitly inspected dangling images may be removed')
+        tags = row.get('RepoTags') or []
+        require(not tags or tags == APPROVED_CLEANUP_TAGS.get(image), 'Unapproved image tags')
         created = datetime.datetime.fromisoformat(row['Created'][:26].replace('Z', '+00:00'))
         if created.tzinfo is None:
             created = created.replace(tzinfo=datetime.timezone.utc)
         require(created < cutoff, 'Image too recent to remove')
         require(not green.run(['docker', 'ps', '-aq', '--filter', 'ancestor=' + image]).strip(),
                 'Image acquired a container reference')
-        green.run(['docker', 'image', 'rm', image])  # No force, prune, volumes or container removal.
+        for tag in tags:
+            require(green.run(['docker', 'image', 'inspect', tag, '--format', '{{.Id}}']).strip() == image,
+                    'Approved image tag changed')
+        green.run(['docker', 'image', 'rm', *(tags or [image])])  # No force, prune, volumes or container removal.
         green.emit('unused_image_removed', {'id': image, 'tags': row.get('RepoTags'), 'bytes': row['Size']})
 
 
@@ -200,6 +209,7 @@ def deploy(folder, sha, inspect_only, remove_images):
         return
     if remove_images:
         cleanup_images(remove_images)
+        green.emit('capacity_after_image_cleanup', {'free': shutil.disk_usage(green.ROOT).free, 'required': required})
     require(shutil.disk_usage(green.ROOT).free > required, 'Insufficient disk reserve; no automatic cleanup')
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     release = green.ROOT / 'releases' / (sha + '-tc12-' + stamp)
