@@ -170,7 +170,7 @@ final class MiniAppInboundOpenApi
         operationId: 'mini_app_inbound_documents_detail',
         x: ['permission' => 'inbound.view'],
         summary: 'Mini App - chi tiết phiếu nhập',
-        description: 'Trả document + lines + status history và các field progress dùng cho review/approval: expected_total_qty, scanned_total_qty, remaining_qty, progress_percent, ready_for_post, mini_app_status. Kèm can_post/post_blocked_reason/product_info_complete/skus_pending_info[] để biết phiếu có Post được chưa, và mỗi line có product_code/product_name/product_type/product_unit + product_info_complete/product_missing_info.',
+        description: 'Trả document + lines + status history và các field progress dùng cho review/approval: expected_total_qty, scanned_total_qty, remaining_qty, progress_percent, ready_for_post, mini_app_status. Kèm can_post/post_blocked_reason/product_info_complete/skus_pending_info[] để biết phiếu có Post được chưa, và mỗi line có product_code/product_name/product_type/product_unit + product_info_complete/product_missing_info. Additive data.p12.owner_projection theo p12-owner-projection-v1: supplier là snapshot P04 đã lưu; creator.actor_id là created_by. Tên/vai trò lịch sử chưa lưu trả null; current_display_name là nhãn danh bạ hiện tại riêng, chỉ trả khi có iam.user.view. Không suy nhà cung cấp từ source_reference hoặc tên người tạo từ caller.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
         parameters: [

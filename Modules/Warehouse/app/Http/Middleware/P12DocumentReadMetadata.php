@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Support\P12DocumentPresentation;
+use Modules\Warehouse\Support\P12StockOwnerProjection;
 use Modules\Warehouse\Support\P13StockRecordProjection;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -62,6 +63,15 @@ final class P12DocumentReadMetadata
                 unset($row);
             } else {
                 $body['data']['p12'] = P12DocumentPresentation::record($body['data'], $source, true);
+                if (in_array($source, ['INBOUND', 'OUTBOUND'], true)) {
+                    $projection = P12StockOwnerProjection::read($request, $source);
+                    $identity = $body['data']['p12']['identity'];
+                    if ($identity['id'] !== $projection['document_id'] || $identity['warehouse_id'] !== $projection['warehouse_id']) {
+                        ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Phiếu nguồn đã thay đổi; tải lại chi tiết.');
+                    }
+                    $body['data']['p12']['owner_projection'] = $projection;
+                    $meta['p12']['owner_projection_contract'] = P12StockOwnerProjection::CONTRACT;
+                }
             }
         }
         $body['meta'] = $meta;

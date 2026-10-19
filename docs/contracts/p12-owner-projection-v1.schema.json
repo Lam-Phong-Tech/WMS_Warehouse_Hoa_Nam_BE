@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "P12 Stock Owner Projection V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract", "revision", "document_id", "warehouse_id", "source", "supplier", "creator"],
+  "properties": {
+    "contract": { "const": "p12-owner-projection-v1" },
+    "revision": { "const": "p12-owner-projection-r1" },
+    "document_id": { "type": "string", "format": "uuid" },
+    "warehouse_id": { "type": "string", "format": "uuid" },
+    "source": { "enum": ["INBOUND", "OUTBOUND"] },
+    "supplier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "id", "name", "name_status", "version", "recorded_at", "source"],
+      "properties": {
+        "status": { "enum": ["SNAPSHOT_RECORDED", "NOT_SELECTED", "NOT_RECORDED", "SOURCE_UNAVAILABLE", "NOT_APPLICABLE"] },
+        "id": { "type": ["string", "null"], "format": "uuid" },
+        "name": { "type": ["string", "null"], "maxLength": 200 },
+        "name_status": { "enum": ["SNAPSHOT_RECORDED", "NOT_SELECTED", "NOT_RECORDED", "SOURCE_UNAVAILABLE", "NOT_APPLICABLE"] },
+        "version": { "type": ["integer", "null"], "minimum": 0 },
+        "recorded_at": { "type": ["string", "null"], "format": "date-time" },
+        "source": { "enum": ["mini_app_inbound_record_metadata", null] }
+      }
+    },
+    "creator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor_id", "source", "display_name", "display_name_status", "role", "role_status", "current_display_name", "current_display_name_status", "current_display_name_source"],
+      "properties": {
+        "actor_id": { "type": ["string", "null"], "format": "uuid" },
+        "source": { "enum": ["stock_documents.created_by", null] },
+        "display_name": { "type": "null" },
+        "display_name_status": { "const": "HISTORICAL_SNAPSHOT_NOT_RECORDED" },
+        "role": { "type": "null" },
+        "role_status": { "const": "HISTORICAL_SNAPSHOT_NOT_RECORDED" },
+        "current_display_name": { "type": ["string", "null"], "maxLength": 255 },
+        "current_display_name_status": { "enum": ["ACTOR_NOT_RECORDED", "REDACTED_PII_PERMISSION", "SOURCE_UNAVAILABLE", "NOT_RECORDED", "CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT"] },
+        "current_display_name_source": { "enum": ["app_user.display_name", null] }
+      }
+    }
+  }
+}

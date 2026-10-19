@@ -33,7 +33,7 @@ final class MiniAppOutboundOpenApi
         operationId: 'mini_app_outbound_documents_detail',
         x: ['permission' => 'outbound.view'],
         summary: 'Mini App - chi tiết phiếu xuất',
-        description: 'Trả lines, item_matches, Packing Label, progress và trạng thái semantic. Backend WMS là source of truth.',
+        description: 'Trả lines, item_matches, Packing Label, progress và trạng thái semantic. Backend WMS là source of truth. Additive data.p12.owner_projection theo p12-owner-projection-v1: supplier NOT_APPLICABLE; creator.actor_id từ created_by. Tên/vai trò lịch sử chưa lưu trả null; current_display_name riêng chỉ là nhãn danh bạ hiện tại khi có iam.user.view. Không thay actor bằng caller hoặc vai trò hiện tại thành vai trò lịch sử.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
         parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],

@@ -1,0 +1,49 @@
+{
+  "contract": "p12-owner-projection-v1",
+  "status": "CANDIDATE_SOURCE_IMPLEMENTED_PENDING_OWNER_BA_AND_LIVE_EVIDENCE",
+  "revision": "p12-owner-projection-r1",
+  "schema": "docs/contracts/p12-owner-projection-v1.schema.json",
+  "location": "data.p12.owner_projection on authorized P12 stock detail GETs",
+  "paths": [
+    "GET /api/v1/mini-app/inbound-documents/{id}",
+    "GET /api/v1/mini-app/outbound-documents/{id}"
+  ],
+  "discovery": "meta.p12.owner_projection_contract; existing meta.p12.contract=p12-documents-read-v2 remains unchanged",
+  "sources": {
+    "supplier": "mini_app_inbound_record_metadata.document_id after fresh canonical receipt ID/type/warehouse/deleted_at/ACL checks",
+    "creator": "stock_documents.created_by; optional current label from that actor's app_user row, never the caller"
+  },
+  "supplier": {
+    "snapshot": "supplier_id, supplier_name, supplier_version, recorded_at persisted by P04 RECORD",
+    "legacy": "NOT_RECORDED; all values null",
+    "name_status": "SNAPSHOT_RECORDED, NOT_RECORDED, NOT_SELECTED, SOURCE_UNAVAILABLE or NOT_APPLICABLE; never use current directory to fill null",
+    "recorded_at": "RFC3339 UTC Z via document-timestamps-v1. Preserve only database precision; PostgreSQL timestamptz(0) produces zero fractional digits padded to six, not invented microseconds.",
+    "not_allowed": ["source_name", "source_reference", "document title", "current global supplier lookup", "caller identity"]
+  },
+  "creator": {
+    "actor_id": "persisted stock_documents.created_by",
+    "display_name": "null with HISTORICAL_SNAPSHOT_NOT_RECORDED; no historical display name exists",
+    "current_display_name": "separate current directory label, never substituted for historical display_name",
+    "current_display_name_permission": "iam.user.view; otherwise null with REDACTED_PII_PERMISSION, without reading the user directory",
+    "current_display_name_scope": "Existing ACTIVE, non-deleted actor directory entry only. NOT_RECORDED does not imply missing historical identity.",
+    "role": "null with HISTORICAL_SNAPSHOT_NOT_RECORDED; no historical role exists",
+    "not_allowed": ["auth/me caller", "current logged-in user", "illustrative Note name", "current role as historical role"]
+  },
+  "scope": "Owner middleware remains authoritative; exact document ID and persisted warehouse are rechecked by projection queries.",
+  "errors": {
+    "401": "Existing authentication failure; no projection",
+    "403": "Missing inbound.view/outbound.view or warehouse scope; no projection",
+    "404": "Unknown, deleted, wrong-type or missing-warehouse parent; explicit selected warehouse or stale cached identity mismatch",
+    "422": "Malformed explicit warehouse_id; no guessed scope",
+    "optional_source_failure": "Retain successful authorized parent/lines/files contract; mark only affected optional projection SOURCE_UNAVAILABLE with null values. Do not turn it into NOT_RECORDED or empty parent.",
+    "parent_source_failure": "Propagates normal owner/server error; never an empty document"
+  },
+  "cache": "Owner response cache remains, but owner_projection is freshly resolved after authorization and is never inserted into shared parent payload cache. Recheck live parent even on a cache hit.",
+  "unchanged": ["route count", "business document id/version/status", "P04 SAVE/RECORD/receipt", "P05 owner", "P12 pagination", "P18 upload/download bytes and ACL", "source_name/source_reference semantics"],
+  "new_routes": [],
+  "new_migrations": [],
+  "writes": [],
+  "approval": "Candidate mapping, not a claim of owner/BA signoff or live TC_UAT_12 PASS. Historical creator name/role remain unavailable without persisted source.",
+  "runtime": "NOT_DEPLOYED_NOT_AUTHENTICATED_REPLAYED",
+  "privacy": "No raw audit JSON, password, token, phone or customer PII is projected."
+}
