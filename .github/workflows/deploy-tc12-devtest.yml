@@ -1,0 +1,174 @@
+name: Deploy TC12 to DEV/TEST
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact commit to deploy to green DEV/TEST
+        required: true
+        type: string
+      confirmation:
+        description: Type DEPLOY-TC12-DEVTEST-NO-SEED
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hoa-nam-green-devtest-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    environment: staging
+    timeout-minutes: 25
+    steps:
+      - name: Verify operator intent and exact branch tip
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = DEPLOY-TC12-DEVTEST-NO-SEED
+          printf '%s' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          test "$CANDIDATE_SHA" = "$GITHUB_SHA"
+
+      - name: Checkout exact application source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: tc12-source
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Package source without runtime secrets or serving data
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p deploy-tc12
+          test "$(git -C tc12-source rev-parse HEAD)" = "$CANDIDATE_SHA"
+          git -C tc12-source archive --format=tar --output="$GITHUB_WORKSPACE/deploy-tc12/source.tar" "$CANDIDATE_SHA"
+          (cd deploy-tc12 && sha256sum source.tar > source.tar.sha256)
+
+      - name: Copy exact source archive to green DEV/TEST
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          source: "deploy-tc12/source.tar,deploy-tc12/source.tar.sha256"
+          target: "/opt/hoa-nam-green/incoming-tc12-${{ inputs.candidate_sha }}"
+
+      - name: Promote code-only release and verify runtime
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          envs: CANDIDATE_SHA
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            printf '%s' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+            root=/opt/hoa-nam-green
+            incoming="$root/incoming-tc12-$CANDIDATE_SHA"
+            previous=$(readlink -f "$root/current")
+            case "$previous" in "$root"/releases/*) ;; *) exit 1 ;; esac
+            test -s "$incoming/source.tar"
+            test -s "$incoming/source.tar.sha256"
+            (cd "$incoming" && sha256sum -c source.tar.sha256)
+            test "$(df -P -B1 "$root" | awk 'NR==2 {print $4}')" -gt 400000000
+            test "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' hoa_nam_green-backend-1)" = hoa_nam_green
+            test "$(docker inspect -f '{{.State.Running}}' hoa_nam_green-backend-1)" = true
+            test "$(docker inspect -f '{{.State.Running}}' hoa_nam_green-queue-1)" = true
+            test "$(docker inspect -f '{{.State.Running}}' hoa_nam_green-scheduler-1)" = true
+            test -f "$previous/.env"
+            test -f "$previous/docker-compose.vendor-release.yml"
+            old_migrations=$(docker exec -i -u www-data hoa_nam_green-backend-1 php -r \
+              'require "vendor/autoload.php"; $app=require "bootstrap/app.php"; $app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap(); echo Illuminate\\Support\\Facades\\DB::table("migrations")->count();')
+            old_lock=$(sha256sum "$previous/composer.lock" | awk '{print $1}')
+            stamp=$(date -u +%Y%m%dT%H%M%SZ)
+            release="$root/releases/$CANDIDATE_SHA-tc12-$stamp"
+            test ! -e "$release"
+            mkdir -p "$release"
+            tar -xf "$incoming/source.tar" -C "$release"
+            cp -a "$previous/.env" "$release/.env"
+            cp -a "$previous/docker-compose.vendor-release.yml" "$release/docker-compose.vendor-release.yml"
+            rm -rf "$release/storage"
+            cp -a "$previous/storage" "$release/storage"
+            python3 - "$release/.env" "$CANDIDATE_SHA" <<'PY'
+            import pathlib
+            import sys
+            path = pathlib.Path(sys.argv[1])
+            sha = sys.argv[2]
+            values = {
+                'APP_BUILD_SHA': sha,
+                'APP_BUILD_REF': 'dev@' + sha[:8] + '+tc12-owner-projection',
+                'APP_BUILD_TIME': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
+                'AUTO_MIGRATE': 'false',
+            }
+            lines = path.read_text().splitlines()
+            for key, value in values.items():
+                found = [i for i, line in enumerate(lines) if line.startswith(key + '=')]
+                if len(found) > 1:
+                    raise SystemExit('duplicate environment key')
+                if found:
+                    lines[found[0]] = key + '=' + value
+                else:
+                    lines.append(key + '=' + value)
+            path.write_text('\n'.join(lines) + '\n')
+            PY
+            test "$(sha256sum "$release/composer.lock" | awk '{print $1}')" = "$old_lock"
+            cd "$release"
+            docker compose -p hoa_nam_green -f docker-compose.yml -f docker-compose.vendor-release.yml config --quiet
+            ln -s "$release" "$root/current.pending-$stamp"
+            mv -Tf "$root/current.pending-$stamp" "$root/current"
+            switched=true
+            rollback() {
+              set +e
+              if [ "${switched:-false}" = true ]; then
+                ln -s "$previous" "$root/current.pending-rollback-$stamp"
+                mv -Tf "$root/current.pending-rollback-$stamp" "$root/current"
+                cd "$previous"
+                docker compose -p hoa_nam_green -f docker-compose.yml -f docker-compose.vendor-release.yml up -d --no-build --no-deps --force-recreate backend queue scheduler nginx
+              fi
+            }
+            trap 'rc=$?; if [ "$rc" -ne 0 ]; then rollback; fi; exit "$rc"' EXIT
+            docker compose -p hoa_nam_green -f docker-compose.yml -f docker-compose.vendor-release.yml up -d --no-build --no-deps --force-recreate backend queue scheduler nginx
+            for attempt in $(seq 1 30); do
+              if [ "$(docker inspect -f '{{.State.Health.Status}}' hoa_nam_green-backend-1 2>/dev/null || true)" = healthy ]; then break; fi
+              test "$attempt" -lt 30
+              sleep 2
+            done
+            docker compose -p hoa_nam_green -f docker-compose.yml -f docker-compose.vendor-release.yml exec -T -u www-data backend php artisan optimize:clear
+            docker compose -p hoa_nam_green -f docker-compose.yml -f docker-compose.vendor-release.yml exec -T -u www-data backend php artisan optimize
+            docker compose -p hoa_nam_green -f docker-compose.yml -f docker-compose.vendor-release.yml exec -T -u www-data backend php artisan l5-swagger:generate
+            docker compose -p hoa_nam_green -f docker-compose.yml -f docker-compose.vendor-release.yml up -d --no-build --no-deps --force-recreate backend queue scheduler nginx
+            new_migrations=$(docker exec -i -u www-data hoa_nam_green-backend-1 php -r \
+              'require "vendor/autoload.php"; $app=require "bootstrap/app.php"; $app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap(); echo Illuminate\\Support\\Facades\\DB::table("migrations")->count();')
+            test "$new_migrations" = "$old_migrations"
+            python3 - "$CANDIDATE_SHA" <<'PY'
+            import json
+            import sys
+            import urllib.request
+            expected = sys.argv[1]
+            request = urllib.request.Request('https://khohoanamdev.lptech.info.vn/api/v1/health', headers={'Accept': 'application/json', 'Cache-Control': 'no-cache'})
+            with urllib.request.urlopen(request, timeout=20) as response:
+                body = json.load(response)
+                status = response.status
+            if status != 200 or body.get('data', {}).get('build', {}).get('sha') != expected:
+                raise SystemExit('health SHA mismatch')
+            print(json.dumps({'status': status, 'sha': expected, 'request_id': body.get('data', {}).get('request_id')}))
+            PY
+            printf 'DEPLOYED_SHA=%s\nMIGRATIONS_UNCHANGED=%s\nPREVIOUS_RELEASE=%s\nNEW_RELEASE=%s\n' "$CANDIDATE_SHA" "$new_migrations" "$previous" "$release"
+            rm -rf "$incoming"
+            switched=false
