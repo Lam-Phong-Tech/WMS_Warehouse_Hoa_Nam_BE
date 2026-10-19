@@ -37,6 +37,18 @@ receipt, scan, attachment, download hoac API ghi.
 | `data.p12.owner_projection.creator.role` | null | Snapshot role luc tao chua duoc luu; khong lay role hien tai |
 | `data.p12.owner_projection.creator.current_display_name` | string/null | Nhan danh ba hien tai RIENG, chi khi co `iam.user.view` va entry ACTIVE/khong deleted |
 | `data.p12.owner_projection.creator.current_display_name_status` | enum | Khong co quyen: `REDACTED_PII_PERMISSION`; co nhan: `CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT` |
+| `data.p12.owner_projection.creator.current_display_name_source` | string/null | `app_user.display_name`; ghi ro day la ten hien tai tu danh ba, khong phai snapshot lich su |
+
+### Quyet dinh nguon ten nguoi tao - 19/10/2026
+
+Nguoi dung da xac nhan: dung ten hien tai, ghi ro nguon. FE dung
+`creator.current_display_name` khi status la
+`CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT`, kem nhan nguon
+"Ten hien tai tu danh ba" (`current_display_name_source=app_user.display_name`).
+Khong doi ten truong nay thanh snapshot ten luc tao; `display_name` va `role`
+lich su van null. Neu khong co quyen/nguon/entry hop le, giu null va status BE tra,
+khong fill tu caller hoac current lookup khac. Quyet dinh nay khong cap them
+quyen `iam.user.view`, khong phe duyet deploy va khong tu dong dong TC12.
 
 Loai snapshot thieu giu null; `NOT_RECORDED` khong thanh ten current supplier,
 title, source_reference, audit JSON hay receipt cua phien khac. Outbound supplier
@@ -50,10 +62,10 @@ khong lot sang reader thieu quyen. Loi optional source duoc danh dau
 
 ### Phan chua the ket luan DONE toan TC12
 
-- Candidate mapping/quyen `iam.user.view` can owner/BA duyet. Day khong phai ky
-  APPROVED thay owner. BA can chot UI co chap nhan NHAN HIEN TAI hay bat buoc
-  snapshot ten/vai tro luc tao. Neu bat buoc snapshot, hien chua co nguon persisted
-  cho legacy; khong the tao lich su bang lookup hien tai hoac backfill.
+- Lua chon hien thi ten hien tai da duoc nguoi dung xac nhan ngay 19/10/2026;
+  khong con cho quyet dinh current name hay historical name. Review owner/IAM/
+  privacy con lai van pending, khong ky APPROVED thay owner. Khong co snapshot
+  ten/vai tro luc tao cho legacy; khong tao lich su bang lookup hoac backfill.
 - Chua deploy source nay; chua authenticated replay GET detail co supplier that,
   chua co Request-ID live cua projection moi. Khong tao upload/RECORD/POST de lay evidence.
 - FE doi chieu cung document tren appqr sau khi co release/contract duoc duyet.

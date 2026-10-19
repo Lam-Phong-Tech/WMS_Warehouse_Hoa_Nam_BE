@@ -1,6 +1,6 @@
 {
   "contract": "p12-owner-projection-v1",
-  "status": "CANDIDATE_SOURCE_IMPLEMENTED_PENDING_OWNER_BA_AND_LIVE_EVIDENCE",
+  "status": "SOURCE_IMPLEMENTED_CURRENT_LABEL_USER_CONFIRMED_PENDING_OWNER_REVIEW_AND_LIVE_EVIDENCE",
   "revision": "p12-owner-projection-r1",
   "schema": "docs/contracts/p12-owner-projection-v1.schema.json",
   "location": "data.p12.owner_projection on authorized P12 stock detail GETs",
@@ -24,6 +24,7 @@
     "actor_id": "persisted stock_documents.created_by",
     "display_name": "null with HISTORICAL_SNAPSHOT_NOT_RECORDED; no historical display name exists",
     "current_display_name": "separate current directory label, never substituted for historical display_name",
+    "current_display_name_source": "app_user.display_name; FE must explicitly identify this as the current directory name, not a historical snapshot",
     "current_display_name_permission": "iam.user.view; otherwise null with REDACTED_PII_PERMISSION, without reading the user directory",
     "current_display_name_scope": "Existing ACTIVE, non-deleted actor directory entry only. NOT_RECORDED does not imply missing historical identity.",
     "role": "null with HISTORICAL_SNAPSHOT_NOT_RECORDED; no historical role exists",
@@ -43,7 +44,16 @@
   "new_routes": [],
   "new_migrations": [],
   "writes": [],
-  "approval": "Candidate mapping, not a claim of owner/BA signoff or live TC_UAT_12 PASS. Historical creator name/role remain unavailable without persisted source.",
+  "user_decision": {
+    "confirmed_on": "2026-10-19",
+    "decision": "Use the current creator directory name and explicitly identify its source.",
+    "display_field": "data.p12.owner_projection.creator.current_display_name",
+    "source_field": "data.p12.owner_projection.creator.current_display_name_source",
+    "available_status": "CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT",
+    "missing_or_redacted": "Keep null and the returned status; do not substitute caller, historical display_name, role or another directory entry.",
+    "scope": "Display-source choice only; no new IAM grant, historical snapshot, deployment approval or UAT PASS."
+  },
+  "approval": "User confirmed the current-name display choice on 2026-10-19. Remaining owner/IAM/privacy review and live TC_UAT_12 acceptance are pending; historical creator name/role remain unavailable without persisted source.",
   "runtime": "NOT_DEPLOYED_NOT_AUTHENTICATED_REPLAYED",
   "privacy": "No raw audit JSON, password, token, phone or customer PII is projected."
 }

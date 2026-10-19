@@ -16,7 +16,7 @@ No unrelated changes in the primary worktree were reset or included.
 - PostgreSQL compatibility-view soft deletion maps users to INACTIVE with a null deleted_at projection; eligible current directory labels therefore require both ACTIVE and not-deleted, without changing the view or account state.
 - Existing IDs, versions, statuses, P04/P05 receipts, attachments/download implementation and source-reference semantics remain unchanged.
 
-The current-label field and its privacy guard are a candidate mapping, not fabricated owner/BA approval. If the Note strictly requires historical creator name/role, missing persisted source remains unresolved rather than being filled from current IAM/audit lookups. TC12 is not a full UAT PASS.
+On 2026-10-19, the user confirmed using the current creator name with explicit source attribution. FE should render `creator.current_display_name` with its current-directory status and `current_display_name_source=app_user.display_name`, clearly labelled as a current directory name, not a historical snapshot. This resolves only the display-source choice. The existing iam.user.view guard, null historical name/role and supplier snapshot rules are unchanged; remaining owner/IAM/privacy review and live acceptance are not signed off by this decision. TC12 is not a full UAT PASS.
 
 ## Final Local Test Results
 
@@ -29,6 +29,10 @@ The current-label field and its privacy guard are a candidate mapping, not fabri
 | P04/P12 mixed/P13/Swagger regressions | PostgreSQL | 70 | 1979 | PASS |
 
 SQLite total: 115 PASS / 2899 assertions. PostgreSQL total: 104 PASS / 2526 assertions.
+These tests were executed against source commit
+`1375dfaa58dc212f4ca4ff52fe8ca68a2fb28a43`. The subsequent user-decision update
+changes only the contract description and handoff/evidence documents, not runtime
+PHP, schema or tests. Existing JUnit results are reused, not reported as a new run.
 All listed final commands exited 0, with no failures/errors/skips. Earlier diagnostic
 projection-only reports are not acceptance reports and are excluded from delivery.
 The global-reader fixture explicitly bumps its RBAC version after changing scope;
