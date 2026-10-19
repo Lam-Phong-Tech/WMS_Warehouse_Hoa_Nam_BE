@@ -54,6 +54,16 @@
     "scope": "Display-source choice only; no new IAM grant, historical snapshot, deployment approval or UAT PASS."
   },
   "approval": "User confirmed the current-name display choice on 2026-10-19. Remaining owner/IAM/privacy review and live TC_UAT_12 acceptance are pending; historical creator name/role remain unavailable without persisted source.",
-  "runtime": "NOT_DEPLOYED_NOT_AUTHENTICATED_REPLAYED",
+  "runtime": "DEVTEST_DEPLOYED_PENDING_AUTHENTICATED_DETAIL_AND_FE_ACCEPTANCE",
+  "deployment": {
+    "environment": "DEVTEST",
+    "origin": "https://khohoanamdev.lptech.info.vn",
+    "application_sha": "22272d9ea65bf4e52d39d632310eb820a6df65f0",
+    "completed_at": "2026-10-20T00:17:15+07:00",
+    "release_run": 39291985944,
+    "report": "docs/evidence/TC_UAT_12_DEVTEST_RELEASE_20261020.md",
+    "authenticated_detail_smoke": "NOT_RUN_NO_SCOPED_TOKEN_SUPPLIED",
+    "production_activation": false
+  },
   "privacy": "No raw audit JSON, password, token, phone or customer PII is projected."
 }
