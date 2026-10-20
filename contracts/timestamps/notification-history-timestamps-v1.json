@@ -1,7 +1,7 @@
 {
   "revision": "time-be-20261020-r1",
-  "status": "SOURCE_FIX_PENDING_RELEASE_AND_AUTHENTICATED_ACCEPTANCE",
-  "runtime_observed_sha": "22272d9ea65bf4e52d39d632310eb820a6df65f0",
+  "status": "DEVTEST_DEPLOYED_PENDING_AUTHENTICATED_WRITE_READ_AND_LEGACY_PROVENANCE_ACCEPTANCE",
+  "runtime_observed_sha": "e2442df9cb03a50f57847aca0bcba78f0b2b2717",
   "format": "RFC3339 UTC Z; six digits zero-pad existing precision, not extra measurement precision",
   "notification": {
     "contract": "notification-timestamps-v1",
@@ -29,5 +29,6 @@
   },
   "frontend": "Parse one RFC3339 instant and render Asia/Ho_Chi_Minh. Equivalent Z/+00:00/+07:00 instants render identically. Do not add/subtract seven hours or replace the offset on unchanged wall-clock text.",
   "operations": {"new_route": false, "new_migration": false, "seed": false, "repair": false, "database_timezone_change": false, "live_patch_replay": false, "production_activation": false},
-  "acceptance": "OPEN until owner source-provenance confirmation, exact deployed patch SHA and authenticated raw GET observations; local regressions are not runtime/UI acceptance"
+  "deployment": {"environment": "DEVTEST", "application_sha": "e2442df9cb03a50f57847aca0bcba78f0b2b2717", "tested_source_sha": "f6969280a65e6223b5a937f5022791857a744a25", "completed_at": "2026-10-20T16:25:55+07:00", "release_run": 39400013922, "migration_count": 218, "seed_run": false, "migration_run": false, "data_repair": false, "production_activation": false},
+  "acceptance": "OPEN until owner source-provenance confirmation and authenticated approved TEST write/read plus Android/web observations; deployment, local regressions and unauthenticated guards are not full runtime/UI acceptance"
 }

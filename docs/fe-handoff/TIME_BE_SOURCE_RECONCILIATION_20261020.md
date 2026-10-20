@@ -3,9 +3,45 @@
 ## Ket luan
 
 TIME-BE-01: loi duong ghi BE da duoc tai hien, khong phai formatter FE.
-TIME-BE-02: response P08/P23 chua serialize timestamp thong nhat; source da co ban
-sua candidate. Instant lich su cua event nguoi dung neu van OPEN vi cot naive
-khong luu offset va chua co provenance cua lan tao/seed. Chua deploy ban sua nay.
+TIME-BE-02: source normalize P08/P23 da deploy DEV/TEST. Instant lich su cua
+event nguoi dung neu van OPEN vi cot naive khong luu offset va chua co provenance
+cua lan tao/seed. Deploy khong tu dong bien candidate convention thanh bang chung
+ve instant lich su.
+
+## Deploy DEV/TEST
+
+- Run: https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39400013922, SUCCESS.
+- Application SHA: `e2442df9cb03a50f57847aca0bcba78f0b2b2717`.
+- Tested source SHA: `f6969280a65e6223b5a937f5022791857a744a25`.
+- Hoan tat: 20/10/2026 16:25:55 +07:00.
+- Private report: `/opt/hoa-nam-green/backups/deploy-time-20261020T092246Z.json`.
+- 218 migration, khong pending; khong chay migrate/seed/repair/restore.
+- Config/route cache va Swagger da build lai; nginx hop le; backend, queue,
+  scheduler cung SHA moi.
+- Fingerprint 113 bang va manifest 13 file `storage/app` khop truoc/sau.
+- Free disk sau deploy: 1.052.573.696 bytes. Release giu nguong 960 MiB.
+- CI tong SKIPPED theo yeu cau; production activation OFF.
+
+Hai luot chuan bi bi gate dung truoc maintenance/switch vi thieu reserve. Chung
+da bo tag 8 image legacy khong co container/release rollback tham chieu, nhung
+gan nhu khong thu hoi byte do layer dung chung. Khong xoa container, volume,
+PostgreSQL data, media hoac backup. Image rollback dang chay
+`69aad9b47acd...` duoc giu nguyen.
+
+Read-only sau deploy (run 39400850010) xac nhan runtime SHA tren va writer moi
+tao chuoi co offset `+07:00`; binding giu nguyen offset. Khong co INSERT/UPDATE.
+Gia tri persisted cu `2026-10-20 13:49:36+00` duoc giu nguyen.
+
+Public smoke 20/10/2026 16:29:33-16:29:34 +07:00:
+
+- Health 200, RID `7412dcfc-ab88-4eaf-9da0-3bc536d74d36`, SHA dung.
+- Notification detail khong credential: 401, RID `ca183eab-3738-4e13-b606-a8636e94aa21`.
+- P08 detail khong credential: 401, RID `a4b59c85-1425-40cf-8aa7-8cf3f071c117`.
+- Cache-Control `no-store, private`, Content-Type JSON.
+
+Chua co token owner duoc cap, nen khong login lai admin, khong PATCH recipient,
+khong tao notification/scan TEST. Authenticated write/read va Android/web van
+pending; public 200/401 khong duoc dung de dong gate.
 
 ## Bang chung runtime chi doc
 
