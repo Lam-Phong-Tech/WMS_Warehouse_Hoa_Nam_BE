@@ -54,7 +54,9 @@ final class P23ScanSessionReadModel
             $q = DB::table($table.' as b')->where('b.warehouse_id', $scope['warehouse_id']);
             P09WarrantyScope::isolate($q, $table, 'b', $scope);
             $optional = fn (string $field): string => in_array($field, $columns, true)
-                ? 'CAST(b.'.$field.' AS VARCHAR(250))' : 'CAST(NULL AS VARCHAR(250))';
+                ? (in_array($field, ['created_at', 'started_at', 'ended_at'], true)
+                    ? HistoryTimestamp::expression($table, 'b.'.$field) : 'CAST(b.'.$field.' AS VARCHAR(250))')
+                : (in_array($field, ['created_at', 'started_at', 'ended_at'], true) ? 'NULL' : 'CAST(NULL AS VARCHAR(250))');
             [$sort, $bindings] = $this->sortExpression($table, $columns);
             $q->selectRaw("CAST(b.scan_batch_id AS VARCHAR(150)) AS session_id, CAST(b.warehouse_id AS VARCHAR(150)) AS warehouse_id, '{$table}' AS source_table, {$rank} AS source_rank, "
                 .$optional('created_at').' AS created_at, '.$optional('created_by').' AS created_by, '
@@ -80,22 +82,15 @@ final class P23ScanSessionReadModel
         if (! in_array('created_at', $columns, true)) {
             return ['CAST(NULL AS VARCHAR(60))', []];
         }
-        if (DB::getDriverName() === 'sqlite') {
-            // Canonical SQLite writer uses local wall-clock strings. Normalize
-            // fractions without losing microseconds or pretending to know UTC.
-            return ["CASE WHEN b.created_at IS NULL THEN NULL WHEN INSTR(CAST(b.created_at AS TEXT), '.') = 0 THEN CAST(b.created_at AS TEXT) || '.000000' ELSE SUBSTR(CAST(b.created_at AS TEXT) || '000000', 1, 26) END", []];
-        }
-        $storage = P23WarrantyDateFilter::storageFor($table, 'created_at');
-        if ($storage === 'TIMESTAMP_WITH_TIME_ZONE') {
-            return ["TO_CHAR(b.created_at AT TIME ZONE ?, 'YYYY-MM-DD HH24:MI:SS.US')", ['UTC']];
-        }
+        $expression = HistoryTimestamp::expression($table, 'b.created_at');
 
-        return ["TO_CHAR((b.created_at AT TIME ZONE ?) AT TIME ZONE ?, 'YYYY-MM-DD HH24:MI:SS.US')", [config('app.timezone'), 'UTC']];
+        return DB::getDriverName() === 'sqlite' ? [$expression, []]
+            : ["TO_CHAR($expression, 'YYYY-MM-DD HH24:MI:SS.US')", []];
     }
 
     public static function dateKey(DateTimeImmutable $time): string
     {
-        return (DB::getDriverName() === 'pgsql' ? $time->setTimezone(new DateTimeZone('UTC')) : $time)->format('Y-m-d H:i:s.u');
+        return $time->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.u');
     }
 
     /** One bounded grouped query, not a request per batch/tag or a page count. */
@@ -106,7 +101,7 @@ final class P23ScanSessionReadModel
             return array_fill_keys($ids, P23ScanSessionPolicy::counts(null));
         }
         [$q] = app(P08HistoryReadModel::class)->build($scope, 'SCAN');
-        $q->whereIn('owner_id', $ids)->where(fn (Builder $time): Builder => $time->whereNull('event_time')->orWhere('event_time', '<=', $asOf));
+        $q->whereIn('owner_id', $ids)->where(fn (Builder $time): Builder => $time->whereNull('event_time')->orWhere('event_time', '<=', HistoryTimestamp::key($asOf)));
         $rows = $q->selectRaw("owner_id, COALESCE(status, 'UNKNOWN') AS state, COUNT(*) AS n")
             ->groupBy('owner_id')->groupByRaw("COALESCE(status, 'UNKNOWN')")->get();
         $grouped = [];
@@ -135,6 +130,9 @@ final class P23ScanSessionReadModel
     public function serializeWithMetadata(object $row, ?array $metadata = null): array
     {
         $metadata ??= [];
+        foreach (['created_at', 'started_at', 'ended_at'] as $field) {
+            $row->{$field} = HistoryTimestamp::utc($row->{$field});
+        }
         $latest = $metadata['latestEvent'] ?? null;
         $sourceLink = $row->source_id === null ? [] : [[
             'source_type' => $row->source_type,
@@ -196,9 +194,10 @@ final class P23ScanSessionReadModel
             $sku = $optional('e', 'sku_code', $eventColumns);
             $quantity = in_array('issued_quantity', $eventColumns, true) ? 'CAST(e.issued_quantity AS DECIMAL(18,3))' : 'CAST(NULL AS DECIMAL(18,3))';
             $eventType = $optional('e', 'event_type', $eventColumns);
+            $eventTime = HistoryTimestamp::expression($events, 'e.created_at');
             $q = DB::table($events.' as e')->join($batches.' as b', 'b.scan_batch_id', '=', 'e.scan_batch_id')
                 ->where('b.warehouse_id', $scope['warehouse_id'])->whereIn('e.scan_batch_id', $ids)
-                ->where(fn (Builder $time): Builder => $time->whereNull('e.created_at')->orWhere('e.created_at', '<=', $asOf));
+                ->where(fn (Builder $time): Builder => $time->whereNull('e.created_at')->orWhereRaw($eventTime.' <= ?', [HistoryTimestamp::key($asOf)]));
             P09WarrantyScope::isolate($q, $events, 'e', $scope);
             P09WarrantyScope::isolate($q, $batches, 'b', $scope);
             $rows = $q->get([
@@ -206,7 +205,7 @@ final class P23ScanSessionReadModel
                 DB::raw($raw.' AS raw_code'), DB::raw($reason.' AS reason'),
                 DB::raw($actor.' AS actor_id'), DB::raw($serial.' AS serial_number'),
                 DB::raw($sku.' AS sku_code'), DB::raw($quantity.' AS issued_quantity'),
-                DB::raw($eventType.' AS event_type'), 'e.result_status', 'e.created_at',
+                DB::raw($eventType.' AS event_type'), 'e.result_status', DB::raw($eventTime.' AS created_at'),
                 DB::raw("'{$events}' AS source_table"), DB::raw((string) $rank.' AS source_rank'),
                 DB::raw('CAST(b.source_type AS VARCHAR(100)) AS source_type'),
                 DB::raw('CAST(b.source_id AS VARCHAR(150)) AS source_id'),
@@ -264,7 +263,7 @@ final class P23ScanSessionReadModel
                 'actorIdStatus' => $latest->actor_id === null ? 'NOT_RECORDED' : 'PERSISTED_EVENT_ACTOR',
                 'displayName' => null,
                 'displayNameStatus' => 'NOT_PERSISTED_AS_HISTORY_SNAPSHOT',
-                'occurredAt' => $latest->created_at,
+                'occurredAt' => HistoryTimestamp::utc($latest->created_at),
                 'sourceTable' => $latest->source_table,
                 'businessLink' => $latest->source_id === null ? null : ['sourceType' => $latest->source_type,
                     'sourceId' => $latest->source_id, 'mappingStatus' => 'PERSISTED_BATCH_SOURCE_REFERENCE', 'url' => null],
@@ -280,7 +279,7 @@ final class P23ScanSessionReadModel
         [$q, $sources] = $this->build($scope);
         $row = $q->where('session_id', $id)->first();
         $complete = ($eventSource['status'] ?? null) === 'INCLUDED';
-        $latest = $this->latestEvents($scope, [$id], now()->utc()->format('Y-m-d H:i:s.u'), $sources);
+        $latest = $this->latestEvents($scope, [$id], HistoryTimestamp::utc(now()), $sources);
         // P08 retains its redacted projection even when P23 metadata is embedded.
         if (isset($latest[$id]['latestEvent'])) {
             $latest[$id]['latestEvent']['rawCode'] = null;

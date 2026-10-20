@@ -1,10 +1,15 @@
 <?php
 
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Modules\Notification\Models\NotificationRecipient;
+
 // Operator-requested, selected IDs only; never serialize notification content or actor/customer PII.
 require '/var/www/html/vendor/autoload.php';
 $app = require '/var/www/html/bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-$db = Illuminate\Support\Facades\DB::connection();
+$app->make(Kernel::class)->bootstrap();
+$db = DB::connection();
 if ($db->getDriverName() !== 'pgsql' || $db->getDatabaseName() !== 'wms_hoanam_green'
     || config('health.build.sha') !== '22272d9ea65bf4e52d39d632310eb820a6df65f0') {
     throw new RuntimeException('Timestamp inspection target mismatch.');
@@ -16,7 +21,7 @@ try {
     $batchId = '22cbebc2-7d31-4642-b7ec-e74195e0eff6';
     $eventId = '5818ba7d-ea57-4431-8f29-aa40ff5bfecc';
     $clocks = $db->selectOne("SELECT current_setting('TimeZone') AS session_timezone, clock_timestamp()::text AS db_now, extract(epoch from clock_timestamp())::text AS db_epoch");
-    $recipient = Modules\Notification\Models\NotificationRecipient::query()->find($recipientId);
+    $recipient = NotificationRecipient::query()->find($recipientId);
     $result = ['runtime_sha' => config('health.build.sha'), 'app_timezone' => config('app.timezone'),
         'php_timezone' => date_default_timezone_get(), 'php_now' => now()->format('Y-m-d\TH:i:s.uP'),
         'php_epoch' => microtime(true), 'db_clock' => $clocks,
@@ -30,15 +35,16 @@ try {
     foreach ([['notification_recipients', 'id', $recipientId], ['notifications', 'id', $recipient?->notification_id],
         ['scan_events', 'id', $eventId], ['scan_record_events', 'scan_event_id', $eventId],
         ['scan_batch', 'scan_batch_id', $batchId], ['scan_batches', 'scan_batch_id', $batchId]] as [$table, $key, $id]) {
-        $columns = Illuminate\Support\Facades\Schema::getColumnListing($table);
+        $columns = Schema::getColumnListing($table);
         if (! in_array($key, $columns, true)) {
             $result['sources'][$table] = ['status' => 'UNAVAILABLE'];
+
             continue;
         }
         $fields = array_values(array_intersect($columns, ['created_at', 'updated_at', 'occurred_at', 'posted_at', 'started_at', 'ended_at', 'read_at']));
         $types = [];
         foreach ($fields as $field) {
-            $types[$field] = Illuminate\Support\Facades\Schema::getColumnType($table, $field);
+            $types[$field] = Schema::getColumnType($table, $field);
         }
         $select = array_merge([$key], array_values(array_intersect($columns, ['scan_batch_id', 'warehouse_id'])), $fields);
         $row = $id === null ? null : $db->table($table)->where($key, $id)->first(array_unique($select));

@@ -1,0 +1,33 @@
+{
+  "revision": "time-be-20261020-r1",
+  "status": "SOURCE_FIX_PENDING_RELEASE_AND_AUTHENTICATED_ACCEPTANCE",
+  "runtime_observed_sha": "22272d9ea65bf4e52d39d632310eb820a6df65f0",
+  "format": "RFC3339 UTC Z; six digits zero-pad existing precision, not extra measurement precision",
+  "notification": {
+    "contract": "notification-timestamps-v1",
+    "discovery": "meta.timestamp_contract",
+    "routes": ["GET /api/v1/notifications", "GET /api/v1/notifications/{recipientId}", "PATCH /api/v1/notifications/{recipientId}/read", "POST /api/v1/notifications/read-all"],
+    "sources": {"read_at": "notification_recipients.read_at", "created_at": "notification_recipients.created_at", "broadcast_created_at": "notifications.created_at"},
+    "postgres_storage": "timestamp with time zone; write strings with explicit offset, never bind a DateTime that loses offset",
+    "writes": "Both the one-recipient and read-all commands keep WHERE read_at IS NULL; Eloquent notification/recipient creation preserves offsets too",
+    "first_read": "Persisted first read is immutable on subsequent mark calls. GET never marks, repairs, clamps or relabels an existing future instant.",
+    "historical_bad_value": "2026-10-20T13:49:36+00:00 remains that instant, equivalent to 2026-10-20 20:49:36 in Vietnam; no repair authorized"
+  },
+  "history": {
+    "contract": "history-timestamps-v1",
+    "discovery": "meta.timestamp_contract",
+    "routes": ["GET /api/v1/mini-app/history/records", "GET /api/v1/mini-app/history/records/{recordId}", "GET /api/v1/mini-app/history/scan-sessions/{sessionId}", "GET /api/v1/mini-app/history/summary", "GET /api/v1/mini-app/scan-sessions"],
+    "sources": {"DOCUMENT.time": "document_status_history.created_at", "WARRANTY.time": "warranty_event.event_at", "NFC.time": "audit_log.created_at", "SCAN.time": "scan_events.created_at or scan_record_events.created_at after existing canonical dedup", "session.createdAt": "scan_batch.created_at or scan_batches.created_at", "session.startedAt": "persisted started_at only; null if column/value absent", "session.endedAt": "persisted ended_at only; null if column/value absent", "latestEvent.occurredAt": "created_at of the selected latest event across the complete permitted source; never last page row"},
+    "aware_storage": "Inspect actual PostgreSQL source column type and preserve the recorded instant; normalize before UNION, filtering, sort, cursor and serialization",
+    "naive_storage_candidate": "Fixed Asia/Ho_Chi_Minh wall-clock convention follows existing canonical scan writers now() and prior P08/P23 app-local storage contract, independent of display/filter warehouse and PG session timezone",
+    "legacy_provenance_gate": "The supplied historical scan has no recorded offset. Its actual creation/seed timezone is not proven by the stored string, UI list, POSTED status, source link or present runtime timezone. This source rule is a candidate for that row until its owner confirms provenance. Do not deploy as proof that its real event occurred at either UI time.",
+    "sample_under_candidate_rule_only": {"raw": "2026-10-15 03:45:57", "candidate_utc": "2026-10-14T20:45:57.000000Z", "candidate_vietnam": "2026-10-15T03:45:57+07:00", "verified_historical_instant": false},
+    "date_filter": "Existing server date-only query semantics remain unchanged. Normalize query bounds to the same internal UTC key as source expressions; never shift a date-only input or filter one FE page.",
+    "cursor": "P08 keeps its opaque transport and existing error policy but binds the source timestamp revision in its fingerprint. Old source-rule cursors are rejected, not silently reinterpreted. P23 page scope also includes the timestamp revision.",
+    "permission": "Existing actor/session/warehouse/source guards, totals, dedup and P08 PII redaction remain authoritative",
+    "null": "Preserve null, including absent start/end and posted_at; do not derive a timestamp from status, doc_no, current lookup or now"
+  },
+  "frontend": "Parse one RFC3339 instant and render Asia/Ho_Chi_Minh. Equivalent Z/+00:00/+07:00 instants render identically. Do not add/subtract seven hours or replace the offset on unchanged wall-clock text.",
+  "operations": {"new_route": false, "new_migration": false, "seed": false, "repair": false, "database_timezone_change": false, "live_patch_replay": false, "production_activation": false},
+  "acceptance": "OPEN until owner source-provenance confirmation, exact deployed patch SHA and authenticated raw GET observations; local regressions are not runtime/UI acceptance"
+}

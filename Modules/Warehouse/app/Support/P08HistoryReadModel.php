@@ -41,6 +41,8 @@ final class P08HistoryReadModel
     /** Common column order and explicit text casts make PostgreSQL/SQLite unions compatible. */
     private function project(Builder $q, string $source, string $table, string $id, string $owner, string $time, string $status, string $action, string $group, string $label = 'NULL', string $code = 'NULL', int $priority = 0): Builder
     {
+        $time = HistoryTimestamp::expression($table, $time);
+
         return $q->selectRaw("'{$source}' AS source, '{$table}' AS source_table, '{$source}:' || CAST({$id} AS VARCHAR(150)) AS activity_id, '{$source}:' || CAST({$owner} AS VARCHAR(150)) AS record_id, CAST({$id} AS VARCHAR(150)) AS event_id, CAST({$owner} AS VARCHAR(150)) AS owner_id, {$time} AS event_time, COALESCE(CAST({$time} AS VARCHAR(60)), '') AS sort_time, CAST({$status} AS VARCHAR(100)) AS status, CAST({$action} AS VARCHAR(100)) AS action, {$group} AS business, CAST({$label} AS VARCHAR(250)) AS label, CAST({$code} AS VARCHAR(150)) AS code_id, {$priority} AS source_rank");
     }
 

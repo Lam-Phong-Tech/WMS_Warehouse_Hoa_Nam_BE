@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Modules\Auth\Models\User;
+use Modules\Notification\Support\PreservesNotificationTimestampOffset;
 
 class Notification extends Model
 {
     use HasUuids;
+    use PreservesNotificationTimestampOffset;
 
     public $timestamps = false;
 

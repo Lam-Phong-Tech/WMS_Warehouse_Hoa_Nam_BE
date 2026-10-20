@@ -8,9 +8,9 @@ use DateTimeZone;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use InvalidArgumentException;
+use Modules\Warehouse\Support\HistoryTimestamp;
 use Modules\Warehouse\Support\P06ReadSnapshot;
 use Modules\Warehouse\Support\P08HistoryPolicy;
 use Modules\Warehouse\Support\P09WarrantyPage;
@@ -84,10 +84,11 @@ final class P23ScanSessionController extends Controller
                 $q->where('s.sort_time', '>=', P23ScanSessionReadModel::dateKey($window['start']))
                     ->where('s.sort_time', '<', P23ScanSessionReadModel::dateKey($window['end']));
             }
-            $pageScope = $scope + ['p23Contract' => P23ScanSessionPolicy::CONTRACT, 'timezone' => $name, 'batchSources' => $sources];
+            $pageScope = $scope + ['p23Contract' => P23ScanSessionPolicy::CONTRACT, 'timezone' => $name, 'batchSources' => $sources,
+                'timestamp_contract' => HistoryTimestamp::CONTRACT];
             [$ids, $page] = P09WarrantyPage::read($request, clone $q, $pageScope, 's.session_id', 's.sort_time');
             $rows = (clone $q)->whereIn('s.session_id', $ids)->get()->keyBy('session_id');
-            $asOf = DB::getDriverName() === 'pgsql' ? now()->utc()->format('Y-m-d\TH:i:s.uP') : now()->setTimezone($name)->format('Y-m-d H:i:s.u');
+            $asOf = HistoryTimestamp::utc(now());
             $counts = $this->model->counts($scope, $ids, $asOf, $sources);
             $latest = $this->model->latestEvents($scope, $ids, $asOf, $sources);
             $data = array_map(fn (string $id): array => $this->model->serializeWithMetadata($rows[$id], $latest[$id] ?? []) + ['counts' => $counts[$id]], $ids);
@@ -97,6 +98,7 @@ final class P23ScanSessionController extends Controller
 
             return response()->json(['success' => true, 'data' => $data, 'meta' => $page + [
                 'contract' => P23ScanSessionPolicy::CONTRACT, 'countUnit' => 'SCAN_SESSION',
+                'timestamp_contract' => HistoryTimestamp::CONTRACT,
                 'warehouseId' => $scope['warehouse_id'], 'batchSources' => $sources,
                 'coverage' => $batchComplete ? 'SUPPORTED_PERSISTED_BATCHES' : 'PARTIAL_SOURCE',
                 'scopePolicy' => 'PERSISTED_BATCH_WAREHOUSE_BEFORE_DEDUP_FILTER_TOTAL',

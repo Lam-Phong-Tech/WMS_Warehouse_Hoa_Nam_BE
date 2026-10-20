@@ -6,6 +6,7 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Modules\Notification\Models\Notification;
+use Modules\Notification\Support\NotificationTimestamp;
 
 /**
  * Được bắn (không qua queue lần nữa — Listener sinh ra nó đã chạy trong queued
@@ -45,7 +46,7 @@ class NotificationPushed implements ShouldBroadcastNow
             'actor_id' => $this->notification->actor_id,
             'actor_name' => $this->notification->actor_name,
             'payload' => $this->notification->payload,
-            'created_at' => $this->notification->created_at?->toIso8601String(),
+            'created_at' => NotificationTimestamp::read($this->notification->getRawOriginal('created_at')),
         ];
     }
 }

@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Modules\Auth\Models\User;
+use Modules\Notification\Support\PreservesNotificationTimestampOffset;
 
 class NotificationRecipient extends Model
 {
     use HasUuids;
+    use PreservesNotificationTimestampOffset;
 
     public $timestamps = false;
 

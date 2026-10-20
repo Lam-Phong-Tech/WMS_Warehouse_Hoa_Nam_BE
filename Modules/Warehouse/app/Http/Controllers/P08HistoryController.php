@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\StableAuthSession;
 use Modules\Auth\Support\WarehouseContext;
+use Modules\Warehouse\Support\HistoryTimestamp;
 use Modules\Warehouse\Support\P06ReadSnapshot;
 use Modules\Warehouse\Support\P08HistoryPolicy as Policy;
 use Modules\Warehouse\Support\P08HistoryReadModel;
@@ -183,7 +184,8 @@ final class P08HistoryController extends Controller
             $scope = $this->scope($request, $input);
             $filters = $input;
             unset($filters['cursor']);
-            $fingerprint = Policy::fingerprint($scope, ['path' => $request->path(), ...$filters]);
+            $fingerprint = Policy::fingerprint($scope, ['path' => $request->path(),
+                'timestamp_contract' => HistoryTimestamp::CONTRACT, 'storage_timezone' => HistoryTimestamp::NAIVE_TIMEZONE, ...$filters]);
             $asOf = $this->databaseTime(now());
             $cursor = null;
             if (isset($input['cursor'])) {
@@ -198,7 +200,7 @@ final class P08HistoryController extends Controller
                 $asOf = $cursor['asOf'];
             }
             [$query, $sources] = $this->model->build($scope, $input['source']);
-            $query->where(fn (Builder $q): Builder => $q->whereNull('event_time')->orWhere('event_time', '<=', $asOf));
+            $query->where(fn (Builder $q): Builder => $q->whereNull('event_time')->orWhere('event_time', '<=', HistoryTimestamp::key($asOf)));
             foreach (['business', 'status'] as $key) {
                 if (isset($input[$key]) && $input[$key] !== 'ALL') {
                     $query->where($key, $input[$key]);
@@ -213,10 +215,12 @@ final class P08HistoryController extends Controller
                 $from = $input['date_mode'] === 'DATE' ? $input['date'] : $input['from'];
                 $to = $input['date_mode'] === 'DATE' ? $input['date'] : $input['to'];
                 $timezone = config('app.timezone', 'Asia/Ho_Chi_Minh');
-                $query->where('event_time', '>=', $this->databaseTime(Carbon::createFromFormat('!Y-m-d', $from, $timezone)))
-                    ->where('event_time', '<', $this->databaseTime(Carbon::createFromFormat('!Y-m-d', $to, $timezone)->addDay()));
+                $query->where('event_time', '>=', HistoryTimestamp::key(Carbon::createFromFormat('!Y-m-d', $from, $timezone)))
+                    ->where('event_time', '<', HistoryTimestamp::key(Carbon::createFromFormat('!Y-m-d', $to, $timezone)->addDay()));
             }
             $meta = ['contract' => 'mini-app-p08-v1', 'warehouseId' => $scope['warehouse_id'],
+                'timestamp_contract' => HistoryTimestamp::CONTRACT,
+                'timestamp_storage_policy' => 'AWARE_PRESERVE_INSTANT_NAIVE_SOURCE_VIETNAM_WALL_CLOCK',
                 'organizationScope' => $scope['dimensions'], 'tenantIsolation' => $scope['dimensions'] === [] ? 'SINGLE_TENANT_DATABASE_REQUIRED' : 'TRUSTED_ACTOR_AND_WAREHOUSE_COLUMNS',
                 'sources' => $sources, 'countUnit' => 'ACTIVITY', 'dateMode' => $input['date_mode'],
                 'timezone' => config('app.timezone'), 'asOf' => $asOf, 'snapshot' => $snapshot,
@@ -272,7 +276,7 @@ final class P08HistoryController extends Controller
 
         return ['activityId' => $row->activity_id, 'recordId' => $row->record_id, 'eventId' => $row->event_id,
             'source' => $row->source, 'sourceTable' => $row->source_table, 'business' => $row->business,
-            'status' => $row->status, 'action' => $row->action, 'time' => $row->event_time,
+            'status' => $row->status, 'action' => $row->action, 'time' => HistoryTimestamp::utc($row->event_time),
             'timeStatus' => $row->event_time === null ? 'NOT_RECORDED' : 'SOURCE_TIMESTAMP', 'label' => $row->label,
             'codeId' => $row->code_id, 'quantity' => null, 'rawCode' => null,
             'rawCodePolicy' => 'OMITTED_MAY_CONTAIN_PII_OR_SECRETS',
@@ -293,7 +297,7 @@ final class P08HistoryController extends Controller
 
     private function databaseTime(Carbon $time): string
     {
-        return DB::getDriverName() === 'pgsql' ? $time->copy()->utc()->format('Y-m-d\TH:i:s.uP') : $time->copy()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s.u');
+        return HistoryTimestamp::utc($time);
     }
 
     private function reply(mixed $data, array $meta): JsonResponse

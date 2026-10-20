@@ -12,6 +12,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Notification\Models\NotificationRecipient;
+use Modules\Notification\Support\NotificationTimestamp;
 use Modules\Notification\Support\P13NotificationCursor;
 use Modules\Notification\Support\P13NotificationPresentation;
 use OpenApi\Attributes as OA;
@@ -156,7 +157,7 @@ class NotificationController extends Controller
             if ($recipient === null) {
                 return [null, false];
             }
-            $changed = (clone $query)->whereNull('read_at')->update(['read_at' => now()]) === 1;
+            $changed = (clone $query)->whereNull('read_at')->update(['read_at' => NotificationTimestamp::write(now())]) === 1;
             if ($changed) {
                 DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
             }
@@ -189,7 +190,7 @@ class NotificationController extends Controller
         $updated = NotificationRecipient::query()
             ->where('user_id', $request->user()->user_id)
             ->whereNull('read_at')
-            ->update(['read_at' => now()]);
+            ->update(['read_at' => NotificationTimestamp::write(now())]);
 
         // Cùng lý do với markRead(): danh sách và badge phải mới NGAY sau khi ghi, không
         // được chờ hết 20s TTL.
@@ -221,8 +222,8 @@ class NotificationController extends Controller
                 'actor_id' => $notification?->actor_id,
                 'actor_name' => $notification?->actor_name,
                 'payload' => $notification?->payload,
-                'read_at' => $recipient->read_at?->toIso8601String(),
-                'created_at' => $recipient->created_at?->toIso8601String(),
+                'read_at' => NotificationTimestamp::read($recipient->getRawOriginal('read_at')),
+                'created_at' => NotificationTimestamp::read($recipient->getRawOriginal('created_at')),
                 'payload_semantics' => 'EVENT_SNAPSHOT_NOT_AUTHORIZATION',
                 'subject' => P13NotificationPresentation::subject($recipient),
             ];
@@ -235,6 +236,7 @@ class NotificationController extends Controller
         $body['meta'] = array_merge($body['meta'] ?? [], [
             'contract' => P13NotificationCursor::CONTRACT,
             'projection_revision' => P13NotificationPresentation::REVISION,
+            'timestamp_contract' => NotificationTimestamp::CONTRACT,
             'count_unit' => 'NOTIFICATION_RECIPIENT',
         ], $meta);
 

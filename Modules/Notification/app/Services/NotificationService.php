@@ -70,7 +70,8 @@ class NotificationService
                 ]);
             }
 
-            return $notification;
+            // Broadcast and callers use the precision/offset actually persisted by the DB.
+            return $notification->refresh();
         });
 
         // Bắn broadcast NGOÀI transaction ghi DB: nếu broadcaster lỗi (Reverb down),
