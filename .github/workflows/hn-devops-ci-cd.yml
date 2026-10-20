@@ -154,10 +154,10 @@ jobs:
             case "$CONFIRMATION" in
               INSPECT-TIME-SOURCES) docker exec -i -u www-data hoa_nam_green-backend-1 php < "$source/tools/deploy/inspect-timestamp-sources.php" ;;
               DEPLOY-TIME-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" \
-                --remove-image sha256:02c75d57183914675907ac7abbdd445445888b23e04f76a6d10f4c00236addda \
-                --remove-image sha256:7313fceb0b58d7264b034011b19a94dbb73288df379ce632f955e66510cc0efc \
-                --remove-image sha256:769e9dcfe1f9dfe5ed8ce9260f93d1efead37156c70ae57e1cbe4cedd909467a \
-                --remove-image sha256:b284aacc4bc2f0045f6b5e08c630b47a40db4472d0e04c510a4d09136e4e90eb ;;
+                --remove-image sha256:17cfc4aff0987c3b8c207951d07ae6d633a4dc64a5ca2a6ce732cd72f10013ee \
+                --remove-image sha256:5c1f1652006f62bef48bc12b5b96a37d6e2ffb684971cbe59dae8ea682f58035 \
+                --remove-image sha256:70f2b64c96c423ce2f23f2c1e8141e8347a5b83a01066dffdd1561c2765d6f23 \
+                --remove-image sha256:85bd670b8ece3d87dcce5d1d6f83849c64dcbc99fb7558063aa843d15f21a7b5 ;;
               INSPECT-TC12) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" --inspect ;;
               DEPLOY-TC12-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" \
                 --remove-image sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9 \

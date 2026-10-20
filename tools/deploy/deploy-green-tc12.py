@@ -32,6 +32,10 @@ APPROVED_CLEANUP_TAGS = {
     'sha256:7313fceb0b58d7264b034011b19a94dbb73288df379ce632f955e66510cc0efc': ['hoa_nam_green-queue:pre-d019d630'],
     'sha256:769e9dcfe1f9dfe5ed8ce9260f93d1efead37156c70ae57e1cbe4cedd909467a': ['hoa_nam_green-scheduler:pre-d019d630'],
     'sha256:b284aacc4bc2f0045f6b5e08c630b47a40db4472d0e04c510a4d09136e4e90eb': ['hoa_nam_green-backend:pre-d019d630'],
+    'sha256:17cfc4aff0987c3b8c207951d07ae6d633a4dc64a5ca2a6ce732cd72f10013ee': ['hoa_nam_backend-scheduler:latest'],
+    'sha256:5c1f1652006f62bef48bc12b5b96a37d6e2ffb684971cbe59dae8ea682f58035': ['hoa_nam_backend-reverb:latest'],
+    'sha256:70f2b64c96c423ce2f23f2c1e8141e8347a5b83a01066dffdd1561c2765d6f23': ['hoa_nam_backend-queue:latest'],
+    'sha256:85bd670b8ece3d87dcce5d1d6f83849c64dcbc99fb7558063aa843d15f21a7b5': ['hoa_nam_backend-backend:latest'],
 }
 
 

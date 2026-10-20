@@ -58,6 +58,8 @@ class Tc12DeployTest(unittest.TestCase):
 
     def test_only_inspected_tags_are_allowlisted(self):
         self.assertEqual(sorted(tag for tags in tc12.APPROVED_CLEANUP_TAGS.values() for tag in tags), [
+            'hoa_nam_backend-backend:latest', 'hoa_nam_backend-queue:latest',
+            'hoa_nam_backend-reverb:latest', 'hoa_nam_backend-scheduler:latest',
             'hoa_nam_green-backend:pre-d019d630', 'hoa_nam_green-queue:pre-d019d630',
             'hoa_nam_green-reverb:pre-d019d630', 'hoa_nam_green-scheduler:pre-d019d630',
             'node:22-alpine', 'postgres:16',
