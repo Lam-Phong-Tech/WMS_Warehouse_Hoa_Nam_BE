@@ -28,6 +28,10 @@ RUNTIME_PATHS = ('app', 'bootstrap', 'config', 'database', 'docker', 'Modules', 
 APPROVED_CLEANUP_TAGS = {
     'sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9': ['postgres:16'],
     'sha256:7c3b093add7c43400ee83b815ab2cda98794a10045bcf76ce9bb2f89b97cbc5c': ['node:22-alpine'],
+    'sha256:02c75d57183914675907ac7abbdd445445888b23e04f76a6d10f4c00236addda': ['hoa_nam_green-reverb:pre-d019d630'],
+    'sha256:7313fceb0b58d7264b034011b19a94dbb73288df379ce632f955e66510cc0efc': ['hoa_nam_green-queue:pre-d019d630'],
+    'sha256:769e9dcfe1f9dfe5ed8ce9260f93d1efead37156c70ae57e1cbe4cedd909467a': ['hoa_nam_green-scheduler:pre-d019d630'],
+    'sha256:b284aacc4bc2f0045f6b5e08c630b47a40db4472d0e04c510a4d09136e4e90eb': ['hoa_nam_green-backend:pre-d019d630'],
 }
 
 
@@ -143,7 +147,7 @@ def cleanup_images(requested):
         require(image in by_id and image not in protected, 'Image referenced by container or rollback')
         row = by_id[image]
         tags = row.get('RepoTags') or []
-        require(not tags or tags == APPROVED_CLEANUP_TAGS.get(image), 'Unapproved image tags')
+        require(not tags or sorted(tags) == sorted(APPROVED_CLEANUP_TAGS.get(image, [])), 'Unapproved image tags')
         created = datetime.datetime.fromisoformat(row['Created'][:26].replace('Z', '+00:00'))
         if created.tzinfo is None:
             created = created.replace(tzinfo=datetime.timezone.utc)

@@ -56,9 +56,12 @@ class Tc12DeployTest(unittest.TestCase):
                 tc12.package(folder, 'not-a-sha', folder / 'out')
             self.assertFalse((folder / 'out').exists())
 
-    def test_only_two_inspected_tags_are_allowlisted(self):
-        self.assertEqual(sorted(tag for tags in tc12.APPROVED_CLEANUP_TAGS.values() for tag in tags),
-                         ['node:22-alpine', 'postgres:16'])
+    def test_only_inspected_tags_are_allowlisted(self):
+        self.assertEqual(sorted(tag for tags in tc12.APPROVED_CLEANUP_TAGS.values() for tag in tags), [
+            'hoa_nam_green-backend:pre-d019d630', 'hoa_nam_green-queue:pre-d019d630',
+            'hoa_nam_green-reverb:pre-d019d630', 'hoa_nam_green-scheduler:pre-d019d630',
+            'node:22-alpine', 'postgres:16',
+        ])
         self.assertNotIn(tc12.green.IMAGE_ID, tc12.APPROVED_CLEANUP_TAGS)
 
     def test_approved_tag_drift_blocks_removal(self):
