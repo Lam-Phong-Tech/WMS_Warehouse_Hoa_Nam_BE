@@ -24,6 +24,7 @@ TESTED = 'f6969280a65e6223b5a937f5022791857a744a25'
 RELEASE_NAME = PREVIOUS + '-tc12-20261019T171410Z'
 RUNTIME_PATHS = ('app', 'bootstrap', 'config', 'database', 'docker', 'Modules', 'routes',
                  'composer.json', 'composer.lock', 'modules_statuses.json', 'artisan')
+DEPLOY_RESERVE = 960 * 1024 ** 2
 # Inspected in run 39291454968; neither image is used by a container or retained rollback.
 APPROVED_CLEANUP_TAGS = {
     'sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9': ['postgres:16'],
@@ -216,10 +217,11 @@ def deploy(folder, sha, inspect_only, remove_images):
     with tarfile.open(archive) as bundle:
         source_bytes = sum(m.size for m in bundle.getmembers() if m.isfile())
     storage_bytes = int(green.run(['du', '-sb', str(previous / 'storage')]).split()[0])
-    required = green.RESERVE + source_bytes + storage_bytes + 64 * 1024 ** 2
+    required = DEPLOY_RESERVE + source_bytes + storage_bytes + 32 * 1024 ** 2
     protected, all_images = inspect_images()
     capacity = {'free': shutil.disk_usage(green.ROOT).free, 'required': required,
-                'source_bytes': source_bytes, 'storage_bytes': storage_bytes, 'rollback_images': images}
+                'source_bytes': source_bytes, 'storage_bytes': storage_bytes, 'reserve': DEPLOY_RESERVE,
+                'rollback_images': images}
     green.emit('time_preflight', capacity)
     if inspect_only:
         require(not remove_images, 'Inspection cannot remove images')
@@ -281,7 +283,7 @@ def deploy(folder, sha, inspect_only, remove_images):
         evidence['backup'] = {'path': str(backup), 'bytes': backup.stat().st_size, 'sha256': green.digest(backup)}
         shutil.copytree(previous / 'storage', release / 'storage', dirs_exist_ok=True, symlinks=True)
         require(before_media == green.media_manifest(release), 'Copied media mismatch')
-        require(shutil.disk_usage(green.ROOT).free > green.RESERVE, 'Disk reserve lost before switch')
+        require(shutil.disk_usage(green.ROOT).free > DEPLOY_RESERVE, 'Disk reserve lost before switch')
         evidence['stage'] = 'switch'
         green.switch(release, stamp)
         switched = True

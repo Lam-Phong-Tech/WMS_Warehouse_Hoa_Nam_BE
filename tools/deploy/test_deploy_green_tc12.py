@@ -15,6 +15,7 @@ class Tc12DeployTest(unittest.TestCase):
         self.assertEqual(tc12.green.DATABASE, 'wms_hoanam_green')
         self.assertEqual(tc12.green.ROOT.as_posix(), '/opt/hoa-nam-green')
         self.assertEqual(len(tc12.green.OVERLAYS), 14)
+        self.assertEqual(tc12.DEPLOY_RESERVE, 960 * 1024 ** 2)
         self.assertEqual(tc12.PREVIOUS, '22272d9ea65bf4e52d39d632310eb820a6df65f0')
         self.assertEqual(tc12.TESTED, 'f6969280a65e6223b5a937f5022791857a744a25')
 
