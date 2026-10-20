@@ -152,7 +152,7 @@ jobs:
             test "$owner" != UNKNOWN
             test "$(runuser -u "$owner" -- git -C "$source" rev-parse HEAD)" = "$RELEASE_SHA"
             case "$CONFIRMATION" in
-              INSPECT-TIME-SOURCES) docker exec -i -u www-data hoa_nam_green-backend-1 php < "$source/tools/deploy/inspect-timestamp-sources.php" ;;
+              INSPECT-TIME-SOURCES) docker exec -i -u www-data -e EXPECTED_BUILD_SHA="$RELEASE_SHA" hoa_nam_green-backend-1 php < "$source/tools/deploy/inspect-timestamp-sources.php" ;;
               DEPLOY-TIME-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" ;;
               INSPECT-TC12) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" --inspect ;;
               DEPLOY-TC12-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" \

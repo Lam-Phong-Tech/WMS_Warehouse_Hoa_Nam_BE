@@ -10,8 +10,10 @@ require '/var/www/html/vendor/autoload.php';
 $app = require '/var/www/html/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 $db = DB::connection();
+$expectedBuild = getenv('EXPECTED_BUILD_SHA');
 if ($db->getDriverName() !== 'pgsql' || $db->getDatabaseName() !== 'wms_hoanam_green'
-    || config('health.build.sha') !== '22272d9ea65bf4e52d39d632310eb820a6df65f0') {
+    || ! is_string($expectedBuild) || ! preg_match('/\A[0-9a-f]{40}\z/D', $expectedBuild)
+    || config('health.build.sha') !== $expectedBuild) {
     throw new RuntimeException('Timestamp inspection target mismatch.');
 }
 $db->beginTransaction();
@@ -52,7 +54,9 @@ try {
     }
     $result['binding_probe_no_write'] = ['format' => $db->getQueryGrammar()->getDateFormat(),
         'now_bound' => $db->prepareBindings([now()])[0],
-        'aware_now_bound' => $db->prepareBindings([now()->format('Y-m-d H:i:s.uP')])[0]];
+        'aware_now_bound' => $db->prepareBindings([now()->format('Y-m-d H:i:s.uP')])[0],
+        'notification_writer_value' => Modules\Notification\Support\NotificationTimestamp::write(now()),
+        'notification_writer_bound' => $db->prepareBindings([Modules\Notification\Support\NotificationTimestamp::write(now())])[0]];
     echo json_encode(['event' => 'timestamp_source_inspection', 'data' => $result], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES), PHP_EOL;
 } finally {
     $db->rollBack();
