@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exact-SHA TC12 code promotion, preserving green data and runtime overlays."""
+"""Exact-SHA code promotion, preserving green data and runtime overlays."""
 
 import argparse
 import datetime
@@ -19,9 +19,9 @@ import urllib.request
 spec = importlib.util.spec_from_file_location('green', Path(__file__).with_name('deploy-green-verified.py'))
 green = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(green)
-PREVIOUS = '9d9e87382eea39deb3f3d660b3955110b526ea3c'
-TESTED = '1375dfaa58dc212f4ca4ff52fe8ca68a2fb28a43'
-RELEASE_NAME = PREVIOUS + '-uat05-20261018T114034Z'
+PREVIOUS = '22272d9ea65bf4e52d39d632310eb820a6df65f0'
+TESTED = 'f6969280a65e6223b5a937f5022791857a744a25'
+RELEASE_NAME = PREVIOUS + '-tc12-20261019T171410Z'
 RUNTIME_PATHS = ('app', 'bootstrap', 'config', 'database', 'docker', 'Modules', 'routes',
                  'composer.json', 'composer.lock', 'modules_statuses.json', 'artisan')
 # Inspected in run 39291454968; neither image is used by a container or retained rollback.
@@ -58,9 +58,20 @@ def package(folder, sha, output):
     git(folder, 'diff', '--exit-code', TESTED, sha, '--', *RUNTIME_PATHS, 'tests', 'public', 'resources',
         'package.json', 'package-lock.json', 'vite.config.js', 'vite-module-loader.js')
     old, new = file_hashes(folder, PREVIOUS), file_hashes(folder, sha)
-    allowed = {'Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php',
-               'Modules/Warehouse/app/Support/P12StockOwnerProjection.php',
-               'app/Swagger/MiniAppInboundOpenApi.php', 'app/Swagger/MiniAppOutboundOpenApi.php'}
+    allowed = {
+        'Modules/Notification/app/Events/NotificationPushed.php',
+        'Modules/Notification/app/Http/Controllers/NotificationController.php',
+        'Modules/Notification/app/Models/Notification.php',
+        'Modules/Notification/app/Models/NotificationRecipient.php',
+        'Modules/Notification/app/Services/NotificationService.php',
+        'Modules/Notification/app/Support/NotificationTimestamp.php',
+        'Modules/Notification/app/Support/PreservesNotificationTimestampOffset.php',
+        'Modules/Warehouse/app/Http/Controllers/P08HistoryController.php',
+        'Modules/Warehouse/app/Http/Controllers/P23ScanSessionController.php',
+        'Modules/Warehouse/app/Support/HistoryTimestamp.php',
+        'Modules/Warehouse/app/Support/P08HistoryReadModel.php',
+        'Modules/Warehouse/app/Support/P23ScanSessionReadModel.php',
+    }
     changed = {name for name in set(old) | set(new) if old.get(name) != new.get(name)}
     require(changed == allowed, 'Unexpected application source delta')
     require(not any(name in changed for name in green.OVERLAYS), 'Overlay conflict')
@@ -71,8 +82,8 @@ def package(folder, sha, output):
              'archive_sha256': green.digest(archive), 'previous_files': old, 'source_files': new,
              'ci_run': False, 'migration_run': False, 'seed_run': False}
     (output / 'proof.json').write_text(json.dumps(proof, indent=2))
-    green.emit('tc12_packaged', {'sha': sha, 'tested_sha': TESTED, 'runtime_delta': sorted(changed),
-                               'archive_bytes': archive.stat().st_size})
+    green.emit('time_packaged', {'sha': sha, 'tested_sha': TESTED, 'runtime_delta': sorted(changed),
+                                 'archive_bytes': archive.stat().st_size})
 
 
 def configuration(service='backend'):
@@ -201,7 +212,7 @@ def deploy(folder, sha, inspect_only, remove_images):
     protected, all_images = inspect_images()
     capacity = {'free': shutil.disk_usage(green.ROOT).free, 'required': required,
                 'source_bytes': source_bytes, 'storage_bytes': storage_bytes, 'rollback_images': images}
-    green.emit('tc12_preflight', capacity)
+    green.emit('time_preflight', capacity)
     if inspect_only:
         require(not remove_images, 'Inspection cannot remove images')
         green.emit('image_inventory', [{'id': row['Id'], 'tags': row.get('RepoTags'), 'created': row['Created'],
@@ -212,8 +223,8 @@ def deploy(folder, sha, inspect_only, remove_images):
         green.emit('capacity_after_image_cleanup', {'free': shutil.disk_usage(green.ROOT).free, 'required': required})
     require(shutil.disk_usage(green.ROOT).free > required, 'Insufficient disk reserve; no automatic cleanup')
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    release = green.ROOT / 'releases' / (sha + '-tc12-' + stamp)
-    report = green.ROOT / 'backups' / ('deploy-tc12-' + stamp + '.json')
+    release = green.ROOT / 'releases' / (sha + '-time-' + stamp)
+    report = green.ROOT / 'backups' / ('deploy-time-' + stamp + '.json')
     evidence = {'source_sha': sha, 'tested_sha': TESTED, 'previous': str(previous), 'release': str(release),
                 'images': images, 'vendor': vendor, 'stage': 'prepare', 'ci_run': False, 'seed_run': False,
                 'migration_run': False, 'flags_changed': False, 'production_activation': False,
@@ -236,7 +247,7 @@ def deploy(folder, sha, inspect_only, remove_images):
         shutil.copy2(previous / '.env', release / '.env')
         info = (previous / '.env').stat()
         (release / '.env').write_text(environment((previous / '.env').read_text(), {
-            'APP_BUILD_SHA': sha, 'APP_BUILD_REF': 'dev@' + sha[:8] + '+tc12+preserved-runtime-hotfixes',
+            'APP_BUILD_SHA': sha, 'APP_BUILD_REF': 'dev@' + sha[:8] + '+time-source-fix+preserved-runtime-hotfixes',
             'APP_BUILD_TIME': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'AUTO_MIGRATE': 'false'}))
         os.chown(release / '.env', info.st_uid, info.st_gid)
         os.chmod(release / '.env', 0o640)
@@ -253,7 +264,7 @@ def deploy(folder, sha, inspect_only, remove_images):
         green.compose(previous, ['stop', '-t', '120', *services], timeout=240)
         before_data = green.fingerprints()
         before_media = green.media_manifest(previous)
-        backup = green.ROOT / 'backups' / ('wms_hoanam_green_pre_tc12_' + stamp + '.dump')
+        backup = green.ROOT / 'backups' / ('wms_hoanam_green_pre_time_' + stamp + '.dump')
         with open(backup, 'xb') as stream:
             result = subprocess.run(['docker', 'exec', 'hoa_nam_green-postgres-1', 'pg_dump',
                                      '-U', 'postgres', '-d', green.DATABASE, '-Fc'],
@@ -302,11 +313,11 @@ def deploy(folder, sha, inspect_only, remove_images):
                          'completed_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
                          'free_bytes_after': shutil.disk_usage(green.ROOT).free})
         (release / 'release-operations.json').write_text(json.dumps(evidence, indent=2))
-        green.emit('tc12_deployed', {k: evidence[k] for k in ('source_sha', 'stage', 'migration_count',
+        green.emit('time_deployed', {k: evidence[k] for k in ('source_sha', 'stage', 'migration_count',
                    'data_unchanged', 'media_unchanged', 'verified_tables', 'verified_media_files', 'free_bytes_after')})
     except Exception as error:
         evidence['failure_type'] = type(error).__name__
-        green.emit('tc12_failed', {'stage': evidence['stage'], 'error_type': type(error).__name__,
+        green.emit('time_failed', {'stage': evidence['stage'], 'error_type': type(error).__name__,
                                  'safe_message': str(error) if isinstance(error, RuntimeError) else 'See private report'})
         if not reopened:
             if switched:
@@ -321,7 +332,7 @@ def deploy(folder, sha, inspect_only, remove_images):
     finally:
         report.write_text(json.dumps(evidence, indent=2))
         os.chmod(report, 0o600)
-        green.emit('tc12_private_report', {'path': str(report)})
+        green.emit('time_private_report', {'path': str(report)})
 
 
 if __name__ == '__main__':
