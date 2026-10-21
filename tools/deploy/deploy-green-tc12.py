@@ -225,6 +225,8 @@ def deploy(folder, sha, inspect_only, remove_images):
                      runner / 'devtest-auth-application', runner / 'devtest-smoke-source']
         green.emit('generated_package_sizes', [{'path': str(p), 'bytes': int(green.run(['du', '-sb', str(p)]).split()[0])}
                                               for p in generated if p.is_dir()])
+        usage = json.loads(green.run(['docker', 'system', 'df', '-v', '--format', '{{json .}}']))
+        green.emit('image_disk_usage', usage.get('Images', usage))
         green.emit('image_inventory', [{'id': row['Id'], 'tags': row.get('RepoTags'), 'created': row['Created'],
                    'bytes': row['Size'], 'protected': row['Id'] in protected} for row in all_images])
         return
