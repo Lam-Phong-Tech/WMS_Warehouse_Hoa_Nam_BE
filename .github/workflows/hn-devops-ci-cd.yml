@@ -113,7 +113,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$CONFIRMATION" in INSPECT-TC12|DEPLOY-TC12-NO-SEED|INSPECT-TIME-SOURCES|DEPLOY-TIME-NO-SEED) ;; *) exit 1 ;; esac
+          case "$CONFIRMATION" in INSPECT-TC12|DEPLOY-TC12-NO-SEED|INSPECT-TIME-SOURCES|DEPLOY-TIME-NO-SEED|INSPECT-NFC-TIME-SOURCES) ;; *) exit 1 ;; esac
           test "$DEPLOY_UAT" = false && test "$RUN_SEED" = false
           test "$PREFLIGHT" = false && test "$AUTH" = false && test "$OLD" = false && test "$OWNER_SMOKE" = false
           test "$HOST" = 42.96.16.197
@@ -124,7 +124,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Verify tested source and package committed files only
-        if: inputs.devtest_confirmation != 'INSPECT-TIME-SOURCES'
+        if: inputs.devtest_confirmation != 'INSPECT-TIME-SOURCES' && inputs.devtest_confirmation != 'INSPECT-NFC-TIME-SOURCES'
         shell: bash
         run: |
           set -euo pipefail
@@ -152,6 +152,7 @@ jobs:
             test "$owner" != UNKNOWN
             test "$(runuser -u "$owner" -- git -C "$source" rev-parse HEAD)" = "$RELEASE_SHA"
             case "$CONFIRMATION" in
+              INSPECT-NFC-TIME-SOURCES) docker exec -i -u www-data hoa_nam_green-backend-1 php < "$source/tools/deploy/inspect-nfc-timestamps.php" ;;
               INSPECT-TIME-SOURCES) docker exec -i -u www-data -e EXPECTED_BUILD_SHA=e2442df9cb03a50f57847aca0bcba78f0b2b2717 hoa_nam_green-backend-1 php < "$source/tools/deploy/inspect-timestamp-sources.php" ;;
               DEPLOY-TIME-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" ;;
               INSPECT-TC12) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" --inspect ;;
