@@ -8,8 +8,9 @@ require '/var/www/html/vendor/autoload.php';
 $app = require '/var/www/html/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 $db = DB::connection();
+$expectedBuild = getenv('EXPECTED_BUILD_SHA') ?: 'e2442df9cb03a50f57847aca0bcba78f0b2b2717';
 if ($db->getDriverName() !== 'pgsql' || $db->getDatabaseName() !== 'wms_hoanam_green'
-    || config('health.build.sha') !== 'e2442df9cb03a50f57847aca0bcba78f0b2b2717') {
+    || ! preg_match('/\A[0-9a-f]{40}\z/D', $expectedBuild) || config('health.build.sha') !== $expectedBuild) {
     throw new RuntimeException('NFC timestamp inspection target mismatch.');
 }
 $db->beginTransaction();
@@ -65,6 +66,19 @@ try {
     $audits = $db->table('audit_log')->where('object_type', 'physical_code')->where('object_id', $tag->physical_code_id)
         ->whereIn('action', ['ASSIGN_ITEM_NFC', 'REVOKE_ITEM_NFC'])->select(['id', 'action', 'created_at', 'request_id'])
         ->orderBy('created_at')->limit(10)->get();
+    $probe = null;
+    if (class_exists(Modules\Warehouse\Support\NfcTimestamp::class)) {
+        $writerValue = Modules\Warehouse\Support\NfcTimestamp::write(now());
+        $bound = $db->prepareBindings([$writerValue])[0];
+        if ($bound !== $writerValue) {
+            throw new RuntimeException('NFC binding discarded the offset.');
+        }
+        $probe = ['contract' => Modules\Warehouse\Support\NfcTimestamp::CONTRACT,
+            'writer_value' => $writerValue, 'bound_value' => $bound,
+            'assigned_at_serialized' => Modules\Warehouse\Support\NfcTimestamp::read($tag->assigned_at),
+            'deactivated_at_serialized' => Modules\Warehouse\Support\NfcTimestamp::read($tag->deactivated_at),
+            'historical_receipt_rewritten' => false];
+    }
     echo json_encode(['event' => 'nfc_timestamp_source_inspection', 'data' => [
         'kind' => 'SELECT_ONLY_NOT_AUTHENTICATED_HTTP', 'runtime_sha' => config('health.build.sha'),
         'observed_at' => now()->format('Y-m-d\TH:i:s.uP'), 'php_epoch' => microtime(true),
@@ -75,7 +89,7 @@ try {
         'receipt_bodies_fingerprint' => $receiptBefore, 'audit_timestamp_projection' => $audits,
         'binding_probe_no_write' => ['now_bound' => $db->prepareBindings([now()])[0],
             'aware_bound' => $db->prepareBindings([now()->format('Y-m-d H:i:s.uP')])[0]],
-        'mutations' => [],
+        'nfc_timestamp_probe' => $probe, 'mutations' => [],
     ]], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES), PHP_EOL;
 } finally {
     $db->rollBack();

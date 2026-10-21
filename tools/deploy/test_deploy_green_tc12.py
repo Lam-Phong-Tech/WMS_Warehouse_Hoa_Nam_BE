@@ -16,8 +16,8 @@ class Tc12DeployTest(unittest.TestCase):
         self.assertEqual(tc12.green.ROOT.as_posix(), '/opt/hoa-nam-green')
         self.assertEqual(len(tc12.green.OVERLAYS), 14)
         self.assertEqual(tc12.DEPLOY_RESERVE, 960 * 1024 ** 2)
-        self.assertEqual(tc12.PREVIOUS, '22272d9ea65bf4e52d39d632310eb820a6df65f0')
-        self.assertEqual(tc12.TESTED, 'f6969280a65e6223b5a937f5022791857a744a25')
+        self.assertEqual(tc12.PREVIOUS, 'e2442df9cb03a50f57847aca0bcba78f0b2b2717')
+        self.assertEqual(tc12.TESTED, '6bfa66dc5d0edaddd91b67e59811e269983c5d71')
 
     def test_environment_does_not_change_secrets_flags_or_duplicate_keys(self):
         old = 'PRIVATE=unchanged\nP14_SHIFT_ENABLED=true\nAPP_BUILD_SHA=old\n'
