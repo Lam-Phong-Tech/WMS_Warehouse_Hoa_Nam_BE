@@ -308,7 +308,7 @@ class P22NfcHistoryReadTest extends TestCase
             'previous_physical_code_id' => null, 'previous_hardware_uid' => null, 'previous_item_id' => $item,
             'previous_warehouse_id' => $w->id, ...$overrides];
 
-        return AuditLog::create(['actor_id' => $u->user_id, 'object_type' => 'physical_code', 'object_id' => $id,
+        return AuditLog::recordPayload(['actor_id' => $u->user_id, 'object_type' => 'physical_code', 'object_id' => $id,
             'action' => 'ASSIGN_ITEM_NFC', 'result' => null, 'reason' => 'Historical reason',
             'created_at' => now()->subDay()->startOfDay()->addHours(12),
             'after_data' => ['nfc_history_v1' => $data, 'arbitrary_private_field' => 'PRIVATE_SENTINEL'], ...$attributes]);

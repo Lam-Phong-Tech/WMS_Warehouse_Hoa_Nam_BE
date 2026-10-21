@@ -1,0 +1,123 @@
+{
+  "case": "TIME-P07-01",
+  "kind": "READ_ONLY_DB_AND_SELECTED_RECEIPT_FIELDS_NOT_AUTHENTICATED_HTTP",
+  "run": {
+    "conclusion": "success",
+    "headSha": "bc1b4c60b063f9edf6ceeac22afa9b20b9baefc6",
+    "status": "completed",
+    "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39549382272"
+  },
+  "input_sha256": "fa85f23416f8c91bfab67af49da525633687469964b20463e7ef98fd2ba69590",
+  "observation": {
+    "kind": "SELECT_ONLY_NOT_AUTHENTICATED_HTTP",
+    "runtime_sha": "e2442df9cb03a50f57847aca0bcba78f0b2b2717",
+    "observed_at": "2026-10-21T12:25:13.022606+07:00",
+    "php_epoch": 1792560313.022654,
+    "app_timezone": "Asia/Ho_Chi_Minh",
+    "php_timezone": "Asia/Ho_Chi_Minh",
+    "db": {
+      "session_timezone": "UTC",
+      "now": "2026-10-21 05:25:13.023318+00",
+      "epoch": "1792560313.023322"
+    },
+    "selected_identity": {
+      "uid": "53AC***0001",
+      "serial": "SN-PN-COV-***-007",
+      "sku": "CLMP-DON-S01"
+    },
+    "types": {
+      "physical_codes": {
+        "assigned_at": "timestamptz",
+        "created_at": "timestamptz",
+        "updated_at": "timestamptz",
+        "deactivated_at": "timestamptz"
+      },
+      "audit_log": {
+        "created_at": "timestamptz"
+      },
+      "idempotency_keys": {
+        "created_at": "timestamp",
+        "updated_at": "timestamp"
+      }
+    },
+    "tag": {
+      "physical_code_id": "d641ce1b-cf3a-4b76-8d32-fec41634c059",
+      "item_id": "1982077a-ddd8-4203-a97d-cb9dcea1b5b5",
+      "nfc_warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+      "status": "ACTIVE",
+      "assigned_at": "2026-10-21 12:09:01+00",
+      "created_at": "2026-10-21 12:09:01+00",
+      "updated_at": "2026-10-21 12:09:01+00",
+      "deactivated_at": null
+    },
+    "epochs": {
+      "assigned_at": "1792584541.000000",
+      "created_at": "1792584541.000000",
+      "updated_at": "1792584541.000000",
+      "deactivated_at": null
+    },
+    "receipt_timestamp_projection": [
+      {
+        "id": 271,
+        "status": "done",
+        "response_code": 201,
+        "request_id": "590efbfb-ce83-4329-b64a-ecd49d70c457",
+        "receipt_response_time": "2026-10-21T12:09:01+07:00",
+        "confirmation_state": "SUCCEEDED",
+        "assigned_at": "2026-10-21 12:09:01+00",
+        "created_at": "2026-10-21 12:09:01+00",
+        "updated_at": "2026-10-21 12:09:01+00",
+        "deactivated_at": null
+      }
+    ],
+    "receipt_bodies_fingerprint": "a100c78e2fa6f339e5af8c22029e6934",
+    "audit_timestamp_projection": [
+      {
+        "id": "01a15cdc-e051-72cd-a484-7d5869b0de87",
+        "action": "ASSIGN_ITEM_NFC",
+        "created_at": "2026-10-21 12:09:01+00",
+        "request_id": "590efbfb-ce83-4329-b64a-ecd49d70c457"
+      }
+    ],
+    "binding_probe_no_write": {
+      "now_bound": "2026-10-21 12:25:13",
+      "aware_bound": "2026-10-21 12:25:13.023644+07:00"
+    },
+    "mutations": []
+  },
+  "clock_delta_seconds": -0.0006680488586425781,
+  "original_request_id_source": "Persisted receipt meta.request_id and matching audit request_id; no new original HTTP response invented",
+  "historical_receipt_body_retrieved": false,
+  "full_authenticated_http": false,
+  "public_health": {
+    "observed_at": "2026-10-21T05:30:57.242Z",
+    "http_status": 200,
+    "sent_request_id": "01271fb1-5e63-4405-b646-856021f2f020",
+    "headers": {
+      "cache-control": "no-store, private",
+      "connection": "keep-alive",
+      "content-encoding": "gzip",
+      "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+      "content-type": "application/json",
+      "date": "Wed, 21 Oct 2026 05:30:57 GMT",
+      "expires": "0",
+      "permissions-policy": "geolocation=(), microphone=(), camera=(), payment=()",
+      "pragma": "no-cache",
+      "referrer-policy": "no-referrer",
+      "server": "nginx/1.18.0 (Ubuntu)",
+      "strict-transport-security": "max-age=31536000; includeSubDomains",
+      "transfer-encoding": "chunked",
+      "vary": "Accept-Encoding, Origin, Authorization",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "x-request-id": "01271fb1-5e63-4405-b646-856021f2f020",
+      "x-wms-deployment-tier": "dev-test"
+    },
+    "raw_body": "{\"success\":true,\"message\":\"Backend health check passed.\",\"data\":{\"status\":\"ok\",\"version\":\"1.0.0\",\"build\":{\"sha\":\"e2442df9cb03a50f57847aca0bcba78f0b2b2717\",\"ref\":\"dev@e2442df9+time-source-fix+preserved-runtime-hotfixes\",\"built_at\":\"2026-10-20T09:22:49.486453+00:00\"},\"environment\":\"testing\",\"server_time\":\"2026-10-21T12:30:57+07:00\",\"request_id\":\"01271fb1-5e63-4405-b646-856021f2f020\",\"checks\":{\"app\":{\"status\":\"ok\"},\"database\":{\"status\":\"ok\",\"driver\":\"pgsql\"},\"migrations\":{\"status\":\"ok\",\"ran_count\":218},\"seed\":{\"status\":\"ok\",\"markers\":{\"admin_user\":true,\"baseline_warehouse\":true,\"baseline_product\":true}},\"cache\":{\"status\":\"ok\",\"store\":\"redis\",\"ping\":\"PONG\"}}},\"meta\":{\"request_id\":\"01271fb1-5e63-4405-b646-856021f2f020\",\"timestamp\":\"2026-10-21T12:30:57+07:00\"}}"
+  },
+  "mutations": [],
+  "replay_confirm": false,
+  "repair": false,
+  "deployment": false,
+  "ci_run": false
+}

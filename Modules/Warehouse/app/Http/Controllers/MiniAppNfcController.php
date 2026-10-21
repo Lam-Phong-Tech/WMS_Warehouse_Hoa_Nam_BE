@@ -12,7 +12,6 @@ use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,6 +21,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
+use Modules\Warehouse\Support\NfcTimestamp;
 
 /**
  * Mini App NFC adapter — gán chip NFC cho từng hiện vật (item_instance) và tra
@@ -410,11 +410,11 @@ class MiniAppNfcController extends Controller
                             'status' => 'INACTIVE',
                             'is_primary' => false,
                             'replaced_by_code_id' => $physicalCodeId,
-                            'deactivated_at' => now(),
+                            'deactivated_at' => NfcTimestamp::write(now()),
                             'deactivation_reason' => $reason,
                             'version' => (int) ($currentTag->version ?? 1) + 1,
                             'updated_by' => $actorId,
-                            'updated_at' => now(),
+                            'updated_at' => NfcTimestamp::write(now()),
                         ]);
                     }
 
@@ -464,6 +464,7 @@ class MiniAppNfcController extends Controller
                         'nfc_required_for_post' => false,
                     ],
                     'meta' => [
+                        'timestamp_contract' => NfcTimestamp::CONTRACT,
                         'request_id' => $this->currentRequestId(),
                         'timestamp' => now()->toIso8601String(),
                     ],
@@ -583,7 +584,7 @@ class MiniAppNfcController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $rows->all(),
+            'data' => $rows->map(fn (object $row): array => NfcTimestamp::record((array) $row))->all(),
             'meta' => [
                 'current_page' => $page,
                 'per_page' => $perPage,
@@ -619,11 +620,11 @@ class MiniAppNfcController extends Controller
             DB::table('physical_codes')->where('physical_code_id', $physicalCodeId)->update([
                 'status' => (string) $validated['status'],
                 'is_primary' => false,
-                'deactivated_at' => now(),
+                'deactivated_at' => NfcTimestamp::write(now()),
                 'deactivation_reason' => trim((string) $validated['reason']),
                 'version' => (int) ($tag->version ?? 1) + 1,
                 'updated_by' => $actorId,
-                'updated_at' => now(),
+                'updated_at' => NfcTimestamp::write(now()),
             ]);
 
             AuditLogger::record(
@@ -694,9 +695,7 @@ class MiniAppNfcController extends Controller
             'actor_name' => $row->actor_name,
             'before_data' => $this->decodeAuditJson($row->before_data),
             'after_data' => $this->decodeAuditJson($row->after_data),
-            'created_at' => $row->created_at !== null
-                ? Carbon::parse($row->created_at)->toIso8601String()
-                : null,
+            'created_at' => NfcTimestamp::read($row->created_at),
         ]));
 
         return $this->respondPaginated($page);
@@ -975,6 +974,8 @@ class MiniAppNfcController extends Controller
     /** @return array<string, mixed> */
     private function tagInsertRow(string $physicalCodeId, string $itemId, string $codeValue, string $hardwareUid, string $actorId): array
     {
+        $timestamp = NfcTimestamp::write(now());
+
         return [
             'physical_code_id' => $physicalCodeId,
             'code_value' => $codeValue,
@@ -987,14 +988,14 @@ class MiniAppNfcController extends Controller
             'assigned_object_id' => $itemId,
             'encoded_payload_version' => (string) (config('warehouse.product_qr.supported_versions', [1])[0] ?? 1),
             'is_primary' => true,
-            'assigned_at' => now(),
+            'assigned_at' => $timestamp,
             'assigned_by' => $actorId,
             'status' => 'ACTIVE',
             'version' => 1,
             'created_by' => $actorId,
             'updated_by' => $actorId,
-            'created_at' => now(),
-            'updated_at' => now(),
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
         ];
     }
 
@@ -1012,7 +1013,10 @@ class MiniAppNfcController extends Controller
             'hardware_uid' => $tag->hardware_uid !== null ? (string) $tag->hardware_uid : null,
             'status' => (string) $tag->status,
             'is_primary' => (bool) ($tag->is_primary ?? false),
-            'assigned_at' => $tag->assigned_at ?? null,
+            'assigned_at' => NfcTimestamp::read($tag->assigned_at ?? null),
+            'created_at' => NfcTimestamp::read($tag->created_at ?? null),
+            'updated_at' => NfcTimestamp::read($tag->updated_at ?? null),
+            'deactivated_at' => NfcTimestamp::read($tag->deactivated_at ?? null),
             'replaced_by_code_id' => $tag->replaced_by_code_id ?? null,
             'version' => (int) ($tag->version ?? 1),
         ];

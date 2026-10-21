@@ -42,7 +42,7 @@ class ReconcileAuditOutbox extends Command
                         // savepoint also keeps PostgreSQL usable for the backoff
                         // update if publication or its marker fails.
                         DB::transaction(function () use ($entry): void {
-                            AuditLog::create($entry->payload);
+                            AuditLog::recordPayload($entry->payload);
                             $entry->update(['processed_at' => now(), 'last_error' => null]);
                         }, 1);
 

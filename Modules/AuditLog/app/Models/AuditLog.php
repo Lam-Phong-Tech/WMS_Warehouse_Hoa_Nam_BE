@@ -33,6 +33,23 @@ class AuditLog extends Model
         'created_at' => 'datetime',
     ];
 
+    /** Canonical logger/outbox insert; keep NFC event offsets through Eloquent casting. */
+    public static function recordPayload(array $payload): self
+    {
+        $event = new static;
+        $timestamp = $payload['created_at'] ?? null;
+        $aware = $timestamp instanceof \DateTimeInterface
+            || (is_string($timestamp) && preg_match('/(?:Z|[+-]\d{2}(?::?\d{2})?)\z/D', $timestamp));
+        if (($payload['object_type'] ?? null) === 'physical_code'
+            && in_array($payload['action'] ?? null, ['ASSIGN_ITEM_NFC', 'REVOKE_ITEM_NFC'], true) && $aware) {
+            $event->setDateFormat('Y-m-d H:i:s.uP');
+        }
+        $event->fill($payload);
+        $event->save();
+
+        return $event;
+    }
+
     /** app_user tương ứng actor_id — nullable vì hành động hệ thống/job không có actor. */
     public function actor(): BelongsTo
     {

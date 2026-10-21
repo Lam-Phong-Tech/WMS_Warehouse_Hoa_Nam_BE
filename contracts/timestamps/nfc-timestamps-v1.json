@@ -1,0 +1,27 @@
+{
+  "contract": "nfc-timestamps-v1",
+  "revision": "time-p07-01-r1",
+  "status": "SOURCE_FIXED_PENDING_RELEASE_AND_OWNER_HTTP_ACCEPTANCE",
+  "runtime_observed_sha": "e2442df9cb03a50f57847aca0bcba78f0b2b2717",
+  "discovery": "meta.timestamp_contract on new P07 confirm receipts, current P07 reads/reconciliation envelope and opt-in P22 reads",
+  "serialization": {"format": "RFC3339 UTC Z", "fractional_digits": 6, "precision": "Retain persisted precision; zero-padding is not additional measurement accuracy", "offset": "PRESERVE_INSTANT", "null": "PRESERVE_NULL", "missing": "Do not synthesize absent fields"},
+  "tag_fields": {"assigned_at": "physical_codes.assigned_at", "created_at": "physical_codes.created_at", "updated_at": "physical_codes.updated_at", "deactivated_at": "physical_codes.deactivated_at"},
+  "storage": {"postgres": "The selected runtime columns are timestamptz. New NFC inserts and updates bind strings including an explicit offset, preserving microseconds.", "sqlite": "New values retain their explicit offset. Legacy naive NFC fixture values follow the existing Vietnam wall-clock convention.", "timezone_change": false},
+  "surfaces": [
+    "PATCH /api/v1/mini-app/items/{itemId}/nfc - new successful receipt",
+    "GET /api/v1/mini-app/items/{itemId}/nfc/confirmation - outer envelope; nested persisted receipt remains unchanged",
+    "GET /api/v1/mini-app/nfc-tags",
+    "GET /api/v1/mini-app/nfc-tags/{physicalCodeId}",
+    "GET /api/v1/mini-app/items - nested nfc projection",
+    "POST /api/v1/mini-app/nfc/resolve-code and /resolve-tag - existing read resolver nfc projection",
+    "POST /api/v1/mini-app/nfc-tags/{physicalCodeId}/deactivate - existing owner response",
+    "GET /api/v1/mini-app/nfc-tags/{physicalCodeId}/events - persisted audit created_at",
+    "P22 opt-in P08 history records/detail/summary - persisted audit event time"
+  ],
+  "audit": {"actions": ["ASSIGN_ITEM_NFC", "REVOKE_ITEM_NFC"], "object_type": "physical_code", "source": "audit_log.created_at, not current physical_codes.assigned_at", "writer": "Capture an aware original event time before ORM date casting and outbox serialization. The canonical insert retains that offset through Eloquent.", "outbox": "Publication uses the captured event time, never publication time or a new lookup. Legacy naive queued values retain the previous binding behavior; this patch does not invent provenance.", "other_actions": "Existing date format and behavior unchanged"},
+  "p22": {"contract_unchanged": "p22-nfc-history-v1", "scope": "Existing actor/session/warehouse/snapshot and audit-details permission checks", "query": "Normalize the actual timestamp column before upper bound/date filtering, ordering and keyset paging; output RFC3339 from that same normalized value", "cursor": "Timestamp contract is bound in the existing cursor scope; old cursors are rejected with the existing scope-mismatch policy", "date_only": "Existing app timezone calendar-date query and exclusive next-day boundary remain unchanged"},
+  "historical_receipts": {"policy": "Replay original persisted response unchanged, including old timestamp text and absence of the new marker. Do not replace it using the current tag.", "current_mapping_read": "Serializes the persisted instant without correcting a bad write", "sample": {"persisted": "2026-10-21 12:09:01+00", "current_get_after_patch": "2026-10-21T12:09:01.000000Z", "vietnam_display": "2026-10-21 19:09:01", "repaired": false}},
+  "frontend": "Parse RFC3339 once, render Asia/Ho_Chi_Minh; equivalent Z/+00:00/+07:00 values represent the same instant. Do not subtract seven hours or relabel offsets on old receipt text.",
+  "operations": {"new_routes": [], "new_migrations": [], "new_env": [], "stock_effect": "NONE", "mapping_repair": false, "receipt_repair": false, "live_confirm_retried": false, "live_new_tag_assigned": false, "production_activation": false},
+  "acceptance": "OPEN until exact patch release, authenticated original-owner GET list/detail/receipt, and a separately approved new TEST write/read or equivalent owner evidence. Existing bad row/receipt need a separate data-owner decision. No production or whole-P07 PASS is implied."
+}

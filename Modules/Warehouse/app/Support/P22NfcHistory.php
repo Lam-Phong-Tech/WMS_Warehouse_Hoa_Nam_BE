@@ -33,7 +33,8 @@ final class P22NfcHistory
             $scope = $this->scope($request, $input['warehouse_id']);
             $filters = $input;
             unset($filters['cursor']);
-            $fingerprint = P08HistoryPolicy::fingerprint($scope, ['contract' => self::CONTRACT, 'path' => $request->path(), ...$filters]);
+            $fingerprint = P08HistoryPolicy::fingerprint($scope, ['contract' => self::CONTRACT,
+                'timestamp_contract' => NfcTimestamp::CONTRACT, 'path' => $request->path(), ...$filters]);
             $cursor = null;
             $asOf = $this->databaseTime(now());
             if (isset($input['cursor'])) {
@@ -71,7 +72,8 @@ final class P22NfcHistory
                     ->where('event_time', '<', $this->calendarBoundary(Carbon::createFromFormat('!Y-m-d', $to, $timezone)->addDay()));
             }
             $meta = ['contract' => self::CONTRACT, 'owner' => 'P08', 'source' => 'NFC', 'countUnit' => 'EVENT',
-                'warehouseId' => $scope['warehouse_id'], 'timezone' => config('app.timezone'), 'asOf' => $asOf,
+                'timestamp_contract' => NfcTimestamp::CONTRACT,
+                'warehouseId' => $scope['warehouse_id'], 'timezone' => config('app.timezone'), 'asOf' => HistoryTimestamp::utc($asOf),
                 'snapshot' => $snapshot, 'sources' => ['NFC' => ['status' => 'INCLUDED']],
                 'coveragePolicy' => 'ONLY_PERSISTED_EVENT_SNAPSHOTS', 'legacyPolicy' => 'EXCLUDE_UNPROVEN_EVENT_WAREHOUSE',
                 'resultPolicy' => 'OWNER_RESULT_SNAPSHOT_NO_STORAGE_DEFAULTS',
@@ -252,8 +254,9 @@ final class P22NfcHistory
         // The PostgreSQL compatibility writer defaults e.result NULL to SUCCESS.
         // Only the original, trusted owner snapshot can prove a P22 result.
         // Older snapshots without result remain unknown; never infer or backfill.
-        $q->selectRaw('CAST(e.id AS VARCHAR(150)) AS event_id, CAST(e.object_id AS VARCHAR(150)) AS owner_id, e.created_at AS event_time, '
-            ."COALESCE(CAST(e.created_at AS VARCHAR(60)), '') AS sort_time, e.action, ".$this->json('result').' AS status, e.reason, '.$type.' AS event_type');
+        $time = HistoryTimestamp::expression($table, 'e.created_at');
+        $q->selectRaw('CAST(e.id AS VARCHAR(150)) AS event_id, CAST(e.object_id AS VARCHAR(150)) AS owner_id, '.$time.' AS event_time, '
+            ."COALESCE(CAST($time AS VARCHAR(60)), '') AS sort_time, e.action, ".$this->json('result').' AS status, e.reason, '.$type.' AS event_type');
         foreach ($fields as $field) {
             $q->selectRaw($this->json($field).' AS '.$field);
         }
@@ -297,7 +300,7 @@ final class P22NfcHistory
             'physical_code_id' => $row->owner_id, 'source' => 'NFC', 'action' => $row->action,
             'type' => $row->event_type, 'type_label' => $names[$row->event_type], 'status' => $row->status,
             'status_source' => $row->status === null ? 'NOT_RECORDED' : 'PERSISTED_OWNER_RESULT',
-            'time' => $row->event_time, 'timeStatus' => $row->event_time === null ? 'NOT_RECORDED' : 'AUDIT_CREATED_AT',
+            'time' => HistoryTimestamp::utc($row->event_time), 'timeStatus' => $row->event_time === null ? 'NOT_RECORDED' : 'AUDIT_CREATED_AT',
             'hardware_uid' => $row->hardware_uid, 'previous_hardware_uid' => $row->previous_hardware_uid,
             'previous_physical_code_id' => $row->previous_physical_code_id,
             'item_id' => $row->item_id, 'serial_number' => $row->serial_number,
@@ -326,18 +329,12 @@ final class P22NfcHistory
 
     private function calendarBoundary(Carbon $time): string
     {
-        // SQLite compares stored timestamp text lexically. A fractional-zero
-        // suffix would exclude midnight at the start and include the next day.
-        // Keep the existing asOf/cursor precision unchanged.
-        return DB::getDriverName() === 'sqlite'
-            ? $time->copy()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s')
-            : $this->databaseTime($time);
+        return $this->databaseTime($time);
     }
 
     private function databaseTime(Carbon $time): string
     {
-        return DB::getDriverName() === 'pgsql' ? $time->copy()->utc()->format('Y-m-d\TH:i:s.uP')
-            : $time->copy()->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s.u');
+        return HistoryTimestamp::key($time);
     }
 
     private function reply(mixed $data, array $meta): JsonResponse

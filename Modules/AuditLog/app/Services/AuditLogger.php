@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\AuditLog\Models\AuditOutbox;
+use Modules\Warehouse\Support\NfcTimestamp;
 use Modules\Warehouse\Support\P22NfcAuditSnapshot;
 use RuntimeException;
 use Throwable;
@@ -81,7 +82,7 @@ class AuditLogger
             // nên fallback outbox bên dưới cũng sẽ chết với 25P02. Bọc trong
             // transaction lồng để Laravel cấp SAVEPOINT — lỗi chỉ rollback tới
             // savepoint và transaction nghiệp vụ vẫn ghi được outbox.
-            DB::transaction(fn () => AuditLog::create($payload));
+            DB::transaction(fn () => AuditLog::recordPayload($payload));
 
             return;
         } catch (Throwable $primaryError) {
@@ -210,7 +211,9 @@ class AuditLogger
             'ip_address' => self::resolveIpAddress(),
             'before_data' => $beforeData === [] ? null : self::sanitize($beforeData),
             'after_data' => $afterData === [] ? null : self::sanitize($afterData),
-            'created_at' => now(),
+            'created_at' => $objectType === 'physical_code'
+                && in_array(strtoupper($action), ['ASSIGN_ITEM_NFC', 'REVOKE_ITEM_NFC'], true)
+                    ? NfcTimestamp::write(now()) : now(),
         ];
     }
 

@@ -7,6 +7,7 @@ use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -17,6 +18,8 @@ use Illuminate\Validation\Rule;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\StableAuthSession;
 use Modules\Auth\Support\WarehouseContext;
+use Modules\Warehouse\Services\ProductQrPayloadParser;
+use Modules\Warehouse\Support\NfcTimestamp;
 use Modules\Warehouse\Support\P06ReadSnapshot;
 use Modules\Warehouse\Support\P07NfcPolicy;
 use Throwable;
@@ -29,7 +32,9 @@ use Throwable;
 final class P07NfcController extends MiniAppNfcController
 {
     private const HOLD = 'wms:nfc:write-reservation:';
+
     private const OPERATION = 'mini_app_nfc_confirm';
+
     private const TAB_SQL = "CASE WHEN pc.status = 'ACTIVE' AND pc.item_id IS NOT NULL THEN 'ASSIGNED' WHEN pc.status = 'ACTIVE' AND pc.item_id IS NULL THEN 'UNASSIGNED' WHEN pc.status IN ('INACTIVE','LOST','DAMAGED') THEN 'LOCKED' ELSE 'UNKNOWN' END";
 
     private function context(Request $request): array
@@ -102,7 +107,7 @@ final class P07NfcController extends MiniAppNfcController
 
     private function project(object $tag): array
     {
-        $data = (array) $tag;
+        $data = NfcTimestamp::record((array) $tag);
         unset($data['nfc_auth_session_id']);
         $tab = P07NfcPolicy::tab($tag->status, $tag->item_id ?? null);
         $data['tab_status'] = $tab;
@@ -264,7 +269,7 @@ final class P07NfcController extends MiniAppNfcController
                 $unique = strtoupper(trim((string) $item->serial_number));
                 if ($unique === '') {
                     foreach ($itemCodes as $code) {
-                        if (in_array($code->carrier_type, ['QR', 'BARCODE'], true) && ! app(\Modules\Warehouse\Services\ProductQrPayloadParser::class)->looksComposite($code->code_value)) {
+                        if (in_array($code->carrier_type, ['QR', 'BARCODE'], true) && ! app(ProductQrPayloadParser::class)->looksComposite($code->code_value)) {
                             $unique = strtoupper(trim($code->code_value));
                             if ($unique !== '') {
                                 break;
@@ -341,8 +346,7 @@ final class P07NfcController extends MiniAppNfcController
             return $replay;
         }
 
-        return $this->guard('idem:'.hash('sha256', (string) $scope['actor']->user_id.'|'.$key), fn (): JsonResponse =>
-            $this->guard($itemId, function () use ($request, $itemId, $scope, $input, $key): JsonResponse {
+        return $this->guard('idem:'.hash('sha256', (string) $scope['actor']->user_id.'|'.$key), fn (): JsonResponse => $this->guard($itemId, function () use ($request, $itemId, $scope, $input, $key): JsonResponse {
             // A request may have completed while this caller waited for the lock.
             if (($replay = $this->replayCommitted($request, $scope, $itemId, $key)) !== null) {
                 return $replay;
@@ -419,7 +423,7 @@ final class P07NfcController extends MiniAppNfcController
                 if ($ttl > 0) {
                     Cache::add(self::HOLD.$itemId, $held, $ttl);
                 }
-                if ($exception instanceof \Illuminate\Database\QueryException && ($exception->errorInfo[0] ?? null) === '23505') {
+                if ($exception instanceof QueryException && ($exception->errorInfo[0] ?? null) === '23505') {
                     ApiError::abort(409, 'NFC_UID_OR_CODE_CONFLICT', 'UID hoặc mã chip vừa được đăng ký bởi yêu cầu khác; đọc lại và đối chiếu trước khi tiếp tục.');
                 }
                 throw $exception;
@@ -563,6 +567,7 @@ final class P07NfcController extends MiniAppNfcController
     {
         return response()->json(['success' => true, 'data' => $data, 'meta' => $meta + [
             'contract' => 'mini-app-p07-v1', 'warehouse_id' => $scope['warehouse_id'],
+            'timestamp_contract' => NfcTimestamp::CONTRACT,
             'warehouse_scope' => 'EXPLICIT_NFC_ASSIGNMENT_OR_LEGACY_ITEM_LEDGER_HISTORY',
             'request_id' => request()->attributes->get('request_id'), 'timestamp' => now()->toIso8601String(),
         ]])->header('Cache-Control', 'private, no-store');
