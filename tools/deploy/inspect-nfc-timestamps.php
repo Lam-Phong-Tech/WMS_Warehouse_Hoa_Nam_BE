@@ -25,6 +25,8 @@ try {
         throw new RuntimeException('Selected NFC identity is missing or ambiguous.');
     }
     $tag = $rows->first();
+    $owner = $db->table('physical_codes')->where('physical_code_id', $tag->physical_code_id)
+        ->first(['assigned_by', 'nfc_auth_session_id']);
     $types = [];
     foreach (['physical_codes' => ['assigned_at', 'created_at', 'updated_at', 'deactivated_at'],
         'audit_log' => ['created_at'], 'idempotency_keys' => ['created_at', 'updated_at', 'finished_at']] as $table => $fields) {
@@ -52,6 +54,13 @@ try {
             ."CAST(response_body AS jsonb) #>> '{data,nfc,created_at}' AS created_at, "
             ."CAST(response_body AS jsonb) #>> '{data,nfc,updated_at}' AS updated_at, "
             ."CAST(response_body AS jsonb) #>> '{data,nfc,deactivated_at}' AS deactivated_at")
+        ->selectRaw("(CAST(response_body AS jsonb) #>> '{data,confirmation,actor_id}' = ? AND CAST(user_id AS text) = ?) AS actor_matches_tag_and_receipt_owner, "
+            ."CAST(response_body AS jsonb) #>> '{data,confirmation,auth_session_id}' = ? AS auth_session_matches_tag, "
+            ."CAST(response_body AS jsonb) #>> '{data,confirmation,warehouse_id}' = ? AS warehouse_matches_tag, "
+            ."CAST(response_body AS jsonb) #>> '{data,confirmation,item_id}' = ? AS item_matches_tag, "
+            ."CAST(response_body AS jsonb) #>> '{data,confirmation,physical_code_id}' = ? AS confirmation_matches_tag",
+            [$owner->assigned_by, $owner->assigned_by, $owner->nfc_auth_session_id,
+                $tag->nfc_warehouse_id, $tag->item_id, $tag->physical_code_id])
         ->orderBy('id')->limit(5)->get();
     $audits = $db->table('audit_log')->where('object_type', 'physical_code')->where('object_id', $tag->physical_code_id)
         ->whereIn('action', ['ASSIGN_ITEM_NFC', 'REVOKE_ITEM_NFC'])->select(['id', 'action', 'created_at', 'request_id'])
