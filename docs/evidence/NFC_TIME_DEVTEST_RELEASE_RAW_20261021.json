@@ -1,0 +1,823 @@
+{
+  "case": "TIME-P07-01",
+  "status": "DEVTEST_DEPLOYED_PENDING_ORIGINAL_OWNER_HTTP_AND_NEW_TEST_WRITE",
+  "run": {
+    "conclusion": "success",
+    "createdAt": "2026-10-21T06:50:48Z",
+    "headSha": "8be640aa74704b12fe891f8a6db5969901efd8b2",
+    "jobs": [
+      {
+        "completedAt": "2026-10-21T06:50:50Z",
+        "conclusion": "skipped",
+        "databaseId": 119082178053,
+        "name": "devtest-auth-release",
+        "startedAt": "2026-10-21T06:50:51Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39557980205/job/119082178053"
+      },
+      {
+        "completedAt": "2026-10-21T06:50:50Z",
+        "conclusion": "skipped",
+        "databaseId": 119082178201,
+        "name": "devtest-owner-smoke",
+        "startedAt": "2026-10-21T06:50:51Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39557980205/job/119082178201"
+      },
+      {
+        "completedAt": "2026-10-21T06:58:16Z",
+        "conclusion": "success",
+        "databaseId": 119082178320,
+        "name": "devtest-tc12",
+        "startedAt": "2026-10-21T06:50:56Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-21T06:51:12Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-21T06:51:00Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-21T06:51:12Z",
+            "conclusion": "success",
+            "name": "Require TC12-only operator intent",
+            "number": 2,
+            "startedAt": "2026-10-21T06:51:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-21T06:51:18Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@v4",
+            "number": 3,
+            "startedAt": "2026-10-21T06:51:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-21T06:51:24Z",
+            "conclusion": "success",
+            "name": "Verify tested source and package committed files only",
+            "number": 4,
+            "startedAt": "2026-10-21T06:51:18Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-21T06:57:58Z",
+            "conclusion": "success",
+            "name": "Inspect or promote green without stock or session commands",
+            "number": 5,
+            "startedAt": "2026-10-21T06:51:24Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-21T06:58:00Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@v4",
+            "number": 10,
+            "startedAt": "2026-10-21T06:57:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-21T06:58:12Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 11,
+            "startedAt": "2026-10-21T06:58:01Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39557980205/job/119082178320"
+      },
+      {
+        "completedAt": "2026-10-21T06:50:50Z",
+        "conclusion": "skipped",
+        "databaseId": 119082207894,
+        "name": "deploy-uat",
+        "startedAt": "2026-10-21T06:50:56Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39557980205/job/119082207894"
+      },
+      {
+        "completedAt": "2026-10-21T06:50:50Z",
+        "conclusion": "skipped",
+        "databaseId": 119082208046,
+        "name": "ci",
+        "startedAt": "2026-10-21T06:50:56Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39557980205/job/119082208046"
+      },
+      {
+        "completedAt": "2026-10-21T06:50:50Z",
+        "conclusion": "skipped",
+        "databaseId": 119082209815,
+        "name": "devtest-preflight",
+        "startedAt": "2026-10-21T06:50:56Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39557980205/job/119082209815"
+      },
+      {
+        "completedAt": "2026-10-21T06:50:50Z",
+        "conclusion": "skipped",
+        "databaseId": 119082235435,
+        "name": "devtest-verified-deploy",
+        "startedAt": "2026-10-21T06:51:00Z",
+        "status": "completed",
+        "steps": [],
+        "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39557980205/job/119082235435"
+      }
+    ],
+    "status": "completed",
+    "updatedAt": "2026-10-21T06:58:17Z",
+    "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/39557980205"
+  },
+  "events": [
+    {
+      "event": "nfc_time_packaged",
+      "data": {
+        "sha": "8be640aa74704b12fe891f8a6db5969901efd8b2",
+        "tested_sha": "6bfa66dc5d0edaddd91b67e59811e269983c5d71",
+        "runtime_delta": [
+          "Modules/AuditLog/app/Models/AuditLog.php",
+          "Modules/AuditLog/app/Services/AuditLogger.php",
+          "Modules/Warehouse/app/Http/Controllers/MiniAppNfcController.php",
+          "Modules/Warehouse/app/Http/Controllers/P07NfcController.php",
+          "Modules/Warehouse/app/Support/NfcTimestamp.php",
+          "Modules/Warehouse/app/Support/P22NfcHistory.php",
+          "app/Console/Commands/ReconcileAuditOutbox.php"
+        ],
+        "archive_bytes": 36546386
+      }
+    },
+    {
+      "event": "nfc_time_preflight",
+      "data": {
+        "free": 771805184,
+        "required": 1148776685,
+        "source_bytes": 75623033,
+        "storage_bytes": 32966260,
+        "reserve": 1006632960,
+        "rollback_images": {
+          "backend": "sha256:69aad9b47acd88192a463c72045fb8ae77789719bbcc7421226e93c91eadd44b",
+          "queue": "sha256:69aad9b47acd88192a463c72045fb8ae77789719bbcc7421226e93c91eadd44b",
+          "scheduler": "sha256:69aad9b47acd88192a463c72045fb8ae77789719bbcc7421226e93c91eadd44b"
+        }
+      }
+    },
+    {
+      "event": "unused_image_removed",
+      "data": {
+        "id": "sha256:04ec8413a16f5f0881d0eaa7ec450a064a14bcbef1557ed25ed79085b464ea7c",
+        "tags": [
+          "hoa-nam-green-scheduler:026f4f758da5e5ef8c16096ad5ec5cc963b37dba-20261013T083022Z",
+          "hoa-nam-green-scheduler:048d0df67d6df21e556aea0484c1419d9f092f5c-20261009T221020Z",
+          "hoa-nam-green-scheduler:048d0df67d6df21e556aea0484c1419d9f092f5c-20261009T234334Z",
+          "hoa-nam-green-scheduler:073ea02503287adcbfb76ef1edd2f23d52572aa2-20261009T091310Z",
+          "hoa-nam-green-scheduler:11ff921cc3ec26256e3ef6eddc60ac4b64c33b41-20261013T072833Z",
+          "hoa-nam-green-scheduler:1b58c6a4982d737c3ea4a27c9281f15d7fb299d6-20261012T073426Z",
+          "hoa-nam-green-scheduler:27e69d21e350b5a112ac08a648c8fa41f54ce302-20261012T131706Z",
+          "hoa-nam-green-scheduler:2e4224e6f1822371dd17e3124921e4d5a5d0f6a1-20261008T083539Z",
+          "hoa-nam-green-scheduler:41bdbaeed0e15c14135ab778e3cdf698ded41982-20261008T073202Z",
+          "hoa-nam-green-scheduler:47636e0a3fc688be07071e2d2af5508b226e8805-20261009T051145Z",
+          "hoa-nam-green-scheduler:48c7f8fe1fd5c66003b79eb06e84dc65b07c599b-20261010T091320Z",
+          "hoa-nam-green-scheduler:6bca132ced532579856acb411dfd932a5a909e34-20261008T072515Z",
+          "hoa-nam-green-scheduler:7d661813fc357c32f0333dcda17b9b0fa0f0edcd-20261008T110958Z",
+          "hoa-nam-green-scheduler:8341412f2d1b20237d6bc1d59ecf41cf3bf5b766-20261011T155531Z",
+          "hoa-nam-green-scheduler:916a80c3bd07e1ce7f298c6179090669ee65f0ed-20261013T070915Z",
+          "hoa-nam-green-scheduler:97038afedfe68cbfe1f830c576a6c81b06f22e31-20261008T065533Z",
+          "hoa-nam-green-scheduler:a55ee4aed42be956153ea0585ceab190be7b5c67-20261010T043227Z",
+          "hoa-nam-green-scheduler:c7a3ea35a489e0cc6ae6de6caf1440bd79b70dbf-20261008T112801Z",
+          "hoa-nam-green-scheduler:c9032d12dc48d305d2b0f9c5118b02de561c9625-20261008T115427Z",
+          "hoa-nam-green-scheduler:d3d44f07207086cbb18fa0f958d89d50142a5431-20261010T063936Z",
+          "hoa-nam-green-scheduler:eaa8fd2fd4ffb4013e6b72da0fa1384e80ef0154-20261011T124930Z",
+          "hoa-nam-green-scheduler:eaa8fd2fd4ffb4013e6b72da0fa1384e80ef0154-20261011T125543Z",
+          "hoa-nam-green-scheduler:ed8be1f06d3124364614ea6a74a1998edcbae3f0-20261008T120953Z",
+          "hoa-nam-green-scheduler:previous-20261008T065438Z",
+          "hoa-nam-green-scheduler:previous-20261008T065533Z",
+          "hoa-nam-green-scheduler:previous-20261008T072515Z",
+          "hoa-nam-green-scheduler:previous-20261008T073202Z",
+          "hoa-nam-green-scheduler:previous-20261011T124930Z",
+          "hoa-nam-green-scheduler:previous-20261011T125543Z",
+          "hoa-nam-green-scheduler:previous-20261011T155531Z",
+          "hoa-nam-green-scheduler:previous-20261012T073426Z",
+          "hoa-nam-green-scheduler:previous-20261012T131706Z",
+          "hoa-nam-green-scheduler:previous-20261013T070915Z",
+          "hoa-nam-green-scheduler:previous-20261013T072833Z",
+          "hoa-nam-green-scheduler:previous-20261013T083022Z",
+          "hoa-nam-green-scheduler:previous-20261013T151915Z",
+          "hoa-nam-green-scheduler:previous-code-20261008T083539Z",
+          "hoa-nam-green-scheduler:previous-code-20261008T110958Z",
+          "hoa-nam-green-scheduler:previous-code-20261008T112801Z",
+          "hoa-nam-green-scheduler:previous-code-20261008T115427Z",
+          "hoa-nam-green-scheduler:previous-code-20261008T120953Z",
+          "hoa-nam-green-scheduler:previous-code-20261009T051145Z",
+          "hoa-nam-green-scheduler:previous-code-20261009T091310Z",
+          "hoa-nam-green-scheduler:previous-code-20261009T221020Z",
+          "hoa-nam-green-scheduler:previous-code-20261009T234334Z",
+          "hoa-nam-green-scheduler:previous-code-20261010T043227Z",
+          "hoa-nam-green-scheduler:previous-code-20261010T063936Z",
+          "hoa-nam-green-scheduler:previous-code-20261010T091320Z"
+        ],
+        "bytes": 597990194
+      }
+    },
+    {
+      "event": "unused_image_removed",
+      "data": {
+        "id": "sha256:5efeb7d439bb7f5a1f565a07f64cce0fee4813ad2a8edebcee5efa0c2075246a",
+        "tags": [
+          "hoa-nam-green-backend:026f4f758da5e5ef8c16096ad5ec5cc963b37dba-20261013T083022Z",
+          "hoa-nam-green-backend:048d0df67d6df21e556aea0484c1419d9f092f5c-20261009T221020Z",
+          "hoa-nam-green-backend:048d0df67d6df21e556aea0484c1419d9f092f5c-20261009T234334Z",
+          "hoa-nam-green-backend:073ea02503287adcbfb76ef1edd2f23d52572aa2-20261009T091310Z",
+          "hoa-nam-green-backend:11ff921cc3ec26256e3ef6eddc60ac4b64c33b41-20261013T072833Z",
+          "hoa-nam-green-backend:1b58c6a4982d737c3ea4a27c9281f15d7fb299d6-20261012T073426Z",
+          "hoa-nam-green-backend:27e69d21e350b5a112ac08a648c8fa41f54ce302-20261012T131706Z",
+          "hoa-nam-green-backend:2e4224e6f1822371dd17e3124921e4d5a5d0f6a1-20261008T083539Z",
+          "hoa-nam-green-backend:41bdbaeed0e15c14135ab778e3cdf698ded41982-20261008T073202Z",
+          "hoa-nam-green-backend:47636e0a3fc688be07071e2d2af5508b226e8805-20261009T051145Z",
+          "hoa-nam-green-backend:48c7f8fe1fd5c66003b79eb06e84dc65b07c599b-20261010T091320Z",
+          "hoa-nam-green-backend:6bca132ced532579856acb411dfd932a5a909e34-20261008T072515Z",
+          "hoa-nam-green-backend:7d661813fc357c32f0333dcda17b9b0fa0f0edcd-20261008T110958Z",
+          "hoa-nam-green-backend:8341412f2d1b20237d6bc1d59ecf41cf3bf5b766-20261011T155531Z",
+          "hoa-nam-green-backend:916a80c3bd07e1ce7f298c6179090669ee65f0ed-20261013T070915Z",
+          "hoa-nam-green-backend:97038afedfe68cbfe1f830c576a6c81b06f22e31-20261008T065533Z",
+          "hoa-nam-green-backend:a55ee4aed42be956153ea0585ceab190be7b5c67-20261010T043227Z",
+          "hoa-nam-green-backend:c7a3ea35a489e0cc6ae6de6caf1440bd79b70dbf-20261008T112801Z",
+          "hoa-nam-green-backend:c9032d12dc48d305d2b0f9c5118b02de561c9625-20261008T115427Z",
+          "hoa-nam-green-backend:d3d44f07207086cbb18fa0f958d89d50142a5431-20261010T063936Z",
+          "hoa-nam-green-backend:eaa8fd2fd4ffb4013e6b72da0fa1384e80ef0154-20261011T124930Z",
+          "hoa-nam-green-backend:eaa8fd2fd4ffb4013e6b72da0fa1384e80ef0154-20261011T125543Z",
+          "hoa-nam-green-backend:ed8be1f06d3124364614ea6a74a1998edcbae3f0-20261008T120953Z",
+          "hoa-nam-green-backend:previous-20261008T065438Z",
+          "hoa-nam-green-backend:previous-20261008T065533Z",
+          "hoa-nam-green-backend:previous-20261008T072515Z",
+          "hoa-nam-green-backend:previous-20261008T073202Z",
+          "hoa-nam-green-backend:previous-20261011T124930Z",
+          "hoa-nam-green-backend:previous-20261011T125543Z",
+          "hoa-nam-green-backend:previous-20261011T155531Z",
+          "hoa-nam-green-backend:previous-20261012T073426Z",
+          "hoa-nam-green-backend:previous-20261012T131706Z",
+          "hoa-nam-green-backend:previous-20261013T070915Z",
+          "hoa-nam-green-backend:previous-20261013T072833Z",
+          "hoa-nam-green-backend:previous-20261013T083022Z",
+          "hoa-nam-green-backend:previous-20261013T151915Z",
+          "hoa-nam-green-backend:previous-code-20261008T083539Z",
+          "hoa-nam-green-backend:previous-code-20261008T110958Z",
+          "hoa-nam-green-backend:previous-code-20261008T112801Z",
+          "hoa-nam-green-backend:previous-code-20261008T115427Z",
+          "hoa-nam-green-backend:previous-code-20261008T120953Z",
+          "hoa-nam-green-backend:previous-code-20261009T051145Z",
+          "hoa-nam-green-backend:previous-code-20261009T091310Z",
+          "hoa-nam-green-backend:previous-code-20261009T221020Z",
+          "hoa-nam-green-backend:previous-code-20261009T234334Z",
+          "hoa-nam-green-backend:previous-code-20261010T043227Z",
+          "hoa-nam-green-backend:previous-code-20261010T063936Z",
+          "hoa-nam-green-backend:previous-code-20261010T091320Z"
+        ],
+        "bytes": 597990194
+      }
+    },
+    {
+      "event": "unused_image_removed",
+      "data": {
+        "id": "sha256:a76d6531fdefb0c65d1a6debff5f4c8bd7647c0b433c801e27fd70edd2437e87",
+        "tags": [
+          "hoa-nam-green-queue:026f4f758da5e5ef8c16096ad5ec5cc963b37dba-20261013T083022Z",
+          "hoa-nam-green-queue:048d0df67d6df21e556aea0484c1419d9f092f5c-20261009T221020Z",
+          "hoa-nam-green-queue:048d0df67d6df21e556aea0484c1419d9f092f5c-20261009T234334Z",
+          "hoa-nam-green-queue:073ea02503287adcbfb76ef1edd2f23d52572aa2-20261009T091310Z",
+          "hoa-nam-green-queue:11ff921cc3ec26256e3ef6eddc60ac4b64c33b41-20261013T072833Z",
+          "hoa-nam-green-queue:1b58c6a4982d737c3ea4a27c9281f15d7fb299d6-20261012T073426Z",
+          "hoa-nam-green-queue:27e69d21e350b5a112ac08a648c8fa41f54ce302-20261012T131706Z",
+          "hoa-nam-green-queue:2e4224e6f1822371dd17e3124921e4d5a5d0f6a1-20261008T083539Z",
+          "hoa-nam-green-queue:41bdbaeed0e15c14135ab778e3cdf698ded41982-20261008T073202Z",
+          "hoa-nam-green-queue:47636e0a3fc688be07071e2d2af5508b226e8805-20261009T051145Z",
+          "hoa-nam-green-queue:48c7f8fe1fd5c66003b79eb06e84dc65b07c599b-20261010T091320Z",
+          "hoa-nam-green-queue:6bca132ced532579856acb411dfd932a5a909e34-20261008T072515Z",
+          "hoa-nam-green-queue:7d661813fc357c32f0333dcda17b9b0fa0f0edcd-20261008T110958Z",
+          "hoa-nam-green-queue:8341412f2d1b20237d6bc1d59ecf41cf3bf5b766-20261011T155531Z",
+          "hoa-nam-green-queue:916a80c3bd07e1ce7f298c6179090669ee65f0ed-20261013T070915Z",
+          "hoa-nam-green-queue:97038afedfe68cbfe1f830c576a6c81b06f22e31-20261008T065533Z",
+          "hoa-nam-green-queue:a55ee4aed42be956153ea0585ceab190be7b5c67-20261010T043227Z",
+          "hoa-nam-green-queue:c7a3ea35a489e0cc6ae6de6caf1440bd79b70dbf-20261008T112801Z",
+          "hoa-nam-green-queue:c9032d12dc48d305d2b0f9c5118b02de561c9625-20261008T115427Z",
+          "hoa-nam-green-queue:d3d44f07207086cbb18fa0f958d89d50142a5431-20261010T063936Z",
+          "hoa-nam-green-queue:eaa8fd2fd4ffb4013e6b72da0fa1384e80ef0154-20261011T124930Z",
+          "hoa-nam-green-queue:eaa8fd2fd4ffb4013e6b72da0fa1384e80ef0154-20261011T125543Z",
+          "hoa-nam-green-queue:ed8be1f06d3124364614ea6a74a1998edcbae3f0-20261008T120953Z",
+          "hoa-nam-green-queue:previous-20261008T065438Z",
+          "hoa-nam-green-queue:previous-20261008T065533Z",
+          "hoa-nam-green-queue:previous-20261008T072515Z",
+          "hoa-nam-green-queue:previous-20261008T073202Z",
+          "hoa-nam-green-queue:previous-20261011T124930Z",
+          "hoa-nam-green-queue:previous-20261011T125543Z",
+          "hoa-nam-green-queue:previous-20261011T155531Z",
+          "hoa-nam-green-queue:previous-20261012T073426Z",
+          "hoa-nam-green-queue:previous-20261012T131706Z",
+          "hoa-nam-green-queue:previous-20261013T070915Z",
+          "hoa-nam-green-queue:previous-20261013T072833Z",
+          "hoa-nam-green-queue:previous-20261013T083022Z",
+          "hoa-nam-green-queue:previous-20261013T151915Z",
+          "hoa-nam-green-queue:previous-code-20261008T083539Z",
+          "hoa-nam-green-queue:previous-code-20261008T110958Z",
+          "hoa-nam-green-queue:previous-code-20261008T112801Z",
+          "hoa-nam-green-queue:previous-code-20261008T115427Z",
+          "hoa-nam-green-queue:previous-code-20261008T120953Z",
+          "hoa-nam-green-queue:previous-code-20261009T051145Z",
+          "hoa-nam-green-queue:previous-code-20261009T091310Z",
+          "hoa-nam-green-queue:previous-code-20261009T221020Z",
+          "hoa-nam-green-queue:previous-code-20261009T234334Z",
+          "hoa-nam-green-queue:previous-code-20261010T043227Z",
+          "hoa-nam-green-queue:previous-code-20261010T063936Z",
+          "hoa-nam-green-queue:previous-code-20261010T091320Z"
+        ],
+        "bytes": 597990194
+      }
+    },
+    {
+      "event": "unused_image_removed",
+      "data": {
+        "id": "sha256:933dcc2755ff5dd8381f35c037fff6e948f72d5cc8ec4a4c3629fb6e741a53a5",
+        "tags": [
+          "hoa_nam_seed_7d-queue:latest"
+        ],
+        "bytes": 597990194
+      }
+    },
+    {
+      "event": "unused_image_removed",
+      "data": {
+        "id": "sha256:94248014cac0531d2490236e278ae07152d7a82a94ec70fb7cc168166fb6e4f4",
+        "tags": [
+          "hoa_nam_seed_7d-backend:latest"
+        ],
+        "bytes": 597990194
+      }
+    },
+    {
+      "event": "unused_image_removed",
+      "data": {
+        "id": "sha256:da40bc519bd96df939c4524fd2ef328fdcc6211b75eff23669046ecdf6528a3b",
+        "tags": [
+          "hoa_nam_seed_7d-scheduler:latest"
+        ],
+        "bytes": 597990194
+      }
+    },
+    {
+      "event": "unused_image_removed",
+      "data": {
+        "id": "sha256:3bb6e4002e1fd1ce57e91164ba3a49dd1ace2b6a9a5675e13a6e54493e110b4e",
+        "tags": [
+          "hn-public-verify:36209056584",
+          "hoa-nam-backend-backend:016808592dbe61d511fa4fe3eaf37bc5f5cff6c9",
+          "hoa-nam-backend-backend:01a52d8441b453c01511ee4c60e14503cd6bf948",
+          "hoa-nam-backend-backend:026f4f758da5e5ef8c16096ad5ec5cc963b37dba",
+          "hoa-nam-backend-backend:048d0df67d6df21e556aea0484c1419d9f092f5c",
+          "hoa-nam-backend-backend:0548209081eb29fdc152f1c6b626eec90884a99d",
+          "hoa-nam-backend-backend:073ea02503287adcbfb76ef1edd2f23d52572aa2",
+          "hoa-nam-backend-backend:1097d92623e36589d56126719da28b8e82aa9589",
+          "hoa-nam-backend-backend:11ff921cc3ec26256e3ef6eddc60ac4b64c33b41",
+          "hoa-nam-backend-backend:13c6e1a1f7c635658d08fdcc9bdbaccdcc0da270",
+          "hoa-nam-backend-backend:14288ffc80f093ef7550c40683fe2ea641ec58e9",
+          "hoa-nam-backend-backend:154b699effdde04eb7f37cbfc3d1350b6a9d6c10",
+          "hoa-nam-backend-backend:168a22d1bbf4b82e2500fd87697ff0a55004c013",
+          "hoa-nam-backend-backend:169b2c17c48b3c77d71894d7bb1962ac371aa7e6",
+          "hoa-nam-backend-backend:16d51aa39fb1aeab7ced23e40cf2446ec91dd8bd",
+          "hoa-nam-backend-backend:180902561bae221c153e1b9e97cb70f0d6e3904c",
+          "hoa-nam-backend-backend:186a0eee6bc73809670a369aff9b09d1694c9cab",
+          "hoa-nam-backend-backend:189b92cf21a954331edc99f5b9651c45c4f1a094",
+          "hoa-nam-backend-backend:1998be5ed690204f5c39b37f34ccf264fe66ea69",
+          "hoa-nam-backend-backend:1b58c6a4982d737c3ea4a27c9281f15d7fb299d6",
+          "hoa-nam-backend-backend:1cd270f739e7aed77f1d675bd55edc7fe8e3c286",
+          "hoa-nam-backend-backend:1ddc11c4b17688a2b74a5c621f13d5c1c1a9a552",
+          "hoa-nam-backend-backend:1e8beb066ea74104012ff21026c9a320ab34b326",
+          "hoa-nam-backend-backend:1ebf06cfbf1823b6cec6e276d172a98a1c2a3cda",
+          "hoa-nam-backend-backend:1eeb1ecc13ae6790fdc080ebb2e6360fdf3c2ef2",
+          "hoa-nam-backend-backend:1fcadb9a9bc4122ae33fe3a66e6c4f855ff30879",
+          "hoa-nam-backend-backend:2086273bd2fec3ddda6ec0f1ebb15301458c1c7a",
+          "hoa-nam-backend-backend:226ba635d12b1722da1dea8969480d244ac65bf5",
+          "hoa-nam-backend-backend:237a93e98989b208fad4c05ed931ccffc175eaa0",
+          "hoa-nam-backend-backend:25034b093107139718bd2a9257c6a11af034182c",
+          "hoa-nam-backend-backend:251583a011c00e5239351ab79f624236bc4397dc",
+          "hoa-nam-backend-backend:264033768e93b665cfe23790f75c7509cdb11576",
+          "hoa-nam-backend-backend:273c0b3e86fc83c6183b39e9b3f85da259bd6998",
+          "hoa-nam-backend-backend:27e69d21e350b5a112ac08a648c8fa41f54ce302",
+          "hoa-nam-backend-backend:2aa3d797043a720991e33f492cce2e85501c4092",
+          "hoa-nam-backend-backend:2e4224e6f1822371dd17e3124921e4d5a5d0f6a1",
+          "hoa-nam-backend-backend:2ec63f67fe4ba741f8b94c1c6d4a02c05513d7f7",
+          "hoa-nam-backend-backend:2f1c65b462d84ad16aad3758568cc2695c2da752",
+          "hoa-nam-backend-backend:31f1d238079b343a14b434ca7efaf999db53d6de",
+          "hoa-nam-backend-backend:323b357b23cb73396c29d326210d86274e497fd5",
+          "hoa-nam-backend-backend:32abcc6945013ac7da6772ca4f294039808a0642",
+          "hoa-nam-backend-backend:3669eb6cb1888a9207061ee6400c48b42b66885e",
+          "hoa-nam-backend-backend:3baa4c7c6d4ae3294d83f50f4119e02c77ddeee2",
+          "hoa-nam-backend-backend:3d70f199dd7875806c66d22e94329e77c6803e2b",
+          "hoa-nam-backend-backend:3f530af5801c8cb90ea9bb01dd1f497a138a1642",
+          "hoa-nam-backend-backend:4113826a7179a1d54ff2231c88a8cd3477279aa8",
+          "hoa-nam-backend-backend:413cffe6b8c45b135fc41b9043cfbb347a1c18a5",
+          "hoa-nam-backend-backend:416c59b5fbde719bda071e40b3b63cdd8fdaccde",
+          "hoa-nam-backend-backend:41bdbaeed0e15c14135ab778e3cdf698ded41982",
+          "hoa-nam-backend-backend:4267b79ad69645835125f2901634dc4d19720413",
+          "hoa-nam-backend-backend:44bf55a6936f1cbfc7048973de20188a2683d5eb",
+          "hoa-nam-backend-backend:45bcc3817cda81d2d3c07924bb9b65af0cc61f1f",
+          "hoa-nam-backend-backend:4635550bb8a2fd465cf5895897498547de9d2a83",
+          "hoa-nam-backend-backend:47636e0a3fc688be07071e2d2af5508b226e8805",
+          "hoa-nam-backend-backend:48c7f8fe1fd5c66003b79eb06e84dc65b07c599b",
+          "hoa-nam-backend-backend:4b03fe257cb541f268f02182e7114c302802a747",
+          "hoa-nam-backend-backend:4b67560b340126eb7abf751cdf9dede7ca924dd7",
+          "hoa-nam-backend-backend:4be9a6152e5d90fbe8576a8e7687ad76ec531678",
+          "hoa-nam-backend-backend:4d5054d9401e4994d312c54cbb596a9c372aa5e1",
+          "hoa-nam-backend-backend:4e817547ed6fe3f4f18d00ca087b6cfe464ba01c",
+          "hoa-nam-backend-backend:4e8726ee8916d234ccc0ab85ee2f70189c593e0b",
+          "hoa-nam-backend-backend:4e8ffb4c51e7fb03c18074b4a4f33f006419763f",
+          "hoa-nam-backend-backend:4f2fe8c2b4ea83d7b991aa536082e379f7f1f006",
+          "hoa-nam-backend-backend:4f6bc5257ee86c3573508110f211676b6cfa7a45",
+          "hoa-nam-backend-backend:536d3a7bf558515c5c7853cc49252a2c96a6973b",
+          "hoa-nam-backend-backend:5416bba97d3390f754cdfbea97d6d4d21a18cd3c",
+          "hoa-nam-backend-backend:5802bf5c526a0df6409413529681ba7f2a930597",
+          "hoa-nam-backend-backend:59313aaa1956c446f78b4adb84264d51ac1891ef",
+          "hoa-nam-backend-backend:59c014ee65857b864ff1b068d8119028950d1a14",
+          "hoa-nam-backend-backend:59f640f5302dbfebcad71e2284bfea0f0cffd418",
+          "hoa-nam-backend-backend:5a18f391798ff556492c11a6902bbe506c7a5f22",
+          "hoa-nam-backend-backend:5ba2e0a9efcfa85af250a57b1aafab029eb0b3a4",
+          "hoa-nam-backend-backend:5c28033a519455d8c986e7f5e09bdcd577f3930d",
+          "hoa-nam-backend-backend:5c5615ec6a4dadfdc881e8cd1fd2fdb465363921",
+          "hoa-nam-backend-backend:5d0a93d4c254fd5de588c8768a1101e319844647",
+          "hoa-nam-backend-backend:5d60d9ea72b783ad86d81d00e2ad518834fd328b",
+          "hoa-nam-backend-backend:5d7e9f6ad93b1806c8986bc76d761cb4f3558def",
+          "hoa-nam-backend-backend:5e7a802db358ed63672d33c18ce1fa75707207e9",
+          "hoa-nam-backend-backend:611efadbf6fd7bad610887b7b4a088ee66165c12",
+          "hoa-nam-backend-backend:6340aed8c4fe94dabe5a463d199a2937da489318",
+          "hoa-nam-backend-backend:652ae7e9798fe8b9ece22fcff8808e573db0dc98",
+          "hoa-nam-backend-backend:66a5c58b94d9246dfa76ec92cdd3004ba3ce1aef",
+          "hoa-nam-backend-backend:691278fdc5aa69d0a31b1c5878dbf2467558913c",
+          "hoa-nam-backend-backend:69804729e915f0f076adcbcc7f4853c1cad140c0",
+          "hoa-nam-backend-backend:6a1d5ca8de12abf35aa02e0d63bcf4c793ef42ea",
+          "hoa-nam-backend-backend:6a9a8edb42e30d60e9dd4336eb91ce83fc4269ab",
+          "hoa-nam-backend-backend:6b646d24e02a7a5bef79b163e3e45cdfce96ca0f",
+          "hoa-nam-backend-backend:6bca132ced532579856acb411dfd932a5a909e34",
+          "hoa-nam-backend-backend:6e2230a8cc5af43754f242c57748360be40005d6",
+          "hoa-nam-backend-backend:6e4787267064d1db9584a697bb9a26ecab260dd1",
+          "hoa-nam-backend-backend:701e93522010664e623f18605d79d59ae6316c37",
+          "hoa-nam-backend-backend:709744875a039178f432574ce1b59aaa3b42395c",
+          "hoa-nam-backend-backend:744efa8d42aa15073184cdc70cbb16eeabe4f061",
+          "hoa-nam-backend-backend:772efc74dead29e347df4c6d91277e4ee48b6fb3",
+          "hoa-nam-backend-backend:7733f582d37c34e65dabfa6c48067a19a3f29ad0",
+          "hoa-nam-backend-backend:7a63571f2cf399ba0de7151475e72f37ffdc1822",
+          "hoa-nam-backend-backend:7c3697568640c61ac053ab59fe88603fa9bb53a7",
+          "hoa-nam-backend-backend:7d661813fc357c32f0333dcda17b9b0fa0f0edcd",
+          "hoa-nam-backend-backend:81d2cb45128384e9773dbb8bcc1572a829ae4a87",
+          "hoa-nam-backend-backend:8341412f2d1b20237d6bc1d59ecf41cf3bf5b766",
+          "hoa-nam-backend-backend:8c2fd62ce928226dbe8f8bbdf2f61522673b5fc4",
+          "hoa-nam-backend-backend:8cf7503463679938eb686bbd1a05471ccc379d8d",
+          "hoa-nam-backend-backend:8dc2a93ff00592bd9c4e6892635af3080f4f2e2c",
+          "hoa-nam-backend-backend:8f9009b4774ca26032a8239f0d45de09cfec1404",
+          "hoa-nam-backend-backend:8fc5f7909b731004130b2b3ca5f15211d3486b2f",
+          "hoa-nam-backend-backend:9073ab6b31691427be0d4b23a9fb52f02caa3522",
+          "hoa-nam-backend-backend:916a80c3bd07e1ce7f298c6179090669ee65f0ed",
+          "hoa-nam-backend-backend:92c60d55078a81e38f25473812d84081d5dbf8fe",
+          "hoa-nam-backend-backend:9325eff232f486484d268ae7b098e4ec25411f9b",
+          "hoa-nam-backend-backend:96c326ed25f322807ee005444e3b3cb725e36550",
+          "hoa-nam-backend-backend:97038afedfe68cbfe1f830c576a6c81b06f22e31",
+          "hoa-nam-backend-backend:9703dc5a6239550048c2606b575ca4fabbf13863",
+          "hoa-nam-backend-backend:9894db4d7ce2f134cde3488ac902aa290f35c21a",
+          "hoa-nam-backend-backend:9b1205f51549656516e51f51f98dbf7d1e000931",
+          "hoa-nam-backend-backend:9e2cab74e889580c8d6a7a7343d447ba46b7a533",
+          "hoa-nam-backend-backend:a06781acca2419c8e9f5ac5e09f818618bc1ae81",
+          "hoa-nam-backend-backend:a09b98396306654704907038dbf1827ec34731ff",
+          "hoa-nam-backend-backend:a0c69b531ffcb00e37a91a66b94222a0e996c935",
+          "hoa-nam-backend-backend:a304b14e706c5e60adfb280b5853a0791d6783d3",
+          "hoa-nam-backend-backend:a467ab55a164102bcd139bb79380abf5e4aa9cdb",
+          "hoa-nam-backend-backend:a55ee4aed42be956153ea0585ceab190be7b5c67",
+          "hoa-nam-backend-backend:a5f4e60efd3d0f555e12f4c30ce417de3a457329",
+          "hoa-nam-backend-backend:a6fb22276a9ba9017f094a193099e5221f4e56ed",
+          "hoa-nam-backend-backend:a91bef9af11a810d3d4c51617fe15db1b091ed13",
+          "hoa-nam-backend-backend:aae85e9ebe4d5b7fd3765bcd2d006ce789747df1",
+          "hoa-nam-backend-backend:abade0b8480b4ffbce7b7ab9fbfa03895b192b53",
+          "hoa-nam-backend-backend:adc7ea4a66209cfd1b95fa6bf13dab96ebaf69f2",
+          "hoa-nam-backend-backend:af74e7f4eab769abf4f533b01072660bb39553c6",
+          "hoa-nam-backend-backend:b0d206a1baf235f2d551d0506ae4291eee589faa",
+          "hoa-nam-backend-backend:b51c77d929b223eb298efebcbf6fbdf0e7886358",
+          "hoa-nam-backend-backend:b74aaea12e599e5933b7c5145776fe1747f794b1",
+          "hoa-nam-backend-backend:b972e6a6c05e665b98beaf390db999e9a70c5393",
+          "hoa-nam-backend-backend:b972ff976d67b36c1d78c18e5a139f1521e76702",
+          "hoa-nam-backend-backend:ba37b028561db8f9bf5a5f10b143d8d72940eda9",
+          "hoa-nam-backend-backend:be030b830d459cdf69d5940225c28394270ce612",
+          "hoa-nam-backend-backend:c391ef1aaf05175faf0780759474f478ad035e4a",
+          "hoa-nam-backend-backend:c39938ab301c1896e2fe3cb69edb9196b3d15eda",
+          "hoa-nam-backend-backend:c4367b04e1f4570a2bc72c7c4b6cc71853ddeea1",
+          "hoa-nam-backend-backend:c5abf322536d4daeace7b3d700ae6a2cd5b9ac76",
+          "hoa-nam-backend-backend:c6199b8d0be269c568047f915d473c5e4e97fb6a",
+          "hoa-nam-backend-backend:c759276fa470d27f5fedc442853bdb4b595ed71c",
+          "hoa-nam-backend-backend:c7a3ea35a489e0cc6ae6de6caf1440bd79b70dbf",
+          "hoa-nam-backend-backend:c8a36448efb67e4ce6370f2b782734fe1f77a4a7",
+          "hoa-nam-backend-backend:c8d6b88f56785a5b036c17c952f654dae6d55e7b",
+          "hoa-nam-backend-backend:c9032d12dc48d305d2b0f9c5118b02de561c9625",
+          "hoa-nam-backend-backend:c94b808a527abc4c30ddaf22f5aa501c9afe3960",
+          "hoa-nam-backend-backend:ca6f58e620da9f3211ca48fae745f325e67de58e",
+          "hoa-nam-backend-backend:d1e2869e8dadc219dd8a3d95b7adc4d6f38616c3",
+          "hoa-nam-backend-backend:d36917e04464e8604b82180b0e00540b5bd1daa3",
+          "hoa-nam-backend-backend:d3d44f07207086cbb18fa0f958d89d50142a5431",
+          "hoa-nam-backend-backend:d671db44c803d2f278ed9809aafb09f5a8c45504",
+          "hoa-nam-backend-backend:d79bf37e80db85379f810f50642b8758936dd548",
+          "hoa-nam-backend-backend:da2b5f23173fa10a15fcbc28b1f828f2f8349e0a",
+          "hoa-nam-backend-backend:de9402c3081ba6be0d2f58a88f9864f8a13896d0",
+          "hoa-nam-backend-backend:df8143fb736af231b2a60e5df5617dc19178cf51",
+          "hoa-nam-backend-backend:dfb5badad43bad6d2da7f41c7fc299f7b5a0f70e",
+          "hoa-nam-backend-backend:e25ce51d3c5dfd3a792f8bf8f61dce0f3e8f946d",
+          "hoa-nam-backend-backend:e44accd38ef8120437be21a91dcb944235375ba7",
+          "hoa-nam-backend-backend:e583ec296170a5b8b02176c642c40edf27a4fec8",
+          "hoa-nam-backend-backend:ea7944e6b6e61b48edd8721419dabc816397a859",
+          "hoa-nam-backend-backend:eaa8fd2fd4ffb4013e6b72da0fa1384e80ef0154",
+          "hoa-nam-backend-backend:eb9adb60a3f0164534705e0e44811d38579a3955",
+          "hoa-nam-backend-backend:ec0765c95cfeb05dd9ff2ab07bb91381cb953414",
+          "hoa-nam-backend-backend:ed8be1f06d3124364614ea6a74a1998edcbae3f0",
+          "hoa-nam-backend-backend:f0efb1ddb414007ed13092ceea4e85437f6215cb",
+          "hoa-nam-backend-backend:f86e911ed3a7dc916975a791a86c135ca96e0d03",
+          "hoa-nam-backend-backend:fa6f60837ae3cc25cd7e0bbf0d93442b236aa24e",
+          "hoa-nam-backend-backend:fadf0d4a6ca37fe49383ee391c76bd46b601cd5b",
+          "hoa-nam-backend-backend:faf98e8e668c540353553e6c6ccbb431502c7a3d",
+          "hoa-nam-backend-backend:fe5d225a857eca106bd3e7cf1920d7663a87fecd",
+          "hoa-nam-backend-backend:ff2867ec18f486a1faa8ebb2fbf0d9a03b82fcfa"
+        ],
+        "bytes": 597990194
+      }
+    },
+    {
+      "event": "capacity_after_retired_ci_cleanup",
+      "data": {
+        "free": 1293365248,
+        "required": 1148776685
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "down --retry=30",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "package:discover",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "migrate:status --no-ansi",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "config:clear",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "route:clear",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "event:clear",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "view:clear",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "config:cache",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "route:cache",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "l5-swagger:generate",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "nfc_timestamp_verified_no_write",
+      "data": {
+        "kind": "SELECT_ONLY_NOT_AUTHENTICATED_HTTP",
+        "runtime_sha": "8be640aa74704b12fe891f8a6db5969901efd8b2",
+        "observed_at": "2026-10-21T13:57:40.423102+07:00",
+        "php_epoch": 1792565860.423125,
+        "app_timezone": "Asia/Ho_Chi_Minh",
+        "php_timezone": "Asia/Ho_Chi_Minh",
+        "db": {
+          "session_timezone": "UTC",
+          "now": "2026-10-21 06:57:40.423904+00",
+          "epoch": "1792565860.423908"
+        },
+        "selected_identity": {
+          "uid": "53AC***0001",
+          "serial": "SN-PN-COV-***-007",
+          "sku": "CLMP-DON-S01"
+        },
+        "types": {
+          "physical_codes": {
+            "assigned_at": "timestamptz",
+            "created_at": "timestamptz",
+            "updated_at": "timestamptz",
+            "deactivated_at": "timestamptz"
+          },
+          "audit_log": {
+            "created_at": "timestamptz"
+          },
+          "idempotency_keys": {
+            "created_at": "timestamp",
+            "updated_at": "timestamp"
+          }
+        },
+        "tag": {
+          "physical_code_id": "d641ce1b-cf3a-4b76-8d32-fec41634c059",
+          "item_id": "1982077a-ddd8-4203-a97d-cb9dcea1b5b5",
+          "nfc_warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+          "status": "ACTIVE",
+          "assigned_at": "2026-10-21 12:09:01+00",
+          "created_at": "2026-10-21 12:09:01+00",
+          "updated_at": "2026-10-21 12:09:01+00",
+          "deactivated_at": null
+        },
+        "epochs": {
+          "assigned_at": "1792584541.000000",
+          "created_at": "1792584541.000000",
+          "updated_at": "1792584541.000000",
+          "deactivated_at": null
+        },
+        "receipt_timestamp_projection": [
+          {
+            "id": 271,
+            "status": "done",
+            "response_code": 201,
+            "request_id": "590efbfb-ce83-4329-b64a-ecd49d70c457",
+            "receipt_response_time": "2026-10-21T12:09:01+07:00",
+            "confirmation_state": "SUCCEEDED",
+            "assigned_at": "2026-10-21 12:09:01+00",
+            "created_at": "2026-10-21 12:09:01+00",
+            "updated_at": "2026-10-21 12:09:01+00",
+            "deactivated_at": null,
+            "actor_matches_tag_and_receipt_owner": true,
+            "auth_session_matches_tag": true,
+            "warehouse_matches_tag": true,
+            "item_matches_tag": true,
+            "confirmation_matches_tag": true
+          }
+        ],
+        "receipt_bodies_fingerprint": "a100c78e2fa6f339e5af8c22029e6934",
+        "audit_timestamp_projection": [
+          {
+            "id": "01a15cdc-e051-72cd-a484-7d5869b0de87",
+            "action": "ASSIGN_ITEM_NFC",
+            "created_at": "2026-10-21 12:09:01+00",
+            "request_id": "590efbfb-ce83-4329-b64a-ecd49d70c457"
+          }
+        ],
+        "binding_probe_no_write": {
+          "now_bound": "2026-10-21 13:57:40",
+          "aware_bound": "2026-10-21 13:57:40.424179+07:00"
+        },
+        "nfc_timestamp_probe": {
+          "contract": "nfc-timestamps-v1",
+          "writer_value": "2026-10-21 13:57:40.416703+07:00",
+          "bound_value": "2026-10-21 13:57:40.416703+07:00",
+          "assigned_at_serialized": "2026-10-21T12:09:01.000000Z",
+          "deactivated_at_serialized": null,
+          "historical_receipt_rewritten": false
+        },
+        "mutations": []
+      }
+    },
+    {
+      "event": "artisan",
+      "data": {
+        "command": "up",
+        "exit_code": 0
+      }
+    },
+    {
+      "event": "nfc_time_deployed",
+      "data": {
+        "source_sha": "8be640aa74704b12fe891f8a6db5969901efd8b2",
+        "stage": "complete",
+        "migration_count": 218,
+        "data_unchanged": true,
+        "media_unchanged": true,
+        "verified_tables": 113,
+        "verified_media_files": 13,
+        "free_bytes_after": 1170890752
+      }
+    },
+    {
+      "event": "nfc_time_private_report",
+      "data": {
+        "path": "/opt/hoa-nam-green/backups/deploy-nfc-time-20261021T065447Z.json"
+      }
+    }
+  ],
+  "responses": [
+    {
+      "method": "GET",
+      "route": "/api/v1/health",
+      "observed_at_utc": "2026-10-21T06:58:48.641Z",
+      "credential_sent": false,
+      "status": 200,
+      "sent_request_id": "db679f09-a216-4adf-8b85-0c919b095a77",
+      "headers": {
+        "cache-control": "no-store, private",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+        "content-type": "application/json",
+        "date": "Wed, 21 Oct 2026 06:58:49 GMT",
+        "expires": "0",
+        "permissions-policy": "geolocation=(), microphone=(), camera=(), payment=()",
+        "pragma": "no-cache",
+        "referrer-policy": "no-referrer",
+        "server": "nginx/1.18.0 (Ubuntu)",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "transfer-encoding": "chunked",
+        "vary": "Accept-Encoding, Origin, Authorization",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-request-id": "db679f09-a216-4adf-8b85-0c919b095a77",
+        "x-wms-deployment-tier": "dev-test"
+      },
+      "raw_body": "{\"success\":true,\"message\":\"Backend health check passed.\",\"data\":{\"status\":\"ok\",\"version\":\"1.0.0\",\"build\":{\"sha\":\"8be640aa74704b12fe891f8a6db5969901efd8b2\",\"ref\":\"dev@8be640aa+nfc-time-fix+preserved-runtime-hotfixes\",\"built_at\":\"2026-10-21T06:54:50.758121+00:00\"},\"environment\":\"testing\",\"server_time\":\"2026-10-21T13:58:49+07:00\",\"request_id\":\"db679f09-a216-4adf-8b85-0c919b095a77\",\"checks\":{\"app\":{\"status\":\"ok\"},\"database\":{\"status\":\"ok\",\"driver\":\"pgsql\"},\"migrations\":{\"status\":\"ok\",\"ran_count\":218},\"seed\":{\"status\":\"ok\",\"markers\":{\"admin_user\":true,\"baseline_warehouse\":true,\"baseline_product\":true}},\"cache\":{\"status\":\"ok\",\"store\":\"redis\",\"ping\":\"PONG\"}}},\"meta\":{\"request_id\":\"db679f09-a216-4adf-8b85-0c919b095a77\",\"timestamp\":\"2026-10-21T13:58:49+07:00\"}}"
+    },
+    {
+      "method": "GET",
+      "route": "/api/v1/mini-app/nfc-tags/d641ce1b-cf3a-4b76-8d32-fec41634c059",
+      "observed_at_utc": "2026-10-21T06:58:48.828Z",
+      "credential_sent": false,
+      "status": 401,
+      "sent_request_id": "b02f85fd-fb0b-4c16-a7dd-ee2ea57c55d5",
+      "headers": {
+        "cache-control": "no-store, private",
+        "connection": "keep-alive",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+        "content-type": "application/json",
+        "date": "Wed, 21 Oct 2026 06:58:49 GMT",
+        "expires": "0",
+        "permissions-policy": "geolocation=(), microphone=(), camera=(), payment=()",
+        "pragma": "no-cache",
+        "referrer-policy": "no-referrer",
+        "server": "nginx/1.18.0 (Ubuntu)",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "transfer-encoding": "chunked",
+        "vary": "Origin, Authorization",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-ratelimit-limit": "60",
+        "x-ratelimit-remaining": "59",
+        "x-request-id": "b02f85fd-fb0b-4c16-a7dd-ee2ea57c55d5",
+        "x-wms-deployment-tier": "dev-test"
+      },
+      "raw_body": "{\"success\":false,\"message\":\"Ch\\u01b0a \\u0111\\u0103ng nh\\u1eadp ho\\u1eb7c phi\\u00ean \\u0111\\u0103ng nh\\u1eadp \\u0111\\u00e3 h\\u1ebft h\\u1ea1n.\",\"error_code\":\"UNAUTHENTICATED\",\"errors\":[],\"error\":{\"code\":\"UNAUTHENTICATED\",\"details\":[]},\"meta\":{\"request_id\":\"b02f85fd-fb0b-4c16-a7dd-ee2ea57c55d5\",\"timestamp\":\"2026-10-21T13:58:49+07:00\"}}"
+    }
+  ],
+  "tested_source_sha": "6bfa66dc5d0edaddd91b67e59811e269983c5d71",
+  "application_files_unchanged_since_tested_source": true,
+  "original_receipt_unchanged": true,
+  "authenticated_http": false,
+  "original_confirm_replayed": false,
+  "new_live_mapping": false,
+  "new_auth_session": false,
+  "migration_seed_repair_restore": false,
+  "ci_run": false,
+  "production_activation": false
+}

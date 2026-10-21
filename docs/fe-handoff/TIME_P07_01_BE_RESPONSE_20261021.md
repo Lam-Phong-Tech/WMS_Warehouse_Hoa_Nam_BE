@@ -1,8 +1,10 @@
 # TIME-P07-01 - BE doi soat va source fix 21/10/2026
 
-Trang thai: SOURCE_FIXED_PENDING_RELEASE_AND_OWNER_HTTP_ACCEPTANCE.
-Runtime dang quan sat: `e2442df9cb03a50f57847aca0bcba78f0b2b2717`.
-Commit ban sua va checksums nam trong MANIFEST.json cua goi ban giao.
+Trang thai: DEVTEST_DEPLOYED_PENDING_OWNER_HTTP_AND_NEW_TEST_WRITE_ACCEPTANCE.
+Runtime moi: `8be640aa74704b12fe891f8a6db5969901efd8b2`.
+Source fix: `6bfa66dc5d0edaddd91b67e59811e269983c5d71`.
+Bang chung doi soat ban dau ben duoi duoc lay tren runtime cu `e2442df9`.
+Chi tiet deploy: `docs/evidence/NFC_TIMESTAMP_DEVTEST_RELEASE_20261021.md`.
 
 ## Nguyen nhan da xac nhan
 
@@ -85,7 +87,10 @@ Nguoi dung xac nhan khong co file token/operation key tu APK. Chua replay GET
 list/detail/confirmation bang dung owner session, khong tao key moi, khong login
 phien moi va khong gui lai PATCH confirm. Khong doc token/private storage APK.
 
-Chua deploy source fix nay. Sau khi release, tag/receipt da ghi sai se van hien
+Da deploy source fix luc 13:57:58 +07:00 ngay 21/10/2026, run 39557980205 SUCCESS.
+Read-only probe tren runtime moi xac nhan writer va binding cung giu +07:00;
+fingerprint receipt 271 giu nguyen. Chua authenticated owner HTTP hay ghi NFC moi.
+Sau release, tag/receipt da ghi sai se van hien
 19:09 neu FE hien thi dung raw instant. Xu ly du lieu cu la quyet dinh rieng cua
 data owner; source fix chi ngan ghi moi tiep tuc sai va thong nhat serialization.
 

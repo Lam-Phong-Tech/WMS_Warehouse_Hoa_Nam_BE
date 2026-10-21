@@ -1,8 +1,8 @@
 {
   "contract": "nfc-timestamps-v1",
   "revision": "time-p07-01-r1",
-  "status": "SOURCE_FIXED_PENDING_RELEASE_AND_OWNER_HTTP_ACCEPTANCE",
-  "runtime_observed_sha": "e2442df9cb03a50f57847aca0bcba78f0b2b2717",
+  "status": "DEVTEST_DEPLOYED_PENDING_OWNER_HTTP_AND_NEW_TEST_WRITE_ACCEPTANCE",
+  "runtime_observed_sha": "8be640aa74704b12fe891f8a6db5969901efd8b2",
   "discovery": "meta.timestamp_contract on new P07 confirm receipts, current P07 reads/reconciliation envelope and opt-in P22 reads",
   "serialization": {"format": "RFC3339 UTC Z", "fractional_digits": 6, "precision": "Retain persisted precision; zero-padding is not additional measurement accuracy", "offset": "PRESERVE_INSTANT", "null": "PRESERVE_NULL", "missing": "Do not synthesize absent fields"},
   "tag_fields": {"assigned_at": "physical_codes.assigned_at", "created_at": "physical_codes.created_at", "updated_at": "physical_codes.updated_at", "deactivated_at": "physical_codes.deactivated_at"},
@@ -23,5 +23,6 @@
   "historical_receipts": {"policy": "Replay original persisted response unchanged, including old timestamp text and absence of the new marker. Do not replace it using the current tag.", "current_mapping_read": "Serializes the persisted instant without correcting a bad write", "sample": {"persisted": "2026-10-21 12:09:01+00", "current_get_after_patch": "2026-10-21T12:09:01.000000Z", "vietnam_display": "2026-10-21 19:09:01", "repaired": false}},
   "frontend": "Parse RFC3339 once, render Asia/Ho_Chi_Minh; equivalent Z/+00:00/+07:00 values represent the same instant. Do not subtract seven hours or relabel offsets on old receipt text.",
   "operations": {"new_routes": [], "new_migrations": [], "new_env": [], "stock_effect": "NONE", "mapping_repair": false, "receipt_repair": false, "live_confirm_retried": false, "live_new_tag_assigned": false, "production_activation": false},
-  "acceptance": "OPEN until exact patch release, authenticated original-owner GET list/detail/receipt, and a separately approved new TEST write/read or equivalent owner evidence. Existing bad row/receipt need a separate data-owner decision. No production or whole-P07 PASS is implied."
+  "deployment": {"environment": "DEVTEST", "source_sha": "8be640aa74704b12fe891f8a6db5969901efd8b2", "tested_source_sha": "6bfa66dc5d0edaddd91b67e59811e269983c5d71", "completed_at": "2026-10-21T13:57:58+07:00", "release_run": 39557980205, "migration_count": 218, "data_unchanged": true, "historical_receipt_fingerprint": "a100c78e2fa6f339e5af8c22029e6934", "ci_run": false, "migration_seed_repair_restore": false, "production_activation": false},
+  "acceptance": "Patch release and read-only runtime binding probe are verified. OPEN for authenticated original-owner GET list/detail/receipt and a separately approved new TEST write/read or equivalent owner evidence. Existing bad row/receipt need a separate data-owner decision. No production or whole-P07 PASS is implied."
 }
