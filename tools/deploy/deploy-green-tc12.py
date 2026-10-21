@@ -138,7 +138,18 @@ def inspect_images():
     return protected, images
 
 
-def cleanup_images(requested):
+def retired_image_manifest():
+    manifest = Path(__file__).with_name('nfc-unused-images-20261021.json')
+    require(green.digest(manifest) == 'f29c7ffc3e3f6964bf2d471f302066a8ac149c65dd3f03c9ecc4441fd75de7e5',
+            'Retired image inspection manifest changed')
+    data = json.loads(manifest.read_text())
+    require(data['inspection_run'] == '39557299070' and len(data['images']) == 7, 'Wrong image inspection')
+    protected, _ = inspect_images()
+    require(set(data['protected_current_rollback_ids']).issubset(protected), 'Rollback image reference changed')
+    return data['images']
+
+
+def cleanup_images(requested, approved_tags=None):
     protected, images = inspect_images()
     by_id = {row['Id']: row for row in images}
     cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=2)
@@ -147,7 +158,8 @@ def cleanup_images(requested):
         require(image in by_id and image not in protected, 'Image referenced by container or rollback')
         row = by_id[image]
         tags = row.get('RepoTags') or []
-        require(not tags or sorted(tags) == sorted(APPROVED_CLEANUP_TAGS.get(image, [])), 'Unapproved image tags')
+        allowed = APPROVED_CLEANUP_TAGS if approved_tags is None else approved_tags
+        require(not tags or sorted(tags) == sorted(allowed.get(image, [])), 'Unapproved image tags')
         created = datetime.datetime.fromisoformat(row['Created'][:26].replace('Z', '+00:00'))
         if created.tzinfo is None:
             created = created.replace(tzinfo=datetime.timezone.utc)
@@ -173,7 +185,7 @@ def wait_ready():
     raise RuntimeError('Backend readiness timeout')
 
 
-def deploy(folder, sha, inspect_only, remove_images):
+def deploy(folder, sha, inspect_only, remove_images, cleanup_retired_ci=False):
     os.umask(0o077)
     require(__debug__, 'Python optimized mode prohibited')
     require(green.ROOT.resolve() == green.ROOT, 'Unexpected deployment root')
@@ -219,7 +231,7 @@ def deploy(folder, sha, inspect_only, remove_images):
                 'rollback_images': images}
     green.emit('nfc_time_preflight', capacity)
     if inspect_only:
-        require(not remove_images, 'Inspection cannot remove images')
+        require(not remove_images and not cleanup_retired_ci, 'Inspection cannot remove images')
         runner = Path('/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE')
         generated = [runner / 'devtest-ops-source/deploy-package', runner / 'devtest-auth-ops/auth-package',
                      runner / 'devtest-auth-application', runner / 'devtest-smoke-source']
@@ -233,6 +245,10 @@ def deploy(folder, sha, inspect_only, remove_images):
     if remove_images:
         cleanup_images(remove_images)
         green.emit('capacity_after_image_cleanup', {'free': shutil.disk_usage(green.ROOT).free, 'required': required})
+    if cleanup_retired_ci:
+        approved_tags = retired_image_manifest()
+        cleanup_images(list(approved_tags), approved_tags)
+        green.emit('capacity_after_retired_ci_cleanup', {'free': shutil.disk_usage(green.ROOT).free, 'required': required})
     require(shutil.disk_usage(green.ROOT).free > required, 'Insufficient disk reserve; no automatic cleanup')
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     release = green.ROOT / 'releases' / (sha + '-nfc-time-' + stamp)
@@ -366,8 +382,9 @@ if __name__ == '__main__':
     parser.add_argument('--source')
     parser.add_argument('--inspect', action='store_true')
     parser.add_argument('--remove-image', action='append', default=[])
+    parser.add_argument('--cleanup-retired-ci-images', action='store_true')
     args = parser.parse_args()
     if args.package:
         package(Path(args.checkout), args.sha, Path(args.output))
     else:
-        deploy(Path(args.source), args.sha, args.inspect, args.remove_image)
+        deploy(Path(args.source), args.sha, args.inspect, args.remove_image, args.cleanup_retired_ci_images)

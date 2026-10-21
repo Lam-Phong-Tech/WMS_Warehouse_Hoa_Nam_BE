@@ -77,6 +77,19 @@ class Tc12DeployTest(unittest.TestCase):
                 tc12.cleanup_images([image])
             self.assertFalse(any(call.args[0][:3] == ['docker', 'image', 'rm'] for call in run.call_args_list))
 
+    def test_retired_manifest_is_pinned_and_excludes_retained_rollback_images(self):
+        import json
+        file = Path(tc12.__file__).with_name('nfc-unused-images-20261021.json')
+        self.assertEqual(tc12.green.digest(file), 'f29c7ffc3e3f6964bf2d471f302066a8ac149c65dd3f03c9ecc4441fd75de7e5')
+        data = json.loads(file.read_text())
+        with patch.object(tc12, 'inspect_images', return_value=(set(data['protected_current_rollback_ids']), [])):
+            images = tc12.retired_image_manifest()
+            self.assertEqual(len(images), 7)
+            self.assertFalse(set(images).intersection(data['protected_current_rollback_ids']))
+        with patch.object(tc12, 'inspect_images', return_value=(set(), [])):
+            with self.assertRaisesRegex(RuntimeError, 'Rollback'):
+                tc12.retired_image_manifest()
+
 
 if __name__ == '__main__':
     unittest.main()

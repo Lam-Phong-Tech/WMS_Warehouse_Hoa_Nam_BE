@@ -154,7 +154,7 @@ jobs:
             case "$CONFIRMATION" in
               INSPECT-NFC-TIME-SOURCES) docker exec -i -u www-data hoa_nam_green-backend-1 php < "$source/tools/deploy/inspect-nfc-timestamps.php" ;;
               INSPECT-NFC-RELEASE) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" --inspect ;;
-              DEPLOY-NFC-TIME-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" ;;
+              DEPLOY-NFC-TIME-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" --cleanup-retired-ci-images ;;
               INSPECT-TIME-SOURCES) docker exec -i -u www-data -e EXPECTED_BUILD_SHA=e2442df9cb03a50f57847aca0bcba78f0b2b2717 hoa_nam_green-backend-1 php < "$source/tools/deploy/inspect-timestamp-sources.php" ;;
               DEPLOY-TIME-NO-SEED) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" ;;
               INSPECT-TC12) python3 "$source/tools/deploy/deploy-green-tc12.py" --source "$source/tc12-package" --sha "$RELEASE_SHA" --inspect ;;
