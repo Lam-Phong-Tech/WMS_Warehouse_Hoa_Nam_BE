@@ -21,6 +21,7 @@ use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Services\SkuAggregateService;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
+use Modules\Warehouse\Support\P13WebPostHandoff;
 use Modules\Warehouse\Support\ProductQrPayload;
 use Modules\Warehouse\Support\SkuInboundInfoRule;
 use Throwable;
@@ -433,6 +434,8 @@ class MiniAppInboundStagingController extends Controller
                     // RefreshDatabase, mà một luật nghiệp vụ không kiểm được thì
                     // sớm muộn cũng trôi.
                     $pendingInfo = SkuInboundInfoRule::incompleteSkusOfDocument($documentId);
+
+                    P13WebPostHandoff::record($documentId, 'INBOUND', (string) $validated['dst_warehouse_id'], $version);
 
                     return [
                         'document_id' => $documentId,

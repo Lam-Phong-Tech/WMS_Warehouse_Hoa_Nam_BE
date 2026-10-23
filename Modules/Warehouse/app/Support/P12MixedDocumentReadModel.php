@@ -50,6 +50,9 @@ final class P12MixedDocumentReadModel
                 continue;
             }
             $query = $source === 'WARRANTY' ? self::warranty($scope, $filters) : self::stock($scope, $filters, $source);
+            if (($filters['web_queue'] ?? 'ALL') === 'WAITING_WEB_POST') {
+                P13WebPostHandoff::waiting($query, $source, $scope['warehouse_id']);
+            }
             $time = DocumentTimestampSql::createdAt($source);
             $status = $source === 'WARRANTY' ? 'c.status' : 'd.status';
             $query->where(fn (Builder $bound) => $bound->whereRaw($time.' <= ?', [$upperBound])->orWhereRaw($time.' IS NULL'));
@@ -191,7 +194,7 @@ final class P12MixedDocumentReadModel
     }
 
     /** Rows have already been normalized to UTC by the SQL projection. */
-    public static function record(object $row, array $readiness = []): array
+    public static function record(object $row, array $readiness = [], ?array $handoff = null): array
     {
         if (! is_string($row->id ?? null) || ! Str::isUuid($row->id)
             || ! is_string($row->warehouse_id ?? null) || ! Str::isUuid($row->warehouse_id)
@@ -241,7 +244,7 @@ final class P12MixedDocumentReadModel
             'partner' => ['display_name' => $row->partner_name,
                 'availability' => $source === 'WARRANTY' ? 'WITHHELD_IN_AGGREGATE' : ($row->partner_name === null ? 'NOT_RECORDED' : 'RECORDED'),
                 'redacted' => $source === 'WARRANTY'],
-            'p12' => $p12, 'read_target' => $p12['read_target'],
+            'p12' => $p12, 'read_target' => $p12['read_target'], 'web_post_handoff' => $handoff,
         ];
     }
 

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use JsonException;
@@ -14,6 +15,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\StableAuthSession;
 use Modules\Auth\Support\WarehouseContext;
+use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Modules\Warehouse\Services\MiniAppDraftService;
 
 /** Candidate closure protocol. Never saves a draft, records stock or logs a user out. */
@@ -44,6 +46,7 @@ final class P14ShiftService
                 'expected_version' => (int) $shift->version, 'check_token' => $blockers === [] ? $token : null,
                 'client_confirmation_required' => ['local_state' => 'CLEAN', 'pending_request_ids' => []],
                 'draft_scope' => 'AUTH_SESSION_AT_CLOSE_NOT_SHIFT_OWNERSHIP',
+                'upload_scope' => 'AUTH_SESSION_AT_CLOSE_NOT_SHIFT_OWNERSHIP',
                 'draft_count' => count($drafts), 'draft_owners_unchanged' => true,
             ];
         });
@@ -278,13 +281,32 @@ final class P14ShiftService
         if (DB::table('p14_shift_operations')->where('shift_id', $shift->shift_id)->whereIn('operation', ['UNSUPPORTED_OWNER_SAVE', 'PENDING_OWNER_RESULT'])->exists()) {
             $blockers[] = 'OWNER_SNAPSHOT_UNSUPPORTED';
         }
+        if (! Schema::hasTable(AttachmentUploadReceipts::TABLE)) {
+            $blockers[] = 'UPLOAD_RECEIPT_COVERAGE_UNAVAILABLE';
+        } elseif (DB::table(AttachmentUploadReceipts::TABLE)->where('actor_id', $actor->user_id)
+            ->where('auth_session_id', $shift->auth_session_id)->where('warehouse_id', $shift->warehouse_id)
+            ->whereIn('state', ['PENDING', 'UNKNOWN'])->exists()) {
+            $blockers[] = 'UPLOAD_OUTCOME_UNRESOLVED';
+        }
 
         return [$drafts, array_values(array_unique($blockers))];
     }
 
     private function fingerprint(object $shift, array $drafts): string
     {
-        return hash('sha256', json_encode([$shift->shift_id, $shift->version, $drafts, P14ShiftLifecycle::mode()], JSON_THROW_ON_ERROR));
+        $uploads = hash_init('sha256');
+        if (Schema::hasTable(AttachmentUploadReceipts::TABLE)) {
+            // Include terminal identities too: pending work resolved without a
+            // shift-version change still invalidates a check issued before it.
+            foreach (DB::table(AttachmentUploadReceipts::TABLE)->where('actor_id', $shift->actor_id)
+                ->where('auth_session_id', $shift->auth_session_id)->where('warehouse_id', $shift->warehouse_id)
+                ->orderBy('id')->cursor(['id', 'state', 'updated_at']) as $row) {
+                hash_update($uploads, json_encode((array) $row, JSON_THROW_ON_ERROR));
+            }
+        }
+
+        return hash('sha256', json_encode([$shift->shift_id, $shift->version, $drafts,
+            P14ShiftLifecycle::mode(), hash_final($uploads)], JSON_THROW_ON_ERROR));
     }
 
     private function query(Request $request, array $keys): void

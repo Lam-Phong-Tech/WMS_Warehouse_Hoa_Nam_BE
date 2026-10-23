@@ -1,0 +1,25 @@
+{
+  "revision": "app-owner-requirements-20261023-r2",
+  "status": "USER_CONFIRMED_REQUIREMENTS_PARTIALLY_IMPLEMENTED_PENDING_REVIEW_AND_RELEASE",
+  "confirmed_on": "2026-10-23",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "p13": {"meaning": "WAITING_WEB_POST", "read_scope": "AUTHORIZED_WAREHOUSE", "authority": "PERSISTED_CURRENT_HANDOFF_STATE_NOT_SCANNING_OR_HISTORICAL_RECEIPT_INFERENCE"},
+  "p18": {
+    "current_model": "SINGLE_WAREHOUSE_WITH_BOXES",
+    "hierarchy": ["WAREHOUSE", "BOX"],
+    "zone_rack_shelf_bin": "SUPERSEDED_BY_USER_CURRENT_REALITY",
+    "capacity": null,
+    "capacity_status": "NOT_CONFIGURED_NO_GRID_OR_INVENTED_TRAY_CAPACITY",
+    "small_parts": "COMPONENT_NON_SERIAL_QUANTITY_IN_BOX_WITH_COMPONENT_SKU",
+    "individual_physical_code_required": false,
+    "component_master_sku_required": true,
+    "automatic_product_to_component_reclassification": false,
+    "stock_allocation_from_warehouse_total": false
+  },
+  "p11": {"recovery": "REAUTHENTICATION_AND_ADDITIONAL_MFA_VERIFICATION", "revoked_token_access": false, "automatic_new_family_takeover": false, "security_review_required": true},
+  "live_mutations_authorized": [],
+  "deployment_authorized": false,
+  "real_migration_or_seed_authorized": false,
+  "production_activation": false,
+  "legacy_backfill_authorized": false
+}

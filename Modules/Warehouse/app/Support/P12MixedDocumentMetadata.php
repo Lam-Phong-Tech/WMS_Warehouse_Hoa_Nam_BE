@@ -37,6 +37,7 @@ final class P12MixedDocumentMetadata
             'date_field' => 'created_at', 'timezone' => $filters['timezone'],
             'date_window' => P12MixedDocumentQuery::dateWindow($state['issued_at']),
             'query' => ['source' => $filters['source'], 'status' => $filters['status'],
+                'web_queue' => $filters['web_queue'] ?? 'ALL',
                 'date_from' => $filters['date_from'], 'date_to' => $filters['date_to'],
                 'q_applied' => $filters['keyword'] !== ''],
             'sort' => $filters['sort'], 'tie_break' => ['source_rank' => 'asc', 'id' => 'asc'],
@@ -52,7 +53,12 @@ final class P12MixedDocumentMetadata
             'warranty_customer_search' => 'NOT_SUPPORTED',
             'quantity_semantics' => 'NOT_PROJECTED_USE_OWNER_DETAIL_AND_P12_SCAN_SUMMARY',
             'status_filter_keys' => array_column($options, 'value'),
-            'filter_options' => ['status' => $options, 'display_mapping_approval' => 'APPROVED'],
+            'filter_options' => ['status' => $options, 'display_mapping_approval' => 'APPROVED',
+                'web_queue' => ['ALL', 'WAITING_WEB_POST']],
+            'web_post_queue' => ['contract' => P13WebPostHandoff::CONTRACT, 'scope' => 'AUTHORIZED_WAREHOUSE',
+                'coverage' => 'EXPLICIT_RECORD_HANDOFFS_ONLY_NO_LEGACY_BACKFILL', 'warranty' => 'NOT_APPLICABLE',
+                'current_state' => 'PERSISTED_HANDOFF_INTENT_AND_CANONICAL_DOCUMENT_STATUS',
+                'date_and_sort_field' => 'stock_documents.created_at', 'snapshot_semantics' => 'SAME_AS_P12'],
             'cache_policy' => 'NO_INTERNAL_RESULT_CACHE', 'write_operations' => [],
         ];
     }

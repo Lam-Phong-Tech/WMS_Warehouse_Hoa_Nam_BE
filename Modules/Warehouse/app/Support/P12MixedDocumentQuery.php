@@ -15,7 +15,7 @@ final class P12MixedDocumentQuery
 
     public static function input(Request $request): array
     {
-        $known = ['warehouse_id', 'source', 'q', 'keyword', 'status', 'date_from', 'date_to', 'timezone', 'sort', 'per_page', 'cursor'];
+        $known = ['warehouse_id', 'source', 'q', 'keyword', 'status', 'web_queue', 'date_from', 'date_to', 'timezone', 'sort', 'per_page', 'cursor'];
         if (array_diff(array_keys($request->query()), $known) !== []) {
             ApiError::abort(422, 'DOCUMENTS_QUERY_UNSUPPORTED', 'Tham số không thuộc contract danh sách trộn.');
         }
@@ -25,6 +25,7 @@ final class P12MixedDocumentQuery
             'q' => ['sometimes', 'nullable', 'string', 'max:600'],
             'keyword' => ['sometimes', 'nullable', 'string', 'max:600'],
             'status' => ['sometimes', Rule::in(['ALL', ...P12MixedDocumentReadModel::statusKeys()])],
+            'web_queue' => ['sometimes', Rule::in(['ALL', 'WAITING_WEB_POST'])],
             'date_from' => ['required_with:date_to', 'date_format:Y-m-d'],
             'date_to' => ['required_with:date_from', 'date_format:Y-m-d', 'after_or_equal:date_from'],
             'timezone' => ['sometimes', Rule::in([self::TIMEZONE])],
@@ -46,6 +47,7 @@ final class P12MixedDocumentQuery
             // One normalized binding for q and the earlier candidate's keyword alias.
             'keyword' => $q,
             'status' => $input['status'] ?? 'ALL',
+            'web_queue' => $input['web_queue'] ?? 'ALL',
             'date_from' => $input['date_from'] ?? null,
             'date_to' => $input['date_to'] ?? null,
             'timezone' => self::TIMEZONE,

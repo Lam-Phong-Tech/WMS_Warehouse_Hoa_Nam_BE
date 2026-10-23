@@ -17,6 +17,7 @@ use Modules\Auth\Support\StableAuthSession;
 use Modules\Auth\Support\WarehouseContext;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\MiniAppDraftService;
+use Modules\Warehouse\Support\P13WebPostHandoff;
 
 /** P05 consumes an existing planned issue; never creates a replacement source or Posts. */
 final class P05OutboundController extends Controller
@@ -203,6 +204,8 @@ final class P05OutboundController extends Controller
             if ($current->status !== 'SCANNING') {
                 ApiError::abort(409, 'OUTBOUND_RECORD_STATE_INVALID', 'Trạng thái ghi nhận không hợp lệ; giao dịch được hoàn tác.');
             }
+
+            P13WebPostHandoff::record($id, 'OUTBOUND', $scope['warehouse_id'], (int) $current->version);
 
             return $this->response([
                 'document_id' => $id, 'source_document_id' => $id, 'source_version' => (int) $input['source_version'],

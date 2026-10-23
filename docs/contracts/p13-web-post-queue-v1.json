@@ -1,0 +1,36 @@
+{
+  "contract": "p13-web-post-queue-v1",
+  "revision": "p13-web-post-queue-r1-20261023",
+  "status": "SOURCE_CANDIDATE_PENDING_RELEASE_AND_AUTHENTICATED_UAT",
+  "decision": "docs/decisions/app-owner-requirements-20261023.json",
+  "route": {"method": "GET", "path": "/api/v1/mini-app/documents", "query": {"web_queue": ["ALL", "WAITING_WEB_POST"]}},
+  "permissions": "Existing P12 per-owner permission, confirmed session warehouse, current warehouse ACL and tenant scope; no new grant",
+  "intent_source": "mini_app_web_post_handoffs written atomically by successful P04 inbound/P05 outbound RECORD, including source-linked P05",
+  "current_source": "Exact canonical stock_documents type/directional warehouse/nondeleted row and current status",
+  "waiting_rule": "Persisted handoff exists AND canonical DRAFT/SCANNING. Never infer membership from SCANNING/readiness/notification/historical receipt alone.",
+  "terminal_rule": "POSTED/CANCELLED remove current queue membership; immutable submission intent remains",
+  "warranty": "Not a stock POST operation; zero queue membership",
+  "legacy": "No backfill; missing intent remains NOT_ESTABLISHED/null, not proof of never submitted",
+  "projection": {
+    "aggregate_path": "data[].web_post_handoff",
+    "owner_path": "data.p13.current_handoff/current_waiting_for_web/current_handoff_availability",
+    "private_receipt": "Historical record_handoff stays scoped to current actor/family; current handoff is warehouse-readable",
+    "states": ["WAITING_WEB_POST", "POSTED", "CANCELLED", "UNKNOWN"],
+    "fields": ["contract", "state", "current_waiting_for_web", "source", "warehouse_id", "submitted_at", "document_version_at_record", "reviewed_at", "reviewed_status", "posted_at", "stock_effect"],
+    "submitted_at": "RFC3339 UTC Z server transactional write time, not WAL commit/delivery time",
+    "reviewed_at": null, "reviewed_status": "NOT_RECORDED",
+    "posted_at": "Exact nullable stock_documents.posted_at using document-timestamps-v1, never inferred from POSTED",
+    "read_target": "Existing P12 canonical business owner target, not draft/recipient/receipt"
+  },
+  "query": {
+    "totals": "Filter before facets/source/cursor; counts cover the whole authorized filtered set",
+    "paging_sort_date": "Same P12 keyset v3, created_at date/sort, rank/id tie break and Vietnam date query; not submitted_at sort",
+    "consistency": "Single-response snapshot, live state/counts between requests, not a frozen queue",
+    "cursor": "Includes web_queue; old/filter-changed cursor can return 409 DOCUMENTS_CURSOR_CONTEXT_CHANGED; restart cursor=start preserving filters",
+    "source_error": "503 WEB_POST_HANDOFF_SOURCE_UNAVAILABLE, no partial/empty fallback",
+    "unfiltered_legacy": "Does not require the new table; optional handoff remains null"
+  },
+  "migration": "database/migrations/2026_10_23_000001_create_mini_app_web_post_handoffs.php",
+  "rollout": "Review/apply additive schema before new RECORD code; not permission to migrate/deploy real DB",
+  "new_aggregate": false, "backfill": false, "get_mutations": [], "production_activation": false, "live_verified": false
+}

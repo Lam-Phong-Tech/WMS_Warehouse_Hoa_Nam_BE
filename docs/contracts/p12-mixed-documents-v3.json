@@ -1,5 +1,7 @@
 {
   "contract": "p12-mixed-documents-v3",
+  "revision": "p12-v3-web-post-queue-r1-20261023",
+  "web_post_queue_extension": "docs/contracts/p13-web-post-queue-v1.json",
   "status": "OFFICIAL_SOURCE_CONTRACT_PENDING_PROXY_ACCEPTANCE",
   "supersedes": [
     "docs/contracts/p12-mixed-documents-v2.json",

@@ -7,12 +7,14 @@ use App\Support\ApiError;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Modules\Warehouse\Support\P06ReadSnapshot;
 use Modules\Warehouse\Support\P12MixedDocumentMetadata as Metadata;
 use Modules\Warehouse\Support\P12MixedDocumentPage as Page;
 use Modules\Warehouse\Support\P12MixedDocumentQuery as Query;
 use Modules\Warehouse\Support\P12MixedDocumentReadModel as ReadModel;
 use Modules\Warehouse\Support\P12MixedDocumentScope as Scope;
+use Modules\Warehouse\Support\P13WebPostHandoff;
 
 final class P12MixedDocumentsController extends Controller
 {
@@ -42,11 +44,22 @@ final class P12MixedDocumentsController extends Controller
                 }
                 [$rows, $page] = Page::read($selected, $state, $filters['per_page'], $filters['sort']);
                 $readiness = ReadModel::readiness($rows);
+                $handoffs = [];
+                if (Schema::hasTable(P13WebPostHandoff::TABLE)) {
+                    foreach (['INBOUND', 'OUTBOUND'] as $source) {
+                        $ids = $rows->where('source', $source)->pluck('warehouse_id', 'id')->all();
+                        if ($ids !== []) {
+                            foreach (P13WebPostHandoff::project($ids, $source) as $id => $handoff) {
+                                $handoffs[$source.':'.$id] = $handoff;
+                            }
+                        }
+                    }
+                }
 
                 return response()->json([
                     'success' => true,
                     'data' => $rows->map(fn (object $row): array => ReadModel::record(
-                        $row, $readiness[$row->source.':'.$row->id] ?? []
+                        $row, $readiness[$row->source.':'.$row->id] ?? [], $handoffs[$row->source.':'.$row->id] ?? null
                     ))->all(),
                     'meta' => Metadata::make($scope, $filters, $state, $facets, $page, $snapshot),
                 ]);

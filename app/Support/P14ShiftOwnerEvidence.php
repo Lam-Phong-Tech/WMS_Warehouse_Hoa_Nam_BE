@@ -120,7 +120,7 @@ final class P14ShiftOwnerEvidence
         ];
     }
 
-    public static function p09(Request $request, array $body, object $shift): ?array
+    public static function p09(Request $request, array $body, object $shift, int $httpStatus): ?array
     {
         if (! in_array($request->route()?->uri(), [
             'api/v1/mini-app/warranty-cases', 'api/v1/mini-app/warranty-cases/{id}',
@@ -129,7 +129,15 @@ final class P14ShiftOwnerEvidence
         }
         $receipt = data_get($body, 'data.receipt');
         $requestId = strtolower((string) $request->header('X-Request-ID'));
-        if (! is_array($receipt) || ! Str::isUuid($requestId) || ($receipt['state'] ?? null) !== 'SUCCEEDED') {
+        if (! is_array($receipt) && ($httpStatus < 200 || $httpStatus >= 300)) {
+            return null; // A pre-intent denial is not a native terminal receipt.
+        }
+        $state = $receipt['state'] ?? null;
+        if (! in_array($state, ['SUCCEEDED', 'FAILED'], true) && ($httpStatus < 200 || $httpStatus >= 300)) {
+            return null; // Preserve native uncertainty; never relabel it as a failed receipt.
+        }
+        if (! is_array($receipt) || ! Str::isUuid($requestId) || ! in_array($state, ['SUCCEEDED', 'FAILED'], true)
+            || ($state === 'FAILED' && ($httpStatus < 400 || $httpStatus >= 500))) {
             self::invalid('P09_RECEIPT_UNCONFIRMED');
         }
         $scope = P09WarrantyScope::resolve($request, true);
@@ -139,24 +147,36 @@ final class P14ShiftOwnerEvidence
         }
         $scopeHash = P09WarrantyPolicy::digest(P09WarrantyScope::key($scope), (string) config('app.key'));
         $native = DB::table(P09WarrantyRequests::TABLE)->where('scope_hash', $scopeHash)
-            ->where('request_id', $requestId)->where('state', 'SUCCEEDED')->first();
+            ->where('request_id', $requestId)->where('state', $state)
+            ->where('key_hash', hash_hmac('sha256', trim((string) $request->header('Idempotency-Key')), (string) config('app.key')))->first();
         if ($native === null || ($receipt['request_id'] ?? null) !== $native->request_id
             || ($receipt['warranty_case_id'] ?? null) !== $native->warranty_case_id
-            || ($receipt['version'] ?? null) !== (int) $native->committed_version
-            || ($receipt['status'] ?? null) !== $native->committed_status) {
+            || ($receipt['version'] ?? null) !== ($native->committed_version === null ? null : (int) $native->committed_version)
+            || ($receipt['status'] ?? null) !== $native->committed_status
+            || ($receipt['operation'] ?? null) !== $native->operation
+            || (int) $native->http_status !== $httpStatus
+            || ($receipt['error_code'] ?? null) !== $native->error_code) {
             self::invalid('P09_NATIVE_RECEIPT_MISMATCH');
         }
-        if (! DB::table('warranty_case_warehouse_owners')->where('warranty_case_id', $native->warranty_case_id)
+        $hash = P09WarrantyPolicy::digest(['operation' => $native->operation,
+            'case' => $request->isMethod('PATCH') ? strtolower((string) $request->route('id')) : null,
+            'body' => $request->isJson() ? $request->json()->all() : $request->request->all(),
+            'query' => $request->query(), 'if_match' => $request->header('If-Match')], (string) config('app.key'));
+        if (! hash_equals($native->request_hash, $hash)) {
+            self::invalid('P09_REQUEST_DIGEST_MISMATCH');
+        }
+        if ($state === 'SUCCEEDED' && ! DB::table('warranty_case_warehouse_owners')->where('warranty_case_id', $native->warranty_case_id)
             ->where('warehouse_id', $shift->warehouse_id)->exists()) {
             self::invalid('P09_OWNER_MISMATCH');
         }
 
         return [
             'protocol' => 'mini-app-p09-v1', 'command' => $native->operation,
-            'native_request_id' => $native->request_id, 'version' => (int) $native->committed_version,
+            'native_request_id' => $native->request_id, 'version' => $native->committed_version === null ? null : (int) $native->committed_version,
             'status' => $native->committed_status,
             'receipt_sha256' => hash('sha256', json_encode($receipt, JSON_THROW_ON_ERROR)),
-            'business_id' => $native->warranty_case_id, 'journal_kind' => 'WARRANTY',
+            'native_outcome' => $state, 'business_id' => $state === 'SUCCEEDED' ? $native->warranty_case_id : null,
+            'journal_kind' => $state === 'SUCCEEDED' ? 'WARRANTY' : 'OWNER_REJECTED',
         ];
     }
 

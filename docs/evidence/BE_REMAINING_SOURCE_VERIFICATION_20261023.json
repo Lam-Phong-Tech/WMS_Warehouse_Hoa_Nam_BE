@@ -1,0 +1,47 @@
+{
+  "status": "TARGETED_SOURCE_VERIFIED_NOT_FULL_CI_OR_LIVE_UAT",
+  "date": "2026-10-23",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "exact_candidate_sha": "SEE_RESPONSE_PACKAGE_MANIFEST",
+  "remote_dev_observed": "dc9109830c5d389982964dfe601bff712d6323ab",
+  "parent_local_commit": "2c8dba8d9517322eb52bad630bbb54e95e7052b3",
+  "database_targets": {
+    "sqlite": "Disposable :memory:; hard-exit case uses unique committed p18-crash-test file and isolated private disk, then removes only its verified test directory",
+    "postgres": "127.0.0.1:55434, newly created owned .tmp/be-remaining-20261023/pgdata cluster; distinct p12_contract_test/p23_contract_test/p11_contract_test databases",
+    "app_env": "testing",
+    "external_delivery": "array cache/mail, sync queue, private test storage; no real delivery or live credentials"
+  },
+  "test_groups": [
+    {"report": "final-sqlite.xml", "driver": "sqlite", "tests": 109, "assertions": 3020, "errors": 0, "failures": 0, "skipped": 0, "scope": "P18/P14/P09/P12/P13 owners, work shifts and Swagger"},
+    {"report": "final-pgsql-owners.xml", "driver": "pgsql", "tests": 170, "assertions": 4205, "errors": 0, "failures": 0, "skipped": 0, "scope": "P18/P14/P09/P12/P13/P04/P05/P19/P24 owner regression"},
+    {"report": "final-pgsql-p23.xml", "driver": "pgsql", "tests": 9, "assertions": 138, "errors": 0, "failures": 0, "skipped": 0, "scope": "P23 retention regression in its own database/process"},
+    {"report": "final-pgsql-p11.xml", "driver": "pgsql", "tests": 9, "assertions": 1446, "errors": 0, "failures": 0, "skipped": 0, "scope": "P11 existing protocol retention, NOT new MFA reconciliation support"},
+    {"report": "regressions-sqlite.xml", "driver": "sqlite", "tests": 93, "assertions": 2885, "errors": 0, "failures": 0, "skipped": 0, "scope": "P18 boxes/crash, P04/P05/P19/P24/P23/P11 and Swagger"},
+    {"report": "route-cache-sqlite.xml", "driver": "sqlite", "tests": 93, "assertions": 2865, "errors": 0, "failures": 0, "skipped": 0, "scope": "Cached route P18/P14/P09/P12/P13/P07"},
+    {"report": "p18-crash-final.xml", "driver": "sqlite_committed_file", "tests": 1, "assertions": 28, "errors": 0, "failures": 0, "skipped": 0, "scope": "Real PHP child exit77 after attachment INSERT: intent survives, attachment row rolls back, GET UNKNOWN, END/reupload blocked"},
+    {"report": "p18-boxes-final-cached-sqlite.xml", "driver": "sqlite_route_cache", "tests": 6, "assertions": 57, "errors": 0, "failures": 0, "skipped": 0, "scope": "Final P18 SKU field-permission guard after broad regressions; no barcodes, full-set paging, revoked rights, foreign/inactive warehouse, missing source"},
+    {"report": "p18-boxes-final-pgsql.xml", "driver": "pgsql", "tests": 6, "assertions": 57, "errors": 0, "failures": 0, "skipped": 0, "scope": "Same final P18 guard/model on PostgreSQL"}
+  ],
+  "counts_are_overlapping_groups_not_unique_suite_total": true,
+  "discarded_attempts": [
+    "An initial PostgreSQL target name was rejected by strict existing p12/p13 test guards. Guards were not weakened; a newly owned cluster with required test names was used.",
+    "Early new test fixtures incorrectly used a JSON body on GET or tried POSTED without full inbound lines. Tests were corrected to zero-body GET and valid terminal/owner fixtures, not by disabling business triggers.",
+    "A combined PostgreSQL run was contaminated by an overlapping schema-resetting test process. The second process was stopped; the complete owner group and P23/P11 were re-run without shared active test databases. final-pgsql.xml and empty aborted reports are NOT accepted evidence."
+  ],
+  "other_checks": {
+    "pint": "PASS",
+    "git_diff_check": "PASS",
+    "contract_json_parse": "PASS",
+    "swagger_generation_and_route_parity": "PASS via SwaggerRouteSyncTest; generated localhost artifact is not committed over the existing baseline",
+    "node_version": "24.19.0",
+    "vite_build_version": "8.3.5",
+    "npm_ci_ignore_scripts": "PASS",
+    "npm_run_build": "PASS",
+    "npm_test": "PASS; baseline and inventory reconciliation self-test4/4",
+    "composer_audit": {"exit_code": 0, "advisories": 0, "abandoned": 0},
+    "npm_audit": {"exit_code": 1, "high": 7, "moderate": 1, "total_reported_packages": 8, "status": "RELEASE_GATE_NOT_PASS"}
+  },
+  "migration": {"new_source_migrations": ["2026_10_23_000001_create_mini_app_web_post_handoffs"], "applied_only_to_disposable_test_databases": true, "observed_fresh_isolated_postgres_migration_rows": 216, "count_is_not_live_schema_parity_evidence": true, "real_schema_status": "NOT_CHECKED_OR_CHANGED_THIS_RUN"},
+  "open": ["P11_DURABLE_MFA_RECONCILIATION_SOURCE_AND_SECURITY_REVIEW", "NPM_AUDIT", "FULL_SEED_TWO_RUN_ROW_FIELD_LEDGER_FILE_ACCEPTANCE", "EXACT_DEPLOYED_RELEASE_AND_AUTHENTICATED_DEV_SMOKE", "DEVICE_NFC_AND_NATIVE_OWNER_UAT", "LEGACY_UNKNOWN_SUPPORT_AND_FULL_OWNER_COVERAGE"],
+  "prohibited_actions_performed": {"push": false, "github_ci": false, "deploy": false, "production_activation": false, "real_migrate_seed_repair_restore_grant": false, "new_live_admin_login": false, "live_stock_or_nfc_command": false}
+}

@@ -157,7 +157,8 @@ class P13NotificationRevision2Test extends TestCase
             ->assertJsonPath('data.p13.evidence_status', 'CONFIRMED_RECORD_RECEIPT')
             ->assertJsonPath('data.p13.record_handoff.business_document_id', $id)
             ->assertJsonPath('data.p13.record_handoff.state_at_record', 'SENT_WAITING_WEB')
-            ->assertJsonPath('data.p13.current_waiting_for_web', null)
+            ->assertJsonPath('data.p13.current_waiting_for_web', true)
+            ->assertJsonPath('data.p13.current_handoff.state', 'WAITING_WEB_POST')
             ->assertJsonPath('data.p12.status.waiting_for_web', null);
         $this->assertSame($record->json('meta.p03_draft.receipt.committed_at'), $read->json('data.p13.record_handoff.recorded_at'));
         $this->getJson('/api/v1/mini-app/inbound-documents?per_page=1', $this->headers($token))->assertOk()
@@ -165,11 +166,17 @@ class P13NotificationRevision2Test extends TestCase
         $this->getJson($url.'/scan-entries?per_page=1', $this->headers($token))->assertOk()
             ->assertJsonCount(1, 'data')->assertJsonPath('meta.summary.entry_count', 2)->assertJsonPath('meta.summary.quantity_total', 2);
         $this->assertSame($counts, $this->counts());
+        config(['p12_mixed_documents.enabled' => true]);
+        $queue = '/api/v1/mini-app/documents?warehouse_id='.$warehouse->id.'&web_queue=WAITING_WEB_POST';
+        $this->get($queue, $this->headers($token) + ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $id);
         // Test-only state change proves a receipt does not become a current waiting label.
         DB::table('stock_documents')->where('id', $id)->update(['status' => 'POSTED', 'posted_at' => now()]);
         $this->getJson($url, $this->headers($token))->assertOk()
             ->assertJsonPath('data.p13.record_handoff.semantics', 'HISTORICAL_RECORD_RECEIPT_NOT_CURRENT_DOCUMENT_STATE')
-            ->assertJsonPath('data.p13.current_waiting_for_web', null);
+            ->assertJsonPath('data.p13.current_waiting_for_web', false)
+            ->assertJsonPath('data.p13.current_handoff.state', 'POSTED');
+        $this->get($queue, $this->headers($token) + ['Accept' => 'application/json'])->assertOk()->assertJsonPath('meta.total', 0);
     }
 
     public function test_scanning_without_valid_receipt_is_not_sent_and_receipt_is_private_to_session(): void
@@ -179,7 +186,8 @@ class P13NotificationRevision2Test extends TestCase
         $id = $record->json('data.document_id');
         $url = '/api/v1/mini-app/inbound-documents/'.$id;
         [, $otherToken] = $this->actor();
-        $this->getJson($url, $this->headers($otherToken))->assertOk()->assertJsonPath('data.p13.record_handoff', null);
+        $this->getJson($url, $this->headers($otherToken))->assertOk()->assertJsonPath('data.p13.record_handoff', null)
+            ->assertJsonPath('data.p13.current_waiting_for_web', true); // Warehouse authority, not another actor's private receipt.
         $this->headers($token);
         $login = $this->browserLogin($user->email, 'secret123')->assertOk();
         $newToken = $this->selectWarehouse($login->json('data.access_token'), $warehouse);
@@ -220,7 +228,8 @@ class P13NotificationRevision2Test extends TestCase
         $counts = $this->counts();
         $url = '/api/v1/mini-app/outbound-documents/'.$id;
         $this->getJson($url, $this->headers($token))->assertOk()->assertJsonPath('data.p13.record_handoff.request_id', $key)
-            ->assertJsonPath('data.p13.record_handoff.business_type', 'OUTBOUND')->assertJsonPath('data.p13.record_handoff.draft_id', $draft);
+            ->assertJsonPath('data.p13.record_handoff.business_type', 'OUTBOUND')->assertJsonPath('data.p13.record_handoff.draft_id', $draft)
+            ->assertJsonPath('data.p13.current_handoff.state', 'WAITING_WEB_POST');
         $this->getJson('/api/v1/mini-app/outbound-documents?per_page=1', $this->headers($token))->assertOk()
             ->assertJsonPath('data.0.p13.record_handoff.business_document_id', $id)->assertJsonPath('meta.p13.all_sources_aggregate', false);
         $this->getJson($url.'/scan-entries?per_page=1', $this->headers($token))->assertOk()

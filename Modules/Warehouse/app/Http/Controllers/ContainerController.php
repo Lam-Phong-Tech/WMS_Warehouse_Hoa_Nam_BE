@@ -12,6 +12,7 @@ use Modules\Warehouse\Http\Requests\StoreContainerRequest;
 use Modules\Warehouse\Http\Requests\UpdateContainerRequest;
 use Modules\Warehouse\Repositories\Contracts\ContainerItemRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\ContainerRepositoryInterface;
+use Modules\Warehouse\Support\P18BoxReadModel;
 use OpenApi\Attributes as OA;
 
 /**
@@ -34,6 +35,9 @@ class ContainerController extends Controller
         security: [['bearerAuth' => []]],
         tags: ['23. Container'],
         parameters: [
+            new OA\Parameter(name: 'X-Container-Read-Contract', in: 'header', description: 'Optional p18-single-warehouse-boxes-v1 selects the read-only BOX projection. Requires warehouse_id, confirmed scope and exactly one persisted ACTIVE warehouse; legacy Web response stays unchanged without it.', schema: new OA\Schema(type: 'string', enum: ['p18-single-warehouse-boxes-v1'])),
+            new OA\Parameter(name: 'warehouse_id', in: 'query', description: 'Required assertion in P18 header mode, must match the confirmed session warehouse.', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'sku_type', in: 'query', description: 'P18 header mode only; filters actual master type, never reclassifies a product.', schema: new OA\Schema(type: 'string', enum: ['ALL', 'COMPONENT', 'PRODUCT'])),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
@@ -48,6 +52,10 @@ class ContainerController extends Controller
     )]
     public function index(Request $request)
     {
+        if ($request->hasHeader(P18BoxReadModel::HEADER)) {
+            return app(P18BoxReadModel::class)->read($request);
+        }
+
         return $this->respondPaginated(
             $this->containers->paginate($request->all(), (int) $request->input('per_page', 10))
         );
@@ -83,7 +91,11 @@ class ContainerController extends Controller
         summary: 'Chi tiết container (kèm danh sách item bên trong)',
         security: [['bearerAuth' => []]],
         tags: ['23. Container'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'X-Container-Read-Contract', in: 'header', description: 'Optional read-only scoped BOX projection, not an upload/move protocol.', schema: new OA\Schema(type: 'string', enum: ['p18-single-warehouse-boxes-v1'])),
+            new OA\Parameter(name: 'warehouse_id', in: 'query', description: 'Required in P18 header mode; confirmed session warehouse UUID.', schema: new OA\Schema(type: 'string', format: 'uuid')),
+        ],
         responses: [
             new OA\Response(response: 200, description: 'Chi tiết container'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
@@ -92,6 +104,9 @@ class ContainerController extends Controller
     )]
     public function show(string $id)
     {
+        if (request()->hasHeader(P18BoxReadModel::HEADER)) {
+            return app(P18BoxReadModel::class)->read(request(), $id);
+        }
         $container = $this->containers->find($id);
 
         if (! $container) {

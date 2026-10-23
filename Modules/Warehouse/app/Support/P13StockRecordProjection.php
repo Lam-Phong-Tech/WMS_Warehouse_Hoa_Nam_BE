@@ -78,6 +78,17 @@ final class P13StockRecordProjection
                 $evidence = [];
             }
         }
+        $current = [];
+        $currentStatus = 'NOT_ESTABLISHED';
+        try {
+            if (! Schema::hasTable(P13WebPostHandoff::TABLE)) {
+                $currentStatus = 'SOURCE_UNAVAILABLE';
+            } elseif ($identities !== []) {
+                $current = P13WebPostHandoff::project($identities, $source);
+            }
+        } catch (QueryException) {
+            $currentStatus = 'SOURCE_UNAVAILABLE';
+        }
         foreach ($rows as &$row) {
             if (! is_array($row)) {
                 continue;
@@ -90,8 +101,10 @@ final class P13StockRecordProjection
                 'record_handoff' => $sent,
                 'owner_snapshot_status' => is_string($row['status'] ?? null) ? $row['status'] : null,
                 'owner_snapshot_posted_at' => $row['posted_at'] ?? null,
-                'current_waiting_for_web' => null,
-                'current_waiting_semantics' => 'NOT_INFERRED_FROM_HISTORICAL_RECEIPT_OR_READINESS',
+                'current_waiting_for_web' => $current[$id]['current_waiting_for_web'] ?? null,
+                'current_handoff' => $current[$id] ?? null,
+                'current_handoff_availability' => isset($current[$id]) ? 'RECORDED' : $currentStatus,
+                'current_waiting_semantics' => 'PERSISTED_HANDOFF_INTENT_AND_CURRENT_CANONICAL_STATE_NOT_HISTORICAL_RECEIPT_OR_READINESS',
                 'recovery_owner' => $source === 'INBOUND' ? 'P04_P03' : 'P05_P03',
                 'write_operations' => [],
             ];

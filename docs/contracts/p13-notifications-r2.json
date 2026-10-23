@@ -1,6 +1,7 @@
 {
   "contract": "p13-notifications-v1",
   "projection_revision": "p13-notifications-r2",
+  "current_handoff_extension_20261023": "docs/contracts/p13-web-post-queue-v1.json",
   "status": "SOURCE_IMPLEMENTED_PENDING_OWNER_ACCEPTANCE_TEST_AND_DEPLOYMENT",
   "reviewed_base": "7733f582d37c34e65dabfa6c48067a19a3f29ad0",
   "production_activation": false,
@@ -42,7 +43,7 @@
     "contract": "p13-record-handoff-v1",
     "field": "data.p13 or data[].p13 on the four stock list/detail routes",
     "evidence": "Batched join of persisted mini_app_drafts and mini_app_draft_receipts in current actor/stable-session/operation/document warehouse. Verify a successful RECORD receipt, its original response business ID, draft identity/version, transactional timestamp, posted=false and stock_effect=NONE. Neither current SCANNING, readiness nor a notification payload is sufficient.",
-    "state": "record_handoff.state_at_record=SENT_WAITING_WEB only for verified evidence. It is explicitly HISTORICAL_RECORD_RECEIPT_NOT_CURRENT_DOCUMENT_STATE. current_waiting_for_web stays null; do not override a current owner POSTED/cancelled state with the historical label. Current-state mapping across sources still needs owner/BA acceptance.",
+    "state": "record_handoff.state_at_record=SENT_WAITING_WEB remains HISTORICAL_RECORD_RECEIPT_NOT_CURRENT_DOCUMENT_STATE. Current waiting now comes independently from p13-web-post-queue-v1 persisted submission intent plus fresh canonical stock state; missing source stays null. Never override POSTED/CANCELLED using the historical receipt.",
     "missing": "record_handoff=null with NOT_ESTABLISHED, NO_ACTIVE_AUTH_SESSION or SOURCE_UNAVAILABLE. These are not failed RECORD or empty document evidence. Other-session receipts are not borrowed or exposed. Unavailable child evidence does not fabricate a parent result.",
     "timestamp": "recorded_at comes from mini_app_draft_receipts.completed_at, UTC ISO-8601; transactional server time, not a database WAL commit instant. Owner posted_at and response observation time remain separate.",
     "selection": "Latest verified scoped RECORD, ordered by completed_at desc then request_id desc. No title/prefix/time-window association.",
@@ -51,7 +52,7 @@
   },
   "quantity_and_all_sources": {
     "all_sources_aggregate": false,
-    "decision": "BA/BE must still approve combined inbound/outbound presentation, paging, sorting, total and source-error behavior. No new aggregate API or local page merge is shipped.",
+    "decision": "Use existing P12 mixed v3 for combined owner records/totals/paging and web_queue=WAITING_WEB_POST for explicit handoffs. This owner-list projection remains separate; no duplicate aggregate or local page merge.",
     "units": "Notification totals use NOTIFICATION_RECIPIENT; stock list totals use STOCK_DOCUMENT. Planned, scanned quantity, SKU, serial and scan-attempt counts are not interchangeable.",
     "evidence": "Continue P12 scan-entries meta.summary for full parent/status query quantities and units. Never sum page rows or treat null/mixed-unit quantity as zero. Parent and summary reads are separate observations, not a frozen snapshot."
   },

@@ -33,12 +33,22 @@ final class AttachmentUploadReceipts
         'api/v1/mini-app/warranty-cases/{id}/attachments' => 'WARRANTY',
     ];
 
-    public function handle(Request $request, Closure $next): Response
+    /** Commit the intent before an outer shift transaction can run storage work. */
+    public function prepareForShift(Request $request, Closure $fenceGuard): void
     {
-        // Legacy callers retain their owner contract, without claiming receipts.
-        if (! $request->hasHeader('X-Upload-Contract')) {
-            return $next($request);
+        $request->attributes->set('attachment_upload.prepared', $this->prepare($request, $fenceGuard));
+    }
+
+    public function afterShiftRollback(Request $request): void
+    {
+        $prepared = $request->attributes->get('attachment_upload.prepared');
+        if (is_array($prepared) && $prepared['created']) {
+            $this->uncertain($request, $prepared['attempt']);
         }
+    }
+
+    private function prepare(Request $request, ?Closure $fenceGuard = null): array
+    {
         if ($request->header('X-Upload-Contract') !== self::CONTRACT) {
             ApiError::abort(422, 'UPLOAD_CONTRACT_UNSUPPORTED', 'Phiên bản contract upload không được hỗ trợ.');
         }
@@ -75,8 +85,13 @@ final class AttachmentUploadReceipts
         ksort($fields);
         $hash = hash('sha256', json_encode([$scope['actor_id'], $scope['auth_session_id'], $owner, strtolower($parent),
             $warehouse, $actual, $file->getSize(), $file->getClientOriginalName(), $fields], JSON_THROW_ON_ERROR));
-        [$attempt, $created] = DB::transaction(function () use ($scope, $key, $hash, $actual, $owner, $parent, $file): array {
+        [$attempt, $created] = DB::transaction(function () use ($scope, $key, $hash, $actual, $owner, $parent, $file, $fenceGuard): array {
             User::whereKey($scope['actor_id'])->lockForUpdate()->firstOrFail();
+            // Same actor -> warehouse -> shift locks as END. An already ended
+            // shift cannot reserve an intent; an intent committed first blocks END.
+            if ($fenceGuard !== null) {
+                $fenceGuard();
+            }
             $query = DB::table(self::TABLE)->where('actor_id', $scope['actor_id'])->where('operation_key', $key);
             $existing = (clone $query)->first();
             if ($existing !== null) {
@@ -89,6 +104,12 @@ final class AttachmentUploadReceipts
 
                 return [$existing, false];
             }
+            if (DB::table(self::TABLE)->where('actor_id', $scope['actor_id'])
+                ->where('auth_session_id', $scope['auth_session_id'])->where('warehouse_id', $scope['warehouse_id'])
+                ->where('parent_type', $owner)->where('parent_id', strtolower($parent))->where('file_sha256', $actual)
+                ->whereIn('state', ['PENDING', 'UNKNOWN'])->exists()) {
+                ApiError::abort(409, 'UPLOAD_OUTCOME_UNKNOWN', 'Không đổi key để lặp lại tệp/ý định đang chưa rõ kết quả; đối chiếu yêu cầu gốc.');
+            }
             $id = (string) Str::uuid();
             DB::table(self::TABLE)->insert([
                 'id' => $id, 'actor_id' => $scope['actor_id'], 'auth_session_id' => $scope['auth_session_id'],
@@ -100,6 +121,20 @@ final class AttachmentUploadReceipts
 
             return [DB::table(self::TABLE)->where('id', $id)->first(), true];
         });
+
+        return compact('attempt', 'created', 'scope', 'owner', 'parent', 'warehouse');
+    }
+
+    public function handle(Request $request, Closure $next): Response
+    {
+        // Untracked legacy callers retain their owner contract, without receipts.
+        if (! $request->hasHeader('X-Upload-Contract')) {
+            return $next($request);
+        }
+        ['attempt' => $attempt, 'created' => $created, 'owner' => $owner, 'parent' => $parent,
+            'warehouse' => $warehouse] = $request->attributes->get('attachment_upload.prepared') ?? $this->prepare($request);
+        // Permissions/parent can change after preparation; reauthorize replay too.
+        $scope = $this->scope($request, $owner, $parent, $warehouse, true);
         if (! $created) {
             if (! in_array($attempt->state, ['SUCCEEDED', 'REJECTED'], true)) {
                 ApiError::abort(409, 'UPLOAD_OUTCOME_UNKNOWN', 'Chỉ đối chiếu key gốc; không upload lại khi chưa rõ kết quả.');
@@ -246,7 +281,7 @@ final class AttachmentUploadReceipts
             ApiError::abort(409, 'WAREHOUSE_CONTEXT_MISMATCH', 'Kho upload không khớp phiên.');
         }
         $parent = DB::table('stock_documents')->where('id', strtolower($id))->where('doc_type', $owner === 'INBOUND' ? 'receipt' : 'issue')
-            ->where($owner === 'INBOUND' ? 'dst_warehouse_id' : 'src_warehouse_id', $warehouse);
+            ->where($owner === 'INBOUND' ? 'dst_warehouse_id' : 'src_warehouse_id', $warehouse)->whereNull('deleted_at');
         if ($lock) {
             $parent->lockForUpdate();
         }

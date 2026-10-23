@@ -109,6 +109,38 @@ final class P09WarrantyHandoverContractTest extends TestCase
         $ok->assertOk()->assertJsonPath('data.receipt.state', 'SUCCEEDED');
     }
 
+    public function test_tracked_rejection_is_a_durable_native_failure_not_a_successful_shift_request(): void
+    {
+        $warehouse = $this->ensureActiveWarehouse('P09-TRACKED');
+        [$actor] = $this->actor($warehouse->id);
+        $token = $this->sessionToken($actor, $warehouse);
+        $case = $this->createCase($token, $warehouse);
+        config(['p14.shift_enabled' => true, 'p14.shift_drain_enabled' => false]);
+        $shift = $this->postJson('/api/v1/mini-app/work-shifts/start', ['warehouse_id' => $warehouse->id],
+            $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->json('data.shift_id');
+        $key = (string) Str::uuid();
+        $trace = (string) Str::uuid();
+        $identity = ['If-Match' => '999', 'Idempotency-Key' => $key, 'X-Request-ID' => $trace, 'X-Work-Shift-ID' => $shift];
+        $path = '/api/v1/mini-app/warranty-cases/'.$case;
+        $body = ['warehouse_id' => $warehouse->id, 'status' => 'CHECKING'];
+        $this->patchJson($path, $body, $this->headers($token) + $identity)->assertStatus(412)
+            ->assertJsonPath('data.receipt.state', 'FAILED')->assertJsonPath('error.code', 'STALE_VERSION');
+        $this->assertDatabaseHas('p09_warranty_requests', ['request_id' => $trace, 'state' => 'FAILED']);
+        $this->assertDatabaseHas('p14_shift_operations', ['shift_id' => $shift, 'request_id' => $trace, 'operation' => 'OWNER_REJECTED']);
+        $this->patchJson($path, $body, $this->headers($token) + $identity)->assertStatus(412)->assertHeader('Idempotent-Replay', 'true');
+        $this->assertDatabaseCount('p14_shift_operations', 1);
+        $this->assertDatabaseHas('warranty_case', ['warranty_case_id' => $case, 'version' => 1]);
+        $base = '/api/v1/mini-app/work-shifts/'.$shift;
+        $check = $this->getJson($base.'/close-check?warehouse_id='.$warehouse->id, $this->headers($token))
+            ->assertOk()->assertJsonPath('data.can_end', true)->json('data');
+        $this->postJson($base.'/end', ['warehouse_id' => $warehouse->id, 'check_token' => $check['check_token'],
+            'local_state' => 'CLEAN', 'pending_request_ids' => []], $this->headers($token) + [
+                'Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"'.$check['expected_version'].'"',
+            ])->assertOk();
+        $this->getJson($base.'/summary?warehouse_id='.$warehouse->id, $this->headers($token))
+            ->assertOk()->assertJsonPath('data.kpis.successful_request_count', 0);
+    }
+
     private function createCase(string $token, object $warehouse): string
     {
         return (string) $this->postJson('/api/v1/mini-app/warranty-cases', [

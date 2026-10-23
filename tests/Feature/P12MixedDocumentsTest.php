@@ -20,6 +20,7 @@ use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\P12MixedDocumentPage as Page;
 use Modules\Warehouse\Support\P12MixedDocumentReadModel as ReadModel;
+use Modules\Warehouse\Support\P13WebPostHandoff;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use Normalizer;
@@ -642,6 +643,56 @@ final class P12MixedDocumentsTest extends TestCase
         $this->assertNull($record['created_at']);
         $this->assertNull($record['source_status']);
         $this->assertNull($record['status_key']);
+    }
+
+    public function test_web_post_queue_requires_explicit_handoff_and_paginates_the_whole_scoped_set(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $expected = [];
+        foreach (['INBOUND', 'OUTBOUND', 'INBOUND', 'OUTBOUND', 'INBOUND'] as $source) {
+            $id = $this->stock($warehouse, $source, now()->subDay()->format('Y-m-d H:i:s'));
+            $version = (int) DB::table('stock_documents')->where('id', $id)->value('version');
+            DB::transaction(fn () => P13WebPostHandoff::record($id, $source, $warehouse->id, $version));
+            $expected[] = $source.':'.$id;
+        }
+        $legacy = $this->stock($warehouse, 'INBOUND', now()->subDay()->format('Y-m-d H:i:s'));
+        DB::table('stock_documents')->where('id', $legacy)->update(['status' => 'SCANNING']);
+        $before = $this->fingerprints();
+        $seen = [];
+        $cursor = 'start';
+        do {
+            $page = $this->read($token, $warehouse, ['web_queue' => 'WAITING_WEB_POST', 'cursor' => $cursor, 'per_page' => 2])->assertOk()
+                ->assertJsonPath('meta.total', 5)->assertJsonPath('meta.source_facets.INBOUND.total', 3)
+                ->assertJsonPath('meta.source_facets.OUTBOUND.total', 2)->assertJsonPath('meta.source_facets.WARRANTY.total', 0)
+                ->assertJsonPath('meta.query.web_queue', 'WAITING_WEB_POST');
+            foreach ($page->json('data') as $row) {
+                $this->assertSame('WAITING_WEB_POST', $row['web_post_handoff']['state']);
+                $this->assertTrue($row['web_post_handoff']['current_waiting_for_web']);
+                $this->assertNull($row['web_post_handoff']['reviewed_at']);
+                $this->assertNotEmpty($row['read_target']['path']);
+                $seen[] = $row['row_key'];
+            }
+            $cursor = $page->json('meta.next_cursor');
+        } while ($cursor !== null);
+        $this->assertEqualsCanonicalizing($expected, $seen);
+        $this->assertSame($before, $this->fingerprints());
+        // Test fixture only, not stock-post evidence. Current state wins over the old submission.
+        $first = explode(':', $expected[0], 2)[1];
+        DB::table('stock_documents')->where('id', $first)->update(['status' => 'CANCELLED', 'cancelled_at' => now(),
+            'cancelled_by' => User::query()->firstOrFail()->user_id, 'cancel_reason' => 'Isolated current-state projection test']);
+        $this->read($token, $warehouse, ['web_queue' => 'WAITING_WEB_POST'])->assertOk()->assertJsonPath('meta.total', 4);
+        $this->read($token, $warehouse, ['web_queue' => 'WAITING_WEB_POST', 'source' => 'WARRANTY'])
+            ->assertOk()->assertJsonPath('meta.total', 0);
+        $this->read($token, $warehouse, ['web_queue' => 'SENT_WAITING_WEB'])->assertStatus(422);
+    }
+
+    public function test_web_post_queue_schema_failure_is_not_an_empty_or_partial_list(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        Schema::drop(P13WebPostHandoff::TABLE);
+        $this->read($token, $warehouse, ['web_queue' => 'WAITING_WEB_POST'])->assertStatus(503)
+            ->assertJsonPath('error.code', 'WEB_POST_HANDOFF_SOURCE_UNAVAILABLE');
+        $this->read($token, $warehouse)->assertOk(); // The old unfiltered contract remains readable.
     }
 
     private function actor(array $permissions = ['inbound.view', 'outbound.view', 'warranty.view', 'warranty.manage']): array

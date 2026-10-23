@@ -3,6 +3,7 @@
   "date": "2026-10-09",
   "reviewed_source": "9703dc5a6239550048c2606b575ca4fabbf13863",
   "owner_upload_contract": "owner-attachment-upload-v1",
+  "current_model_update_20261023": "docs/contracts/p18-single-warehouse-boxes-v1.json: user corrected current reality to one warehouse with boxes. New opt-in read projection is a source candidate, not deployed; no physical grid/capacity or stock allocation is invented.",
   "status": "PENDING_CONTRACT_AND_DEPLOYMENT",
   "production_activation": false,
   "live_verified": false,
@@ -17,7 +18,7 @@
     "P18-03": {"source": "OWNER_LIMITS_PRESERVED", "infrastructure": "PENDING_LIVE_CONFIGURATION_EVIDENCE"},
     "P18-04": {"source": "PENDING_BA_STRUCTURED_HANDOVER", "fields_enabled": false},
     "P18-05": {"source": "REUSE_P09_UPDATE_AND_CANONICAL_TRANSITION", "live_verified": false},
-    "P18-06": {"source": "NOT_TRACKED", "hierarchy_capacity_occupancy": "PENDING_MODEL_AND_BA"},
+    "P18-06": {"source": "BOX_REGISTER_SOURCE_CANDIDATE_UNDEPLOYED", "model": "SINGLE_WAREHOUSE_WITH_BOXES", "contract": "docs/contracts/p18-single-warehouse-boxes-v1.json", "hierarchy_capacity_occupancy": "NOT_CONFIGURED_NOT_INVENTED"},
     "P18-07": {"source": "REUSE_OWNER_METADATA_AND_AUTHORIZED_BINARY_DOWNLOAD", "live_verified": false},
     "P18-08": {"source": "PENDING_RELEASE_SCHEMA_AUTHENTICATED_SMOKE_AND_UAT"}
   },

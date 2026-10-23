@@ -17,6 +17,7 @@ use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\OutboundReservationProjection;
+use Modules\Warehouse\Support\P13WebPostHandoff;
 use Modules\Warehouse\Support\ProductQrPayload;
 
 /**
@@ -265,6 +266,8 @@ class MiniAppOutboundStagingController extends Controller
                         ],
                         idempotencyKey: $idempotencyKey,
                     );
+
+                    P13WebPostHandoff::record($documentId, 'OUTBOUND', $warehouseId, $version);
 
                     return [
                         'document_id' => $documentId,

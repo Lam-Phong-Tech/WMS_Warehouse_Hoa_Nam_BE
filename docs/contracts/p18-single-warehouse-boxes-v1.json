@@ -1,0 +1,33 @@
+{
+  "contract": "p18-single-warehouse-boxes-v1",
+  "revision": "p18-box-register-r1-20261023",
+  "status": "SOURCE_CANDIDATE_PENDING_RELEASE_AND_AUTHENTICATED_UAT",
+  "decision": "docs/decisions/app-owner-requirements-20261023.json",
+  "model": "SINGLE_WAREHOUSE_WITH_BOXES; no invented zone/rack/shelf/bin or TRAY capacity",
+  "routes": [
+    {"method": "GET", "path": "/api/v1/containers", "header": "X-Container-Read-Contract=p18-single-warehouse-boxes-v1", "query": {"warehouse_id": "required UUID", "sku_type": "ALL(default)|COMPONENT|PRODUCT", "keyword": "literal code/SKU code/name max100", "page": "default1", "per_page": "1..100 default20"}},
+    {"method": "GET", "path": "/api/v1/containers/{container_id}", "header": "X-Container-Read-Contract=p18-single-warehouse-boxes-v1", "query": {"warehouse_id": "required UUID"}}
+  ],
+  "legacy": "Existing Web GET unchanged without header; no new endpoint/mutation",
+  "permissions": "(container.view OR putaway.view OR putaway.manage) AND sku.view for the master/classification projection; fresh active actor, confirmed family/context, warehouse ACL and tenant scope; canonical IAM revoke bumps user.version",
+  "scope": "Exactly one persisted warehouse row, ACTIVE and matching context/query. A second inactive warehouse also blocks global register with 503; one ACTIVE row alone is not ownership proof.",
+  "sources": {
+    "identity": "containers.container_id/container_code/type=BOX; actual primary_sku_id joins sku",
+    "classification": "sku.sku_type/is_serial_tracked, never size or missing barcode",
+    "contents": "Active container_items for exact primary SKU. contained_qty is container contents, NOT warehouse balance or availability.",
+    "missing": "contained_qty=null/NOT_RECORDED; invalid/mixed source remains null/SOURCE_INCONSISTENT",
+    "location_hint": "Stored free text, not hierarchy/placement proof", "parent_container_id": "Existing containment only",
+    "capacity": null, "available_qty": null, "reserved_qty": null
+  },
+  "small_components": {
+    "master": "Existing write owners require ACTIVE COMPONENT SKU; tiny parts need no individual physical code/serial",
+    "box": "Existing actual container_code works with current P19 resolver; no fabricated physical_codes/item_instances",
+    "writes": "P04 BOX inbound/P19 issue retain all owner guards, draft/version/receipt and posting",
+    "issue_eligibility": "Re-resolve through P19; GET classification does not grant case/session/warehouse/stock/write eligibility",
+    "product_to_component_reclassification": false
+  },
+  "pagination": {"count_unit": "BOX", "total": "Whole authorized filtered set before page", "mode": "PAGE_LIVE_NOT_FROZEN"},
+  "errors": {"401": "Unauthenticated/revoked", "403": "Rights/scope denied", "404": "BOX missing", "409": "Contract/context mismatch", "422": "Invalid/missing query or GET body", "503": "Source/single-warehouse scope unavailable, no fake empty data"},
+  "headers": {"Cache-Control": "private, no-store", "Vary": "Authorization, Origin", "X-Content-Type-Options": "nosniff"},
+  "new_migrations": [], "write_operations": [], "live_verified": false, "production_activation": false
+}
