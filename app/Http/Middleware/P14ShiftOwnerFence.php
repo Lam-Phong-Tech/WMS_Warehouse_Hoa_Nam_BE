@@ -89,7 +89,10 @@ final class P14ShiftOwnerFence
                 ApiError::abort(409, 'OWNER_RECONCILE_REQUIRED', 'Đổi mã trace hoặc ca không tạo ý định owner mới; đối chiếu yêu cầu gốc.');
             }
             $response = $next($request);
-            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            $body = $response instanceof JsonResponse ? $response->getData(true) : [];
+            $uploadProof = P14ShiftOwnerEvidence::p18($request, $body, $shift, $response->getStatusCode());
+            if (($response->getStatusCode() < 200 || $response->getStatusCode() >= 300)
+                && ($uploadProof['native_outcome'] ?? null) !== 'REJECTED') {
                 throw new HttpResponseException($response);
             }
             $kind = match ($request->method().' '.$request->path()) {
@@ -103,12 +106,11 @@ final class P14ShiftOwnerFence
             if (in_array($request->method(), ['PUT', 'PATCH'], true) && ! $request->is('api/v1/mini-app/drafts/*')) {
                 $kind = 'UNSUPPORTED_OWNER_SAVE';
             }
-            $body = $response instanceof JsonResponse ? $response->getData(true) : [];
             $proof = null;
             if ($response->getStatusCode() === 202) {
                 $kind = 'PENDING_OWNER_RESULT';
             } else {
-                $proof = P14ShiftOwnerEvidence::p03($request, $body, $shift)
+                $proof = $uploadProof ?? P14ShiftOwnerEvidence::p03($request, $body, $shift)
                     ?? P14ShiftOwnerEvidence::nfc($request, $body, $shift, $nfcHash)
                     ?? P14ShiftOwnerEvidence::p09($request, $body, $shift)
                     ?? P14ShiftOwnerEvidence::p19($request, $body, $shift);

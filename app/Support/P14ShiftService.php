@@ -133,7 +133,7 @@ final class P14ShiftService
                 'contract' => self::CONTRACT, 'shift_id' => $id, 'warehouse_id' => $shift->warehouse_id,
                 'started_at' => Carbon::parse($shift->started_at)->utc()->toISOString(), 'ended_at' => $receipt['ended_at'],
                 'kpis' => [
-                    'successful_request_count' => $operations->count(), 'count_unit' => 'TRACKED_OWNER_REQUEST',
+                    'successful_request_count' => $operations->where('operation', '!=', 'OWNER_REJECTED')->count(), 'count_unit' => 'TRACKED_OWNER_REQUEST',
                     'recorded_documents' => $recorded, 'recorded_documents_scope' => 'EXPLICIT_RECORD_ROUTES_ONLY',
                     'quantity_total' => null, 'quantity_status' => 'NOT_PROJECTED',
                     'posted_total' => null, 'posted_total_status' => 'NOT_PROJECTED',

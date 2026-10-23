@@ -74,6 +74,70 @@ class P18UploadReceiptTest extends TestCase
         $this->assertDatabaseCount('document_attachments', 1);
     }
 
+    public function test_tracked_upload_verifies_receipt_and_rejection_survives_outer_shift_transaction(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $id = $this->createInboundHeader($this->headers($token), $warehouse->id)['document_id'];
+        config(['p14.shift_enabled' => true, 'p14.shift_drain_enabled' => false, 'documents.attachment_scan_command' => 'false']);
+        $shift = $this->postJson('/api/v1/mini-app/work-shifts/start', ['warehouse_id' => $warehouse->id],
+            $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->json('data');
+        $file = UploadedFile::fake()->image('blocked-shift.png');
+        $key = (string) Str::uuid();
+        $trace = (string) Str::uuid();
+        $identity = ['X-Work-Shift-ID' => $shift['shift_id'], 'X-Request-ID' => $trace];
+        $this->post($this->path($id), ['file' => $file], $this->uploadHeaders($token, $warehouse, $file, $key) + $identity)
+            ->assertStatus(422)->assertJsonPath('meta.upload_receipt.outcome', 'REJECTED');
+        $this->assertDatabaseHas(AttachmentUploadReceipts::TABLE, ['operation_key' => $key, 'state' => 'REJECTED']);
+        $this->assertDatabaseHas('p14_shift_operations', ['shift_id' => $shift['shift_id'], 'request_id' => $trace, 'operation' => 'OWNER_REJECTED']);
+        $this->get($this->receiptUrl($id, $key, $warehouse, $file), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.outcome', 'REJECTED')->assertJsonPath('data.retry_policy', 'NONE');
+        $this->post($this->path($id), ['file' => $file], $this->uploadHeaders($token, $warehouse, $file, $key) + $identity)
+            ->assertStatus(422)->assertHeader('Idempotent-Replay', 'true');
+        $this->assertDatabaseCount('p14_shift_operations', 1);
+        $this->assertDatabaseCount('document_attachments', 1);
+        $this->assertDatabaseHas('mini_app_work_shifts', ['shift_id' => $shift['shift_id'], 'version' => 2]);
+        $base = '/api/v1/mini-app/work-shifts/'.$shift['shift_id'];
+        $check = $this->getJson($base.'/close-check?warehouse_id='.$warehouse->id, $this->headers($token))
+            ->assertOk()->assertJsonPath('data.can_end', true)->json('data');
+        $this->postJson($base.'/end', ['warehouse_id' => $warehouse->id, 'check_token' => $check['check_token'],
+            'local_state' => 'CLEAN', 'pending_request_ids' => []], $this->headers($token) + [
+                'Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"'.$check['expected_version'].'"',
+            ])->assertOk();
+        $this->getJson($base.'/summary?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()
+            ->assertJsonPath('data.kpis.successful_request_count', 0);
+        $this->assertCount(0, Storage::disk('local')->allFiles());
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_tracked_successful_upload_has_exact_native_proof_and_invalidates_old_close_check(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $id = $this->createInboundHeader($this->headers($token), $warehouse->id)['document_id'];
+        config(['p14.shift_enabled' => true, 'p14.shift_drain_enabled' => false]);
+        $shift = $this->postJson('/api/v1/mini-app/work-shifts/start', ['warehouse_id' => $warehouse->id],
+            $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->json('data');
+        $base = '/api/v1/mini-app/work-shifts/'.$shift['shift_id'];
+        $check = $this->getJson($base.'/close-check?warehouse_id='.$warehouse->id, $this->headers($token))->assertOk()->json('data');
+        $file = UploadedFile::fake()->image('shift.png');
+        $key = (string) Str::uuid();
+        $trace = (string) Str::uuid();
+        $identity = ['X-Work-Shift-ID' => $shift['shift_id'], 'X-Request-ID' => $trace];
+        $upload = $this->post($this->path($id), ['file' => $file], $this->uploadHeaders($token, $warehouse, $file, $key) + $identity)
+            ->assertCreated()->assertJsonPath('meta.upload_receipt.outcome', 'SUCCEEDED');
+        $this->assertDatabaseHas('p14_shift_operations', ['shift_id' => $shift['shift_id'], 'request_id' => $trace, 'operation' => 'OWNER_REQUEST']);
+        $proof = DB::table('audit_log')->where('action', 'WORK_SHIFT_OWNER_VERIFIED')->where('request_id', $trace)->first();
+        $this->assertNotNull($proof);
+        $this->post($this->path($id), ['file' => $file], $this->uploadHeaders($token, $warehouse, $file, $key) + $identity)
+            ->assertCreated()->assertJsonPath('data.id', $upload->json('data.id'))->assertHeader('Idempotent-Replay', 'true');
+        $this->postJson($base.'/end', ['warehouse_id' => $warehouse->id, 'check_token' => $check['check_token'],
+            'local_state' => 'CLEAN', 'pending_request_ids' => []], $this->headers($token) + [
+                'Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"'.$check['expected_version'].'"',
+            ])->assertStatus(412);
+        $this->assertDatabaseCount('document_attachments', 1);
+        $this->assertDatabaseCount('p14_shift_operations', 1);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
     public function test_absent_or_pending_receipt_is_unknown_even_if_current_attachment_exists(): void
     {
         [, $token, $warehouse] = $this->actor();

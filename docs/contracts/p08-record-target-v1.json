@@ -1,0 +1,46 @@
+{
+  "contract": "p08-record-target-v1",
+  "revision": "p08-record-target-r1",
+  "date": "2026-10-23",
+  "status": "IMPLEMENTED_SOURCE_PENDING_REVIEW_RELEASE_AND_APP_ACCEPTANCE",
+  "route": {"method": "GET", "path": "/api/v1/mini-app/history/records/{recordId}", "body": null},
+  "response_path": "data.record_target",
+  "metadata_marker": "meta.record_target_contract=p08-record-target-v1",
+  "new_routes": [],
+  "new_migrations": [],
+  "query": "Existing P08 warehouse_id, source/filters, limit/cursor and optional explicit activityId remain unchanged. No new client identity override.",
+  "identity": {
+    "record_id": "SOURCE:canonical persisted owner UUID, already authorized by the filtered P08 read query.",
+    "source": ["DOCUMENT", "WARRANTY", "NFC", "SCAN"],
+    "owner_id": "Canonical parent UUID. Never the activity/event/draft/auth-session/notification recipient ID.",
+    "warehouse_id": "Confirmed and authorized warehouse from P08 scope, validated against persisted source ownership before the projection.",
+    "resource_type": ["STOCK_DOCUMENT", "WARRANTY_CASE", "PHYSICAL_CODE", "SCAN_BATCH"],
+    "uniqueness": "One distinct record/source/business/owner tuple before cursor pagination; ambiguity fails 503 HISTORY_RECORD_IDENTITY_UNRESOLVED."
+  },
+  "targets": {
+    "shape": {"available": "boolean", "read_target": "null or {method:GET,path:exact owner-relative path,query:{warehouse_id:UUID}}"},
+    "DOCUMENT": {
+      "detail": "INBOUND -> inbound-documents/{owner_id}; OUTBOUND -> outbound-documents/{owner_id}; requires documents.read in addition to existing history/source rights.",
+      "attachments": "Same exact parent + /attachments; requires documents.read. Owner independently reauthorizes."
+    },
+    "WARRANTY": {
+      "detail": "warranty-cases/{owner_id}, after existing history + warranty source scope.",
+      "attachments": "warranty-cases/{owner_id}/attachments, additionally documents.read."
+    },
+    "NFC": {"nfc_history": "nfc-tags/{owner_id}/events under /api/v1/mini-app; no invented tag detail/confirmation route."},
+    "SCAN": {"scan_session": "history/scan-sessions/{owner_id} under /api/v1/mini-app; batch UUID, not auth family."},
+    "unavailable": "Other target types are available=false with read_target=null. No guessed P20 component business ID or item ID."
+  },
+  "selection_policy": "NO_ACTIVITY_SELECTED_WITHOUT_EXPLICIT_ACTIVITY_ID",
+  "compatibility": "selectedActivity remains null when activityId is omitted, even with one event. Explicit activityId still must belong to the exact record. Existing events/paging/count semantics are preserved.",
+  "safety": {
+    "owner_permission_rechecked_on_open": true,
+    "is_confirmation_receipt": false,
+    "write_operations": [],
+    "read_target_is_not_authorization_or_current_existence_proof": true,
+    "namespace_reinterpretation": false,
+    "no_current_lookup_to_fill_historical_fields": true
+  },
+  "production_activation": false,
+  "live_verified": false
+}

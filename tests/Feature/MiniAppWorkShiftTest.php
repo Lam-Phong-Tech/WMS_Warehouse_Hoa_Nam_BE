@@ -12,7 +12,6 @@ use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\RefreshTokenService;
-use Modules\Warehouse\Models\Warehouse;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 
@@ -29,6 +28,92 @@ class MiniAppWorkShiftTest extends TestCase
     {
         $this->getJson(self::CURRENT)->assertUnauthorized();
         $this->postJson(self::START, ['warehouse_id' => (string) Str::uuid()])->assertUnauthorized();
+        $this->assertDatabaseCount('mini_app_work_shifts', 0);
+    }
+
+    public function test_current_null_exposes_scoped_admission_without_starting_a_shift(): void
+    {
+        config(['p14.shift_enabled' => true, 'p14.shift_drain_enabled' => false]);
+        [$user, $warehouse] = $this->actor();
+        [$token] = $this->login($user);
+        $this->getJson(self::CURRENT, $this->headers($token))->assertOk()->assertJsonPath('data', null)
+            ->assertJsonPath('meta.shift_admission.new_tracked_start_supported', false)
+            ->assertJsonPath('meta.shift_admission.unavailable_reason', 'WAREHOUSE_CONTEXT_REQUIRED');
+        $token = $this->postJson('/api/v1/auth/switch-context', [
+            'context_type' => 'WAREHOUSE', 'context_id' => $warehouse->id,
+        ], $this->headers($token))->assertOk()->json('data.access_token');
+        $before = DB::table('audit_log')->count();
+        $first = $this->getJson(self::CURRENT, $this->headers($token))->assertOk()->assertJsonPath('data', null)
+            ->assertJsonPath('meta.shift_admission.contract', 'p01-p14-admission-v1')
+            ->assertJsonPath('meta.shift_admission.actor_id', (string) $user->user_id)
+            ->assertJsonPath('meta.shift_admission.warehouse_id', $warehouse->id)
+            ->assertJsonPath('meta.shift_admission.warehouse_context.status', 'READY')
+            ->assertJsonPath('meta.shift_admission.mode', 'ENABLED')
+            ->assertJsonPath('meta.shift_admission.new_tracked_start_supported', true)
+            ->assertJsonPath('meta.shift_admission.new_shift_tracking_contract', 'p14-shift-v1')
+            ->assertJsonPath('meta.shift_admission.tracked_family', false)
+            ->assertJsonPath('meta.shift_admission.owner_fence_required', true)
+            ->assertJsonPath('meta.shift_admission.local_state_verified', false)
+            ->assertJsonPath('meta.shift_admission.legacy_fallback_authorized', false);
+        $this->travel(1)->seconds();
+        $second = $this->getJson(self::CURRENT, $this->headers($token))->assertOk();
+        $this->assertNotSame($first->json('meta.shift_admission.observed_at'), $second->json('meta.shift_admission.observed_at'));
+        $this->assertSame($first->json('meta.shift_admission.auth_session_id'), $second->json('meta.shift_admission.auth_session_id'));
+        $this->assertDatabaseCount('mini_app_work_shifts', 0);
+        $this->assertDatabaseCount('mini_app_work_shift_keys', 0);
+        $this->assertSame($before, DB::table('audit_log')->count());
+    }
+
+    public function test_admission_modes_and_warehouse_revalidation_do_not_enable_legacy_fallback(): void
+    {
+        [$user, $warehouse] = $this->actor();
+        [$token] = $this->login($user);
+        $token = $this->postJson('/api/v1/auth/switch-context', [
+            'context_type' => 'WAREHOUSE', 'context_id' => $warehouse->id,
+        ], $this->headers($token))->assertOk()->json('data.access_token');
+        foreach ([[true, false, 'ENABLED', true], [true, true, 'DRAINING', false],
+            [false, true, 'DRAINING', false], [false, false, 'DISABLED', false]] as [$enabled, $drain, $mode, $supported]) {
+            config(['p14.shift_enabled' => $enabled, 'p14.shift_drain_enabled' => $drain]);
+            $this->getJson(self::CURRENT, $this->headers($token))->assertOk()->assertJsonPath('data', null)
+                ->assertJsonPath('meta.shift_admission.mode', $mode)
+                ->assertJsonPath('meta.shift_admission.new_tracked_start_supported', $supported)
+                ->assertJsonPath('meta.shift_admission.legacy_upgrade_allowed', false)
+                ->assertJsonPath('meta.shift_admission.legacy_fallback_authorized', false);
+        }
+        config(['p14.shift_enabled' => true]);
+        $warehouse->update(['status' => 'INACTIVE']);
+        $this->getJson(self::CURRENT, $this->headers($token))->assertOk()
+            ->assertJsonPath('meta.shift_admission.new_tracked_start_supported', false)
+            ->assertJsonPath('meta.shift_admission.warehouse_id', null)
+            ->assertJsonPath('meta.shift_admission.unavailable_reason', 'WAREHOUSE_INACTIVE');
+        $this->assertDatabaseCount('mini_app_work_shifts', 0);
+    }
+
+    public function test_existing_legacy_shift_is_neither_new_admission_nor_upgraded(): void
+    {
+        config(['p14.shift_enabled' => false, 'p14.shift_drain_enabled' => false]);
+        [$user, $warehouse] = $this->actor();
+        [$token] = $this->login($user);
+        $shift = $this->start($token, $warehouse->id)->assertCreated()->json('data');
+        config(['p14.shift_enabled' => true]);
+        $this->getJson(self::CURRENT, $this->headers($token))->assertOk()
+            ->assertJsonPath('data.tracking_contract', null)
+            ->assertJsonPath('meta.shift_admission.current_tracking_contract', null)
+            ->assertJsonPath('meta.shift_admission.current_shift_id', $shift['shift_id'])
+            ->assertJsonPath('meta.shift_admission.new_tracked_start_supported', false)
+            ->assertJsonPath('meta.shift_admission.unavailable_reason', 'SHIFT_ALREADY_ACTIVE');
+        $this->assertDatabaseHas('mini_app_work_shifts', ['shift_id' => $shift['shift_id'], 'tracking_contract' => null]);
+    }
+
+    public function test_unauthorized_or_revoked_family_cannot_obtain_admission(): void
+    {
+        [$noPermission] = $this->actor(false);
+        [$token] = $this->login($noPermission);
+        $this->getJson(self::CURRENT, $this->headers($token))->assertForbidden()->assertJsonMissingPath('meta.shift_admission');
+        [$user] = $this->actor();
+        [$token, $raw] = $this->login($user);
+        app(RefreshTokenService::class)->revoke($raw);
+        $this->getJson(self::CURRENT, $this->headers($token))->assertUnauthorized()->assertJsonMissingPath('meta.shift_admission');
         $this->assertDatabaseCount('mini_app_work_shifts', 0);
     }
 

@@ -6,6 +6,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Modules\AuditLog\Models\AuditLog;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
@@ -83,6 +84,100 @@ class P08DocumentHistoryTest extends TestCase
         $this->getJson($this->url('records/DOCUMENT:'.$receipt, $warehouse->id), $this->headers($outbound))->assertNotFound();
         [, $none] = $this->actor(['history.read', 'inventory.view']);
         $this->getJson($this->url('records', $warehouse->id), $this->headers($none))->assertForbidden();
+    }
+
+    public function test_record_target_without_selected_activity_is_exact_and_independent_of_paging(): void
+    {
+        [$user, $token, $warehouse] = $this->actor(['history.read', 'inbound.view', 'documents.read']);
+        [$id, $eventIds] = $this->document($user, 'receipt', null, $warehouse->id, 3);
+        $before = $this->snapshot();
+        $first = $this->getJson($this->url('records/DOCUMENT:'.$id, $warehouse->id, ['limit' => 1]), $this->headers($token))
+            ->assertOk()->assertJsonPath('data.selectedActivity', null)
+            ->assertJsonPath('meta.record_target_contract', 'p08-record-target-v1')
+            ->assertJsonPath('data.record_target.identity.owner_id', $id)
+            ->assertJsonPath('data.record_target.identity.resource_type', 'STOCK_DOCUMENT')
+            ->assertJsonPath('data.record_target.identity.warehouse_id', $warehouse->id)
+            ->assertJsonPath('data.record_target.detail.available', true)
+            ->assertJsonPath('data.record_target.detail.read_target.method', 'GET')
+            ->assertJsonPath('data.record_target.detail.read_target.path', '/api/v1/mini-app/inbound-documents/'.$id)
+            ->assertJsonPath('data.record_target.detail.read_target.query.warehouse_id', $warehouse->id)
+            ->assertJsonPath('data.record_target.attachments.read_target.path', '/api/v1/mini-app/inbound-documents/'.$id.'/attachments')
+            ->assertJsonPath('data.record_target.scan_session.available', false)
+            ->assertJsonPath('data.record_target.nfc_history.available', false)
+            ->assertJsonPath('data.record_target.is_confirmation_receipt', false)
+            ->assertJsonPath('data.record_target.write_operations', []);
+        $target = $first->json('data.record_target');
+        $cursor = $first->json('meta.nextCursor');
+        for ($page = 0; $page < 3 && $cursor !== null; $page++) {
+            $next = $this->getJson($this->url('records/DOCUMENT:'.$id, $warehouse->id, ['limit' => 1, 'cursor' => $cursor]), $this->headers($token))
+                ->assertOk()->assertJsonPath('data.selectedActivity', null)->assertJsonPath('data.record_target', $target);
+            $cursor = $next->json('meta.nextCursor');
+        }
+        $this->assertNull($cursor);
+        $this->getJson($this->url('records/DOCUMENT:'.$id, $warehouse->id, ['activityId' => 'DOCUMENT:'.$eventIds[0]]), $this->headers($token))
+            ->assertOk()->assertJsonPath('data.selectedActivity.eventId', $eventIds[0])->assertJsonPath('data.record_target', $target);
+        $this->assertSame($before, $this->snapshot());
+    }
+
+    public function test_record_target_preserves_document_permission_and_outbound_identity(): void
+    {
+        [$user, $token, $warehouse] = $this->actor(['history.read', 'outbound.view']);
+        [$id] = $this->document($user, 'issue', $warehouse->id, null, 1);
+        $this->getJson($this->url('records/DOCUMENT:'.$id, $warehouse->id), $this->headers($token))
+            ->assertOk()->assertJsonPath('data.record_target.identity.owner_id', $id)
+            ->assertJsonPath('data.record_target.detail.available', false)
+            ->assertJsonPath('data.record_target.detail.read_target', null)
+            ->assertJsonPath('data.record_target.attachments.available', false);
+        [, $other] = $this->actor(['history.read', 'outbound.view', 'documents.read']);
+        $this->getJson($this->url('records/DOCUMENT:'.$id, $warehouse->id), $this->headers($other))
+            ->assertOk()->assertJsonPath('data.selectedActivity', null)
+            ->assertJsonPath('data.record_target.detail.read_target.path', '/api/v1/mini-app/outbound-documents/'.$id);
+        [, $denied] = $this->actor(['history.read', 'inbound.view', 'documents.read']);
+        $this->getJson($this->url('records/DOCUMENT:'.$id, $warehouse->id), $this->headers($denied))
+            ->assertNotFound()->assertJsonMissingPath('data.record_target');
+    }
+
+    public function test_warranty_record_target_is_a_case_not_a_document_or_event(): void
+    {
+        [, $token, $warehouse] = $this->actor(['history.read', 'warranty.manage', 'warranty.temp_only', 'documents.read']);
+        $case = $this->postJson('/api/v1/mini-app/warranty-cases', [
+            'warehouse_id' => $warehouse->id, 'customer_name' => 'Isolated history customer',
+            'customer_phone' => '0900000001', 'description' => 'Isolated record target',
+            'missing_code_reason' => 'Isolated fixture', 'manual_product_description' => 'Isolated item',
+        ], $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid(), 'X-Request-ID' => (string) Str::uuid()])
+            ->assertCreated()->json('data.warranty_case_id');
+        $url = '/api/v1/mini-app/history/records/WARRANTY:'.$case.'?warehouse_id='.$warehouse->id;
+        $this->getJson($url, $this->headers($token))->assertOk()->assertJsonPath('data.selectedActivity', null)
+            ->assertJsonPath('data.record_target.identity.owner_id', $case)
+            ->assertJsonPath('data.record_target.identity.resource_type', 'WARRANTY_CASE')
+            ->assertJsonPath('data.record_target.detail.read_target.path', '/api/v1/mini-app/warranty-cases/'.$case)
+            ->assertJsonPath('data.record_target.attachments.read_target.path', '/api/v1/mini-app/warranty-cases/'.$case.'/attachments')
+            ->assertJsonPath('data.record_target.is_confirmation_receipt', false);
+    }
+
+    public function test_nfc_record_target_is_history_only_and_never_confirmation(): void
+    {
+        [$actor, $token, $warehouse] = $this->actor(['history.read', 'inventory.trace']);
+        $sku = $this->productSkuFixture('P08-NFC-'.Str::upper(Str::random(8)));
+        $item = $this->seedItemInStock($sku->sku_id);
+        $tag = (string) Str::uuid();
+        DB::table('physical_codes')->insert([
+            'physical_code_id' => $tag, 'code_value' => 'P08-NFC-'.Str::upper(Str::random(10)),
+            'code_type' => 'ITEM', 'carrier_type' => 'NFC', 'status' => 'ACTIVE',
+            'hardware_uid' => strtoupper(bin2hex(random_bytes(7))),
+            'assigned_object_type' => 'ITEM', 'assigned_object_id' => $item,
+            'nfc_warehouse_id' => $warehouse->id, 'created_at' => now()->utc()->format('Y-m-d H:i:sP'),
+        ]);
+        AuditLog::recordPayload(['actor_id' => $actor->user_id, 'action' => 'ASSIGN_ITEM_NFC',
+            'object_type' => 'physical_code', 'object_id' => $tag, 'result' => 'SUCCESS',
+            'created_at' => now()->utc()->toISOString()]);
+        $url = '/api/v1/mini-app/history/records/NFC:'.$tag.'?warehouse_id='.$warehouse->id;
+        $this->getJson($url, $this->headers($token))->assertOk()->assertJsonPath('data.selectedActivity', null)
+            ->assertJsonPath('data.record_target.identity.owner_id', $tag)
+            ->assertJsonPath('data.record_target.identity.resource_type', 'PHYSICAL_CODE')
+            ->assertJsonPath('data.record_target.nfc_history.read_target.path', '/api/v1/mini-app/nfc-tags/'.$tag.'/events')
+            ->assertJsonPath('data.record_target.detail.read_target', null)
+            ->assertJsonPath('data.record_target.is_confirmation_receipt', false);
     }
 
     public function test_missing_document_schema_remains_unavailable_not_fake_empty(): void

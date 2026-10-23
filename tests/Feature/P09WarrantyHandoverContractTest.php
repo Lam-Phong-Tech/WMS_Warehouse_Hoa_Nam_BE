@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 
@@ -83,6 +84,15 @@ final class P09WarrantyHandoverContractTest extends TestCase
             'document_date' => now()->toDateString(), 'status' => 'DRAFT',
             'created_at' => now(), 'version' => 1,
         ]);
+        $sku = Sku::create(['sku_code' => 'P09-COMP-'.Str::upper(Str::random(8)),
+            'sku_name' => 'Isolated handover guard component', 'sku_type' => 'COMPONENT',
+            'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $lineId = (string) Str::uuid();
+        DB::table('component_issue_lines')->insert([
+            'id' => $lineId, 'component_issue_document_id' => $documentId, 'line_no' => 1,
+            'sku_id' => $sku->sku_id, 'required_qty' => 1, 'scanned_qty' => 0,
+            'created_at' => now(), 'version' => 1,
+        ]);
         $payload = ['status' => 'RETURNED', 'warehouse_id' => (string) $warehouse->id,
             'receiver' => 'Nguoi nhan', 'handover_date' => now()->toDateString(),
             'handover_checked' => true, 'note' => 'Chua duoc phep ban giao'];
@@ -90,7 +100,11 @@ final class P09WarrantyHandoverContractTest extends TestCase
         $blocked->assertStatus(409)->assertJsonPath('data.receipt.state', 'FAILED')
             ->assertJsonPath('error.code', 'WARRANTY_COMPONENT_ISSUES_NOT_POSTED');
 
-        DB::table('component_issue_documents')->where('id', $documentId)->update(['status' => 'POSTED', 'posted_at' => now()]);
+        // A consistent disposable handover fixture, not evidence of an actual stock Post.
+        DB::table('component_issue_lines')->where('id', $lineId)->update(['scanned_qty' => 1]);
+        DB::table('component_issue_documents')->where('id', $documentId)->update([
+            'status' => 'POSTED', 'posted_at' => now()->utc()->format('Y-m-d H:i:sP'),
+        ]);
         $ok = $this->patchWith($token, $caseId, $payload, 4, 'p09-posted-'.Str::lower(Str::random(10)), (string) Str::uuid());
         $ok->assertOk()->assertJsonPath('data.receipt.state', 'SUCCEEDED');
     }

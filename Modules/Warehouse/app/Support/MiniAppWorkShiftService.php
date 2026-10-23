@@ -37,6 +37,42 @@ final class MiniAppWorkShiftService
         return $this->payload($shift);
     }
 
+    /** Advisory tracked-START capability; never a substitute for local UNKNOWN recovery. */
+    public function admission(User $user, ?array $current): array
+    {
+        $this->assertActor($user);
+        $session = $this->sessions->requireId($user);
+        $context = app(WarehouseContext::class)->payload($user, $session, 'AUTH_SESSION_REQUIRED');
+        $tracked = DB::table('mini_app_work_shifts')->where('actor_id', $user->user_id)
+            ->where('auth_session_id', $session)->where('tracking_contract', P14ShiftService::CONTRACT)->exists();
+        $mode = P14ShiftLifecycle::mode();
+        $reason = match (true) {
+            $current !== null => 'SHIFT_ALREADY_ACTIVE',
+            $mode === 'DRAINING' => 'SHIFT_START_PAUSED',
+            $mode === 'DISABLED' => 'P14_SHIFT_NOT_ENABLED',
+            $context['warehouse_context']['status'] !== 'READY' => $context['warehouse_context']['error_code'],
+            default => null,
+        };
+
+        return [
+            'contract' => 'p01-p14-admission-v1', 'revision' => 'p01-p14-admission-r1',
+            'actor_id' => (string) $user->user_id, 'auth_session_id' => $session,
+            'warehouse_id' => $context['active_warehouse_id'], 'warehouse_context' => $context['warehouse_context'],
+            'mode' => $mode, 'tracked_family' => $tracked,
+            'owner_fence_required' => $mode === 'ENABLED' || $tracked,
+            'new_tracked_start_supported' => $reason === null, 'unavailable_reason' => $reason,
+            'current_shift_id' => $current['shift_id'] ?? null,
+            'current_tracking_contract' => $current['tracking_contract'] ?? null,
+            'new_shift_tracking_contract' => $reason === null ? P14ShiftService::CONTRACT : null,
+            'legacy_upgrade_allowed' => false, 'legacy_fallback_authorized' => false,
+            'local_state_verified' => false, 'owner_coverage' => 'PARTIAL_EXPLICIT_OWNER_PROTOCOLS',
+            'pending_start_end_policy' => 'RECONCILE_ORIGINAL_IDENTITY_BEFORE_NEW_START',
+            'admission_scope' => 'SERVER_CHECK_ONLY_REQUIRES_LOCAL_RECONCILIATION_AND_USER_INTENT',
+            'freshness' => 'REOBSERVE_BEFORE_START_SERVER_REVALIDATES',
+            'observed_at' => now()->utc()->toISOString(),
+        ];
+    }
+
     /** @return array{data: array, created: bool} */
     public function start(User $user, string $warehouseId, string $key): array
     {

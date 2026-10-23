@@ -1,0 +1,29 @@
+{
+  "contract": "p14-owner-upload-evidence-r1",
+  "date": "2026-10-23",
+  "status": "IMPLEMENTED_SOURCE_PENDING_REVIEW_RELEASE_AND_APP_ACCEPTANCE",
+  "upload_contract_unchanged": "owner-attachment-upload-v1",
+  "new_routes": [],
+  "new_migrations": [],
+  "native_request_identity": "Original upload Idempotency-Key plus actor/stable family/warehouse/parent type/parent UUID/file SHA-256. X-Request-ID traces the fenced command and is NOT the upload operation key.",
+  "proof": "Read exact terminal attachment_upload_requests row and compare the complete returned upload receipt against the durable receipt, native HTTP status, original key, parent and scope. Audit only identity, outcome and receipt digest; never filename, raw form, note, bytes or credentials.",
+  "success": "Only native SUCCEEDED / HTTP 201 is a successful OWNER_REQUEST. No second attachment is allocated on exact owner replay.",
+  "rejection": {
+    "terminal": "Only a verified native REJECTED receipt with HTTP 4xx may commit through the outer shift fence.",
+    "journal_operation": "OWNER_REJECTED",
+    "kpi": "Excluded from successful_request_count. Existing immutable closure snapshots are not rewritten.",
+    "side_effects": "Native quarantine/no-attachment semantics and HTTP error remain unchanged; not universal NOT_RECORDED evidence.",
+    "replay": "Same original trace/key/fingerprint uses existing owner terminal replay and does not add a second journal entry or increment shift version again."
+  },
+  "version": "First terminal fenced operation increments shift version; earlier close-check is stale. Native receipt lookup is still GET-only and independently scoped.",
+  "not_a_durable_receipt": "Pre-intent validation/auth error without native receipt is not manufactured as REJECTED. Other errors retain existing rollback behavior.",
+  "remaining_gate": [
+    "Owner coverage remains PARTIAL_EXPLICIT_OWNER_PROTOCOLS, not a claim of complete async/upload/hardware coverage.",
+    "Crash/storage/5xx uncertainty coordination with the outer shift transaction still requires exact owner investigation; no new NOT_EXECUTED proof or blind retry is introduced.",
+    "Legacy uploads without X-Upload-Contract have no new proof guarantee.",
+    "App must retain UNKNOWN/pending local journals and must not infer CLEAN from an absent row or receipt.",
+    "No live owner smoke, flag enablement or production activation is authorized by this source patch."
+  ],
+  "production_activation": false,
+  "live_verified": false
+}

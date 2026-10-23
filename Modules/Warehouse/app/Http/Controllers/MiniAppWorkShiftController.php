@@ -23,7 +23,7 @@ class MiniAppWorkShiftController extends Controller
         summary: 'Ca đang hoạt động của chính phiên hiện tại; không tạo ca',
         security: [['bearerAuth' => []]], tags: ['Mini App - Work Shifts'],
         responses: [
-            new OA\Response(response: 200, description: 'data: WorkShift hoặc null nếu chưa bắt đầu ca'),
+            new OA\Response(response: 200, description: 'data: WorkShift hoặc null; meta.shift_admission: p01-p14-admission-v1, chỉ capability phía server, không phải quyền bỏ qua UNKNOWN/local CLEAN'),
             new OA\Response(response: 401, description: 'Chưa xác thực hoặc phiên đã hết hiệu lực'),
             new OA\Response(response: 403, description: 'Không có quyền hoặc kho ngoài phạm vi'),
             new OA\Response(response: 404, description: 'Kho không còn tồn tại'),
@@ -35,8 +35,13 @@ class MiniAppWorkShiftController extends Controller
         /** @var User $user */
         $user = auth('api')->user();
 
-        return $this->respondSuccess($this->shifts->current($user))
-            ->header('Cache-Control', 'no-store, private');
+        $current = $this->shifts->current($user);
+        $admission = $this->shifts->admission($user, $current);
+        $response = $this->respondSuccess($current);
+        $body = $response->getData(true);
+        $body['meta']['shift_admission'] = $admission;
+
+        return $response->setData($body)->header('Cache-Control', 'no-store, private');
     }
 
     #[OA\Post(

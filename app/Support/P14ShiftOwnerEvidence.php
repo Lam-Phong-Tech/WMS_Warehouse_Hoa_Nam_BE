@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\AttachmentUploadReceipts;
 use Modules\Warehouse\Services\MiniAppDraftService;
 use Modules\Warehouse\Services\P19ComponentCommand;
 use Modules\Warehouse\Support\P09WarrantyPolicy;
@@ -194,6 +195,55 @@ final class P14ShiftOwnerEvidence
             'native_request_id' => $key, 'document_version' => $result['document_version'] ?? null,
             'receipt_sha256' => hash('sha256', json_encode($receipt, JSON_THROW_ON_ERROR)),
             'business_id' => $business, 'journal_kind' => 'COMPONENT_ISSUE',
+        ];
+    }
+
+    public static function p18(Request $request, array $body, object $shift, int $httpStatus): ?array
+    {
+        $owner = AttachmentUploadReceipts::UPLOAD_ROUTES[$request->route()?->uri() ?? ''] ?? null;
+        if (! $request->isMethod('POST') || $owner === null
+            || $request->header('X-Upload-Contract') !== AttachmentUploadReceipts::CONTRACT) {
+            return null;
+        }
+        $receipt = data_get($body, 'meta.upload_receipt');
+        if (! is_array($receipt)) {
+            if ($httpStatus < 200 || $httpStatus >= 300) {
+                return null; // Pre-intent validation/authorization is not a durable rejection.
+            }
+            self::invalid('P18_RECEIPT_ABSENT');
+        }
+        $key = strtolower(trim((string) $request->header('Idempotency-Key')));
+        $parent = strtolower((string) $request->route('id'));
+        $outcome = $receipt['outcome'] ?? null;
+        if (! Str::isUuid($key) || ! Str::isUuid($parent)
+            || ! in_array($outcome, ['SUCCEEDED', 'REJECTED'], true)
+            || ($outcome === 'SUCCEEDED' && $httpStatus !== 201)
+            || ($outcome === 'REJECTED' && ($httpStatus < 400 || $httpStatus >= 500))) {
+            self::invalid('P18_TERMINAL_RESULT_INVALID');
+        }
+        $native = DB::table(AttachmentUploadReceipts::TABLE)->where('actor_id', $shift->actor_id)
+            ->where('auth_session_id', $shift->auth_session_id)->where('warehouse_id', $shift->warehouse_id)
+            ->where('operation_key', $key)->where('parent_type', $owner)->where('parent_id', $parent)
+            ->where('file_sha256', $request->header('X-Upload-SHA256'))->where('state', $outcome)->first();
+        if ($native === null || (int) $native->http_status !== $httpStatus
+            || strtolower((string) $request->header('X-Upload-Warehouse-ID')) !== $shift->warehouse_id
+            || json_decode((string) $native->receipt, true, 512, JSON_THROW_ON_ERROR) !== $receipt) {
+            self::invalid('P18_NATIVE_RECEIPT_MISMATCH');
+        }
+        foreach (['contract' => AttachmentUploadReceipts::CONTRACT, 'command' => 'UPLOAD',
+            'request_key' => $key, 'actor_id' => $shift->actor_id, 'auth_session_id' => $shift->auth_session_id,
+            'warehouse_id' => $shift->warehouse_id, 'parent_type' => $owner, 'parent_id' => $parent] as $field => $value) {
+            if (($receipt[$field] ?? null) !== $value) {
+                self::invalid('P18_SCOPE_MISMATCH');
+            }
+        }
+
+        return [
+            'protocol' => AttachmentUploadReceipts::CONTRACT, 'command' => 'UPLOAD',
+            'native_request_id' => $key, 'parent_type' => $owner, 'parent_id' => $parent,
+            'attachment_id' => $receipt['attachment_id'] ?? null, 'native_outcome' => $outcome,
+            'receipt_sha256' => hash('sha256', (string) $native->receipt),
+            'business_id' => null, 'journal_kind' => $outcome === 'REJECTED' ? 'OWNER_REJECTED' : 'OWNER_REQUEST',
         ];
     }
 

@@ -46,7 +46,10 @@ class P14LifecycleIntegrationTest extends TestCase
         $this->assertSame('END', $receipt['command']);
         $this->assertSame('SUCCEEDED', $receipt['outcome']);
         $this->assertTrue($receipt['login_preserved']);
-        $this->getJson(self::SHIFTS.'/current', $this->headers($f))->assertOk()->assertJsonPath('data', null);
+        $this->getJson(self::SHIFTS.'/current', $this->headers($f))->assertOk()->assertJsonPath('data', null)
+            ->assertJsonPath('meta.shift_admission.tracked_family', true)
+            ->assertJsonPath('meta.shift_admission.new_tracked_start_supported', true)
+            ->assertJsonPath('meta.shift_admission.local_state_verified', false);
         $this->getJson('/api/v1/auth/me', $this->headers($f))->assertOk()->assertJsonPath('data.auth_session_id', $receipt['auth_session_id']);
         $next = $this->postJson(self::SHIFTS.'/start', ['warehouse_id' => $f['warehouse_id']], $this->headers($f) + ['Idempotency-Key' => (string) Str::uuid()])->assertCreated()->json('data');
         $this->assertNotSame($receipt['shift_id'], $next['shift_id']);
@@ -342,6 +345,12 @@ class P14LifecycleIntegrationTest extends TestCase
         $receipt = $this->end($f);
         $closure = DB::table('p14_shift_closures')->where('shift_id', $receipt['shift_id'])->first();
         config(['p14.shift_enabled' => false, 'p14.shift_drain_enabled' => false]);
+        $this->getJson(self::SHIFTS.'/current', $this->headers($f))->assertOk()->assertJsonPath('data', null)
+            ->assertJsonPath('meta.shift_admission.mode', 'DISABLED')
+            ->assertJsonPath('meta.shift_admission.tracked_family', true)
+            ->assertJsonPath('meta.shift_admission.owner_fence_required', true)
+            ->assertJsonPath('meta.shift_admission.new_tracked_start_supported', false)
+            ->assertJsonPath('meta.shift_admission.legacy_fallback_authorized', false);
         $url = '/api/v1/mini-app/inbound/drafts/'.Str::uuid();
         $this->putJson($url, [], $this->headers($f))->assertStatus(428);
         $this->putJson($url, [], $this->ownerHeaders($f))->assertStatus(503);

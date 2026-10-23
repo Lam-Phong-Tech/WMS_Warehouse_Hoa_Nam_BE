@@ -1,0 +1,83 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "BE App Read Extensions", "version": "be-app-read-extensions-r1", "description": "Source candidate only. Additive metadata on two existing GET operations; not a new approved BA workflow or deployed runtime assertion. Other existing query/response fields remain unchanged."},
+  "servers": [{"url": "https://khohoanamdev.lptech.info.vn"}],
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/api/v1/mini-app/work-shifts/current": {
+      "get": {
+        "operationId": "miniAppCurrentWorkShift",
+        "summary": "Current shift or null plus server-only admission observation",
+        "responses": {
+          "200": {"description": "data remains the original shift/null. Admission never resolves local UNKNOWN, authorizes legacy fallback or starts work.", "content": {"application/json": {"schema": {"type": "object", "required": ["success", "data", "meta"], "properties": {"success": {"const": true}, "data": {"type": ["object", "null"]}, "meta": {"type": "object", "required": ["shift_admission"], "properties": {"shift_admission": {"$ref": "#/components/schemas/ShiftAdmission"}}}}}}}},
+          "401": {"description": "No valid current authentication family"},
+          "403": {"description": "Inactive actor, missing Mini App rights or current shift warehouse denied"},
+          "409": {"description": "Existing owner auth-session/warehouse conflict; never an empty current shift"}
+        }
+      }
+    },
+    "/api/v1/mini-app/history/records/{recordId}": {
+      "get": {
+        "operationId": "p08HistoryRecordWithOwnerTarget",
+        "summary": "Exact authorized record target without selecting an activity implicitly",
+        "parameters": [
+          {"name": "recordId", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^(DOCUMENT|WARRANTY|NFC|SCAN):[0-9a-fA-F-]{36}$"}},
+          {"name": "warehouse_id", "in": "query", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "activityId", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Only the exact event under this record. Omitted keeps selectedActivity=null."}
+        ],
+        "responses": {
+          "200": {"description": "Existing P08 events/paging plus data.record_target; targets are GET-only hints subject to owner reauthorization.", "content": {"application/json": {"schema": {"type": "object", "properties": {"data": {"type": "object", "required": ["recordId", "selectedActivity", "events", "record_target"], "properties": {"recordId": {"type": "string"}, "selectedActivity": {"type": ["object", "null"]}, "events": {"type": "array", "items": {"type": "object"}}, "record_target": {"$ref": "#/components/schemas/RecordTarget"}}}}}}}},
+          "401": {"description": "Unauthenticated or expired/revoked family"},
+          "403": {"description": "History/source/warehouse/organization authorization denied"},
+          "404": {"description": "Record or explicit activity not visible under exact current scope"},
+          "409": {"description": "Confirmed warehouse context mismatch"},
+          "422": {"description": "Existing invalid query, cursor or namespace/source mismatch"},
+          "503": {"description": "HISTORY_RECORD_IDENTITY_UNRESOLVED or existing unavailable source/tenancy evidence; not an empty list"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer"}},
+    "schemas": {
+      "ShiftAdmission": {
+        "type": "object",
+        "required": ["contract", "revision", "actor_id", "auth_session_id", "warehouse_id", "mode", "tracked_family", "owner_fence_required", "new_tracked_start_supported", "observed_at"],
+        "properties": {
+          "contract": {"const": "p01-p14-admission-v1"},
+          "revision": {"const": "p01-p14-admission-r1"},
+          "actor_id": {"type": "string", "format": "uuid"},
+          "auth_session_id": {"type": "string", "format": "uuid"},
+          "warehouse_id": {"type": ["string", "null"], "format": "uuid"},
+          "warehouse_context": {"type": "object"},
+          "mode": {"enum": ["ENABLED", "DRAINING", "DISABLED"]},
+          "tracked_family": {"type": "boolean"},
+          "owner_fence_required": {"type": "boolean"},
+          "new_tracked_start_supported": {"type": "boolean"},
+          "unavailable_reason": {"type": ["string", "null"]},
+          "local_state_verified": {"const": false},
+          "legacy_upgrade_allowed": {"const": false},
+          "legacy_fallback_authorized": {"const": false},
+          "observed_at": {"type": "string", "format": "date-time"}
+        }
+      },
+      "OwnerReadCapability": {
+        "type": "object", "required": ["available", "read_target"],
+        "properties": {"available": {"type": "boolean"}, "read_target": {"type": ["object", "null"], "required": ["method", "path", "query"], "properties": {"method": {"const": "GET"}, "path": {"type": "string", "pattern": "^/api/v1/mini-app/"}, "query": {"type": "object", "required": ["warehouse_id"], "properties": {"warehouse_id": {"type": "string", "format": "uuid"}}}}}}
+      },
+      "RecordTarget": {
+        "type": "object", "required": ["contract", "identity", "detail", "attachments", "scan_session", "nfc_history", "is_confirmation_receipt", "write_operations"],
+        "properties": {
+          "contract": {"const": "p08-record-target-v1"},
+          "identity": {"type": "object", "required": ["record_id", "source", "owner_id", "warehouse_id", "resource_type"], "properties": {"record_id": {"type": "string"}, "source": {"enum": ["DOCUMENT", "WARRANTY", "NFC", "SCAN"]}, "owner_id": {"type": "string", "format": "uuid"}, "warehouse_id": {"type": "string", "format": "uuid"}, "resource_type": {"enum": ["STOCK_DOCUMENT", "WARRANTY_CASE", "PHYSICAL_CODE", "SCAN_BATCH"]}}},
+          "detail": {"$ref": "#/components/schemas/OwnerReadCapability"},
+          "attachments": {"$ref": "#/components/schemas/OwnerReadCapability"},
+          "scan_session": {"$ref": "#/components/schemas/OwnerReadCapability"},
+          "nfc_history": {"$ref": "#/components/schemas/OwnerReadCapability"},
+          "is_confirmation_receipt": {"const": false},
+          "write_operations": {"type": "array", "maxItems": 0}
+        }
+      }
+    }
+  }
+}

@@ -99,6 +99,13 @@ class P08HistoryContractTest extends TestCase
         $this->getJson($this->url('records/'.$row['activityId'], $warehouse->id), $this->headers($token))->assertNotFound();
         $this->getJson($this->url('records/'.$batch, $warehouse->id), $this->headers($token))->assertNotFound();
         $this->getJson($this->url('records/'.$row['recordId'], $warehouse->id, ['activityId' => 'SCAN:'.Str::uuid()]), $this->headers($token))->assertNotFound();
+        $this->getJson($this->url('records/'.$row['recordId'], $warehouse->id), $this->headers($token))
+            ->assertOk()->assertJsonPath('data.selectedActivity', null)
+            ->assertJsonPath('data.record_target.identity.owner_id', $batch)
+            ->assertJsonPath('data.record_target.identity.resource_type', 'SCAN_BATCH')
+            ->assertJsonPath('data.record_target.scan_session.read_target.path', self::BASE.'scan-sessions/'.$batch)
+            ->assertJsonPath('data.record_target.detail.read_target', null)
+            ->assertJsonPath('data.record_target.is_confirmation_receipt', false);
     }
 
     public function test_session_metrics_are_full_batch_totals_and_quantity_is_not_invented(): void

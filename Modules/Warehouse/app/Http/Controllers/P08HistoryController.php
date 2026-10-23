@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\StableAuthSession;
@@ -62,6 +63,7 @@ final class P08HistoryController extends Controller
             if (! (clone $q)->exists()) {
                 ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy bản ghi lịch sử trong phạm vi được cấp.');
             }
+            $recordTarget = $this->recordTarget($q, $recordId, $s);
             $selected = null;
             if (isset($i['activityId'])) {
                 [$type, $id] = $this->identity($i['activityId']);
@@ -73,7 +75,9 @@ final class P08HistoryController extends Controller
             }
             [$events, $paging] = $this->page($q, $s, $i, $m);
 
-            return $this->reply(['recordId' => $recordId, 'selectedActivity' => $selected, 'events' => $events], $m + $paging);
+            return $this->reply(['recordId' => $recordId, 'selectedActivity' => $selected, 'events' => $events,
+                'record_target' => $recordTarget],
+                $m + $paging + ['record_target_contract' => 'p08-record-target-v1']);
         }, $source);
     }
 
@@ -284,6 +288,50 @@ final class P08HistoryController extends Controller
             'attachments' => ['canOpen' => $attachments, 'url' => $attachments ? $path.'/attachments' : null,
                 'policy' => 'OWNER_ENDPOINT_REAUTHORIZATION_NO_STORAGE_URL'],
             'isConfirmationReceipt' => false];
+    }
+
+    /** Persisted record identity, independent of selected activity and the cursor page. */
+    private function recordTarget(Builder $query, string $recordId, array $scope): array
+    {
+        $identities = (clone $query)->select('record_id', 'owner_id', 'source', 'business')->distinct()->limit(2)->get();
+        $row = $identities->first();
+        [$source, $id] = Policy::identity($recordId);
+        if ($identities->count() !== 1 || $row === null || $row->record_id !== $recordId
+            || $row->source !== $source || ! Str::isUuid((string) $row->owner_id) || strtolower($row->owner_id) !== $id) {
+            ApiError::abort(503, 'HISTORY_RECORD_IDENTITY_UNRESOLVED', 'Không xác minh được duy nhất chủ quản của bản ghi lịch sử.');
+        }
+        $ownerPath = match ($source) {
+            'DOCUMENT' => match ($row->business) {
+                'INBOUND' => '/api/v1/mini-app/inbound-documents/'.$id,
+                'OUTBOUND' => '/api/v1/mini-app/outbound-documents/'.$id,
+                default => null,
+            },
+            'WARRANTY' => '/api/v1/mini-app/warranty-cases/'.$id,
+            default => null,
+        };
+        $canOpen = $ownerPath !== null && ($source !== 'DOCUMENT' || $scope['documentsRead']);
+        $canFiles = $canOpen && $scope['documentsRead'];
+        $target = static fn (?string $path, bool $allowed): array => [
+            'available' => $allowed, 'read_target' => $allowed ? [
+                'method' => 'GET', 'path' => $path, 'query' => ['warehouse_id' => $scope['warehouse_id']],
+            ] : null,
+        ];
+
+        return [
+            'contract' => 'p08-record-target-v1',
+            'identity' => ['record_id' => $recordId, 'source' => $source, 'owner_id' => $id,
+                'warehouse_id' => $scope['warehouse_id'], 'resource_type' => match ($source) {
+                    'DOCUMENT' => 'STOCK_DOCUMENT', 'WARRANTY' => 'WARRANTY_CASE',
+                    'NFC' => 'PHYSICAL_CODE', 'SCAN' => 'SCAN_BATCH',
+                }],
+            'detail' => $target($ownerPath, $canOpen),
+            'attachments' => $target($ownerPath === null ? null : $ownerPath.'/attachments', $canFiles),
+            'scan_session' => $target('/api/v1/mini-app/history/scan-sessions/'.$id, $source === 'SCAN'),
+            'nfc_history' => $target('/api/v1/mini-app/nfc-tags/'.$id.'/events', $source === 'NFC'),
+            'owner_permission_rechecked_on_open' => true,
+            'selection_policy' => 'NO_ACTIVITY_SELECTED_WITHOUT_EXPLICIT_ACTIVITY_ID',
+            'is_confirmation_receipt' => false, 'write_operations' => [],
+        ];
     }
 
     private function identity(string $id): array

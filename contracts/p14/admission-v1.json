@@ -1,0 +1,46 @@
+{
+  "contract": "p01-p14-admission-v1",
+  "revision": "p01-p14-admission-r1",
+  "date": "2026-10-23",
+  "status": "IMPLEMENTED_SOURCE_PENDING_REVIEW_RELEASE_AND_APP_ACCEPTANCE",
+  "route": {"method": "GET", "path": "/api/v1/mini-app/work-shifts/current", "body": null},
+  "new_routes": [],
+  "new_migrations": [],
+  "response_path": "meta.shift_admission",
+  "compatibility": "data remains the existing active shift or null; START, original START keys, END and stored receipts are unchanged. Never synthesize a shift to expose capability.",
+  "authorization": "Existing authentication, active account, MiniAppWorkShiftService::PERMISSIONS and stable current login family. WarehouseContext verifies the confirmed active warehouse and current warehouse ACL.",
+  "identity_fields": ["actor_id", "auth_session_id", "warehouse_id", "warehouse_context", "current_shift_id", "current_tracking_contract"],
+  "mode": {
+    "values": ["ENABLED", "DRAINING", "DISABLED"],
+    "precedence": "DRAINING wins when both runtime flags are true.",
+    "tracked_family": "True if ANY persisted tracked shift belongs to this actor and stable login family, including ended shifts.",
+    "owner_fence_required": "ENABLED or an already tracked family, including when both flags are disabled.",
+    "disabled_legacy": "This capability does not authorize legacy START or fallback. Existing legacy writer behavior is not modified or silently upgraded."
+  },
+  "admission": {
+    "new_tracked_start_supported": "True only for current=null, mode=ENABLED and confirmed READY warehouse in current rights.",
+    "new_shift_tracking_contract": "p14-shift-v1 only when new_tracked_start_supported=true; otherwise null.",
+    "unavailable_reason_precedence": ["SHIFT_ALREADY_ACTIVE", "SHIFT_START_PAUSED", "P14_SHIFT_NOT_ENABLED", "warehouse_context.error_code"],
+    "admission_scope": "SERVER_CHECK_ONLY_REQUIRES_LOCAL_RECONCILIATION_AND_USER_INTENT",
+    "local_state_verified": false,
+    "legacy_upgrade_allowed": false,
+    "legacy_fallback_authorized": false,
+    "owner_coverage": "PARTIAL_EXPLICIT_OWNER_PROTOCOLS",
+    "pending_start_end_policy": "RECONCILE_ORIGINAL_IDENTITY_BEFORE_NEW_START"
+  },
+  "freshness": {
+    "observed_at": "Current RFC3339 UTC Z observation, not a lease, signed admission token or immutable snapshot.",
+    "policy": "REOBSERVE_BEFORE_START_SERVER_REVALIDATES",
+    "cache": "private, no-store",
+    "race": "Mode/rights/warehouse can change after GET. START still revalidates under its existing transaction/locks; a previous true is not authorization."
+  },
+  "app_rules": [
+    "Bind response/generation to exact actor, stable family and confirmed warehouse.",
+    "Current=null does not resolve an original START or END UNKNOWN. Keep original key/body/version and owner reconcile.",
+    "Do not automatically START from a capability read or END-as-logout.",
+    "Missing/unsupported metadata is unavailable, not permission to downgrade a tracked family to legacy.",
+    "True does not prove local no-work/CLEAN or complete owner coverage."
+  ],
+  "production_activation": false,
+  "live_verified": false
+}
