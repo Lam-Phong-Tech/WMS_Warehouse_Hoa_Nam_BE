@@ -2,6 +2,8 @@
 
 Ngày 24/10/2026, Asia/Ho_Chi_Minh. **Source candidate, chưa push/deploy, không phải App/DEV UAT PASS toàn bộ.**
 
+**Cập nhật release 24/10/2026:** source `a9053a21bc35ece367be0b76db727d4749b59855` đã triển khai DEV/TEST qua run `40054019438` SUCCESS, operations `4a551f0e624531999b24b54ebc0a718a8c23d910`. Chỉ migration P13 được duyệt đã chạy; P11 vẫn OFF và migration P11 còn pending. Đối chiếu 112 bảng cũ/13 mục media local không đổi, origin/proxy health 200 và deny 401 không credential. Không chạy job CI, seed/backfill/repair/restore hoặc login admin mới. Authenticated/App/device acceptance vẫn OPEN. Xem `docs/evidence/DEVTEST_APP_RELEASE_20261024.json`; các tuyên bố “chưa push/deploy/không thao tác môi trường thật” bên dưới là snapshot của lượt source verification trước release, không phải trạng thái runtime mới.
+
 ## Đã Sửa
 
 | Phần | Thay đổi thực tế |

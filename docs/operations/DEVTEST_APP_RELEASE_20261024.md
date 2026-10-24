@@ -34,3 +34,14 @@ Use the existing dispatch workflow, `devtest_tc12_only=true`, all other mode/see
 - `APP-DEPLOY-a9053a21-P13-ONLY`: execute the narrowly scoped promotion above.
 
 Production activation remains OFF. P11 review, legacy UNKNOWN support/retention, full-seed clone replay, authenticated GET/write datasets and Android/NFC UAT remain independent open gates.
+
+## Completed Promotion
+
+- Read-only inspection `40053867775`: SUCCESS, exact schema/overlay/merge checks passed. Initial inspection `40053439426` stopped before serving changes on the missing historical migration artifact; it is not a successful deployment.
+- Deployment `40054019438`: SUCCESS, operations `4a551f0e624531999b24b54ebc0a718a8c23d910`, runtime application `a9053a21bc35ece367be0b76db727d4749b59855`. The separate job `ci` was SKIPPED; this is not full CI PASS.
+- PostgreSQL backup created and catalog validated; only P13 applied, migration count 219. P11 alone remains pending, with no orphaned migration history after retaining the exact historical file.
+- Every existing non-migration base table (112) retained its row/field fingerprint before reopening. All 13 local media entries retained their hashes. SKU1156/published933/image rows974/IN_STOCK2759 unchanged; no seed or historical backfill.
+- Config/route caches, Swagger, nginx and backend/queue/scheduler source/flags verified. P11 false, P12/P14 true, P19/P14 recovery false, database protected, seed permission false and refresh-token body-origin list unchanged.
+- Origin/proxy new public checks at 09:29:26-09:29:29 +07:00: health200 with the exact application SHA, auth/P12 without credentials401. These are not authenticated UAT.
+- Free disk after deployment: 6,612,738,048 bytes. No cleanup, automatic restore, production activation, new auth login, stock command or NFC mapping was performed.
+- Details and the updated App delivery checksum are recorded in `docs/evidence/DEVTEST_APP_RELEASE_20261024.json`.

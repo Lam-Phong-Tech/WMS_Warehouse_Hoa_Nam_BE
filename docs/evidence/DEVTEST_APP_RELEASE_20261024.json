@@ -1,0 +1,59 @@
+{
+  "status": "DEVTEST_DEPLOYED_PENDING_AUTHENTICATED_AND_NATIVE_ACCEPTANCE",
+  "source_sha": "a9053a21bc35ece367be0b76db727d4749b59855",
+  "operations_sha": "4a551f0e624531999b24b54ebc0a718a8c23d910",
+  "source_unchanged_since_tested_candidate": true,
+  "source_runtime_overlays": {
+    "historical_overlays_preserved": 14,
+    "overlapping_staging_three_way_merged_sha256": "06211cb3e0c532951f005f49aa882b6fcf3d08ac5fedcf3a20296a7b80d93767",
+    "already_applied_queue_migration_retained_not_rerun_sha256": "752aa2914ab7338f83d06f9faa763d4064117bcfba0a4aa328e43676a6cd2242"
+  },
+  "inspection": {"run": 40053867775, "conclusion": "SUCCESS"},
+  "deployment": {"run": 40054019438, "conclusion": "SUCCESS", "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/40054019438", "ci_job": "SKIPPED"},
+  "schema": {
+    "before": 218, "after": 219,
+    "only_migration_run": "2026_10_23_000001_create_mini_app_web_post_handoffs",
+    "new_handoff_rows": 0,
+    "pending": ["2026_10_24_000001_create_p11_security_command_receipts"],
+    "orphaned": [], "backfill": false
+  },
+  "backup": {
+    "path": "/opt/hoa-nam-green/backups/wms_hoanam_green_pre_app_20261024T022535Z.dump",
+    "bytes": 8466175,
+    "sha256": "e06c239223c2e46770d8f25d8e5dff5b5bbdceb18fb7b8c751cc319366a5e451",
+    "catalog_validated": true, "full_restore_drill": false
+  },
+  "preservation": {
+    "comparison_scope": "MAINTENANCE_WINDOW_BEFORE_REOPEN",
+    "existing_non_migration_base_tables": 112, "row_field_fingerprints_unchanged": true,
+    "local_media_entries": 13, "local_media_hashes_unchanged": true,
+    "counts_before": {"sku_total": 1156, "published_skus": 933, "media_rows": 974, "items_in_stock": 2759},
+    "counts_after": {"sku_total": 1156, "published_skus": 933, "media_rows": 974, "items_in_stock": 2759},
+    "remote_object_content_rehash": false, "remote_media_mutation_performed": false
+  },
+  "runtime": {
+    "database": "wms_hoanam_green", "environment_unchanged": true,
+    "protected_database": true, "allow_seed": false, "p11": false, "p12": true, "p14": true,
+    "p14_recovery": false, "p19": false, "session_replacement": true,
+    "refresh_body_transport": true, "refresh_body_origins_unchanged": true,
+    "config_cached": true, "routes_cached": true,
+    "swagger_sha256": "66ced6f1fb7839cbffefa495a4d670475ee6ffd795526a1d704be30876f2f3c2",
+    "backend_queue_scheduler_verified": true, "nginx_test": "PASS", "free_bytes_after": 6612738048
+  },
+  "public_http": [
+    {"url": "https://khohoanamdev.lptech.info.vn/api/v1/health", "status": 200, "request_id": "40a37fec-7b5a-4fb8-8a46-bdde43d72651", "observed_at": "2026-10-24T09:29:26.861+07:00"},
+    {"url": "https://appqr.lptech.info.vn/wms-api/api/v1/health", "status": 200, "request_id": "3079c849-db23-480a-9fea-49b117f9e1b5", "observed_at": "2026-10-24T09:29:28.260+07:00"}
+  ],
+  "public_unauthenticated_auth_and_p12_checks": "401 on origin and proxy",
+  "audits": {"thresholds_unchanged": true, "runtime_high_gate": "PASS", "full_tree_critical_gate": "PASS", "zero_advisory_gate": "NOT_PASS", "dev_high": 7, "dev_moderate": 1},
+  "deploy_tooling_local_tests": {"passed": 24, "ci": false},
+  "app_delivery": {
+    "path": "apps/wms-mobile/handoff/BE_APP_RELEASE_DEPLOYED_20261024.zip",
+    "sha256": "188b75ac5a4861ce5e263ff85cc8301937e5e7b9b41cedf0347856f6d5b77024",
+    "payload_files": 8, "all_payload_checksums_verified": true
+  },
+  "authenticated_smoke": false, "app_device_acceptance": false,
+  "production_activation": false, "seed_repair_restore": false,
+  "new_operator_login": false, "stock_or_nfc_command": false,
+  "open": ["P11 security/schema/retention/support approval and activation", "Authenticated owner/App/native UAT", "Full seed isolated two-run coverage14 acceptance", "Original owner NFC/time evidence and actual approved write datasets", "Eight dev-toolchain audit warnings"]
+}
