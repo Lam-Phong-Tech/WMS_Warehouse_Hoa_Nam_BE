@@ -113,7 +113,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$CONFIRMATION" in P14-ETAG-INSPECT|P14-ETAG-DEPLOY) ;; *) exit 1 ;; esac
+          case "$CONFIRMATION" in P14-ETAG-INSPECT|P14-ETAG-DEPLOY|P14-ETAG-TRACE) ;; *) exit 1 ;; esac
           test "$DEPLOY_UAT" = false && test "$RUN_SEED" = false
           test "$PREFLIGHT" = false && test "$AUTH" = false && test "$OLD" = false && test "$OWNER_SMOKE" = false
           test "$HOST" = 42.96.16.197
@@ -149,6 +149,7 @@ jobs:
             test "$owner" != UNKNOWN
             test "$(runuser -u "$owner" -- git -C "$source" rev-parse HEAD)" = "$OPS_SHA"
             case "$CONFIRMATION" in
+              P14-ETAG-TRACE) python3 "$source/tools/deploy/inspect-p14-delivery.py" ;;
               P14-ETAG-INSPECT) python3 "$source/tools/deploy/deploy-green-p14-etag.py" --checkout "$source" --ops-sha "$OPS_SHA" --inspect ;;
               P14-ETAG-DEPLOY) python3 "$source/tools/deploy/deploy-green-p14-etag.py" --checkout "$source" --ops-sha "$OPS_SHA" ;;
               *) exit 1 ;;
