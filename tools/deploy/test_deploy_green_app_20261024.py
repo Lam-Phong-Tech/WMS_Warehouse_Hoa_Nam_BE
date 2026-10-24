@@ -66,6 +66,13 @@ class AppReleaseTest(unittest.TestCase):
         self.assertTrue(value.startswith(before))
         self.assertIn('AUTO_MIGRATE=false', value)
 
+    def test_retained_history_is_byte_exact_and_is_not_reexecuted(self):
+        file = Path(release.__file__).with_name('retained-migrations') / Path(release.HISTORY).name
+        self.assertEqual(release.green.digest(file), release.HISTORY_SHA256)
+        code = Path(release.__file__).read_text()
+        self.assertNotIn("'--path=' + HISTORY", code)
+        self.assertIn("'already_applied': True, 'reexecuted': False", code)
+
 
 if __name__ == '__main__':
     unittest.main()

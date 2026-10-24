@@ -16,6 +16,7 @@ The user explicitly authorized DEV/TEST deployment and creation of the additiona
 ## Safety And Verification
 
 1. Pin the current green release, database, runtime image, dependency lock, 14 overlay hashes, flags and original schema. Fail before stopping service if any drift.
+   Read-only inspection found one pre-existing migration-history artifact absent from the serving source: `2026_09_09_122500_create_failed_jobs_table`. Retain the byte-exact file from historical commit `ebfd201c8fff74558de5b1bd14b36718bec1813d` (SHA256 `752aa2914ab7338f83d06f9faa763d4064117bcfba0a4aa328e43676a6cd2242`) in the new release only after verifying the existing column/unique schema. This restores source history, not database data: do not rerun it, edit the migration row or drop/recreate the table. Any other orphan or schema mismatch still blocks promotion.
 2. Three-way merge the one overlapping staging file from its official previous base, verified runtime hotfix and candidate. Conflicts fail closed; never copy an official file over the hotfix.
 3. Preserve the current images/vendor for rollback. Build assets separately; Composer lock is unchanged, so no PHP dependency/image rebuild is necessary.
 4. Enter maintenance, stop application writers, fingerprint every existing base table and local media, create a private custom-format PostgreSQL backup and validate its catalog. Catalog validation is not a full restore drill.

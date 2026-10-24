@@ -30,6 +30,8 @@ PREVIOUS_RELEASE = PREVIOUS + '-nfc-time-20261021T065447Z'
 P13 = 'database/migrations/2026_10_23_000001_create_mini_app_web_post_handoffs.php'
 P11 = 'database/migrations/2026_10_24_000001_create_p11_security_command_receipts.php'
 STAGING = 'Modules/Warehouse/app/Http/Controllers/MiniAppInboundStagingController.php'
+HISTORY = 'database/migrations/2026_09_09_122500_create_failed_jobs_table.php'
+HISTORY_SHA256 = '752aa2914ab7338f83d06f9faa763d4064117bcfba0a4aa328e43676a6cd2242'
 RESERVE = 1024 ** 3
 RUNTIME = (*tc12.RUNTIME_PATHS, 'public', 'resources', 'tests', 'package.json', 'package-lock.json',
            'vite.config.js', 'vite-module-loader.js')
@@ -80,6 +82,9 @@ def package(folder, ops_sha, output):
             bundle.add(file, arcname=file.relative_to(folder).as_posix(), recursive=False)
     (output / 'staging-base.php').write_bytes(tc12.git(folder, 'show', PREVIOUS + ':' + STAGING))
     (output / 'staging-source.php').write_bytes(tc12.git(folder, 'show', SOURCE + ':' + STAGING))
+    history = Path(__file__).with_name('retained-migrations') / Path(HISTORY).name
+    require(green.digest(history) == HISTORY_SHA256, 'Historical migration artifact changed')
+    shutil.copy2(history, output / 'retained-failed-jobs.php')
     proof = {'source_sha': SOURCE, 'tested_sha': SOURCE, 'ops_sha': ops_sha, 'previous_sha': PREVIOUS,
              'archive_sha256': green.digest(archive), 'assets_sha256': green.digest(output / 'assets.tar.gz'),
              'previous_files': before, 'source_files': after, 'runtime_delta': sorted(changed),
@@ -142,6 +147,13 @@ def assert_business_unchanged(before, after):
             'Unexpected schema data changes')
 
 
+def business_counts():
+    return json.loads(green.pg("SELECT json_build_object('sku_total',(SELECT count(*) FROM sku),"
+                              "'published_skus',(SELECT count(*) FROM sku WHERE published_to_app=true),"
+                              "'media_rows',(SELECT count(*) FROM pv_product_images),"
+                              "'items_in_stock',(SELECT count(*) FROM item_instances WHERE item_status='IN_STOCK'))"))
+
+
 def public_probe(base):
     result = []
     for path in ('/api/v1/health', '/api/v1/auth/me', '/api/v1/mini-app/documents?cursor=start'):
@@ -182,8 +194,21 @@ def deploy(folder, ops_sha, inspect_only):
             and not before_policy['allow_seed'] and not before_policy['p11'] and not before_policy['p19']
             and not before_policy['p14_recovery'] and before_policy['session_replacement'], 'Target policy mismatch')
     before_migrations = migration_state()
+    green.emit('app_existing_schema', {'ran_count': len(before_migrations['ran']),
+                                      'pending': before_migrations['pending'], 'orphaned': before_migrations['orphaned']})
     require(len(before_migrations['ran']) == 218 and not before_migrations['pending']
-            and not before_migrations['orphaned'], 'Existing schema not reconciled')
+            and before_migrations['orphaned'] == [Path(HISTORY).stem], 'Existing schema history changed')
+    columns = json.loads(green.pg("SELECT json_agg(json_build_array(column_name,data_type,is_nullable) ORDER BY ordinal_position) "
+                                 "FROM information_schema.columns WHERE table_schema='public' AND table_name='failed_jobs'"))
+    green.emit('app_retained_history_schema', {'table': 'failed_jobs', 'columns': columns,
+                                             'retained_artifact_sha256': HISTORY_SHA256})
+    expected_columns = [['id', 'bigint', 'NO'], ['uuid', 'character varying', 'NO'], ['connection', 'text', 'NO'],
+                        ['queue', 'text', 'NO'], ['payload', 'text', 'NO'], ['exception', 'text', 'NO'],
+                        ['failed_at', 'timestamp without time zone', 'NO']]
+    require(columns == expected_columns, 'Historical failed-jobs schema does not match retained source')
+    require(green.pg("SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='failed_jobs' "
+                     "AND indexdef LIKE 'CREATE UNIQUE INDEX% (uuid)'") == '1', 'Historical queue UUID guard missing')
+    require(green.digest(folder / 'retained-failed-jobs.php') == HISTORY_SHA256, 'Historical artifact checksum changed')
     require(green.pg("SELECT to_regclass('public.mini_app_web_post_handoffs') IS NULL AND "
                      "to_regclass('public.p11_security_commands') IS NULL AND "
                      "to_regclass('public.p11_security_reconciliations') IS NULL") == 't', 'New tables already exist')
@@ -232,6 +257,9 @@ def deploy(folder, ops_sha, inspect_only):
                 'release': str(release), 'capacity': capacity, 'images': images, 'vendor': vendor,
                 'policy_before': before_policy, 'overlay_sha256_before': green.OVERLAYS,
                 'staging_merged_sha256': sha(merged), 'ci_run': False, 'seed_run': False, 'data_restore': False,
+                'retained_historical_migration': {'path': HISTORY, 'sha256': HISTORY_SHA256,
+                                                 'original_commit': 'ebfd201c8fff74558de5b1bd14b36718bec1813d',
+                                                 'already_applied': True, 'reexecuted': False},
                 'p11_activation': False, 'production_activation': False, 'stage': 'prepare'}
     paused = stopped = switched = reopened = False
     try:
@@ -252,6 +280,7 @@ def deploy(folder, ops_sha, inspect_only):
             shutil.copy2(previous / name, release / name)
         (release / STAGING).write_bytes(merged)
         validate_migration_delta(green.migrations(previous), green.migrations(release))
+        shutil.copy2(folder / 'retained-failed-jobs.php', release / HISTORY)
         info = (previous / '.env').stat()
         (release / '.env').write_text(tc12.environment((previous / '.env').read_text(), {
             'APP_BUILD_SHA': SOURCE, 'APP_BUILD_REF': 'dev@a9053a21+app-hardening+preserved-runtime-hotfixes',
@@ -271,6 +300,7 @@ def deploy(folder, ops_sha, inspect_only):
         paused = stopped = True
         green.compose(previous, ['stop', '-t', '120', *services], timeout=240)
         before_data = green.fingerprints()
+        before_counts = business_counts()
         before_media = green.media_manifest(previous)
         backup = green.ROOT / 'backups' / ('wms_hoanam_green_pre_app_' + stamp + '.dump')
         with open(backup, 'xb') as stream:
@@ -314,6 +344,8 @@ def deploy(folder, ops_sha, inspect_only):
                 'Unexpected applied/pending schema')
         after_data = green.fingerprints()
         assert_business_unchanged(before_data, after_data)
+        after_counts = business_counts()
+        require(before_counts == after_counts, 'Product/image/stock view counts changed')
         require(before_media == green.media_manifest(release), 'Media changed')
         routes = json.loads(green.artisan('route:list', '--json', '--path=api/v1'))
         required_routes = {'api/v1/mini-app/documents', 'api/v1/containers',
@@ -328,6 +360,13 @@ def deploy(folder, ops_sha, inspect_only):
                          'routes': [row for row in routes if row['uri'] in required_routes],
                          'source_sha256_after': {name: green.digest(release / name) for name in green.OVERLAYS},
                          'swagger_sha256': green.digest(release / 'storage/api-docs/api-docs.json')})
+        green.emit('app_release_verified_maintenance', {
+            'policy': after_policy, 'schema': {'applied': len(after_migrations['ran']),
+                                             'pending': after_migrations['pending'], 'orphaned': after_migrations['orphaned']},
+            'counts_before': before_counts, 'counts_after': after_counts, 'routes': evidence['routes'],
+            'backup': evidence['backup'], 'retained_history': evidence['retained_historical_migration'],
+            'staging_merged_sha256': sha(merged), 'overlay_sha256_after': evidence['source_sha256_after'],
+            'swagger_sha256': evidence['swagger_sha256'], 'business_data_unchanged': True, 'media_unchanged': True})
         green.artisan('up')
         paused = False
         reopened = True
