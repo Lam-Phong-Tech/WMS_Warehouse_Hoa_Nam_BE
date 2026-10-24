@@ -10,6 +10,10 @@ spec.loader.exec_module(inspection)
 
 
 class InspectionTest(unittest.TestCase):
+    def test_scope_check_supports_the_older_host_runtime_and_rejects_prefix_siblings(self):
+        self.assertTrue(inspection.within(Path('/opt/green/releases/one'), '/opt/green/releases'))
+        self.assertFalse(inspection.within(Path('/opt/green/releases-other/one'), '/opt/green/releases'))
+
     def test_routing_summary_never_exports_auth_or_url_credentials(self):
         text = '''# configuration file /etc/nginx/sites-enabled/dev:
 server_name khohoanamdev.lptech.info.vn;

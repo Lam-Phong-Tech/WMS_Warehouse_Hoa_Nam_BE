@@ -29,6 +29,14 @@ def command(args):
     return result.stdout
 
 
+def within(path, root):
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
 def describe_config(text):
     chunks = re.split(r'^# configuration file (.+):\s*$', text, flags=re.M)
     results = []
@@ -73,7 +81,7 @@ def log_matches(filename):
 
 def main():
     release = Path('/opt/hoa-nam-green/current').resolve()
-    if not release.is_relative_to('/opt/hoa-nam-green/releases'):
+    if not within(release, '/opt/hoa-nam-green/releases'):
         raise RuntimeError('Unexpected release root')
     digests = {name: hashlib.sha256((release / name).read_bytes()).hexdigest() for name in EXPECTED}
     if digests != EXPECTED:
@@ -88,7 +96,7 @@ def main():
             content = file.read_text(errors='replace')
             for item in re.findall(r'^\s*(?:access_log|error_log)\s+([^;\s]+)', content, flags=re.M):
                 path = Path(item)
-                if path.is_absolute() and path.resolve().is_relative_to('/var/log/nginx'):
+                if path.is_absolute() and within(path.resolve(), '/var/log/nginx'):
                     logs.append(path)
     result = {
         'observed_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
