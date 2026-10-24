@@ -15,7 +15,7 @@ job title, CHECK action, actor or description, and is not full TC02/TC04 UAT PAS
   PostgreSQL cluster only. The owned cluster was stopped after testing.
 - Isolated SQLite route cache: 14 tests / 251 assertions; counts overlap above.
 - Swagger generated into an isolated output and the two header/error schemas verified.
-- Five release guard tests plus ten existing P14 transport/tooling tests pass.
+- Six release guard tests plus ten existing P14 transport/tooling tests pass.
 - These are targeted local tests, not a new CI run or the full application suite.
 
 ## Operation

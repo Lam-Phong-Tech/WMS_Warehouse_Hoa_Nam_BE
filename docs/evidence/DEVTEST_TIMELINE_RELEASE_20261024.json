@@ -1,0 +1,67 @@
+{
+  "status": "DEPLOYED_READ_PROJECTION_PARTIAL_UAT_PENDING",
+  "application_source_sha": "184bd43d95804a0c6f42d47ca64dfa39db40d9ae",
+  "operations_sha": "aee2269cdf7b5d4fac0c97d305c1f43394c9ef51",
+  "previous_php_sha": "a9053a21bc35ece367be0b76db727d4749b59855",
+  "contract": "p12-timeline-handoff-v1",
+  "preflight": {"run": 40085741081, "result": "SUCCESS", "read_only": true},
+  "first_attempt": {"run": 40085865350, "result": "FAILURE", "stage": "prepare", "reason": "Isolated Docker autoload probe exited125 before maintenance or source switch. Added the nested vendor mountpoint before the read-only bind probe; runtime PHP source unchanged.", "service_switched": false, "migration_or_business_write": false},
+  "deployment": {
+    "run": 40086030765,
+    "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/40086030765",
+    "result": "SUCCESS",
+    "ci_job": "SKIPPED",
+    "completed_at_utc": "2026-10-24T10:32:10.409219+00:00",
+    "completed_at_vietnam": "2026-10-24T17:32:10.409219+07:00",
+    "private_report": "/opt/hoa-nam-green/backups/deploy-timeline-20261024T102851Z.json",
+    "source_archive_sha256": "f32349cfa039e4ef1ce9ea0109c6cae5be01c6816f0991f036aa21965cb309b2",
+    "backend_queue_scheduler_sha_verified": true,
+    "config_route_cache_regenerated": true,
+    "swagger_regenerated": true,
+    "swagger_sha256": "fa67551ff9e434b007a1409a8aac8e2f28896a9e536a9548baf9a663157bc79c"
+  },
+  "schema": {"applied": 219, "pending": ["2026_10_24_000001_create_p11_security_command_receipts"], "orphaned": [], "migration_executed": false},
+  "preserved": {
+    "reviewed_runtime_overlays": 14,
+    "already_applied_failed_jobs_source_artifact": true,
+    "inner_nginx_default_sha256": "12dc7f6a5c7314af3fbfa5b4edd5c82c8bbc3517aeaa120610e0606b0dde6cc3",
+    "inner_nginx_perf_sha256": "68713e735b40ddcac599d228b2644be5dc9a5eeb8653ebd34de9ab466d165c51",
+    "outer_dev_tls_sha256": "373414205df3f1604349736a51050d1f6f3c0922a0b6790837ec149fd0d168f9",
+    "vendor_lock_and_asset_inputs_unchanged": true,
+    "vendor_volume_not_modified_by_autoload_probe": true
+  },
+  "data_verification": {
+    "scope": "MAINTENANCE_BEFORE_REOPEN",
+    "public_base_tables_with_full_row_field_fingerprint": 114,
+    "business_data_unchanged": true,
+    "storage_app_manifest_entries": 13,
+    "storage_app_unchanged": true,
+    "remote_media_objects_not_enumerated_or_written": true,
+    "counts_before": {"sku_total": 1156, "published_skus": 933, "media_rows": 974, "items_in_stock": 2759},
+    "counts_after": {"sku_total": 1156, "published_skus": 933, "media_rows": 974, "items_in_stock": 2759},
+    "pg_dump_created_and_catalog_validated": true,
+    "restore_drill_or_restore_executed": false
+  },
+  "policy_unchanged": {"protected_database": true, "allow_seed": false, "p11": false, "p12": true, "p14": true, "p14_recovery": false, "p19": false, "session_replacement": true, "refresh_body_transport": true, "refresh_body_origins": []},
+  "local_tests": {
+    "sqlite": {"tests": 37, "assertions": 559, "errors": 0, "failures": 0, "skipped": 0},
+    "postgresql": {"tests": 37, "assertions": 559, "errors": 0, "failures": 0, "skipped": 0, "junit_sha256": "8fe6b1acfde8be2fa1873132db4ac2df91f5cffe46b231fe98423c3e99786bc6"},
+    "sqlite_isolated_route_cache": {"tests": 14, "assertions": 251, "overlaps_main_group": true},
+    "release_guard_tests": 6,
+    "existing_p14_tooling_tests": 10,
+    "not_full_ci_or_full_suite": true,
+    "dependency_audits_not_rerun": true
+  },
+  "public_http": [
+    {"origin": "DEV", "path": "/api/v1/health", "status": 200, "request_id": "6c6e27fd-90b5-4899-8dd4-94c3db14c974", "observed_at_utc": "2026-10-24T10:32:08.735325+00:00", "exact_php_sha": true},
+    {"origin": "APPQR_PROXY", "path": "/wms-api/api/v1/health", "status": 200, "request_id": "78e11897-3695-4246-a371-f4c0590afe81", "observed_at_utc": "2026-10-24T10:32:09.547092+00:00", "exact_php_sha": true}
+  ],
+  "public_unauthenticated_auth_me_and_documents": {"dev": 401, "appqr_proxy": 401, "not_authenticated_acceptance": true},
+  "free_bytes_after": 5994692608,
+  "real_login_start_end_record_post_or_nfc_write": false,
+  "migration_seed_repair_restore": false,
+  "production_activation": false,
+  "authenticated_same_document_detail_smoke": "PENDING_APPROVED_EXISTING_TEST_OWNER_SESSION_AND_DOCUMENT",
+  "remaining": ["TC02 authoritative historical job title source and future snapshot owner", "TC04 separate human CHECK event and historical milestone actor/description", "App opt-in adapter and same-document authenticated DEV raw GET", "Native/device acceptance"],
+  "full_tc02_tc04_pass": false
+}
