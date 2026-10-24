@@ -2,6 +2,8 @@
 
 Source/config fix, pending DEV nginx reload and authenticated acceptance. Not App/UAT PASS.
 
+**Latest: R2 App retest still failed with gzip/default despite no-transform.** Read-only inspection then found an unprotected second compression hop: the public DEV TLS nginx1.18.0 inherited global JSON gzip and protected only auth/me, while the inner nginx1.31.3 R2 hashes were correct. The additional DEV TLS vhost rule was deployed by run `40073536629`, source `42ffcc57b9d7e9008ae53ee15e0695f435f6f71d`, at 14:17 +07:00. Before/after loopback reproduction with the actual host binary/routing passed48 cases; no historical per-hop headers are invented from logs. Appqr is a different DNS ingress, not inspected/modified. Original-owner authenticated retest remains OPEN. See `docs/evidence/P14_TLS_GATEWAY_RELEASE_20261024.json` and the TLS gateway response package; do not mark end-to-end PASS from R2 or unauthenticated checks.
+
 Release update: DEV nginx configuration commit `648558227be478ebccb2356818d419937303d516` deployed successfully at 13:28:34 +07:00 on 24/10/2026, run `40070282223`. PHP stays `a9053a21bc35ece367be0b76db727d4749b59855`. Both variants passed 42 transport cases on Windows and independently on the exact serving Linux image (nginx1.31.3). Public origin/proxy health200 and unauthenticated close-check401 preserve no-transform; these are not authenticated ETag acceptance. CI skipped; no migration/seed/login/real END. Details: `docs/evidence/P14_NGINX_ETAG_RELEASE_20261024.json`. The earlier pending-source statements describe the pre-release snapshot.
 
 Input: `BE_P14_STRONG_ETAG_FIX_20261024.zip`, SHA256 `3315551cfb73215537e7b9a4c55acabc30fe708efb56bd0e573e66d795f382c2`.

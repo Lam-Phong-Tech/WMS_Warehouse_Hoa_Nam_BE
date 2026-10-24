@@ -129,7 +129,7 @@ jobs:
           set -euo pipefail
           cd devtest-p14-etag-source
           python3 tools/deploy/deploy-green-p14-etag.py --package --checkout "$PWD" --ops-sha "$GITHUB_SHA"
-      - name: Test actual Linux nginx image and optionally reload only green nginx
+      - name: Inspect or operate the explicitly selected DEV transport layer
         uses: appleboy/ssh-action@v1.2.0
         env:
           OPS_SHA: ${{ github.sha }}

@@ -1,0 +1,55 @@
+{
+  "status": "DEV_TLS_HOP_FIXED_PENDING_ORIGINAL_OWNER_RETEST_AND_APPQR_HOP_VERIFICATION",
+  "gateway_source_sha": "42ffcc57b9d7e9008ae53ee15e0695f435f6f71d",
+  "php_sha_unchanged": "a9053a21bc35ece367be0b76db727d4749b59855",
+  "inner_nginx_config_sha_unchanged": "648558227be478ebccb2356818d419937303d516",
+  "incoming_app_retest": {
+    "file": "P14_ETAG_R2_APP_RETEST_20261024.zip",
+    "sha256": "36f43158c35d80d8771d6c7f1e421c1f1218064c5122865b119c07302b1df75d",
+    "gzip_weak_request_id": "76199893-8402-4b3a-b57d-46a16e591772",
+    "identity_strong_request_id": "0267280c-e1fe-469b-be54-1bef1120d700",
+    "browser_default_weak_request_id": "c7c17c5f-a486-48e8-98e8-26709a30510a",
+    "expected_version_observed_by_app": 2,
+    "reported_app_validator_tests_passed": 5,
+    "not_replayed_by_backend": true
+  },
+  "inspection": {
+    "run": 40072568173, "result": "SUCCESS", "scope": "READ_ONLY",
+    "inner_r2_hashes_match": true,
+    "outer_dev_tls": "Global gzip on for application/json; only auth/me had a local no-gzip exception",
+    "appqr_dns_ingress": "14.246.0.243",
+    "appqr_gateway_inspected_or_modified": false,
+    "old_request_id_log_matches": 0,
+    "log_scan_limited_to": "Up to8MiB per selected regular log file; no raw lines exported",
+    "historical_upstream_sent_etag_encoding_not_available": true
+  },
+  "preflight": {"run": 40073398248, "result": "SUCCESS"},
+  "deployment": {
+    "run": 40073536629, "result": "SUCCESS", "ci_job": "SKIPPED",
+    "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/40073536629",
+    "target": "/etc/nginx/sites-available/khohoanamdev.lptech.info.vn",
+    "before_sha256": "a9f05ee2ccd9f1a563849bad0286945c6ca2690e42ab5d6ee7899494ecea45e7",
+    "after_sha256": "373414205df3f1604349736a51050d1f6f3c0922a0b6790837ec149fd0d168f9",
+    "backup_directory": "/opt/hoa-nam-green/backups/p14-tls-20261024T071748Z",
+    "change": "Add only the UUID P14 close-check/end location, cloning the existing profile proxy transport; syntax-check then graceful host-nginx reload",
+    "other_vhost_or_global_config_edited": false
+  },
+  "tests": {
+    "actual_host_nginx": "1.18.0 Ubuntu", "actual_routing_loopback_passed": 48,
+    "baseline_fixture_200_gzip": "W/\"7\", gzip",
+    "candidate_fixture_200_gzip": "\"7\", no Content-Encoding",
+    "upstream_weak_preserved": true, "owner_409_preserved": true,
+    "original_uri_query_if_match_request_id_preserved": true, "other_api_gzip_preserved": true,
+    "windows_loopback_passed": 48, "deployment_tooling_local_passed": 34,
+    "real_business_requests": 0, "not_full_ci_or_native_uat": true
+  },
+  "runtime": {"migration_count": 219, "p11": false, "p12": true, "p14": true, "p14_recovery": false, "p19": false, "database_protected": true, "allow_seed": false, "refresh_body_origin_allowlist_unchanged": true},
+  "live_read_only_counts_before_after": {"sku_total": 1156, "published_skus": 933, "media_rows": 974, "items_in_stock": 2759},
+  "public_smoke": "Origin/proxy health200 exactPHP/schema; close-check without credential401. Health gzip remains active. Not authenticated ETag acceptance.",
+  "original_owner": {"shift_id": "5e8e6150-4c76-4313-879f-d0884ee9c085", "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8", "verified_token_file_available": false, "authenticated_after_gateway_fix": "PENDING"},
+  "app_delivery": {"file": "apps/wms-mobile/handoff/BE_P14_TLS_GATEWAY_RESPONSE_20261024.zip", "sha256": "d44294eaf027386916771f55adc19691a29d1feae8164a8f65d878724a93f4a4", "payload_files": 11},
+  "ci_run": false, "db_mutations": false, "new_login": false, "real_start_end": false,
+  "migration_seed_repair_restore": false, "production_activation": false,
+  "end_to_end_pass": false,
+  "remaining": ["Retest browser-default GET in original authenticated App family", "Direct-origin authenticated comparison when a verified TEST token/scope is available", "Inspect appqr gateway/rewrite/compression if proxy remains weak", "Local CLEAN/stale version/real END only on separately approved TEST shift"]
+}
