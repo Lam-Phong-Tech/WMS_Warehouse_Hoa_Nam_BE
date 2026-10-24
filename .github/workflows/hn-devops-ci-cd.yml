@@ -91,6 +91,68 @@ env:
   CI_SERVER_PORT: ${{ vars.CI_SERVER_PORT || '8000' }}
 
 jobs:
+  devtest-timeline:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && startsWith(inputs.devtest_confirmation, 'TIMELINE-')
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    environment: staging
+    concurrency:
+      group: hoa-nam-green-devtest-release
+      cancel-in-progress: false
+    timeout-minutes: 25
+    steps:
+      - name: Require exact code-only DEV intent without CI or data commands
+        env:
+          CONFIRMATION: ${{ inputs.devtest_confirmation }}
+          DEPLOY_UAT: ${{ inputs.deploy_uat }}
+          RUN_SEED: ${{ inputs.run_uat_seed }}
+          PREFLIGHT: ${{ inputs.devtest_preflight_only }}
+          AUTH: ${{ inputs.devtest_auth_release_only }}
+          OLD: ${{ inputs.devtest_deploy_only }}
+          OWNER_SMOKE: ${{ inputs.devtest_owner_smoke }}
+          HOST: ${{ secrets.UAT_SSH_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$CONFIRMATION" in TIMELINE-INSPECT-184bd43d|TIMELINE-DEPLOY-184bd43d) ;; *) exit 1 ;; esac
+          test "$DEPLOY_UAT" = false && test "$RUN_SEED" = false
+          test "$PREFLIGHT" = false && test "$AUTH" = false && test "$OLD" = false && test "$OWNER_SMOKE" = false
+          test "$HOST" = 42.96.16.197
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: devtest-timeline-source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Package exact tested PHP source with unchanged dependencies and asset inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd devtest-timeline-source
+          python3 tools/deploy/deploy-green-timeline.py --package --checkout "$PWD" --ops-sha "$GITHUB_SHA" --output "$PWD/timeline-package"
+      - name: Inspect or promote code preserving database, media, flags and ETag transport
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          OPS_SHA: ${{ github.sha }}
+          CONFIRMATION: ${{ inputs.devtest_confirmation }}
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          envs: OPS_SHA,CONFIRMATION
+          command_timeout: 20m
+          script: |
+            set -eu
+            case "$OPS_SHA" in *[!0-9a-f]*|'') exit 1 ;; esac
+            test "${#OPS_SHA}" = 40
+            source=/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/devtest-timeline-source
+            owner=$(stat -c %U "$source/.git")
+            test "$owner" != UNKNOWN
+            test "$(runuser -u "$owner" -- git -C "$source" rev-parse HEAD)" = "$OPS_SHA"
+            case "$CONFIRMATION" in
+              TIMELINE-INSPECT-184bd43d) python3 "$source/tools/deploy/deploy-green-timeline.py" --source "$source/timeline-package" --ops-sha "$OPS_SHA" --inspect ;;
+              TIMELINE-DEPLOY-184bd43d) python3 "$source/tools/deploy/deploy-green-timeline.py" --source "$source/timeline-package" --ops-sha "$OPS_SHA" ;;
+              *) exit 1 ;;
+            esac
   devtest-p14-etag:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && startsWith(inputs.devtest_confirmation, 'P14-ETAG-')
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
@@ -223,7 +285,7 @@ jobs:
               *) exit 1 ;;
             esac
   devtest-tc12:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && !startsWith(inputs.devtest_confirmation, 'APP-') && !startsWith(inputs.devtest_confirmation, 'P14-ETAG-')
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && !startsWith(inputs.devtest_confirmation, 'APP-') && !startsWith(inputs.devtest_confirmation, 'P14-ETAG-') && !startsWith(inputs.devtest_confirmation, 'TIMELINE-')
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
     environment: staging
     concurrency:
