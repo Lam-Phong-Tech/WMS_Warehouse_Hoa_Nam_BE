@@ -54,6 +54,13 @@ class TimelineReleaseTest(unittest.TestCase):
         self.assertNotIn('composer ', job)
         self.assertIn('test "$RUN_SEED" = false', job)
 
+    def test_nested_read_only_vendor_mount_has_precreated_mountpoint(self):
+        code = Path(release.__file__).read_text()
+        self.assertLess(code.index("(release / 'vendor').mkdir(mode=0o755)"),
+                        code.index("'-v', vendor + ':/var/www/html/vendor:ro'"))
+        self.assertIn('capture_output=True, text=True, timeout=120', code)
+        self.assertNotIn('print(result.stderr)', code)
+
 
 if __name__ == '__main__':
     unittest.main()

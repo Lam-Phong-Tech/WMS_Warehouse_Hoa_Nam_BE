@@ -181,9 +181,18 @@ def deploy(folder, ops_sha, inspect_only):
                     and row['environment']['DB_DATABASE'] == green.DATABASE, 'Resolved service policy changed')
         # The lock and vendor remain byte-identical; PSR-4 must discover the new class without mutating vendor.
         code = r"$l=require 'vendor/autoload.php'; if($l->isClassMapAuthoritative() || !class_exists('Modules\Warehouse\Support\P12HandoffTimeline')) exit(2);"
-        green.run(['docker', 'run', '--rm', '--network', 'none', '-w', '/var/www/html',
-                   '-v', str(release) + ':/var/www/html:ro', '-v', vendor + ':/var/www/html/vendor:ro',
-                   '--entrypoint', 'php', green.IMAGE_ID, '-r', code])
+        # Docker cannot create a nested volume mountpoint under a read-only source bind.
+        (release / 'vendor').mkdir(mode=0o755)
+        result = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '-w', '/var/www/html',
+                                 '-v', str(release) + ':/var/www/html:ro', '-v', vendor + ':/var/www/html/vendor:ro',
+                                 '--entrypoint', 'php', green.IMAGE_ID, '-r', code],
+                                capture_output=True, text=True, timeout=120)
+        if result.returncode:
+            reason = next((label for text, label in (
+                ('read-only file system', 'READ_ONLY_MOUNTPOINT'), ('permission denied', 'MOUNT_PERMISSION'),
+                ('no such file', 'MISSING_MOUNTPOINT'), ('out of memory', 'CONTAINER_MEMORY'))
+                if text in result.stderr.lower()), 'PROBE_EXECUTION_FAILED')
+            raise RuntimeError('Isolated autoload probe: ' + reason + ', exit=' + str(result.returncode))
         evidence['stage'] = 'pause-and-backup'
         green.artisan('down', '--retry=30')
         paused = stopped = True
