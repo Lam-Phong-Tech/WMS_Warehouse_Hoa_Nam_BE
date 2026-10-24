@@ -2,6 +2,8 @@
 
 Source/config fix, pending DEV nginx reload and authenticated acceptance. Not App/UAT PASS.
 
+Release update: DEV nginx configuration commit `648558227be478ebccb2356818d419937303d516` deployed successfully at 13:28:34 +07:00 on 24/10/2026, run `40070282223`. PHP stays `a9053a21bc35ece367be0b76db727d4749b59855`. Both variants passed 42 transport cases on Windows and independently on the exact serving Linux image (nginx1.31.3). Public origin/proxy health200 and unauthenticated close-check401 preserve no-transform; these are not authenticated ETag acceptance. CI skipped; no migration/seed/login/real END. Details: `docs/evidence/P14_NGINX_ETAG_RELEASE_20261024.json`. The earlier pending-source statements describe the pre-release snapshot.
+
 Input: `BE_P14_STRONG_ETAG_FIX_20261024.zip`, SHA256 `3315551cfb73215537e7b9a4c55acabc30fe708efb56bd0e573e66d795f382c2`.
 Both supplied base hashes match the current repository and the last deployed PHP source `a9053a21bc35ece367be0b76db727d4749b59855`.
 

@@ -1,0 +1,38 @@
+{
+  "status": "NGINX_DEPLOYED_AUTHENTICATED_P14_ACCEPTANCE_PENDING",
+  "nginx_config_sha": "648558227be478ebccb2356818d419937303d516",
+  "php_sha_unchanged": "a9053a21bc35ece367be0b76db727d4749b59855",
+  "source_base": "4e83257c0dc982250e50b409c2afc158ac2d6bb1",
+  "release": {"run": 40070282223, "url": "https://github.com/Lam-Phong-Tech/WMS_Warehouse_Hoa_Nam_BE/actions/runs/40070282223", "result": "SUCCESS", "ci_job": "SKIPPED", "reloaded_at": "2026-10-24T13:28:34.807757+07:00"},
+  "config_sha256": {
+    "docker/nginx/default.conf.template": "12dc7f6a5c7314af3fbfa5b4edd5c82c8bbc3517aeaa120610e0606b0dde6cc3",
+    "docker/nginx/perf/default.conf.template": "68713e735b40ddcac599d228b2644be5dc9a5eeb8653ebd34de9ab466d165c51"
+  },
+  "backup_directory": "/opt/hoa-nam-green/backups/p14-nginx-20261024T062830Z",
+  "deployment_mode": "TWO_TEMPLATE_UPDATE_RENDER_SYNTAX_CHECK_GRACEFUL_NGINX_RELOAD_ONLY",
+  "backend_queue_restarted": false,
+  "tests": {
+    "windows_transport": {"nginx": "1.28.2", "passed": 42, "real_business_requests": 0},
+    "linux_transport": {"nginx": "1.31.3", "exact_serving_image": true, "passed": 42, "real_business_requests": 0},
+    "nginx_phpunit": {"tests": 4, "assertions": 87, "failures": 0, "errors": 0, "skipped": 0},
+    "deployment_tooling_local": {"passed": 27}, "pint": "PASS", "diff_check": "PASS",
+    "patch_roundtrip": "PASS against isolated base with core.autocrlf=false; both resulting hashes match candidate",
+    "platform_counts_not_unique_case_sum": true
+  },
+  "runtime": {"migration_count": 219, "p11": false, "p12": true, "p14": true, "p14_recovery": false, "p19": false, "database_protected": true, "allow_seed": false, "config_routes_cached": true, "refresh_body_origin_allowlist_unchanged": true},
+  "live_read_only_counts_before_and_after": {"sku_total": 1156, "published_skus": 933, "media_rows": 974, "items_in_stock": 2759},
+  "count_scope": "LIVE_OBSERVATION_NOT_FROZEN_ROW_FIELD_ACCEPTANCE",
+  "public_checks": [
+    {"type": "origin_health", "status": 200, "request_id": "9e7fb91d-2046-4a32-9443-3d53b8349890", "observed_at": "2026-10-24T13:32:26.019+07:00"},
+    {"type": "origin_close_check_without_credentials", "status": 401, "request_id": "ccb259c6-466a-4039-ad67-210f0e0f4095", "observed_at": "2026-10-24T13:32:26.100+07:00"},
+    {"type": "proxy_health", "status": 200, "request_id": "aea6a268-1521-4339-9420-9522650f79eb", "observed_at": "2026-10-24T13:32:26.441+07:00"},
+    {"type": "proxy_close_check_without_credentials", "status": 401, "request_id": "54a9d1f6-3a05-4bee-bcab-bd299d8e2318", "observed_at": "2026-10-24T13:32:26.624+07:00"}
+  ],
+  "no_transform_on_401_origin_and_proxy": true,
+  "original_owner": {"shift_id": "5e8e6150-4c76-4313-879f-d0884ee9c085", "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8", "verified_token_file_available": false, "authenticated_200_etag_retest": "PENDING"},
+  "app_delivery": {"file": "apps/wms-mobile/handoff/BE_P14_STRONG_ETAG_RESPONSE_20261024_R2.zip", "sha256": "4ab3b2eac125d34cb91c022b2e9a10667b6be314ec9a4afeca7eb4fc22bc6b5b", "payload_files": 12, "all_payload_checksums_verified": true, "patch_eof_and_roundtrip_verified": true},
+  "ci_run": false, "migration_seed_repair_restore": false, "new_login": false,
+  "real_start_end_command": false, "production_activation": false,
+  "full_p14_app_uat_pass": false,
+  "separate_open_items": ["Authenticated GET200 close-check through original family on origin/proxy", "Approved TEST END/native local CLEAN and stale-version checks", "UAT-R7-04 original NFC provenance", "P11 and full-seed acceptance"]
+}
