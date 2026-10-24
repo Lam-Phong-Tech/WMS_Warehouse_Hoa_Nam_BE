@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\ExplicitReadFields;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -693,6 +694,21 @@ final class P12MixedDocumentsTest extends TestCase
         $this->read($token, $warehouse, ['web_queue' => 'WAITING_WEB_POST'])->assertStatus(503)
             ->assertJsonPath('error.code', 'WEB_POST_HANDOFF_SOURCE_UNAVAILABLE');
         $this->read($token, $warehouse)->assertOk(); // The old unfiltered contract remains readable.
+    }
+
+    public function test_explicit_representation_keeps_full_totals_ids_and_explains_absent_handoff_without_null(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $id = $this->stock($warehouse, 'INBOUND', now()->subDay()->format('Y-m-d H:i:s'));
+        $response = $this->get(self::URL.'?warehouse_id='.$warehouse->id, $this->headers($token) + [
+            'Accept' => 'application/json', ExplicitReadFields::HEADER => ExplicitReadFields::CONTRACT,
+        ])->assertOk()->assertJsonPath('meta.contract', ExplicitReadFields::CONTRACT)
+            ->assertJsonPath('meta.read_fields.owner_contract', ReadModel::CONTRACT)
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $id)->assertJsonMissingPath('data.0.web_post_handoff');
+        $missing = collect($response->json('meta.read_fields.missing_fields'))->keyBy('path');
+        $this->assertSame('NOT_ESTABLISHED', $missing['/data/0/web_post_handoff']['status']);
+        $this->assertSame('END_OF_RESULTS', $missing['/meta/next_cursor']['status']);
+        $this->assertDatabaseCount('stock_movements', 0);
     }
 
     private function actor(array $permissions = ['inbound.view', 'outbound.view', 'warranty.view', 'warranty.manage']): array

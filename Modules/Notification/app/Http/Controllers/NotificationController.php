@@ -208,6 +208,8 @@ class NotificationController extends Controller
     {
         return $recipients->map(function (NotificationRecipient $recipient): array {
             $notification = $recipient->notification;
+            $rawReadAt = $recipient->getRawOriginal('read_at');
+            $readAt = NotificationTimestamp::read($rawReadAt);
 
             return [
                 'id' => $recipient->id,
@@ -222,7 +224,8 @@ class NotificationController extends Controller
                 'actor_id' => $notification?->actor_id,
                 'actor_name' => $notification?->actor_name,
                 'payload' => $notification?->payload,
-                'read_at' => NotificationTimestamp::read($recipient->getRawOriginal('read_at')),
+                'read_at' => $readAt,
+                'read_at_status' => $rawReadAt === null ? 'NOT_READ' : ($readAt === null ? 'SOURCE_INVALID' : 'RECORDED'),
                 'created_at' => NotificationTimestamp::read($recipient->getRawOriginal('created_at')),
                 'payload_semantics' => 'EVENT_SNAPSHOT_NOT_AUTHORIZATION',
                 'subject' => P13NotificationPresentation::subject($recipient),

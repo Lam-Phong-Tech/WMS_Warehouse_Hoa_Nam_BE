@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\ExplicitReadFields;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -172,6 +173,12 @@ final class P23ReadContractTest extends TestCase
             $this->assertNull($response->json('meta.total'));
             $this->assertGreaterThanOrEqual(1, (int) $response->json('meta.availableTotal'));
             $this->assertSame('PARTIAL_SOURCE', $response->json('data.0.latestEventStatus'));
+            $explicit = $this->getJson($this->url('scan-sessions', $warehouse->id), $this->headers($token) + [
+                ExplicitReadFields::HEADER => ExplicitReadFields::CONTRACT,
+            ])->assertOk()->assertJsonMissingPath('meta.total')->assertJsonPath('meta.coverage', 'PARTIAL_SOURCE');
+            $missing = collect($explicit->json('meta.read_fields.missing_fields'))->keyBy('path');
+            $this->assertSame('PARTIAL_SOURCE', $missing['/meta/total']['status']);
+            $this->assertGreaterThanOrEqual(1, $explicit->json('meta.availableTotal'));
         } finally {
             Schema::rename($legacy.'_p23_partial', $legacy);
         }

@@ -35,7 +35,11 @@ class NoStoreApiResponses
             // Authenticated JSON reads must remain partitioned by both the
             // bearer credential and the browser origin. Merge instead of
             // replacing a Vary value set by a route-specific middleware.
-            self::mergeVary($response, ['Authorization', 'Origin']);
+            $vary = ['Authorization', 'Origin'];
+            if ($response->headers->has('X-Read-Fields-Contract')) {
+                $vary[] = 'X-Read-Fields-Contract';
+            }
+            self::mergeVary($response, $vary);
         }
 
         return $response;

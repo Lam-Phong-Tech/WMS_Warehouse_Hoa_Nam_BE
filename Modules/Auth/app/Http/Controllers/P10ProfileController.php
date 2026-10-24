@@ -3,6 +3,7 @@
 namespace Modules\Auth\Http\Controllers;
 
 use App\Support\ApiError;
+use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -16,9 +17,11 @@ use Modules\Auth\Models\User;
 use Modules\Auth\Support\AuthUserPayload;
 use Modules\Auth\Support\P10ProfilePolicy as Policy;
 use Modules\Auth\Support\P10SessionFamily as Family;
+use Modules\Auth\Support\P11SecurityCommands;
 use Modules\Auth\Support\P11SecurityContract as SecurityContract;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
+use Throwable;
 
 /** Existing self-service routes only. Login/refresh/MFA behavior remains inherited. */
 final class P10ProfileController extends AuthController
@@ -26,6 +29,7 @@ final class P10ProfileController extends AuthController
     public function me(Request $request): JsonResponse
     {
         $this->noQuery($request);
+
         return $this->profile($this->actor($request));
     }
 
@@ -52,6 +56,7 @@ final class P10ProfileController extends AuthController
         } catch (\InvalidArgumentException) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là phiên bản số nguyên dương hoặc ETag tương ứng.');
         }
+
         return DB::transaction(function () use ($request, $data, $expected): JsonResponse {
             $user = $this->actor($request, true);
             if ((int) $user->version !== $expected) {
@@ -65,6 +70,7 @@ final class P10ProfileController extends AuthController
                 objectId: (string) $user->user_id, actorId: (string) $user->user_id,
                 requestId: $request->attributes->get('request_id'),
                 afterData: ['changed_fields' => array_keys($data), 'version' => (int) $user->version]);
+
             return $this->profile($user->fresh(), 'Cập nhật hồ sơ thành công');
         }, 3);
     }
@@ -76,6 +82,7 @@ final class P10ProfileController extends AuthController
             'page' => ['sometimes', 'integer', 'min:1', 'max:100000'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
         ])->validate();
+
         return DB::transaction(function () use ($request, $input): JsonResponse {
             $user = $this->actor($request, true);
             $current = Family::current($user, true);
@@ -90,6 +97,7 @@ final class P10ProfileController extends AuthController
             $page->setCollection($page->getCollection()->map(function (object $row) use ($current): array {
                 $family = Policy::family($row->auth_session_id, (string) $row->id);
                 $isCurrent = hash_equals($current, $family);
+
                 return [
                     'id' => (string) $row->id, 'auth_session_id' => $family,
                     'session_id' => $family,
@@ -113,6 +121,7 @@ final class P10ProfileController extends AuthController
                 'revoke_scope' => 'ENTIRE_TARGET_FAMILY', 'current_family_protected' => true,
                 'pagination' => 'PAGE_LIVE_NOT_FROZEN', 'request_receipt_supported' => false,
             ];
+
             return $response->setData($payload)->header('Cache-Control', 'private, no-store');
         }, 3);
     }
@@ -124,7 +133,7 @@ final class P10ProfileController extends AuthController
         if (! Str::isUuid($id)) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy phiên đăng nhập.');
         }
-        return DB::transaction(function () use ($request, $id): JsonResponse {
+        $command = fn (): JsonResponse => DB::transaction(function () use ($request, $id): JsonResponse {
             $user = $this->actor($request, true);
             $current = Family::current($user, true);
             $target = RefreshToken::query()->where('user_id', $user->user_id)->whereKey($id)->first();
@@ -142,6 +151,7 @@ final class P10ProfileController extends AuthController
                     requestId: $request->attributes->get('request_id'),
                     afterData: ['auth_session_id' => $family, 'scope' => 'TARGET_FAMILY']);
             }
+
             return $this->respondSuccess([
                 'id' => (string) $target->id, 'auth_session_id' => $family,
                 'session_id' => $family,
@@ -149,6 +159,8 @@ final class P10ProfileController extends AuthController
                 'revocation_scope' => 'AUTH_SESSION_FAMILY', 'request_receipt_supported' => false,
             ], 'Đã thu hồi phiên đăng nhập')->header('Cache-Control', 'private, no-store');
         }, 3);
+
+        return $this->securityCommand($request, 'REVOKE_SESSION', strtolower($id), $command, false);
     }
 
     public function logout(Request $request): JsonResponse
@@ -161,24 +173,28 @@ final class P10ProfileController extends AuthController
             ApiError::abort(422, 'REFRESH_TOKEN_TRANSPORT_MISMATCH', 'Trình duyệt chỉ dùng cookie HttpOnly, không gửi refresh token trong body.');
         }
         $raw = $transport->presentedToken($request);
-        $scope = DB::transaction(function () use ($request, $raw): string {
-            $user = $this->actor($request, true);
-            $family = Family::current($user);
-            Family::assertPresentedToken($user, $family, $raw);
-            if ($family !== null) {
-                Family::revoke((string) $user->user_id, $family);
-            }
-            $scope = $family === null ? 'CURRENT_ACCESS_TOKEN_ONLY' : 'CURRENT_AUTH_SESSION_FAMILY';
-            AuditLogger::record(action: 'LOGOUT', objectType: 'app_user',
-                objectId: (string) $user->user_id, actorId: (string) $user->user_id,
-                requestId: $request->attributes->get('request_id'), afterData: ['scope' => $scope]);
-            return $scope;
-        }, 3);
-        // Failure here is UNKNOWN to the client; never claim a durable receipt.
-        auth('api')->logout();
-        return $this->authResult('Đăng xuất thành công', [
-            'scope' => $scope, 'business_drafts_deleted' => false, 'work_shift_ended' => false,
-        ]);
+        $command = function () use ($request, $raw): JsonResponse {
+            $scope = DB::transaction(function () use ($request, $raw): string {
+                $user = $this->actor($request, true);
+                $family = Family::current($user);
+                Family::assertPresentedToken($user, $family, $raw);
+                if ($family !== null) {
+                    Family::revoke((string) $user->user_id, $family);
+                }
+                $scope = $family === null ? 'CURRENT_ACCESS_TOKEN_ONLY' : 'CURRENT_AUTH_SESSION_FAMILY';
+                AuditLogger::record(action: 'LOGOUT', objectType: 'app_user',
+                    objectId: (string) $user->user_id, actorId: (string) $user->user_id,
+                    requestId: $request->attributes->get('request_id'), afterData: ['scope' => $scope]);
+
+                return $scope;
+            }, 3);
+
+            return $this->authResult('Đăng xuất thành công', [
+                'scope' => $scope, 'business_drafts_deleted' => false, 'work_shift_ended' => false,
+            ]);
+        };
+
+        return $this->securityCommand($request, 'LOGOUT', null, $command, true);
     }
 
     public function changePassword(Request $request): JsonResponse
@@ -200,28 +216,56 @@ final class P10ProfileController extends AuthController
                 ['password_policy' => SecurityContract::passwordPolicy($driver)]);
         }
         $newHash = Hash::make($data['new_password']);
-        $changedAt = DB::transaction(function () use ($request, $data, $newHash): ?int {
-            $user = $this->actor($request, true);
-            if (! Hash::check($data['current_password'], $user->password_hash)) {
-                ApiError::abort(422, SecurityContract::WRONG_CURRENT, 'Mật khẩu hiện tại không đúng.', ['current_password' => ['Mật khẩu hiện tại không đúng.']]);
+        $command = function () use ($request, $data, $newHash, $driver): JsonResponse {
+            $changedAt = DB::transaction(function () use ($request, $data, $newHash): ?int {
+                $user = $this->actor($request, true);
+                if (! Hash::check($data['current_password'], $user->password_hash)) {
+                    ApiError::abort(422, SecurityContract::WRONG_CURRENT, 'Mật khẩu hiện tại không đúng.', ['current_password' => ['Mật khẩu hiện tại không đúng.']]);
+                }
+                $user->forceFill(['password_hash' => $newHash, 'must_change_password' => false,
+                    'version' => (int) $user->version + 1])->save();
+                $user->markPasswordChangedNow();
+                app(RefreshTokenService::class)->revokeAllForUser((string) $user->user_id);
+                AuditLogger::record(action: 'CHANGE_PASSWORD', objectType: 'app_user',
+                    objectId: (string) $user->user_id, actorId: (string) $user->user_id,
+                    requestId: $request->attributes->get('request_id'),
+                    afterData: ['session_policy' => 'RELOGIN_ALL_REFRESH_FAMILIES_REVOKED']);
+
+                // Return the persisted server timestamp, never a client clock or receipt.
+                return $user->fresh()->passwordChangedAtEpoch();
+            }, 3);
+
+            return $this->authResult('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.', [
+                'session_policy' => 'RELOGIN_ALL_REFRESH_FAMILIES_REVOKED', 'relogin_required' => true,
+                'password_changed_at' => $this->passwordTime($changedAt),
+                'password_policy_version' => SecurityContract::passwordPolicy($driver)['version'],
+            ]);
+        };
+
+        return $this->securityCommand($request, 'CHANGE_PASSWORD', null, $command, true);
+    }
+
+    private function securityCommand(Request $request, string $operation, ?string $target, Closure $command, bool $endSession): JsonResponse
+    {
+        $native = $request->hasHeader(P11SecurityCommands::HEADER);
+        $receipts = app(P11SecurityCommands::class);
+        $response = $native ? $receipts->execute($request, $operation, $target, $command) : $receipts->legacy($request, $command);
+        if ($endSession && $response->isSuccessful() && $response->getStatusCode() !== 202) {
+            try {
+                auth('api')->logout();
+            } catch (Throwable $error) {
+                if (! $native) {
+                    throw $error; // Preserve the legacy uncertainty contract.
+                }
+                // The native receipt and DB family revocation already committed.
+                // Cache acknowledgement cannot turn that fact into a failed command.
+                $body = $response->getData(true);
+                $body['meta']['access_invalidation'] = 'FAMILY_REVOKED_CACHE_ACK_UNAVAILABLE';
+                $response->setData($body);
             }
-            $user->forceFill(['password_hash' => $newHash, 'must_change_password' => false,
-                'version' => (int) $user->version + 1])->save();
-            $user->markPasswordChangedNow();
-            app(RefreshTokenService::class)->revokeAllForUser((string) $user->user_id);
-            AuditLogger::record(action: 'CHANGE_PASSWORD', objectType: 'app_user',
-                objectId: (string) $user->user_id, actorId: (string) $user->user_id,
-                requestId: $request->attributes->get('request_id'),
-                afterData: ['session_policy' => 'RELOGIN_ALL_REFRESH_FAMILIES_REVOKED']);
-            // Return the persisted server timestamp, never a client clock or receipt.
-            return $user->fresh()->passwordChangedAtEpoch();
-        }, 3);
-        auth('api')->logout();
-        return $this->authResult('Đổi mật khẩu thành công. Vui lòng đăng nhập lại.', [
-            'session_policy' => 'RELOGIN_ALL_REFRESH_FAMILIES_REVOKED', 'relogin_required' => true,
-            'password_changed_at' => $this->passwordTime($changedAt),
-            'password_policy_version' => SecurityContract::passwordPolicy($driver)['version'],
-        ]);
+        }
+
+        return $response;
     }
 
     private function actor(Request $request, bool $lock = false): User
@@ -236,6 +280,7 @@ final class P10ProfileController extends AuthController
             ApiError::abort(403, 'ACCOUNT_DISABLED', 'Tài khoản không còn hoạt động.');
         }
         Family::current($user); // Sid-bearing access tokens cannot survive family revocation.
+
         return $user;
     }
 
@@ -245,7 +290,9 @@ final class P10ProfileController extends AuthController
         $payload = $response->getData(true);
         $payload['meta']['profile_contract'] = Policy::contract();
         $payload['meta']['security_contract'] = SecurityContract::contract((string) config('hashing.driver', 'bcrypt'));
+        $payload['meta']['security_command_candidate'] = P11SecurityCommands::contract();
         $payload['data']['password_changed_at'] = $this->passwordTime($user->passwordChangedAtEpoch());
+
         return $response->setData($payload)->header('ETag', '"'.(int) $user->version.'"')
             ->header('Cache-Control', 'private, no-store, no-transform');
     }
@@ -261,6 +308,7 @@ final class P10ProfileController extends AuthController
         $payload = $response->getData(true);
         $payload['meta']['auth_result'] = $result + ['state' => 'SUCCEEDED',
             'durable_request_receipt' => false, 'request_reconcile_supported' => false];
+
         return $response->setData($payload)->header('Cache-Control', 'private, no-store');
     }
 
@@ -278,6 +326,7 @@ final class P10ProfileController extends AuthController
         if ($unknown !== [] || $request->allFiles() !== []) {
             ApiError::abort(422, $code, 'Payload có trường chưa được hỗ trợ; không gửi name, nickname, avatar hoặc quyền ngoài contract.', ['fields' => $unknown]);
         }
+
         return $body;
     }
 }

@@ -55,7 +55,8 @@
           "display_status": {"$ref": "#/components/schemas/DisplayStatus"}, "partner": {"$ref": "#/components/schemas/Partner"},
           "p12": {"type": "object", "required": ["identity", "read_target", "status"], "properties": {"identity": {"$ref": "#/components/schemas/Identity"}, "read_target": {"$ref": "#/components/schemas/ReadTarget"}, "status": {"type": "object", "required": ["canonical", "mini_app", "readiness", "waiting_for_web"], "properties": {"canonical": {"type": ["string", "null"]}, "mini_app": {"type": ["string", "null"]}, "readiness": {"type": "object"}, "waiting_for_web": {"type": "null"}}}}},
           "read_target": {"$ref": "#/components/schemas/ReadTarget"},
-          "web_post_handoff": {"oneOf": [{"type": "null"}, {"$ref": "#/components/schemas/WebPostHandoff"}]}
+          "web_post_handoff": {"oneOf": [{"type": "null"}, {"$ref": "#/components/schemas/WebPostHandoff"}]},
+          "web_post_handoff_availability": {"enum": ["RECORDED", "NOT_ESTABLISHED", "NOT_APPLICABLE", "SOURCE_UNAVAILABLE"]}
         },
         "additionalProperties": false
       },

@@ -45,7 +45,8 @@ final class P12MixedDocumentsController extends Controller
                 [$rows, $page] = Page::read($selected, $state, $filters['per_page'], $filters['sort']);
                 $readiness = ReadModel::readiness($rows);
                 $handoffs = [];
-                if (Schema::hasTable(P13WebPostHandoff::TABLE)) {
+                $handoffAvailable = Schema::hasTable(P13WebPostHandoff::TABLE);
+                if ($handoffAvailable) {
                     foreach (['INBOUND', 'OUTBOUND'] as $source) {
                         $ids = $rows->where('source', $source)->pluck('warehouse_id', 'id')->all();
                         if ($ids !== []) {
@@ -59,7 +60,8 @@ final class P12MixedDocumentsController extends Controller
                 return response()->json([
                     'success' => true,
                     'data' => $rows->map(fn (object $row): array => ReadModel::record(
-                        $row, $readiness[$row->source.':'.$row->id] ?? [], $handoffs[$row->source.':'.$row->id] ?? null
+                        $row, $readiness[$row->source.':'.$row->id] ?? [], $handoffs[$row->source.':'.$row->id] ?? null,
+                        $handoffAvailable ? 'NOT_ESTABLISHED' : 'SOURCE_UNAVAILABLE'
                     ))->all(),
                     'meta' => Metadata::make($scope, $filters, $state, $facets, $page, $snapshot),
                 ]);

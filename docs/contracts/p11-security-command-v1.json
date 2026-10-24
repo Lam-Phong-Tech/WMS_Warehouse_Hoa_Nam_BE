@@ -1,0 +1,54 @@
+{
+  "contract": "p11-security-command-v1",
+  "revision": "p11-security-command-r1-20261024",
+  "status": "SOURCE_CANDIDATE_PENDING_SECURITY_RELEASE_AND_DEVICE_ACCEPTANCE",
+  "activation": {"flag": "P11_SECURITY_COMMANDS_ENABLED", "default": false, "production_approved": false},
+  "commands": [
+    {"operation": "CHANGE_PASSWORD", "method": "POST", "path": "/api/v1/auth/change-password", "body": "Existing current_password/new_password/new_password_confirmation validation"},
+    {"operation": "LOGOUT", "method": "POST", "path": "/api/v1/auth/logout", "body": "Existing owner refresh-token transport rules, no new token channel"},
+    {"operation": "REVOKE_SESSION", "method": "DELETE", "path": "/api/v1/auth/sessions/{id}", "body": "Empty; id is the existing target refresh-row UUID, not a family alias"}
+  ],
+  "headers": {"X-Security-Command-Contract": "p11-security-command-v1", "Idempotency-Key": "Original UUID", "X-Request-ID": "Original caller-supplied UUID, not a server-generated correlation fallback"},
+  "scope": "Fresh active authenticated actor, valid stable family, exact operation/target/body/request identity; confirmed MFA must pre-exist the original command",
+  "persistence": {
+    "intent": "p11_security_commands PENDING committed before the owner effect transaction",
+    "terminal": "Canonical effects/audit and SUCCEEDED receipt commit together",
+    "rejection": "Known owner 4xx after verified rollback may persist REJECTED; DB/commit uncertainty remains PENDING shown as UNKNOWN",
+    "credentials": "No password, password hash, MFA code, MFA secret, access token or refresh token stored in command/result/assurance. Body/credential/factor bindings are keyed HMAC digests only.",
+    "result": "PII-free owner facts only, with exact persisted password time/family revocation, never reconstructed from current lookup as an old result"
+  },
+  "responses": {
+    "receipt_path": "data.receipt",
+    "states": ["SUCCEEDED", "REJECTED", "UNKNOWN"],
+    "unknown_command_http": 503,
+    "unknown_reason": "503 avoids treating 202 as session-ending success in browser cookie middleware",
+    "get_http": 200,
+    "missing": "UNKNOWN, request_state=NOT_FOUND, CHECK_ONLY, support_resolution_required=true; no negative execution proof",
+    "null_policy": "Unknown completion/result fields are absent, state is explicit; no null/fake result/time",
+    "retry_policy": "CHECK_ONLY; no blind command replay/new key/body/version/session takeover",
+    "terminal_same_key": "May return a verified terminal receipt without executing effects again; command_replayed=false",
+    "pending_key_rotation": "Any unresolved security intent blocks new native security intent for that actor",
+    "legacy_downgrade": "Removing the header cannot bypass PENDING. A family that adopted native receipts must keep the native protocol, even after rejection.",
+    "session_policy": "Logout preserves drafts/shifts. Password change revokes all families. Current-family DELETE remains protected. No token/body allowlist expansion."
+  },
+  "read": {"method": "GET", "path": "/api/v1/auth/security-requests/{original_key}", "query_body": "None", "same_family": "Current valid original family may read", "new_family": "Explicit additional verification required; never automatic"},
+  "verification": {
+    "method": "POST", "path": "/api/v1/auth/security-requests/{original_key}/verify",
+    "body_fields": ["current_password", "code"],
+    "mfa_owner": "Existing MfaService TOTP or one-use recovery code, serialized on MFA row with atomic TOTP replay marker",
+    "binding": ["actor", "current valid family", "original key", "pre-existing MFA factor binding", "current credential epoch", "keyed current credential binding"],
+    "assurance_seconds": 300,
+    "assurance_store": "p11_security_reconciliations, no bearer credential or password",
+    "revoked_token_can_read": false,
+    "new_factor_can_claim_old_receipt": false,
+    "wms_draft_or_shift_takeover": false,
+    "command_replayed": false,
+    "failure_audit": "Password/MFA denial and successful verification are audited without credentials"
+  },
+  "time": "UTC explicit-offset writes/read casts for MFA security instants; no repair/backfill of historical timestamps",
+  "migration": "database/migrations/2026_10_24_000001_create_p11_security_command_receipts.php",
+  "release_requirements": ["Review new route/schema matrix", "Review proof/receipt retention and support resolution", "Apply reviewed additive schema before enabling", "Do not disable the protocol while adopted families/PENDING intents still need reconciliation", "Authenticated DEV smoke and App owner/journal acceptance"],
+  "old_unknown_without_identity": "Audited support resolution required, not auto-adopted/backfilled/replayed by a new family",
+  "real_migration_or_activation_performed": false,
+  "live_verified": false
+}

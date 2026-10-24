@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "explicit-read-fields-v1 successful read representation",
+  "type": "object",
+  "required": ["success", "meta"],
+  "properties": {
+    "success": {"const": true},
+    "data": {"$ref": "#/$defs/nonNull"},
+    "meta": {
+      "type": "object", "required": ["contract", "read_fields"],
+      "properties": {"contract": {"const": "explicit-read-fields-v1"}, "read_fields": {"$ref": "#/$defs/representation"}},
+      "additionalProperties": {"$ref": "#/$defs/nonNull"}
+    }
+  },
+  "additionalProperties": {"$ref": "#/$defs/nonNull"},
+  "allOf": [{
+    "if": {"not": {"required": ["data"]}},
+    "then": {"properties": {"meta": {"properties": {"read_fields": {"properties": {"missing_fields": {"contains": {"type": "object", "required": ["path", "status"], "properties": {"path": {"const": "/data"}, "status": {"const": "NO_ACTIVE_SHIFT"}}}}}}}}}}
+  }],
+  "$defs": {
+    "nonNull": {"anyOf": [
+      {"type": ["string", "number", "boolean"]},
+      {"type": "array", "items": {"$ref": "#/$defs/nonNull"}},
+      {"type": "object", "additionalProperties": {"$ref": "#/$defs/nonNull"}}
+    ]},
+    "availability": {
+      "type": "object", "required": ["path", "status", "source", "value_supplied"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^/"},
+        "status": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,99}$"},
+        "source": {"const": "AUTHORIZED_OWNER_RESPONSE"},
+        "value_supplied": {"const": false},
+        "owner_status": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,99}$"}
+      }, "additionalProperties": false
+    },
+    "representation": {
+      "type": "object", "required": ["contract", "missing_fields", "value_policy"],
+      "properties": {
+        "contract": {"const": "explicit-read-fields-v1"},
+        "owner_contract": {"$ref": "#/$defs/nonNull"},
+        "missing_fields": {"type": "array", "maxItems": 10000, "items": {"$ref": "#/$defs/availability"}},
+        "value_policy": {"const": "KNOWN_VALUES_UNCHANGED_ABSENT_VALUES_EXPLAINED_NO_NULL_OR_FAKE_DEFAULTS"},
+        "owner_precondition": {
+          "type": "object", "required": ["etag", "source", "use"],
+          "properties": {"etag": {"type": "string", "minLength": 1}, "source": {"const": "EXACT_OWNER_RESPONSE_HEADER"}, "use": {"const": "ORIGINAL_OWNER_IF_MATCH_ONLY_NOT_HTTP_CACHE_VALIDATOR"}},
+          "additionalProperties": false
+        }
+      }, "additionalProperties": false
+    }
+  }
+}

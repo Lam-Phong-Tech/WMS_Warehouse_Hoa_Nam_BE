@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\ExplicitReadFields;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -100,6 +101,35 @@ class P18BoxReadModelTest extends TestCase
             ->where('permission_id', Permission::where('permission_key', 'sku.view')->value('permission_id'))->delete();
         $user->increment('version');
         $this->get('/api/v1/containers?warehouse_id='.$warehouse->id, $this->headers($token))->assertForbidden();
+    }
+
+    public function test_explicit_field_representation_explains_missing_box_data_without_null_or_stock_changes(): void
+    {
+        [, $token, $warehouse] = $this->actor();
+        $sku = Sku::create(['sku_code' => 'NO-COUNT-YET', 'sku_name' => 'Actual component', 'sku_type' => 'COMPONENT',
+            'is_serial_tracked' => false, 'status' => 'ACTIVE', 'unit' => 'cai']);
+        $box = Container::create(['container_code' => 'BOX-NO-COUNT-YET-001', 'container_type' => 'BOX',
+            'primary_sku_id' => $sku->sku_id, 'status' => 'IN_STOCK', 'version' => 1]);
+        $url = '/api/v1/containers/'.$box->container_id.'?warehouse_id='.$warehouse->id;
+        $response = $this->get($url, $this->headers($token) + [ExplicitReadFields::HEADER => ExplicitReadFields::CONTRACT])
+            ->assertOk()->assertJsonPath('data.container_id', $box->container_id)->assertJsonMissingPath('data.contained_qty')
+            ->assertJsonMissingPath('data.available_qty')->assertJsonMissingPath('data.capacity');
+        $missing = collect($response->json('meta.read_fields.missing_fields'))->keyBy('path');
+        $this->assertSame('NOT_RECORDED', $missing['/data/contained_qty']['status']);
+        $this->assertSame('NOT_CONFIGURED', $missing['/data/capacity']['status']);
+        $this->assertSame('NO_AUTHORITATIVE_CONTAINER_AVAILABILITY_MODEL', $missing['/data/available_qty']['status']);
+        $assert = function (mixed $value) use (&$assert): void {
+            $this->assertNotNull($value);
+            if (is_array($value)) {
+                foreach ($value as $child) {
+                    $assert($child);
+                }
+            }
+        };
+        $assert($response->json());
+        $this->get($url, $this->headers($token))->assertOk()->assertJsonPath('data.contained_qty', null);
+        $this->assertDatabaseCount('container_items', 0);
+        $this->assertDatabaseCount('stock_movements', 0);
     }
 
     public function test_missing_source_is_not_an_empty_success(): void

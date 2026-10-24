@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\ExplicitReadFields;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -185,6 +186,20 @@ class P13NotificationContractTest extends TestCase
         $this->getJson('/api/v1/mini-app/inbound-documents/'.$documentId, $this->headers($token))->assertForbidden();
         $this->patch(self::BASE.'/'.$recipient->id.'/read', [], $this->headers($token))->assertOk();
         $this->getJson('/api/v1/mini-app/inbound-documents/'.$documentId, $this->headers($token))->assertForbidden();
+    }
+
+    public function test_explicit_unread_representation_has_no_null_timestamp_and_get_does_not_mark_read(): void
+    {
+        [$user, $token] = $this->actor();
+        $recipient = $this->notification($user);
+        $response = $this->get(self::BASE.'/'.$recipient->id, $this->headers($token) + [
+            ExplicitReadFields::HEADER => ExplicitReadFields::CONTRACT,
+        ])->assertOk()->assertJsonPath('data.id', $recipient->id)->assertJsonPath('data.read_at_status', 'NOT_READ')
+            ->assertJsonMissingPath('data.read_at');
+        $missing = collect($response->json('meta.read_fields.missing_fields'))->keyBy('path');
+        $this->assertSame('NOT_READ', $missing['/data/read_at']['status']);
+        $this->assertNull($recipient->fresh()->read_at);
+        $this->get(self::BASE.'/unread-count', $this->headers($token))->assertOk()->assertJsonPath('data.unread_count', 1);
     }
 
     private function actor(array $permissions = []): array

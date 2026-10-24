@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\ExplicitReadFields;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -74,6 +75,35 @@ class P14LifecycleIntegrationTest extends TestCase
             ->assertJsonPath('data.can_end', false)->assertJsonPath('data.blockers.0', 'SHIFT_TRACKING_INCOMPLETE');
         $this->assertDatabaseCount('mini_app_work_shifts', 1);
         $this->assertDatabaseCount('p14_shift_closures', 0);
+    }
+
+    public function test_server_generated_trace_cannot_stand_in_for_original_owner_request_identity(): void
+    {
+        $f = $this->fixture();
+        $id = (string) Str::uuid();
+        $scan = (string) Str::uuid();
+        $this->putJson('/api/v1/mini-app/inbound/drafts/'.$id, ['warehouse_id' => $f['warehouse_id'],
+            'scan_session_id' => $scan, 'inbound_type' => 'receipt', 'name' => 'No inferred owner key', 'items' => []],
+            $this->headers($f) + ['X-Work-Shift-ID' => $f['shift']['shift_id'], 'Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"0"'])
+            ->assertStatus(428)->assertJsonPath('error.code', 'SHIFT_COMMAND_IDENTITY_REQUIRED');
+        $this->assertDatabaseCount('mini_app_drafts', 0);
+        $this->assertDatabaseCount('p14_shift_operations', 0);
+    }
+
+    public function test_explicit_reads_distinguish_no_active_shift_without_inventing_clean_or_a_new_start(): void
+    {
+        $f = $this->fixture();
+        $fields = [ExplicitReadFields::HEADER => ExplicitReadFields::CONTRACT];
+        $this->getJson($this->url($f, 'close-check'), $this->headers($f) + $fields)->assertOk()
+            ->assertJsonPath('meta.contract', ExplicitReadFields::CONTRACT)
+            ->assertJsonPath('data.can_end_scope', 'SERVER_CHECK_ONLY')->assertJsonPath('data.can_end', true);
+        $this->end($f);
+        $response = $this->getJson(self::SHIFTS.'/current', $this->headers($f) + $fields)->assertOk()
+            ->assertJsonMissingPath('data')->assertJsonPath('meta.shift_admission.current_state', 'NO_ACTIVE_SHIFT')
+            ->assertJsonPath('meta.shift_admission.local_state_verified', false);
+        $missing = collect($response->json('meta.read_fields.missing_fields'))->keyBy('path');
+        $this->assertSame('NO_ACTIVE_SHIFT', $missing['/data']['status']);
+        $this->assertDatabaseCount('mini_app_work_shifts', 1); // No implicit new START.
     }
 
     public function test_typed_p04_save_keeps_the_native_snapshot_and_can_close_without_a_shadow_draft(): void

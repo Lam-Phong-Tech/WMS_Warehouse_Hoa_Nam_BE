@@ -14,6 +14,7 @@ use Modules\Auth\Http\Middleware\PersistRefreshTokenCookie;
 use Modules\Auth\Http\Middleware\PreventSelfRoleAssignment;
 use Modules\Auth\Http\Middleware\PreventSuperAdminRoleGrant;
 use Modules\Auth\Http\Middleware\ProtectSuperAdminTarget;
+use Modules\Auth\Support\P11SecurityCommands;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])
@@ -49,6 +50,10 @@ Route::prefix('v1')->group(function (): void {
         // hiệu lực. Lọc cứng theo user đang gọi; id phiên của người khác trả 404.
         Route::get('auth/sessions', [AuthController::class, 'sessions']);
         Route::delete('auth/sessions/{id}', [AuthController::class, 'revokeSession']);
+        // Explicit candidate protocol, OFF by default; revoked tokens remain blocked.
+        Route::get('auth/security-requests/{key}', [P11SecurityCommands::class, 'show']);
+        Route::post('auth/security-requests/{key}/verify', [P11SecurityCommands::class, 'verify'])
+            ->middleware('throttle:auth-mfa-verify');
 
         // WWHN-SEC-08 — quản lý MFA của CHÍNH tài khoản đang đăng nhập.
         // Không có `permission:` vì đây là self-service, cùng nhóm với

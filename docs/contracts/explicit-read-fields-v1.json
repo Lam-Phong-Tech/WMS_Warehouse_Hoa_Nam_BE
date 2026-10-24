@@ -1,0 +1,47 @@
+{
+  "contract": "explicit-read-fields-v1",
+  "revision": "explicit-read-fields-r1-20261024",
+  "json_schema": "docs/contracts/explicit-read-fields-v1.schema.json",
+  "status": "SOURCE_VERIFIED_PENDING_FE_ADAPTER_RELEASE_AND_LIVE_ACCEPTANCE",
+  "request": {"method": "GET", "header": "X-Read-Fields-Contract=explicit-read-fields-v1", "owner_query_auth": "Unchanged", "conditional_cache_headers": "If-None-Match/If-Modified-Since rejected, request a fresh no-store body"},
+  "scope": ["auth/me", "P13 notification list/detail/unread count", "mini-app dashboard/summary", "P06 catalog declared reads", "P12 documents and stock/warranty list/detail", "P08 history reads and P23 scan-sessions", "P01/P14 current/close-check/summary", "NFC list/detail/events, not native confirmation receipt", "Existing containers GET list/detail only with p18-single-warehouse-boxes-v1 header"],
+  "native_receipts_binary_writes": "Excluded. Never send this header on START/END/SAVE/SCAN/RECORD/PATCH/upload/logout/password commands or receipt/reconcile routes.",
+  "representation": {
+    "meta.contract": "explicit-read-fields-v1, not the nullable original owner schema",
+    "meta.read_fields.contract": "explicit-read-fields-v1",
+    "meta.read_fields.owner_contract": "Exact original owner contract if supplied, e.g. p12-mixed-documents-v3",
+    "meta.read_fields.missing_fields": "Array of JSON pointers plus status/source/value_supplied=false; no private values",
+    "known": "Known numbers, false, zero, strings, identities, empty arrays/objects and list order remain unchanged",
+    "unknown": "Absent value member plus explicit reason, never null, zero, empty string, Date.now, current-lookup historical data or fabricated identity",
+    "unclassified": "UNSPECIFIED_BY_OWNER explicitly identifies an unresolved owner/source gap; this is not a claim that the actual value was populated",
+    "lists": "A null list element fails 503, never removed/reindexed or replaced with a fake empty record",
+    "partial_source": "Missing total explained as PARTIAL_SOURCE; availableTotal stays distinct and is never substituted as total",
+    "namespace": "Existing meta.read_fields conflicts fail 503 instead of overwriting owner metadata"
+  },
+  "availability_rules": {
+    "owner_declared": "Prefer the exact sibling field_status/field_availability where supplied, preserving redaction/forbidden status",
+    "posted_at_reviewed_at": "NOT_RECORDED, not derived from canonical status or current time",
+    "container_contents": "Exact owner quantity_status; missing count is not zero",
+    "container_available_reserved": "NO_AUTHORITATIVE_CONTAINER_AVAILABILITY_MODEL, not copied from warehouse balance/contained quantity",
+    "capacity_and_hierarchy": "NOT_CONFIGURED in the actual single-warehouse-with-boxes model",
+    "pagination_end": "END_OF_RESULTS only with explicit has_more/hasMore=false",
+    "p14_check_token": "SERVER_BLOCKED only with can_end=false, no fabricated token",
+    "current_shift": "NO_ACTIVE_SHIFT only from explicit owned-query admission state, never local CLEAN inference",
+    "history_selection": "NO_EVENT_SELECTED, no guessed activity ID",
+    "date_filter": "FILTER_NOT_APPLIED for omitted/all-date query bounds"
+  },
+  "preconditions": {
+    "http_etag": "Removed because original strong ETag does not validate transformed bytes",
+    "meta.read_fields.owner_precondition.etag": "Exact original owner literal including quotes/W/ when supplied; no reconstruction or stripping",
+    "use": "Original owner If-Match only; not an HTTP cache validator. Do not send the read representation header on the mutation.",
+    "byte_headers": "Old Content-Length/Content-MD5/Digest/Last-Modified removed"
+  },
+  "headers": {"Cache-Control": "private, no-store", "Vary_contains": ["Authorization", "Origin", "X-Read-Fields-Contract"], "X-Read-Fields-Contract": "explicit-read-fields-v1"},
+  "compatibility": "Without the header, nullable legacy owner contracts stay unchanged. FE/App must select and parse this representation explicitly, not pass it through the old strict nullable parser.",
+  "errors": "Existing owner 401/403/404/409/503 stay errors, not empty success; successful response no-null policy does not rewrite owner error bodies or native receipts",
+  "new_routes": [],
+  "new_migrations": [],
+  "business_writes": [],
+  "backfill_or_data_fabrication": false,
+  "live_verified": false
+}

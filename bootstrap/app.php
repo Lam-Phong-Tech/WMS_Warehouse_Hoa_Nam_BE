@@ -3,6 +3,7 @@
 use App\Http\Middleware\ApiConventionMiddleware;
 use App\Http\Middleware\ApiRateLimit;
 use App\Http\Middleware\EnsurePublicApiEnvelope;
+use App\Http\Middleware\ExplicitReadFields;
 use App\Http\Middleware\NoStoreApiResponses;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SlowRequestLog;
@@ -52,6 +53,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->prepend(Wwhn172AggregateLock::class);
         $middleware->prepend(ApiConventionMiddleware::class);
+        $middleware->prepend(ExplicitReadFields::class);
         // Vị trí CÓ Ý NGHĨA: phải nằm NGOÀI ApiConventionMiddleware. Middleware
         // đó có hai nhánh RETURN SỚM (payload không phải UTF-8, JSON hỏng) trả
         // response ngay mà không gọi $next — đặt bên trong thì hai nhánh ấy

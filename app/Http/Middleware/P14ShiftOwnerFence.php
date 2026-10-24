@@ -33,7 +33,8 @@ final class P14ShiftOwnerFence
 
         $id = strtolower((string) $request->header('X-Work-Shift-ID'));
         $requestId = strtolower((string) $request->header('X-Request-ID'));
-        if (! Str::isUuid($id) || ! Str::isUuid($requestId)) {
+        if (! Str::isUuid($id) || ! Str::isUuid($requestId)
+            || $request->attributes->get('api.client_request_uuid', true) !== true) {
             ApiError::abort(428, 'SHIFT_COMMAND_IDENTITY_REQUIRED', 'Cần X-Work-Shift-ID và X-Request-ID cho giao thức ca.');
         }
         $upload = $request->isMethod('POST') && isset(AttachmentUploadReceipts::UPLOAD_ROUTES[$request->route()?->uri() ?? '']);

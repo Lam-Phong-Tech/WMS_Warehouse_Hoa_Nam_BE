@@ -15,6 +15,9 @@ class ApiConventionMiddleware
     public function handle(Request $request, Closure $next)
     {
         $requestId = $request->header('X-Request-ID');
+        // Preserve whether the caller supplied a command identity before the
+        // correlation fallback generates one. A generated trace is not an original key.
+        $request->attributes->set('api.client_request_uuid', is_string($requestId) && Str::isUuid($requestId));
         if (empty($requestId) || ! is_string($requestId) || ! preg_match('/^[a-zA-Z0-9\-\._:\/=\+]{2,255}$/', $requestId)) {
             $requestId = (string) Str::uuid();
             $request->headers->set('X-Request-ID', $requestId);

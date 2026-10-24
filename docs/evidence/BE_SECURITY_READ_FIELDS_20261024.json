@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-24",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "status": "TARGETED_SOURCE_PASS_PENDING_SECURITY_FE_ADAPTER_AND_LIVE_ACCEPTANCE",
+  "source_sha": "SEE_RESPONSE_PACKAGE_MANIFEST",
+  "parent_candidate": "1febae1b31399eef55798823eecb2f5dfa85ef16",
+  "remote_dev_observed": "dc9109830c5d389982964dfe601bff712d6323ab",
+  "tests": [
+    {"file": "final-source-sqlite.xml", "tests": 37, "assertions": 845, "scope": "Final P11/fields/P14 including null-root fail-closed, no-active-shift, caller identity, MFA/credential binding, redaction, CORS, exact precondition, no replay/downgrade"},
+    {"file": "final-source-pgsql.xml", "tests": 37, "assertions": 845, "scope": "Same final contracts on PostgreSQL"},
+    {"file": "security-sqlite-final.xml", "tests": 71, "assertions": 2442, "scope": "Broad auth/profile/MFA/login/replacement retention plus new contracts"},
+    {"file": "security-pgsql-final.xml", "tests": 71, "assertions": 2442, "scope": "Broad auth/profile/MFA/login/replacement retention on PostgreSQL"},
+    {"file": "owners-sqlite-final.xml", "tests": 104, "assertions": 2708, "scope": "P18/P14/P12/P13/P23/P07/P19 and Swagger retention"},
+    {"file": "owners-pgsql-final.xml", "tests": 100, "assertions": 2691, "scope": "Same owner groups excluding Swagger generation"},
+    {"file": "route-cache-sqlite-final.xml", "tests": 83, "assertions": 2504, "scope": "Compiled route P11, fields, P14, P18, P12, P23 including no-active-shift"},
+    {"file": "crash-sqlite-final.xml", "tests": 1, "assertions": 16, "scope": "Committed file DB plus real child exit77; native intent survives while password/effect rolls back, same/new key blocked"},
+    {"file": "auth-concurrency-pgsql.xml", "tests": 2, "assertions": 21, "scope": "Independent PHP processes, login/refresh row-lock retention"},
+    {"file": "notifications-final-sqlite.xml", "tests": 12, "assertions": 167, "scope": "Explicit NOT_READ representation, original recipient identity, no GET mark-read, first-read semantics"},
+    {"file": "notifications-final-pgsql.xml", "tests": 12, "assertions": 167, "scope": "Same notification cases on PostgreSQL"},
+    {"file": "notifications-p14-pgsql.xml", "tests": 40, "assertions": 710, "scope": "Notification r2 and P14 lifecycle final read/identity retention"}
+  ],
+  "all_listed_reports": {"errors": 0, "failures": 0, "skipped": 0},
+  "counts_overlap_do_not_sum_as_unique_full_suite": true,
+  "verification_method": "Broad regressions plus final targeted reruns for later scoped fixes; no claim of full CI",
+  "other_checks": {
+    "pint": "PASS", "diff_check": "PASS", "contract_json_parse": "PASS",
+    "npm_test": "PASS baseline and inventory self-test4/4", "vite_build": "PASS 8.3.5",
+    "fast_uri": "3.1.9 installed and locked; two encoded executable-scheme checks remain non-executable",
+    "composer_audit": {"advisories": 0, "abandoned": 0, "exit": 0},
+    "npm_audit": {"high": 7, "moderate": 1, "total_reported_packages": 8, "exit": 1, "release_gate": "NOT_PASS"},
+    "swagger": "Generation and route parity PASS; generated test artifact retained separately, not committed over baseline"
+  },
+  "json_schema": {"validator": "Ajv draft2020-12", "result": "PASS", "positive_http200_samples": 1, "negative_null": true, "negative_unexplained_absent_root": true, "scope": "ISOLATED_NOT_LIVE", "redacted_response": "explicit-read-response-redacted.json"},
+  "isolation": {
+    "env": "testing only in test processes, not a real runtime change",
+    "pgsql": "127.0.0.1:55434 owned helper cluster .tmp/be-remaining-20261023/pgdata; p11_contract_test, p12_contract_test, auth_concurrency_test_20261024",
+    "sqlite": "Memory or unique p11-crash-test committed file guarded by resolved directory and no cached runtime config",
+    "delivery": "Array mail/cache and isolated test storage, no real services/credentials"
+  },
+  "new_migration": "2026_10_24_000001_create_p11_security_command_receipts",
+  "prior_candidate_schema_dependency": "2026_10_23_000001_create_mini_app_web_post_handoffs",
+  "live_schema_status": "NOT_CHANGED_OR_CLAIMED_BY_TEST_MIGRATION_COUNT",
+  "null_policy": "New explicit GET representation omits unknown value members and supplies typed provenance/status, preserving zero/false/identities/count semantics; legacy nullable contracts remain unchanged unless selected",
+  "not_data_completion": "No historic timestamp/role/quantity/capacity or old command outcome is invented, seeded, repaired or backfilled",
+  "open": ["SECURITY_RELEASE_RETENTION_SUPPORT_REVIEW", "FE_APP_VERSIONED_ADAPTER_AND_DEVICE_UAT", "NPM_AUDIT", "FULL_SEED_TWO_RUN_ROW_FIELD_LEDGER_FILE_ACCEPTANCE", "AUTHENTICATED_DEV_SMOKE_AND_EXACT_RELEASE_SCHEMA_OVERLAY_PARITY", "REAL_DATA_AND_OLD_UNKNOWN_EVIDENCE"],
+  "actions_not_performed": ["push", "GitHub CI/workflow", "deploy", "production activation", "real migration/seed/repair/restore/grant", "live admin login", "live stock/NFC command"]
+}

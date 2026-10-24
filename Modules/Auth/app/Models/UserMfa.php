@@ -2,6 +2,7 @@
 
 namespace Modules\Auth\Models;
 
+use App\Casts\UtcInstant;
 use App\Support\Security\PiiCrypto;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
@@ -46,9 +47,9 @@ class UserMfa extends Model
     ];
 
     protected $casts = [
-        'confirmed_at' => 'datetime',
-        'locked_until' => 'datetime',
-        'last_used_at' => 'datetime',
+        'confirmed_at' => UtcInstant::class,
+        'locked_until' => UtcInstant::class,
+        'last_used_at' => UtcInstant::class,
         'recovery_codes' => 'array',
         'failed_attempts' => 'integer',
     ];

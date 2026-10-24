@@ -4,6 +4,7 @@ namespace Modules\Auth\Support;
 
 use App\Support\Security\Totp;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
@@ -213,27 +214,29 @@ class MfaService
      */
     public function verifySecondFactor(User $user, string $code): ?string
     {
-        $record = $this->statusFor($user);
+        return DB::transaction(function () use ($user, $code): ?string {
+            $record = UserMfa::query()->whereKey($user->user_id)->lockForUpdate()->first();
 
-        if ($record === null || ! $record->isConfirmed() || $record->isLocked()) {
+            if ($record === null || ! $record->isConfirmed() || $record->isLocked()) {
+                return null;
+            }
+
+            if ($this->verifyTotp($record, $code)) {
+                $record->forceFill(['failed_attempts' => 0, 'locked_until' => null, 'last_used_at' => now()])->save();
+
+                return 'totp';
+            }
+
+            if ($this->consumeRecoveryCode($record, $code)) {
+                $record->forceFill(['failed_attempts' => 0, 'locked_until' => null, 'last_used_at' => now()])->save();
+
+                return 'recovery';
+            }
+
+            $this->registerFailure($record);
+
             return null;
-        }
-
-        if ($this->verifyTotp($record, $code)) {
-            $record->forceFill(['failed_attempts' => 0, 'locked_until' => null, 'last_used_at' => now()])->save();
-
-            return 'totp';
-        }
-
-        if ($this->consumeRecoveryCode($record, $code)) {
-            $record->forceFill(['failed_attempts' => 0, 'locked_until' => null, 'last_used_at' => now()])->save();
-
-            return 'recovery';
-        }
-
-        $this->registerFailure($record);
-
-        return null;
+        });
     }
 
     public function remainingRecoveryCodes(User $user): int
@@ -268,11 +271,9 @@ class MfaService
         $usedKey = self::USED_CODE_CACHE_PREFIX.$record->user_id.':'.hash('sha256', preg_replace('/\s+/', '', $code) ?? '');
         $ttl = (int) config('mfa.totp.period', 30) * (2 * (int) config('mfa.totp.window', 1) + 1);
 
-        if (Cache::get($usedKey) !== null) {
+        if (! Cache::add($usedKey, 1, max(30, $ttl))) {
             return false;
         }
-
-        Cache::put($usedKey, 1, max(30, $ttl));
 
         return true;
     }

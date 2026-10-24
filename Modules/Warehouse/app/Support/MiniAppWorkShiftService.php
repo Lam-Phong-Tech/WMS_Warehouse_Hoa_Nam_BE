@@ -59,6 +59,8 @@ final class MiniAppWorkShiftService
             'actor_id' => (string) $user->user_id, 'auth_session_id' => $session,
             'warehouse_id' => $context['active_warehouse_id'], 'warehouse_context' => $context['warehouse_context'],
             'mode' => $mode, 'tracked_family' => $tracked,
+            'current_state' => $current === null ? 'NO_ACTIVE_SHIFT' : 'ACTIVE',
+            'current_state_source' => 'OWNED_ACTIVE_SHIFT_QUERY',
             'owner_fence_required' => $mode === 'ENABLED' || $tracked,
             'new_tracked_start_supported' => $reason === null, 'unavailable_reason' => $reason,
             'current_shift_id' => $current['shift_id'] ?? null,

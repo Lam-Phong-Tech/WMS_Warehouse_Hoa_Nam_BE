@@ -64,7 +64,8 @@ return [
     // Content-Disposition: BR-EXP-03 bắt tên file export phải có timestamp do BE
     // đặt — trình duyệt chỉ đọc được header này khi nó được expose qua CORS.
     // Idempotent-Replay: AC-GWT-IDEMP-001, cho phép FE phân biệt lần chạy thật và replay.
-    'exposed_headers' => ['X-Request-ID', 'ETag', 'Content-Disposition', 'Idempotent-Replay'],
+    'exposed_headers' => ['X-Request-ID', 'ETag', 'Content-Disposition', 'Idempotent-Replay',
+        'Vary', 'X-Content-Type-Options', 'X-Read-Fields-Contract'],
 
     /*
      * Thời gian trình duyệt được nhớ kết quả preflight, tính bằng GIÂY.

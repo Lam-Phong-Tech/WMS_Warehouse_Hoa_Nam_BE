@@ -2,6 +2,8 @@
 
 Status: SOURCE CANDIDATE, NOT DEPLOYED, NOT FULL APP/UAT PASS.
 
+Follow-up 24/10/2026: `docs/fe-handoff/BE_SECURITY_READ_FIELDS_20261024.md` supersedes the P11 source gap and adds an explicit no-null read representation. Historical test/release statements below remain dated 23/10, not new runtime evidence.
+
 Base remote DEV: `dc9109830c5d389982964dfe601bff712d6323ab`, verified using `git ls-remote wms refs/heads/dev` during this run. Parent local fix: `2c8dba8d9517322eb52bad630bbb54e95e7052b3`. Work is on `codex/be-remaining-hardening-20261023`. The package manifest pins the exact candidate commit, not a live SHA.
 
 ## Implemented Source Changes

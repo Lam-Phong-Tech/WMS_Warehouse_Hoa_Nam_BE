@@ -194,7 +194,7 @@ final class P12MixedDocumentReadModel
     }
 
     /** Rows have already been normalized to UTC by the SQL projection. */
-    public static function record(object $row, array $readiness = [], ?array $handoff = null): array
+    public static function record(object $row, array $readiness = [], ?array $handoff = null, string $handoffStatus = 'NOT_ESTABLISHED'): array
     {
         if (! is_string($row->id ?? null) || ! Str::isUuid($row->id)
             || ! is_string($row->warehouse_id ?? null) || ! Str::isUuid($row->warehouse_id)
@@ -245,6 +245,7 @@ final class P12MixedDocumentReadModel
                 'availability' => $source === 'WARRANTY' ? 'WITHHELD_IN_AGGREGATE' : ($row->partner_name === null ? 'NOT_RECORDED' : 'RECORDED'),
                 'redacted' => $source === 'WARRANTY'],
             'p12' => $p12, 'read_target' => $p12['read_target'], 'web_post_handoff' => $handoff,
+            'web_post_handoff_availability' => $row->source === 'WARRANTY' ? 'NOT_APPLICABLE' : ($handoff === null ? $handoffStatus : 'RECORDED'),
         ];
     }
 
