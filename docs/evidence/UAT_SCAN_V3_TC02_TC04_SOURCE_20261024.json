@@ -1,0 +1,40 @@
+{
+  "status": "PARTIAL_SOURCE_FIXED_NOT_FULL_SAMPLE_PASS_NOT_DEPLOYED",
+  "audit_base": "d38d74c3d478951d1a5e8b7d8029752c8281e041",
+  "input": {
+    "file": "apps/wms-mobile/handoff/UAT_SCAN_V3_20261024/BE_REQUIRED.txt",
+    "sha256": "954c0b877dc63b2ee08d6d76b8fac823a1c8ca0005f84ea1ec4b1e9deb33f75d",
+    "sheet_notes": ["TC_UAT_02 K11", "TC_UAT_04 K13"],
+    "spreadsheet_credential_column_not_read_or_exported": true
+  },
+  "user_supplied_definitions": {
+    "status": "USER_PROPOSED_DEFINITIONS_NOT_BROAD_BA_SCHEMA_OR_WRITE_APPROVAL",
+    "TC02": "Job title at notification event time; IAM only if BA confirms the intended business label. Old missing historical data stays null, no current-directory replacement.",
+    "TC04_checked": "Distinct human confirmation; not validation success at RECORD. No CHECK event means unverified. Combining submit with CHECK requires a separate approved owner protocol.",
+    "TC04_sent": "Use persisted handoff timestamp. Actor only when historical source is verified; otherwise null."
+  },
+  "findings": [
+    {"case": "TC_UAT_02", "status": "OPEN_AUTHORITATIVE_JOB_TITLE_SOURCE_AND_SNAPSHOT_OWNER", "source": "Modules/Notification/app/Services/NotificationService.php", "name_source": "notifications.actor_name at notification creation; queued listeners do not prove business-event-time label", "missing": "Authoritative job title master and trusted historical title snapshot writer/projection", "not_substituted": ["caller role", "current IAM role", "current employee title", "illustrative Note name"], "runtime_behavior_changed": false},
+    {"case": "TC_UAT_04", "status": "PARTIAL_SENT_TIME_SOURCE_IMPLEMENTED_OPT_IN", "contract": "p12-timeline-handoff-v1", "time_source": "mini_app_web_post_handoffs.submitted_at", "actor_description": "NOT_RECORDED_IN_HANDOFF_SOURCE/null", "checked": "SOURCE_MAPPING_PENDING/null", "legacy_timeline_without_header": "UNCHANGED", "full_coverage": false}
+  ],
+  "source_map": [
+    {"file": "Modules/Notification/app/Services/NotificationService.php", "line": 42, "fact": "Snapshot display name lookup; no historical job title snapshot"},
+    {"file": "Modules/Notification/app/Http/Controllers/NotificationController.php", "line": 115, "fact": "Recipient/user detail read; no automatic mark-read"},
+    {"file": "Modules/Notification/app/Support/P13NotificationPresentation.php", "line": 28, "fact": "Event/subject/payload mapping; persisted warehouse UUID is not current selected warehouse"},
+    {"file": "Modules/Warehouse/app/Support/P12DocumentPresentation.php", "line": 64, "fact": "Existing PARTIAL timeline; default CHECK/sent mapping remains unchanged without opt-in"},
+    {"file": "database/migrations/2026_10_23_000001_create_mini_app_web_post_handoffs.php", "line": 12, "fact": "Handoff schema has business ID/source/warehouse/version/time, no actor/title/description"},
+    {"file": "Modules/Warehouse/app/Support/P12HandoffTimeline.php", "line": 15, "fact": "New scoped read-only opt-in projection; no event or actor invented"},
+    {"file": "Modules/Warehouse/app/Support/P13StockRecordProjection.php", "line": 53, "fact": "Private RECORD receipt matches original actor/family/warehouse; never exposed as another actor's history"},
+    {"file": "Modules/Warehouse/app/Services/CurrentBaselineStockService.php", "line": 1705, "fact": "Persisted status transition actor/action is not an approved CHECK mapping"}
+  ],
+  "tests": [
+    {"file": "source-contract-regression.xml", "scope": "PRE_CHANGE_SQLITE_MEMORY", "tests": 4, "assertions": 61, "failures": 0, "errors": 0, "skipped": 0},
+    {"file": "final-source-sqlite.xml", "scope": "NEW_SOURCE_SQLITE_MEMORY", "tests": 37, "assertions": 559, "failures": 0, "errors": 0, "skipped": 0},
+    {"file": "cached-source-sqlite.xml", "scope": "NEW_SOURCE_ISOLATED_ROUTE_CACHE_SQLITE_MEMORY", "tests": 14, "assertions": 251, "failures": 0, "errors": 0, "skipped": 0}
+  ],
+  "test_counts_overlap_do_not_sum_as_unique_full_suite": true,
+  "other_checks": {"pint": "PASS", "diff_check": "PASS", "contract_json": "PASS", "swagger_generation": "PASS in separate test output", "swagger_header_and_error_response_routes": 2, "swagger_sha256": "53942627e48af3e537bece3cd5da83f84f9124470654c36997c6b4f6b530c5af", "temporary_route_cache_removed": true},
+  "not_run": ["PostgreSQL for this candidate", "GitHub CI", "authenticated DEV TEST same-document GET", "Composer/npm audit rerun"],
+  "real_environment_actions": {"deploy": false, "migration_seed_repair_restore": false, "business_write": false, "login_or_token_export": false, "flag_or_permission_change": false, "post_record_or_check": false, "production_activation": false},
+  "remaining": ["Authoritative job title source and future event snapshot design/approval", "Human CHECK owner evidence and separately approved protocol", "Verified actor/description for full historical milestones", "FE adapter/header revision", "PostgreSQL/release gates and exact deployed TEST document UUID/authenticated raw GET evidence"]
+}

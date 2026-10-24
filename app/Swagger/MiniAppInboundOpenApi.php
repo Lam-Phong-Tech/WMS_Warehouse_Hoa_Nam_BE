@@ -175,12 +175,15 @@ final class MiniAppInboundOpenApi
         tags: [self::TAG],
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'X-P12-Timeline-Contract', in: 'header', required: false, description: 'Opt-in p12-timeline-handoff-v1: sent_to_web uses persisted handoff submitted_at only. CHECK remains unverified; missing historical actor/description stay null. No write or receipt replay.', schema: new OA\Schema(type: 'string', enum: ['p12-timeline-handoff-v1'])),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Chi tiết phiếu nhập Mini App.'),
             new OA\Response(response: 401, description: 'Chưa xác thực.'),
             new OA\Response(response: 403, description: 'Thiếu inbound.view hoặc ngoài warehouse scope.'),
             new OA\Response(response: 404, description: 'Không tìm thấy phiếu nhập.'),
+            new OA\Response(response: 422, description: 'P12_TIMELINE_CONTRACT_UNSUPPORTED khi chọn contract timeline không hợp lệ.'),
+            new OA\Response(response: 503, description: 'P12_TIMELINE_SOURCE_UNAVAILABLE hoặc SOURCE_INVALID; không dựng mốc gửi Web.'),
         ]
     )]
     public function showDocument(): void {}

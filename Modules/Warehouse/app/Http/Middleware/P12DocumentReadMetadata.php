@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Support\P12DocumentPresentation;
+use Modules\Warehouse\Support\P12HandoffTimeline;
 use Modules\Warehouse\Support\P12StockOwnerProjection;
 use Modules\Warehouse\Support\P13StockRecordProjection;
 use Symfony\Component\HttpFoundation\Response;
@@ -76,6 +77,11 @@ final class P12DocumentReadMetadata
         }
         $body['meta'] = $meta;
         $body = P13StockRecordProjection::decorate($request, $body, $source, $mode);
+        $body = P12HandoffTimeline::decorate($request, $body, $source, $mode);
+
+        if ($request->hasHeader(P12HandoffTimeline::HEADER)) {
+            $response->setVary(P12HandoffTimeline::HEADER, false);
+        }
 
         return $response->setData($body)->header('Cache-Control', 'private, no-store');
     }

@@ -13,6 +13,7 @@ use Modules\Auth\Models\User;
 use Modules\Notification\Models\Notification;
 use Modules\Notification\Models\NotificationRecipient;
 use Modules\Notification\Support\P13NotificationPresentation;
+use Modules\Warehouse\Support\P12HandoffTimeline;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -161,6 +162,17 @@ class P13NotificationRevision2Test extends TestCase
             ->assertJsonPath('data.p13.current_handoff.state', 'WAITING_WEB_POST')
             ->assertJsonPath('data.p12.status.waiting_for_web', null);
         $this->assertSame($record->json('meta.p03_draft.receipt.committed_at'), $read->json('data.p13.record_handoff.recorded_at'));
+        $timeline = $this->getJson($url, $this->headers($token) + [P12HandoffTimeline::HEADER => P12HandoffTimeline::CONTRACT])
+            ->assertOk()->assertJsonPath('meta.p12.timeline_contract', P12HandoffTimeline::CONTRACT)
+            ->assertJsonPath('data.p12.timeline.coverage', 'PARTIAL')
+            ->assertJsonPath('data.p12.timeline.milestones.checked.availability', 'SOURCE_MAPPING_PENDING')
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.availability', 'RECORDED')
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.occurred_at', $read->json('data.p13.current_handoff.submitted_at'))
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.timestamp_source', 'mini_app_web_post_handoffs.submitted_at')
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.actor', null)
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.event_id', null);
+        $this->assertStringContainsString(P12HandoffTimeline::HEADER, $timeline->headers->get('Vary'));
+        $this->assertSame('SOURCE_MAPPING_PENDING', $read->json('data.p12.timeline.milestones.sent_to_web.availability'));
         $this->getJson('/api/v1/mini-app/inbound-documents?per_page=1', $this->headers($token))->assertOk()
             ->assertJsonPath('data.0.p13.record_handoff.business_document_id', $id)->assertJsonPath('meta.total', 1);
         $this->getJson($url.'/scan-entries?per_page=1', $this->headers($token))->assertOk()
@@ -176,6 +188,9 @@ class P13NotificationRevision2Test extends TestCase
             ->assertJsonPath('data.p13.record_handoff.semantics', 'HISTORICAL_RECORD_RECEIPT_NOT_CURRENT_DOCUMENT_STATE')
             ->assertJsonPath('data.p13.current_waiting_for_web', false)
             ->assertJsonPath('data.p13.current_handoff.state', 'POSTED');
+        $this->getJson($url, $this->headers($token) + [P12HandoffTimeline::HEADER => P12HandoffTimeline::CONTRACT])
+            ->assertOk()->assertJsonPath('data.p13.current_waiting_for_web', false)
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.occurred_at', $timeline->json('data.p12.timeline.milestones.sent_to_web.occurred_at'));
         $this->get($queue, $this->headers($token) + ['Accept' => 'application/json'])->assertOk()->assertJsonPath('meta.total', 0);
     }
 
@@ -188,6 +203,10 @@ class P13NotificationRevision2Test extends TestCase
         [, $otherToken] = $this->actor();
         $this->getJson($url, $this->headers($otherToken))->assertOk()->assertJsonPath('data.p13.record_handoff', null)
             ->assertJsonPath('data.p13.current_waiting_for_web', true); // Warehouse authority, not another actor's private receipt.
+        $this->getJson($url, $this->headers($otherToken) + [P12HandoffTimeline::HEADER => P12HandoffTimeline::CONTRACT])
+            ->assertOk()->assertJsonPath('data.p13.record_handoff', null)
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.availability', 'RECORDED')
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.actor', null);
         $this->headers($token);
         $login = $this->browserLogin($user->email, 'secret123')->assertOk();
         $newToken = $this->selectWarehouse($login->json('data.access_token'), $warehouse);
@@ -198,6 +217,10 @@ class P13NotificationRevision2Test extends TestCase
         $this->getJson($url, $this->headers($token))->assertOk()->assertJsonPath('data.p13.evidence_status', 'NOT_ESTABLISHED')
             ->assertJsonPath('data.p13.record_handoff', null)->assertJsonPath('data.status', 'SCANNING');
         $this->assertSame($counts, $this->counts());
+        DB::table('mini_app_web_post_handoffs')->where('stock_document_id', $id)->delete();
+        $this->getJson($url, $this->headers($otherToken) + [P12HandoffTimeline::HEADER => P12HandoffTimeline::CONTRACT])
+            ->assertOk()->assertJsonPath('data.p12.timeline.milestones.sent_to_web.availability', 'NOT_RECORDED')
+            ->assertJsonPath('data.p12.timeline.milestones.sent_to_web.occurred_at', null);
     }
 
     public function test_real_p05_source_linked_record_and_full_parent_summary_remain_separate_from_page(): void

@@ -1,0 +1,38 @@
+{
+  "contract": "p12-timeline-handoff-v1",
+  "revision": "p12-timeline-handoff-r1-20261024",
+  "status": "SOURCE_CANDIDATE_PENDING_FE_ADAPTER_RELEASE_AND_AUTHENTICATED_ACCEPTANCE",
+  "request": {"header": "X-P12-Timeline-Contract: p12-timeline-handoff-v1", "methods": ["GET", "HEAD"], "paths": ["/api/v1/mini-app/inbound-documents/{id}", "/api/v1/mini-app/outbound-documents/{id}"], "auth_query": "Existing owner permission, family and warehouse scope unchanged; header is not authorization"},
+  "compatibility": "Without header, the existing p12-documents-read-v2 timeline is unchanged. Do not apply this header globally or send to lists/warranty/commands/receipts. Existing owner contract and status/ETag are unchanged; meta.p12.timeline_contract identifies this extension, not meta.contract=p12-mixed-documents-v3.",
+  "response": {
+    "meta.p12.timeline_contract": "p12-timeline-handoff-v1",
+    "data.p12.timeline.contract": "p12-timeline-handoff-v1",
+    "data.p12.timeline.coverage": "PARTIAL",
+    "milestone_path": "data.p12.timeline.milestones.sent_to_web",
+    "milestone_fields": {
+      "availability": "RECORDED when exact scoped handoff exists, otherwise NOT_RECORDED; not proof the historical action never happened",
+      "occurred_at": "Exact RFC3339 UTC Z from existing p13.current_handoff.submitted_at; null when no persisted handoff",
+      "timestamp_source": "mini_app_web_post_handoffs.submitted_at when recorded; otherwise null",
+      "event_id": "null; the handoff PK is a business document ID, not a synthetic event ID",
+      "actor": "null; the handoff table does not persist historical actor identity/label/job title",
+      "actor_status": "NOT_RECORDED_IN_HANDOFF_SOURCE",
+      "description": "null; no raw note, notification body or caller metadata is substituted",
+      "description_status": "NOT_RECORDED_IN_HANDOFF_SOURCE",
+      "evidence_kind": "PERSISTED_SUBMISSION_INTENT_NOT_CURRENT_WAITING_OR_DELIVERY_ACK",
+      "source_record": "Present only when recorded: table, document_id, warehouse_id, document_version_at_record from the handoff; never request/session journal IDs"
+    }
+  },
+  "mapping": {
+    "sent_to_web": "User specified use of persisted handoff timestamp. The new table records the owner RECORD submission intent, not transport delivery acknowledgment, human review or WAL commit time.",
+    "checked": "User specified a separate human confirmation, not validation at RECORD. No CHECK owner/event exists in the accepted source; retain SOURCE_MAPPING_PENDING/null. No new CHECK mutation is introduced.",
+    "created_posted": "Existing source timestamp fields unchanged; posted_at remains nullable and warranty remains outside this extension.",
+    "terminal_state": "Submission time stays historical even after canonical POSTED/CANCELLED; never overwrite current state or claim still waiting.",
+    "private_receipt": "Do not derive from another family or expose mini_app_draft_receipts.response_body. Warehouse-readable handoff is separate from session-private RECORD receipt.",
+    "legacy": "No backfill. Prior documents without persisted handoff remain NOT_RECORDED. Do not use SCANNING, counters, status_history aliases, doc_no, current lookup or now()."
+  },
+  "errors": {"401_403_404": "Existing authentication/owner/warehouse errors unchanged", "422": "P12_TIMELINE_CONTRACT_UNSUPPORTED for unsupported source/mode/header on a handled owner read", "503": ["P12_TIMELINE_SOURCE_UNAVAILABLE", "P12_TIMELINE_SOURCE_INVALID", "P12_TIMELINE_IDENTITY_INVALID"]},
+  "cache": {"policy": "private no-store", "vary_adds": "X-P12-Timeline-Contract"},
+  "new_routes": [], "new_migrations": [], "business_writes": [], "notification_mark_read": false,
+  "deploy_or_live_smoke_performed": false,
+  "remaining": ["Authoritative job-title master and future notification snapshot owner", "Separate CHECK evidence owner/command if approved", "Historical milestone actor/description source", "FE adapter for the extension", "Exact release and authenticated same-document TEST read"]
+}

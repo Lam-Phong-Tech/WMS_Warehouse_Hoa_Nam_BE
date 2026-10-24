@@ -36,8 +36,15 @@ final class MiniAppOutboundOpenApi
         description: 'Trả lines, item_matches, Packing Label, progress và trạng thái semantic. Backend WMS là source of truth. Additive data.p12.owner_projection theo p12-owner-projection-v1: supplier NOT_APPLICABLE; creator.actor_id từ created_by. Tên/vai trò lịch sử chưa lưu trả null; current_display_name riêng chỉ là nhãn danh bạ hiện tại khi có iam.user.view. Không thay actor bằng caller hoặc vai trò hiện tại thành vai trò lịch sử.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
-        responses: [new OA\Response(response: 200, description: 'Chi tiết phiếu xuất Mini App.')]
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'X-P12-Timeline-Contract', in: 'header', required: false, description: 'Opt-in p12-timeline-handoff-v1: sent_to_web uses persisted handoff submitted_at only. CHECK remains unverified; missing historical actor/description stay null. No write or receipt replay.', schema: new OA\Schema(type: 'string', enum: ['p12-timeline-handoff-v1'])),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Chi tiết phiếu xuất Mini App.'),
+            new OA\Response(response: 422, description: 'P12_TIMELINE_CONTRACT_UNSUPPORTED.'),
+            new OA\Response(response: 503, description: 'P12_TIMELINE_SOURCE_UNAVAILABLE hoặc SOURCE_INVALID; không dựng mốc gửi Web.'),
+        ]
     )]
     public function showDocument(): void {}
 
