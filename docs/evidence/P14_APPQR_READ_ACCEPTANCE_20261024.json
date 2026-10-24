@@ -1,0 +1,58 @@
+{
+  "status": "PASS_READ_LIVE_APPQR_CURRENT_SESSION",
+  "gate": "UAT-R7-01",
+  "scope": "AUTHENTICATED_WEB_PROXY_GET_CLOSE_CHECK_ONLY",
+  "evidence_source": "APP_SUPPLIED_PROJECTION_NOT_NEW_BACKEND_HTTP_REPLAY",
+  "input": {
+    "file": "P14_TLS_LOGIN_RETEST_20261024.zip",
+    "sha256": "3350acb8a9b1ba6273aeb9014579d3a7db493abb36b395c086a023e6d72af9ad",
+    "manifest_payload_files_verified": 9,
+    "zip_entries": 10,
+    "all_manifest_hashes_and_sizes_match": true,
+    "archive_scripts_executed": false
+  },
+  "owner_scope": {
+    "current_shift_id": "12e4c5b1-518e-4146-b9bf-756ac2f65074",
+    "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+    "scope_policy": "CURRENT_SESSION_OWNED_SHIFT_NOT_OLD_FAMILY_TAKEOVER",
+    "previous_shift_id": "5e8e6150-4c76-4313-879f-d0884ee9c085",
+    "previous_shift_retested_or_resolved": false,
+    "actor_and_family_credentials_not_exported": true
+  },
+  "reads": [
+    {"mode": "browser-default", "accept_encoding": "gzip, deflate, br, zstd", "method": "GET", "status": 200, "etag": "\"1\"", "expected_version": 1, "content_encoding_present": false, "contract": "p14-shift-v1", "cache_control": "private, no-store, no-transform", "request_id": "2276fe83-e8a6-418a-b597-4267d2c97222", "server_time_vietnam": "2026-10-24T15:18:09+07:00", "ui_accepted": true},
+    {"mode": "gzip", "accept_encoding": "gzip", "method": "GET", "status": 200, "etag": "\"1\"", "expected_version": 1, "content_encoding_present": false, "contract": "p14-shift-v1", "cache_control": "private, no-store, no-transform", "request_id": "752c0b7f-55ee-421f-a644-877c565a7aad", "server_time_vietnam": "2026-10-24T15:18:33+07:00", "ui_accepted": true},
+    {"mode": "identity-no-accepted-encodings", "accept_encoding_header_present": false, "method": "GET", "status": 200, "etag": "\"1\"", "expected_version": 1, "content_encoding_present": false, "contract": "p14-shift-v1", "cache_control": "private, no-store, no-transform", "request_id": "9f234a83-2f5a-48d8-a799-2f1e2d7e8186", "server_time_vietnam": "2026-10-24T15:18:42+07:00", "ui_accepted": true}
+  ],
+  "app_reported": {
+    "validator_tests_passed": 5, "validator_tests_failed": 0, "full_suite_rerun": false,
+    "source_fingerprint": "34a84cc5e4c15d57376a816bbf3afda3f4975b0ad2b4e282267f1885a9dee518",
+    "source_stable": true, "source_matches_R7_1": true,
+    "agent_logged_in": false, "start_sent": false, "end_sent": false,
+    "business_mutations_observed": 0, "bearer_cookie_check_token_not_exported": true,
+    "encoding_override_restored": true
+  },
+  "health_app_reported": {
+    "status": 200, "tier": "dev-test", "php_sha": "a9053a21bc35ece367be0b76db727d4749b59855",
+    "request_id": "4e401cc2-06fb-4d33-a8d2-05cde3a19e9b",
+    "does_not_independently_prove_nginx_overlay_sha": true
+  },
+  "existing_release_provenance": {
+    "dev_tls_gateway_source": "42ffcc57b9d7e9008ae53ee15e0695f435f6f71d",
+    "inner_nginx_source": "648558227be478ebccb2356818d419937303d516",
+    "reference": "docs/evidence/P14_TLS_GATEWAY_RELEASE_20261024.json",
+    "new_deploy_required_for_this_acceptance_record": false
+  },
+  "limits": {
+    "server_can_end_true_reported": true, "server_blockers_empty_reported": true,
+    "local_clean_verified": false, "end_button_enabled": false,
+    "direct_origin_authenticated_tested": false, "real_end_accepted": false,
+    "native_hardware_accepted": false, "full_P01_P24_accepted": false,
+    "BA_or_production_activation_approval": false
+  },
+  "actions_this_backend_review": {
+    "ci_run": false, "deploy": false, "runtime_flag_change": false, "db_write": false,
+    "login_or_token_export": false, "start_end_or_journal_repair": false
+  },
+  "remaining": ["Direct DEV authenticated comparison within an authorized TEST scope", "Local CLEAN and owner coverage", "Stale-version and separately approved TEST END", "Native/device UAT", "Previous family/legacy UNKNOWN remains independently unresolved", "NFC provenance/P11/full-seed gates remain separate"]
+}
