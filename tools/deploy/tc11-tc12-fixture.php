@@ -25,7 +25,7 @@ if (app()->environment() !== 'testing'
 }
 
 foreach (['sku', 'item_instances', 'physical_codes', 'inventory_balances', 'warranty_case', 'warranty_event', 'warranty_case_warehouse_owners'] as $table) {
-    if (! Schema::hasTable($table)) {
+    if (! Schema::hasTable($table) && ! Schema::hasView($table)) {
         $fail('TC11_TC12_FIXTURE_SCHEMA_MISSING_'.$table);
     }
 }
