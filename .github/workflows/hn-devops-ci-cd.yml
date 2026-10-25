@@ -91,6 +91,66 @@ env:
   CI_SERVER_PORT: ${{ vars.CI_SERVER_PORT || '8000' }}
 
 jobs:
+  devtest-tc11-tc12-fixture:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && inputs.devtest_confirmation == 'TC11-TC12-FIXTURE-20251025'
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    environment: staging
+    concurrency:
+      group: hoa-nam-green-devtest-fixture
+      cancel-in-progress: false
+    timeout-minutes: 15
+    steps:
+      - name: Require exact TEST fixture intent without CI or release commands
+        env:
+          CONFIRMATION: ${{ inputs.devtest_confirmation }}
+          DEPLOY_UAT: ${{ inputs.deploy_uat }}
+          RUN_SEED: ${{ inputs.run_uat_seed }}
+          HOST: ${{ secrets.UAT_SSH_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$CONFIRMATION" = TC11-TC12-FIXTURE-20251025
+          test "$DEPLOY_UAT" = false && test "$RUN_SEED" = false
+          test "$HOST" = 42.96.16.197
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: devtest-tc11-tc12-source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Create fixed TEST fixture only in green DEV/TEST
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          OPS_SHA: ${{ github.sha }}
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          envs: OPS_SHA
+          command_timeout: 5m
+          script: |
+            set -eu
+            source=/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/devtest-tc11-tc12-source
+            owner=$(stat -c %U "$source/.git")
+            test "$owner" != UNKNOWN
+            test "$(runuser -u "$owner" -- git -C "$source" rev-parse HEAD)" = "$OPS_SHA"
+            current=$(readlink -f /opt/hoa-nam-green/current)
+            case "$current" in /opt/hoa-nam-green/releases/184bd43d95804a0c6f42d47ca64dfa39db40d9ae-timeline-*) ;; *) exit 1 ;; esac
+            docker exec -i -u www-data -e TC_FIXTURE_CONFIRM=DEVTEST-TC11-TC12-20261025 hoa_nam_green-backend-1 php < "$source/tools/deploy/tc11-tc12-fixture.php"
+      - name: Authenticated TC11 resolve and TC12 source/detail smoke
+        env:
+          SMOKE_EMAIL: ${{ secrets.UAT_SMOKE_EMAIL || 'admin@gmail.com' }}
+          SMOKE_PASSWORD: ${{ secrets.UAT_SMOKE_PASSWORD }}
+        shell: bash
+        run: node devtest-tc11-tc12-source/tools/deploy/tc11-tc12-live-smoke.mjs
+      - name: Publish redacted evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tc11-tc12-live-smoke-${{ github.run_id }}
+          path: tc11-tc12-live-evidence.json
+          if-no-files-found: error
+          retention-days: 14
   devtest-timeline:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && startsWith(inputs.devtest_confirmation, 'TIMELINE-')
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
@@ -285,7 +345,7 @@ jobs:
               *) exit 1 ;;
             esac
   devtest-tc12:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && !startsWith(inputs.devtest_confirmation, 'APP-') && !startsWith(inputs.devtest_confirmation, 'P14-ETAG-') && !startsWith(inputs.devtest_confirmation, 'TIMELINE-')
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && !startsWith(inputs.devtest_confirmation, 'APP-') && !startsWith(inputs.devtest_confirmation, 'P14-ETAG-') && !startsWith(inputs.devtest_confirmation, 'TIMELINE-') && !startsWith(inputs.devtest_confirmation, 'TC11-TC12-')
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
     environment: staging
     concurrency:
