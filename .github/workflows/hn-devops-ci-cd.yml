@@ -145,6 +145,7 @@ jobs:
         run: node devtest-tc11-tc12-source/tools/deploy/tc11-tc12-live-smoke.mjs
       - name: Publish redacted evidence only
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: tc11-tc12-live-smoke-${{ github.run_id }}
