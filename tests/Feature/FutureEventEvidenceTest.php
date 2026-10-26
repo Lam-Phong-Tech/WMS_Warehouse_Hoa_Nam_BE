@@ -22,6 +22,19 @@ class FutureEventEvidenceTest extends TestCase
 {
     use BuildsScanDrivenInbound, InteractsWithBrowserSession, PreparesOutboundFixtures, RefreshDatabase;
 
+    public function test_four_check_routes_keep_exact_pinned_guard_and_route_cache_shapes(): void
+    {
+        $map = require base_path('database/golive/route_permission_contract.php');
+        $routes = collect(\Illuminate\Support\Facades\Route::getRoutes())->filter(fn ($r) => str_contains($r->uri(), '/checks'));
+        $this->assertCount(4, $routes);
+        foreach ($routes as $route) {
+            $permissions = array_map(fn ($v) => substr($v, 11), array_values(array_filter($route->gatherMiddleware(), fn ($v) => str_starts_with($v, 'permission:'))));
+            sort($permissions);
+            $this->assertSame('permission:'.implode('+', $permissions), $map[implode('|', $route->methods()).' '.$route->uri()]);
+            $this->assertContains('auth:api', $route->gatherMiddleware());
+        }
+    }
+
     private function owner(): array
     {
         $auth = $this->superAdminHeaders();
