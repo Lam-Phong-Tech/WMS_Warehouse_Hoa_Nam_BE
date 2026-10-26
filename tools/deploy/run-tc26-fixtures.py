@@ -84,6 +84,20 @@ def main(checkout, inspect=False, retry_empty=False):
                 "(SELECT count(*) FROM notification_recipients r WHERE r.notification_id=n.id AND r.user_id=n.actor_id) AS self_recipient_count "
                 "FROM notifications n LEFT JOIN notification_source_snapshots s ON s.notification_id=n.id "
                 "WHERE n.actor_id='" + actor + "' ORDER BY n.created_at,n.id) q"))
+            stock = json.loads(sql("WITH l AS (SELECT m.warehouse_id,m.product_id,m.stock_status,sum(m.qty_delta) AS ledger_qty,count(*) AS movements "
+                "FROM stock_movements m JOIN sku s ON s.sku_id=m.product_id WHERE s.sku_code IN ('TC26-PRODUCT','TC26-COMPONENT') GROUP BY 1,2,3),"
+                "b AS (SELECT m.warehouse_id,m.product_id,m.stock_status,sum(m.on_hand_qty) AS balance_qty FROM inventory_balances m "
+                "JOIN sku s ON s.sku_id=m.product_id WHERE s.sku_code IN ('TC26-PRODUCT','TC26-COMPONENT') GROUP BY 1,2,3) "
+                "SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM (SELECT s.sku_code,coalesce(l.warehouse_id,b.warehouse_id) AS warehouse_id,"
+                "coalesce(l.stock_status,b.stock_status) AS stock_status,l.movements,l.ledger_qty,b.balance_qty,"
+                "coalesce(b.balance_qty,0)-coalesce(l.ledger_qty,0) AS variance FROM l FULL JOIN b USING (warehouse_id,product_id,stock_status) "
+                "JOIN sku s ON s.sku_id=coalesce(l.product_id,b.product_id) ORDER BY s.sku_code) q"))
+            items = json.loads(sql("SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM (SELECT s.sku_code,i.status,count(*) AS item_count "
+                "FROM item_instances i JOIN sku s ON s.sku_id=i.sku_id WHERE s.sku_code IN ('TC26-PRODUCT','TC26-COMPONENT') GROUP BY 1,2 ORDER BY 1,2) q"))
+            admin_recipients = json.loads(sql("SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM (SELECT r.id AS recipient_id,n.id AS notification_id,n.event_key,n.subject_id "
+                "FROM notification_recipients r JOIN notifications n ON n.id=r.notification_id JOIN app_user u ON u.user_id=r.user_id "
+                "WHERE n.actor_id='" + actor + "' AND u.email='admin@gmail.com' ORDER BY n.created_at,n.id) q"))
+            stock_valid = len(stock) == 2 and all(row['variance'] == 0 and row['movements'] > 0 for row in stock)
             def data(name):
                 return operations.get(name, {}).get('data', {})
             fixture = {
@@ -97,6 +111,8 @@ def main(checkout, inspect=False, retry_empty=False):
             }
             report = {'status': 'EXISTING_TEST_OWNER_EVIDENCE_READ_ONLY', 'source_sha': policy['sha'], 'fixture': fixture,
                 'operations': {k: v.get('phase') for k, v in operations.items()}, 'notifications_persisted': notifications,
+                'approved_admin_recipient_ids': admin_recipients, 'test_stock_ledger_balance': stock,
+                'test_item_projection': items, 'new_test_ledger_balance_matches': stock_valid,
                 'evidence': evidence, 'new_login': False, 'writes_replayed': False, 'private_drafts_not_transferable': True}
             public = green.ROOT / 'backups/tc26-existing-redacted-live.json'
             public.write_text(json.dumps(report, ensure_ascii=False, indent=2))
@@ -109,6 +125,7 @@ def main(checkout, inspect=False, retry_empty=False):
             green.emit('tc26_existing_owner_metadata', {k: v for k, v in report.items() if k != 'evidence'})
             for index, part in enumerate(parts):
                 green.emit('tc26_redacted_evidence_frame', {'index': index, 'total': len(parts), 'sha256': checksum, 'text': part})
+            require(stock_valid, 'New TEST ledger/balance comparison failed; no repair authorized')
         return
     if retry_empty:
         require(not STATE.exists() and PROOF.exists() and not any(fixture_footprint().values()),
