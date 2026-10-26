@@ -12,6 +12,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Notification\Models\NotificationRecipient;
+use Modules\Notification\Support\EventSourceSnapshot;
 use Modules\Notification\Support\NotificationTimestamp;
 use Modules\Notification\Support\P13NotificationCursor;
 use Modules\Notification\Support\P13NotificationPresentation;
@@ -206,7 +207,9 @@ class NotificationController extends Controller
 
     private function presentRows(Request $request, Collection $recipients): Collection
     {
-        return $recipients->map(function (NotificationRecipient $recipient): array {
+        $snapshots = DB::table('notification_source_snapshots')->whereIn('notification_id', $recipients->pluck('notification_id'))->get()->keyBy('notification_id');
+
+        return $recipients->map(function (NotificationRecipient $recipient) use ($snapshots): array {
             $notification = $recipient->notification;
             $rawReadAt = $recipient->getRawOriginal('read_at');
             $readAt = NotificationTimestamp::read($rawReadAt);
@@ -229,6 +232,7 @@ class NotificationController extends Controller
                 'created_at' => NotificationTimestamp::read($recipient->getRawOriginal('created_at')),
                 'payload_semantics' => 'EVENT_SNAPSHOT_NOT_AUTHORIZATION',
                 'subject' => P13NotificationPresentation::subject($recipient),
+                'source_snapshot' => EventSourceSnapshot::presentation($notification?->id ?? '', $snapshots->get($notification?->id)),
             ];
         })->values();
     }

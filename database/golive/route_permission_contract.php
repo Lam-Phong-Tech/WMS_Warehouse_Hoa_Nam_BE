@@ -30,6 +30,10 @@
  */
 
 return [
+    'GET api/v1/inbound-documents/{id}/checks/requests/{key}' => 'permission:inbound.view+permission:inbound.scan',
+    'GET api/v1/outbound-documents/{id}/checks/requests/{key}' => 'permission:outbound.view+permission:outbound.scan',
+    'POST api/v1/inbound-documents/{id}/checks' => 'permission:inbound.view+permission:inbound.scan',
+    'POST api/v1/outbound-documents/{id}/checks' => 'permission:outbound.view+permission:outbound.scan',
     'DELETE api/v1/component-issue-documents/{id}/lines/{lineId}' => 'permission:warranty.component_issue',
     'DELETE api/v1/containers/{id}/items/{containerItemId}' => 'permission:container.manage',
     'DELETE api/v1/document-attachments/{attachmentId}' => 'permission:inbound.create|inbound.scan|outbound.scan|outbound.post|inventory.reversal.post',

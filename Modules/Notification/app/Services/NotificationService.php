@@ -8,6 +8,7 @@ use Modules\Auth\Models\User;
 use Modules\Notification\Events\NotificationPushed;
 use Modules\Notification\Models\Notification;
 use Modules\Notification\Models\NotificationRecipient;
+use Modules\Notification\Support\EventSourceSnapshot;
 
 class NotificationService
 {
@@ -30,6 +31,7 @@ class NotificationService
         ?string $subjectId = null,
         array $payload = [],
         ?string $actorId = null,
+        ?array $sourceSnapshot = null,
     ): ?Notification {
         $userIds = array_values(array_unique(array_filter($userIds)));
         if ($userIds === []) {
@@ -43,8 +45,20 @@ class NotificationService
             ? User::query()->whereKey($actorId)->value('display_name')
             : null;
 
+        $sourceSnapshot ??= EventSourceSnapshot::capture($actorId,
+            is_string($payload['warehouse_id'] ?? null) ? $payload['warehouse_id'] : null,
+            'AT_NOTIFICATION_CREATION_NOT_BUSINESS_EVENT');
+        if ($sourceSnapshot !== [] && ($sourceSnapshot['actor_id'] ?? null) !== $actorId) {
+            throw new \LogicException('NOTIFICATION_SNAPSHOT_ACTOR_MISMATCH');
+        }
+        if ($sourceSnapshot !== [] && ($sourceSnapshot['warehouse_id'] ?? null) !== ($payload['warehouse_id'] ?? null)) {
+            throw new \LogicException('NOTIFICATION_SNAPSHOT_WAREHOUSE_MISMATCH');
+        }
+        if ($sourceSnapshot !== []) {
+            $actorName = $sourceSnapshot['actor_name'] ?? null;
+        }
         $notification = DB::transaction(function () use (
-            $eventKey, $title, $body, $userIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName
+            $eventKey, $title, $body, $userIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName, $sourceSnapshot
         ): Notification {
             $notification = Notification::create([
                 'id' => (string) Str::uuid(),
@@ -60,6 +74,10 @@ class NotificationService
                 'payload' => $payload,
                 'created_at' => now(),
             ]);
+
+            if ($sourceSnapshot !== []) {
+                DB::table('notification_source_snapshots')->insert(['notification_id' => $notification->id, ...$sourceSnapshot]);
+            }
 
             foreach ($userIds as $userId) {
                 NotificationRecipient::create([

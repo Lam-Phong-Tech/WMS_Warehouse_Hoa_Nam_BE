@@ -8,6 +8,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use LogicException;
+use Modules\Notification\Support\EventSourceSnapshot;
 
 /** Persisted submission intent + canonical current state, never a readiness alias. */
 final class P13WebPostHandoff
@@ -30,6 +31,9 @@ final class P13WebPostHandoff
         }
         DB::table(self::TABLE)->insert(['stock_document_id' => $id, 'source' => $source, 'warehouse_id' => $warehouse,
             'document_version_at_record' => $version, 'submitted_at' => now()->utc()->toISOString()]);
+        StockDocumentEventEvidence::append($id, $source, $warehouse, $version, 'SENT',
+            EventSourceSnapshot::capture(auth('api')->id(), $warehouse),
+            'Document submitted to Web by canonical RECORD owner');
     }
 
     public static function waiting(Builder $query, string $source, string $warehouse): void

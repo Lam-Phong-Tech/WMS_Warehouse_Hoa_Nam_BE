@@ -20,6 +20,7 @@ use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\P09WarrantyHandover;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyProductSnapshot;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 
@@ -219,14 +220,16 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'reported_defect' => $validated['reported_defect'] ?? $validated['description'],
                 'accessories_received' => $validated['accessories_received'] ?? null,
                 'received_condition' => $validated['received_condition'] ?? null,
-                'received_at' => now(),
+                'received_at' => now('UTC')->toISOString(),
                 'created_by' => $this->currentActorId(),
                 'version' => 1,
                 'legal_hold_flag' => false,
-                'created_at' => now(),
-                'updated_at' => now(),
+                'created_at' => now('UTC')->toISOString(),
+                'updated_at' => now('UTC')->toISOString(),
             ]));
             WarrantyWarehouseScope::bindNew($request, $caseId);
+            WarrantyProductSnapshot::record($caseId, $item,
+                DB::table('warranty_case')->where('warranty_case_id', $caseId)->value('temporary_item_code'));
             $this->syncWarrantyDefects($caseId, $defectIds);
 
             if ($item !== null) {
@@ -244,7 +247,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 'to_status' => 'RECEIVED',
                 'note' => $validated['description'],
                 'created_by' => $this->currentActorId(),
-                'event_at' => now(),
+                'event_at' => now('UTC')->toISOString(),
             ]);
 
             AuditLogger::record(
@@ -522,7 +525,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             }
 
             $closing = in_array($target, self::TERMINAL_STATUSES, true);
-            $closedAt = $closing ? ($case->closed_at ?? now()) : $case->closed_at;
+            $closedAt = $closing ? ($case->closed_at ?? now('UTC')->toISOString()) : $case->closed_at;
 
             DB::table('warranty_case')->where('warranty_case_id', $id)->update(WarrantyCasePii::encode([
                 'status' => $target,
@@ -544,16 +547,16 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     ? $validated['purchase_date']
                     : ($case->purchase_date ?? null),
                 'cancel_reason' => $target === 'CANCELLED' ? ($cancelReason ?: ($case->cancel_reason ?? null)) : ($case->cancel_reason ?? null),
-                'completed_at' => $target === 'COMPLETED' && $case->status !== 'COMPLETED' ? now() : ($case->completed_at ?? null),
-                'returned_at' => $target === 'RETURNED' && $case->status !== 'RETURNED' ? now() : ($case->returned_at ?? null),
+                'completed_at' => $target === 'COMPLETED' && $case->status !== 'COMPLETED' ? now('UTC')->toISOString() : ($case->completed_at ?? null),
+                'returned_at' => $target === 'RETURNED' && $case->status !== 'RETURNED' ? now('UTC')->toISOString() : ($case->returned_at ?? null),
                 'version' => $expectedVersion + 1,
                 'closed_at' => $closedAt,
                 // §13.8: PII giữ 5 năm sau khi đóng case rồi anonymize/purge. Mốc phải
                 // được chốt ngay lúc đóng để job purge (warranty:purge-pii) có căn cứ.
                 'retention_until' => $closing
-                    ? Carbon::parse((string) $closedAt)->addYears(self::PII_RETENTION_YEARS)
+                    ? Carbon::parse((string) $closedAt)->addYears(self::PII_RETENTION_YEARS)->toISOString()
                     : ($case->retention_until ?? null),
-                'updated_at' => now(),
+                'updated_at' => now('UTC')->toISOString(),
                 'updated_by' => $this->currentActorId(),
             ]));
             if ($returning) {
@@ -583,7 +586,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'to_status' => $target,
                     'note' => $validated['note'] ?? $validated['description'] ?? ($target === 'CANCELLED' ? $cancelReason : null),
                     'created_by' => $this->currentActorId(),
-                    'event_at' => now(),
+                    'event_at' => now('UTC')->toISOString(),
                 ]);
 
                 event(new WarrantyStatusChanged($id, $case->status, $target, $this->currentActorId()));
@@ -596,7 +599,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                     'to_status' => $case->status,
                     'note' => $validated['description'] ?? $validated['confirmed_defect'],
                     'created_by' => $this->currentActorId(),
-                    'event_at' => now(),
+                    'event_at' => now('UTC')->toISOString(),
                 ]);
             }
 
@@ -861,6 +864,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             ...WarrantyWarehouseScope::fields($id),
             'id' => (string) $case->warranty_case_id,
             'warranty_case_id' => (string) $case->warranty_case_id,
+            'product_source' => WarrantyProductSnapshot::read((string) $case->warranty_case_id),
             'case_code' => (string) $case->warranty_case_code,
             'warranty_case_code' => (string) $case->warranty_case_code,
             'item_id' => $case->item_id,

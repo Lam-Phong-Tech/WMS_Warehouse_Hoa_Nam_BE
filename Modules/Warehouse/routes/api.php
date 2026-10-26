@@ -45,6 +45,7 @@ use Modules\Warehouse\Http\Controllers\PvProductImageController;
 use Modules\Warehouse\Http\Controllers\PvPublicCatalogController;
 use Modules\Warehouse\Http\Controllers\ReversalDocumentController;
 use Modules\Warehouse\Http\Controllers\ScanController;
+use Modules\Warehouse\Http\Controllers\StockDocumentCheckController;
 use Modules\Warehouse\Http\Controllers\StockMovementController;
 use Modules\Warehouse\Http\Controllers\WarehouseController;
 use Modules\Warehouse\Http\Controllers\WmsContractController;
@@ -84,6 +85,12 @@ Route::prefix('v1')->group(function (): void {
     });
 
     Route::middleware('auth:api')->group(function (): void {
+        foreach (['inbound' => 'INBOUND', 'outbound' => 'OUTBOUND'] as $path => $source) {
+            Route::post($path.'-documents/{id}/checks', [StockDocumentCheckController::class, 'confirm'])
+                ->whereUuid('id')->defaults('document_source', $source)->middleware(['permission:'.$path.'.view', 'permission:'.$path.'.scan']);
+            Route::get($path.'-documents/{id}/checks/requests/{key}', [StockDocumentCheckController::class, 'reconcile'])
+                ->whereUuid('id')->whereUuid('key')->defaults('document_source', $source)->middleware(['permission:'.$path.'.view', 'permission:'.$path.'.scan']);
+        }
         Route::get('warehouses', [WarehouseController::class, 'index'])->middleware('permission:warehouse.view');
         Route::get('warehouses/{id}', [WarehouseController::class, 'show'])->middleware('permission:warehouse.view');
         Route::patch('warehouses/{id}', [WarehouseController::class, 'update'])->middleware('permission:warehouse.manage');

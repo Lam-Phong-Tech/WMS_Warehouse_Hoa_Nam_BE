@@ -2,10 +2,10 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
+use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyKeyGuard;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Events\StockDocumentCreated;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 
 /**
@@ -102,7 +103,7 @@ class MiniAppOutboundDraftController extends Controller
     }
 
     /**
-     * @param array<string,mixed> $payload
+     * @param  array<string,mixed>  $payload
      * @return array<string,mixed>
      */
     private function createDraft(array $payload, string $actorId, string $idempotencyKey): array
@@ -264,6 +265,7 @@ class MiniAppOutboundDraftController extends Controller
             'updated_at' => $documentCreatedAt,
         ];
         DB::table('stock_documents')->insert($documentInsert);
+        event(new StockDocumentCreated($documentId, $docNo, 'issue', $warehouseId, $actorId));
 
         $responseLines = [];
         foreach ($requestLines as $index => [$requestLineId, $line]) {
@@ -360,7 +362,7 @@ class MiniAppOutboundDraftController extends Controller
      * Resolve every line to one ACTIVE PRODUCT SKU and aggregate duplicate SKU
      * rows so scan auto-match has one unambiguous planned quantity per SKU.
      *
-     * @param array<int,array<string,mixed>> $lines
+     * @param  array<int,array<string,mixed>>  $lines
      * @return array<int,array{sku_id:string,sku_code:string,sku_name:string,required_qty:int,note:?string}>
      */
     private function resolveAndGroupLines(array $lines): array

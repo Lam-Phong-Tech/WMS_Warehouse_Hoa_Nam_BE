@@ -29,6 +29,7 @@ class UpdateUserRequest extends FormRequest
                 Rule::unique('app_user', 'username')->ignore($this->route('id'), 'user_id'),
             ],
             'display_name' => ['sometimes', 'string', 'max:255'],
+            'job_title' => ['sometimes', 'nullable', 'string', 'max:160'],
             'email' => [
                 'nullable', 'email', 'max:255',
                 Rule::unique('app_user', 'email')->ignore($this->route('id'), 'user_id'),

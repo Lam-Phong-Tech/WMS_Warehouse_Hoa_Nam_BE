@@ -7,6 +7,7 @@ use App\Support\ApiError;
 use App\Support\Database\SchemaCache;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
@@ -20,6 +21,7 @@ use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
 use Modules\Auth\Support\AuthCache;
 use Modules\Auth\Support\PermissionDelegation;
 use Modules\Auth\Support\RefreshTokenService;
+use Modules\Auth\Support\UserBusinessProfile;
 use OpenApi\Attributes as OA;
 
 /**
@@ -91,6 +93,9 @@ class UserController extends Controller
     public function store(StoreUserRequest $request)
     {
         $data = $request->validated();
+        $hasTitle = array_key_exists('job_title', $data);
+        $jobTitle = $data['job_title'] ?? null;
+        unset($data['job_title']);
         $data['password_hash'] = Hash::make($data['password']);
         unset($data['password']);
         $data['status'] = $data['status'] ?? 'ACTIVE';
@@ -102,7 +107,14 @@ class UserController extends Controller
         $data['must_change_password'] = true;
         $data['first_login_deadline_at'] = now()->addDays(7);
 
-        $user = $this->users->create($data);
+        $user = DB::transaction(function () use ($data, $hasTitle, $jobTitle, $request) {
+            $user = $this->users->create($data);
+            if ($hasTitle) {
+                UserBusinessProfile::put($user->user_id, $jobTitle, $request->user()?->user_id);
+            }
+
+            return $user;
+        });
 
         AuditLogger::record(
             action: 'CREATE',
@@ -135,7 +147,9 @@ class UserController extends Controller
     {
         $user = $this->users->find($id);
 
-        return $user ? $this->respondSuccess($user) : $this->respondNotFound('Không tìm thấy người dùng.');
+        return $user ? $this->respondSuccess([...$user->toArray(),
+            'business_profile' => UserBusinessProfile::read($id)])
+            : $this->respondNotFound('Không tìm thấy người dùng.');
     }
 
     #[OA\Patch(
@@ -179,6 +193,9 @@ class UserController extends Controller
         $beforeData = $before->makeHidden('password_hash')->toArray();
 
         $data = $request->validated();
+        $hasTitle = array_key_exists('job_title', $data);
+        $jobTitle = $data['job_title'] ?? null;
+        unset($data['job_title']);
         unset($data['version']);
         $this->assertVersionMatches($request, $before);
 
@@ -191,7 +208,14 @@ class UserController extends Controller
 
         $data['version'] = $before->version + 1;
 
-        $user = $this->users->update($id, $data);
+        $user = DB::transaction(function () use ($id, $data, $hasTitle, $jobTitle, $request) {
+            $user = $this->users->update($id, $data);
+            if ($user !== null && $hasTitle) {
+                UserBusinessProfile::put($id, $jobTitle, $request->user()?->user_id);
+            }
+
+            return $user;
+        });
 
         // WWHN-SEC-02 (SCR-IAM-03): admin đặt lại mật khẩu hộ là đường xử lý sự
         // cố chiếm tài khoản. Trước đây thao tác này KHÔNG thu hồi gì cả — cả

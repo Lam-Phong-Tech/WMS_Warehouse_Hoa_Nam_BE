@@ -12,6 +12,7 @@ use Modules\Warehouse\Support\P12DocumentPresentation;
 use Modules\Warehouse\Support\P12HandoffTimeline;
 use Modules\Warehouse\Support\P12StockOwnerProjection;
 use Modules\Warehouse\Support\P13StockRecordProjection;
+use Modules\Warehouse\Support\StockDocumentEventEvidence;
 use Symfony\Component\HttpFoundation\Response;
 
 /** Additive read metadata only, after existing owner authorization and serialization. */
@@ -72,6 +73,12 @@ final class P12DocumentReadMetadata
                     }
                     $body['data']['p12']['owner_projection'] = $projection;
                     $meta['p12']['owner_projection_contract'] = P12StockOwnerProjection::CONTRACT;
+                    $body['data']['p12']['event_evidence'] = [
+                        'contract' => StockDocumentEventEvidence::CONTRACT,
+                        'milestones' => StockDocumentEventEvidence::milestones($projection['document_id'], $projection['warehouse_id'], $source),
+                        'semantics' => 'PERSISTED_FUTURE_EVENTS_NOT_CURRENT_STATUS',
+                    ];
+                    $meta['p12']['event_evidence_contract'] = StockDocumentEventEvidence::CONTRACT;
                 }
             }
         }

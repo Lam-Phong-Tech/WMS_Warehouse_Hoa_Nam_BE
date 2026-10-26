@@ -32,6 +32,7 @@ class SendStockDocumentCreatedNotification implements ShouldQueue
             subjectId: $event->documentId,
             payload: ['document_id' => $event->documentId, 'doc_no' => $event->docNo, 'type' => $event->type, 'warehouse_id' => $event->warehouseId],
             actorId: $event->actorId,
+            sourceSnapshot: $event->sourceSnapshot,
         );
     }
 }

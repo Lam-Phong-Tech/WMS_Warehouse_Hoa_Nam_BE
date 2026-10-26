@@ -33,6 +33,7 @@ use Modules\Warehouse\Events\StockDocumentScanStarted;
 use Modules\Warehouse\Events\StockShortageDetected;
 use Modules\Warehouse\Events\WarrantyCaseCreated;
 use Modules\Warehouse\Events\WarrantyStatusChanged;
+use Modules\Warehouse\Support\StockDocumentEventEvidence;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -54,7 +55,7 @@ class EventServiceProvider extends ServiceProvider
         UserAccountChanged::class => [SendUserAccountChangedNotification::class],
         RolePermissionsChanged::class => [SendRolePermissionsChangedNotification::class],
         SecurityAlertRaised::class => [SendSecurityAlertNotification::class],
-        StockDocumentCreated::class => [SendStockDocumentCreatedNotification::class],
+        StockDocumentCreated::class => [StockDocumentEventEvidence::class, SendStockDocumentCreatedNotification::class],
         StockDocumentScanStarted::class => [SendStockDocumentScanStartedNotification::class],
         StockDocumentCancelled::class => [SendStockDocumentCancelledNotification::class],
         WarrantyCaseCreated::class => [SendWarrantyCaseCreatedNotification::class],

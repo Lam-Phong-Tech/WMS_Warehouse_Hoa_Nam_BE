@@ -1,0 +1,56 @@
+{
+  "contract": "tc26-future-evidence-v1",
+  "date": "2026-10-26",
+  "approval": "User authorized DEV/TEST fixtures, future source fixes and rollout; job title Nhan vien kho TEST explicitly approved. No historical repair or production change.",
+  "notification": {
+    "owner": "GET /api/v1/notifications and /{recipient_id}",
+    "new_field": "data.source_snapshot (or each list row)",
+    "contract": "notification-source-snapshot-v1",
+    "sources": {"job_title": "user_business_profiles.job_title, NOT IAM role", "warehouse_name": "warehouses.name captured in event, NOT current GET lookup"},
+    "capture": "StockDocumentCreated captures at dispatch before queue; older queued events without snapshot do not recapture. Other notifications explicitly mark AT_NOTIFICATION_CREATION_NOT_BUSINESS_EVENT.",
+    "legacy": "NOT_RECORDED/null, no backfill",
+    "privacy": "Same recipient-only ownership and subject ACL as existing notifications. GET never marks read. No password, token or customer fields added."
+  },
+  "human_check": {
+    "owners": ["POST /api/v1/inbound-documents/{id}/checks", "POST /api/v1/outbound-documents/{id}/checks"],
+    "reconcile": "GET same-owner /checks/requests/{original-key}?warehouse_id=UUID",
+    "headers": ["Authorization", "Idempotency-Key UUID", "If-Match strong quoted document version", "X-Request-ID correlation"],
+    "body": {"warehouse_id": "confirmed session warehouse UUID", "confirmed": true},
+    "permission": "Both directional view and scan, fresh active actor, stable session, warehouse ACL and matching organization",
+    "allowed_status": ["DRAFT", "SCANNING"],
+    "success": {"contract": "document-human-check-v1", "outcome": "SUCCEEDED", "event_id": "persisted event UUID", "document_id": "canonical ID", "document_version": "checked version", "stock_effect": "NONE", "retry_policy": "CHECK_ONLY"},
+    "unknown": "GET returns UNKNOWN/CHECK_ONLY; no automatic write retry/new key or takeover",
+    "errors": {"identity": 428, "stale_version": 409, "wrong_scope": 403, "missing_or_wrong_parent": 404, "invalid_body": 422},
+    "boundary": "Explicit separate human action, never synthesized by RECORD validation. Back-office owner protocol; no new Mini App writer gate enabled."
+  },
+  "timeline": {
+    "field": "data.p12.event_evidence",
+    "contract": "p12-event-evidence-v2",
+    "events": ["CREATED", "CHECKED", "SENT"],
+    "identity": ["event_id", "event_key", "subject_type", "subject_id", "warehouse_id", "document_version"],
+    "source": "stock_document_event_evidence, append-only; actor/name/job_title at event, fixed safe owner description, occurred_at RFC3339 UTC Z",
+    "legacy_v1_unchanged": true,
+    "historic_missing": "NOT_RECORDED/null; current status/receipt/catalog never substitutes",
+    "description": "Server-defined description of the explicit action, not unfiltered free text"
+  },
+  "warranty": {
+    "field": "data.product_source",
+    "contract": "warranty-product-snapshot-v1",
+    "source": "warranty_product_snapshots written only in new canonical intake transaction",
+    "fields": ["case_id", "item_id", "sku_id", "serial_number", "sku_code", "sku_name", "temporary_item_code", "captured_at", "timestamp_source", "capture_policy"],
+    "legacy": "NOT_RECORDED/null; old top-level current directory fields retained for compatibility but NOT historical source"
+  },
+  "fixture": {
+    "prefix": "TC26",
+    "account": "Dedicated newly created warehouse-scoped TEST actor; never admin session replacement",
+    "stock": "Only new TEST SKUs; canonical receipt/post and one product issue/post. No balance insertion, no opening shortcut, no status repair, no NFC assignment, no component issue",
+    "tc07": "Explicit TEST supplier and approved new QR candidate; empty owner draft + read-only validation, not posted",
+    "tc11": "Canonical TEST DRAFT source, private draft/scan UUID/version and real ledger-backed ITEM resolve",
+    "tc12": "New TEST product actually issued then canonically received into warranty; COMPONENT ITEM canonically received, resolve with exact case and UNIT reason; available_qty remains null when not applicable",
+    "session": "Private drafts never transfer to another login family. Preview may create a NEW intention against shared TEST source; must not adopt builder private draft"
+  },
+  "migration": "2026_10_26_000001_create_future_event_evidence",
+  "existing_history_updated": false,
+  "p11_p19_recovery_or_production_flags_changed": false,
+  "ci": "Targeted local SQLite/PostgreSQL tests and operation-only workflow, not full CI"
+}

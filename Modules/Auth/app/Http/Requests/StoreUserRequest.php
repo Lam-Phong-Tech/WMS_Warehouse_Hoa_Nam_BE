@@ -25,6 +25,7 @@ class StoreUserRequest extends FormRequest
         return [
             'username' => ['required', 'string', 'max:100', 'unique:app_user,username'],
             'display_name' => ['required', 'string', 'max:255'],
+            'job_title' => ['sometimes', 'nullable', 'string', 'max:160'],
             'email' => ['nullable', 'email', 'max:255', 'unique:app_user,email'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'department_id' => ['nullable', 'uuid', 'exists:department,department_id'],

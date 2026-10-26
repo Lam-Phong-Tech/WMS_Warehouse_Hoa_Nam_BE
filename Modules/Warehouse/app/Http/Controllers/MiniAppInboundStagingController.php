@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Events\InboundSkuInfoPending;
+use Modules\Warehouse\Events\StockDocumentCreated;
 use Modules\Warehouse\Services\BoxCodeParser;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Services\ProductIdentityResolver;
@@ -303,6 +304,8 @@ class MiniAppInboundStagingController extends Controller
                         'updated_at' => $now,
                     ]);
 
+                    event(new StockDocumentCreated($documentId, $docNo, 'receipt',
+                        (string) $validated['dst_warehouse_id'], $actorId));
                     $lineIdsBySku = [];
                     $lineNo = 1;
                     foreach ($prepared['sku_counts'] as $skuId => $quantity) {
