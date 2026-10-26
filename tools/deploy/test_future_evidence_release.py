@@ -29,6 +29,13 @@ class FutureReleaseTest(unittest.TestCase):
         self.assertNotIn('print(secret)', coordinator)
         self.assertIn('before == after', coordinator)
 
+    def test_fixture_imports_precede_bootstrap_and_stderr_is_stdin_safe(self):
+        code = Path(__file__).with_name('prepare-tc26-fixtures.php').read_text(encoding='utf-8')
+        self.assertLess(code.index('use Illuminate\\Contracts\\Console\\Kernel;'), code.index('$app->make(Kernel::class)'))
+        self.assertLess(code.index('try {'), code.index("require '/var/www/html/vendor/autoload.php'"))
+        self.assertNotIn('fwrite(STDERR', code)
+        self.assertIn("file_put_contents('php://stderr'", code)
+
 
 if __name__ == '__main__':
     unittest.main()

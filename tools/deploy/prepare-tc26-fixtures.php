@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-require '/var/www/html/vendor/autoload.php';
-$app = require '/var/www/html/bootstrap/app.php';
-$app->make(Kernel::class)->bootstrap();
-
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -17,8 +13,12 @@ use Modules\Auth\Support\UserBusinessProfile;
 use Modules\Warehouse\Models\Sku;
 
 // stdout is a private pipe to the coordinator, NEVER a workflow log or artifact.
-$stage = 'target';
+$stage = 'bootstrap';
 try {
+    require '/var/www/html/vendor/autoload.php';
+    $app = require '/var/www/html/bootstrap/app.php';
+    $app->make(Kernel::class)->bootstrap();
+    $stage = 'target';
     if (! app()->environment('testing') || DB::getDriverName() !== 'pgsql'
         || DB::connection()->getDatabaseName() !== 'wms_hoanam_green'
         || getenv('FUTURE_FIXTURE_CONFIRM') !== 'TC26-TEST-ONLY-APPROVED') {
