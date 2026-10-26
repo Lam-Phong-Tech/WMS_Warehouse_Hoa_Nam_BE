@@ -1,0 +1,34 @@
+import importlib.util
+from pathlib import Path
+import unittest
+
+spec = importlib.util.spec_from_file_location('future', Path(__file__).with_name('deploy-green-future-evidence.py'))
+release = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(release)
+
+
+class FutureReleaseTest(unittest.TestCase):
+    def test_only_declared_source_and_staging_overlay_may_change(self):
+        before = {'old': 'same', **{key: 'before' for key in release.APPLICATION_DELTA}, **release.NGINX}
+        after = {**before, **{key: 'after' for key in release.APPLICATION_DELTA}}
+        release.validate_delta(before, after)
+        for bad in ({**after, 'old': 'modified'}, {**after, 'extra': 'new'},
+                    {**after, next(iter(release.NGINX)): 'wrong'}):
+            with self.assertRaises(RuntimeError):
+                release.validate_delta(before, bad)
+
+    def test_migration_and_private_coordinator_are_bounded(self):
+        code = Path(release.__file__).read_text()
+        self.assertEqual(code.count("'artisan', 'migrate', '--path=' + MIGRATION"), 1)
+        self.assertEqual(release.NEW_TABLES, {'user_business_profiles', 'notification_source_snapshots',
+                                            'stock_document_event_evidence', 'warranty_product_snapshots'})
+        for forbidden in ('db:seed', 'migrate:fresh', "'--clean'", "'volume', 'rm'", "'image', 'rm'"):
+            self.assertNotIn(forbidden, code)
+        coordinator = Path(__file__).with_name('run-tc26-fixtures.py').read_text()
+        self.assertIn('capture_output=True', coordinator)
+        self.assertNotIn('print(secret)', coordinator)
+        self.assertIn('before == after', coordinator)
+
+
+if __name__ == '__main__':
+    unittest.main()

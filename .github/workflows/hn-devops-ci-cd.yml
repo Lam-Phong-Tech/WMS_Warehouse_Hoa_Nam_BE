@@ -91,6 +91,70 @@ env:
   CI_SERVER_PORT: ${{ vars.CI_SERVER_PORT || '8000' }}
 
 jobs:
+  devtest-future-evidence:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && startsWith(inputs.devtest_confirmation, 'FUTURE-')
+    runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
+    environment: staging
+    concurrency:
+      group: hoa-nam-green-devtest-release
+      cancel-in-progress: false
+    timeout-minutes: 25
+    steps:
+      - name: Require approved future-only DEV intent
+        env:
+          CONFIRMATION: ${{ inputs.devtest_confirmation }}
+          DEPLOY_UAT: ${{ inputs.deploy_uat }}
+          RUN_SEED: ${{ inputs.run_uat_seed }}
+          OTHER_PREFLIGHT: ${{ inputs.devtest_preflight_only }}
+          OTHER_AUTH: ${{ inputs.devtest_auth_release_only }}
+          OTHER_DEPLOY: ${{ inputs.devtest_deploy_only }}
+          OTHER_SMOKE: ${{ inputs.devtest_owner_smoke }}
+          HOST: ${{ secrets.UAT_SSH_HOST }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$CONFIRMATION" in FUTURE-INSPECT|FUTURE-DEPLOY|FUTURE-FIXTURE) ;; *) exit 1 ;; esac
+          test "$DEPLOY_UAT" = false && test "$RUN_SEED" = false
+          test "$OTHER_PREFLIGHT" = false && test "$OTHER_AUTH" = false && test "$OTHER_DEPLOY" = false && test "$OTHER_SMOKE" = false
+          test "$HOST" = 42.96.16.197
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: devtest-future-source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Package exact tested source, not full CI
+        if: inputs.devtest_confirmation != 'FUTURE-FIXTURE'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd devtest-future-source
+          python3 tools/deploy/deploy-green-future-evidence.py --package --checkout "$PWD" --ops-sha "$GITHUB_SHA" --output "$PWD/future-package"
+      - name: Operate only green DEV with history and transport guards
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          OPS_SHA: ${{ github.sha }}
+          CONFIRMATION: ${{ inputs.devtest_confirmation }}
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          envs: OPS_SHA,CONFIRMATION
+          command_timeout: 20m
+          script: |
+            set -eu
+            case "$OPS_SHA" in *[!0-9a-f]*|'') exit 1 ;; esac
+            test "${#OPS_SHA}" = 40
+            source=/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/devtest-future-source
+            owner=$(stat -c %U "$source/.git")
+            test "$owner" != UNKNOWN
+            test "$(runuser -u "$owner" -- git -C "$source" rev-parse HEAD)" = "$OPS_SHA"
+            case "$CONFIRMATION" in
+              FUTURE-INSPECT) python3 "$source/tools/deploy/deploy-green-future-evidence.py" --source "$source/future-package" --ops-sha "$OPS_SHA" --inspect ;;
+              FUTURE-DEPLOY) python3 "$source/tools/deploy/deploy-green-future-evidence.py" --source "$source/future-package" --ops-sha "$OPS_SHA" ;;
+              FUTURE-FIXTURE) python3 "$source/tools/deploy/run-tc26-fixtures.py" --checkout "$source" ;;
+              *) exit 1 ;;
+            esac
   devtest-tc11-tc12-fixture:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && inputs.devtest_confirmation == 'TC11-TC12-FIXTURE-20251025'
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
@@ -346,7 +410,7 @@ jobs:
               *) exit 1 ;;
             esac
   devtest-tc12:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && !startsWith(inputs.devtest_confirmation, 'APP-') && !startsWith(inputs.devtest_confirmation, 'P14-ETAG-') && !startsWith(inputs.devtest_confirmation, 'TIMELINE-') && !startsWith(inputs.devtest_confirmation, 'TC11-TC12-')
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev' && inputs.devtest_tc12_only == true && !startsWith(inputs.devtest_confirmation, 'APP-') && !startsWith(inputs.devtest_confirmation, 'P14-ETAG-') && !startsWith(inputs.devtest_confirmation, 'TIMELINE-') && !startsWith(inputs.devtest_confirmation, 'TC11-TC12-') && !startsWith(inputs.devtest_confirmation, 'FUTURE-')
     runs-on: [self-hosted, Linux, X64, hoa-nam-uat]
     environment: staging
     concurrency:
