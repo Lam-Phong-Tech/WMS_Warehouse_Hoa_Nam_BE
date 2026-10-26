@@ -113,7 +113,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$CONFIRMATION" in FUTURE-INSPECT|FUTURE-DEPLOY|FUTURE-FIXTURE) ;; *) exit 1 ;; esac
+          case "$CONFIRMATION" in FUTURE-INSPECT|FUTURE-DEPLOY|FUTURE-FIXTURE|FUTURE-DIAG) ;; *) exit 1 ;; esac
           test "$DEPLOY_UAT" = false && test "$RUN_SEED" = false
           test "$OTHER_PREFLIGHT" = false && test "$OTHER_AUTH" = false && test "$OTHER_DEPLOY" = false && test "$OTHER_SMOKE" = false
           test "$HOST" = 42.96.16.197
@@ -124,7 +124,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Package exact tested source, not full CI
-        if: inputs.devtest_confirmation != 'FUTURE-FIXTURE'
+        if: inputs.devtest_confirmation == 'FUTURE-INSPECT' || inputs.devtest_confirmation == 'FUTURE-DEPLOY'
         shell: bash
         run: |
           set -euo pipefail
@@ -153,6 +153,7 @@ jobs:
               FUTURE-INSPECT) python3 "$source/tools/deploy/deploy-green-future-evidence.py" --source "$source/future-package" --ops-sha "$OPS_SHA" --inspect ;;
               FUTURE-DEPLOY) python3 "$source/tools/deploy/deploy-green-future-evidence.py" --source "$source/future-package" --ops-sha "$OPS_SHA" ;;
               FUTURE-FIXTURE) python3 "$source/tools/deploy/run-tc26-fixtures.py" --checkout "$source" ;;
+              FUTURE-DIAG) python3 "$source/tools/deploy/run-tc26-fixtures.py" --checkout "$source" --inspect ;;
               *) exit 1 ;;
             esac
   devtest-tc11-tc12-fixture:

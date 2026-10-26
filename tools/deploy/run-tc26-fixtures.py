@@ -51,20 +51,38 @@ def fingerprints(keys):
     return result
 
 
-def main(checkout):
+def main(checkout, inspect=False):
     os.umask(0o077)
     policy = release.app_release.configuration()
     require(policy['sha'] == release.SOURCE and policy['environment'] == 'testing'
             and policy['database'] == green.DATABASE and policy['protected'] and not policy['allow_seed']
             and not policy['p11'] and not policy['p19'], 'DEV policy guard failed')
+    if inspect:
+        footprint = json.loads(sql("SELECT json_build_object('actors',(SELECT count(*) FROM app_user WHERE email='tc26.fixture@wms-hoanam.test'),"
+            "'roles',(SELECT count(*) FROM role WHERE role_code='TC26_FIXTURE'),"
+            "'skus',(SELECT count(*) FROM sku WHERE sku_code IN ('TC26-PRODUCT','TC26-COMPONENT')),"
+            "'suppliers',(SELECT count(*) FROM inbound_suppliers WHERE name='TC26 TEST SUPPLIER'))"))
+        columns = json.loads(sql("SELECT json_agg(json_build_object('table',table_name,'column',column_name,'nullable',is_nullable)) "
+            "FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('role_permission','user_role','sku','inbound_suppliers')"))
+        green.emit('tc26_read_only_diagnostic', {'state_exists': STATE.exists(), 'proof_exists': PROOF.exists(),
+            'footprint': footprint, 'compatibility_columns': columns, 'policy': policy})
+        return
     require(not STATE.exists() and not PROOF.exists(), 'Existing fixture/private journal; no automatic reprovision/login/replay')
     keys = historical_keys()
     before = fingerprints(keys)
     PROOF.write_text(json.dumps({'keys': keys, 'before': before, 'stage': 'BEFORE_TEST_FIXTURE'}))
     os.chmod(PROOF, 0o600)
     try:
-        secret = green.run(['docker', 'exec', '-i', '-u', 'www-data', '-e', 'FUTURE_FIXTURE_CONFIRM=TC26-TEST-ONLY-APPROVED',
-                           'hoa_nam_green-backend-1', 'php'], input_data=(checkout / 'tools/deploy/prepare-tc26-fixtures.php').read_text())
+        provision = subprocess.run(['docker', 'exec', '-i', '-u', 'www-data', '-e', 'FUTURE_FIXTURE_CONFIRM=TC26-TEST-ONLY-APPROVED',
+                           'hoa_nam_green-backend-1', 'php'], input=(checkout / 'tools/deploy/prepare-tc26-fixtures.php').read_text(),
+                           text=True, capture_output=True, timeout=120)
+        if provision.returncode:
+            for line in provision.stderr.splitlines():
+                if line.startswith('TC26_PROVISION_FAILED:'):
+                    detail = json.loads(line.split(':', 1)[1])
+                    green.emit('tc26_provision_error', {k: detail[k] for k in ('stage', 'class', 'sqlstate')})
+            raise RuntimeError('TEST provisioning failed; no owner command executed')
+        secret = provision.stdout
         values = json.loads(secret)
         with STATE.open('x') as stream:
             json.dump(values, stream)
@@ -98,5 +116,6 @@ def main(checkout):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkout', required=True)
+    parser.add_argument('--inspect', action='store_true')
     args = parser.parse_args()
-    main(Path(args.checkout))
+    main(Path(args.checkout), args.inspect)
