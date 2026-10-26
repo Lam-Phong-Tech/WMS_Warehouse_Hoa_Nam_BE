@@ -51,22 +51,39 @@ def fingerprints(keys):
     return result
 
 
-def main(checkout, inspect=False):
+def fixture_footprint():
+    return json.loads(sql("SELECT json_build_object('actors',(SELECT count(*) FROM app_user WHERE email='tc26.fixture@wms-hoanam.test'),"
+        "'roles',(SELECT count(*) FROM role WHERE role_code='TC26_FIXTURE'),"
+        "'skus',(SELECT count(*) FROM sku WHERE sku_code IN ('TC26-PRODUCT','TC26-COMPONENT')),"
+        "'suppliers',(SELECT count(*) FROM inbound_suppliers WHERE name='TC26 TEST SUPPLIER'))"))
+
+
+def main(checkout, inspect=False, retry_empty=False):
     os.umask(0o077)
     policy = release.app_release.configuration()
     require(policy['sha'] == release.SOURCE and policy['environment'] == 'testing'
             and policy['database'] == green.DATABASE and policy['protected'] and not policy['allow_seed']
             and not policy['p11'] and not policy['p19'], 'DEV policy guard failed')
     if inspect:
-        footprint = json.loads(sql("SELECT json_build_object('actors',(SELECT count(*) FROM app_user WHERE email='tc26.fixture@wms-hoanam.test'),"
-            "'roles',(SELECT count(*) FROM role WHERE role_code='TC26_FIXTURE'),"
-            "'skus',(SELECT count(*) FROM sku WHERE sku_code IN ('TC26-PRODUCT','TC26-COMPONENT')),"
-            "'suppliers',(SELECT count(*) FROM inbound_suppliers WHERE name='TC26 TEST SUPPLIER'))"))
+        footprint = fixture_footprint()
         columns = json.loads(sql("SELECT json_agg(json_build_object('table',table_name,'column',column_name,'nullable',is_nullable)) "
             "FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('role_permission','user_role','sku','inbound_suppliers')"))
         green.emit('tc26_read_only_diagnostic', {'state_exists': STATE.exists(), 'proof_exists': PROOF.exists(),
             'footprint': footprint, 'compatibility_columns': columns, 'policy': policy})
         return
+    if retry_empty:
+        require(not STATE.exists() and PROOF.exists() and not any(fixture_footprint().values()),
+                'Retry requires absent private state AND zero TEST footprint; no command replay')
+        previous = json.loads(PROOF.read_text())
+        require(previous.get('historical_business_rows_unchanged') is True,
+                'Previous failed provisioning does not prove unchanged history')
+        # Preserve the failed attempt; never overwrite its proof or reset a command journal.
+        import datetime
+        archived = PROOF.with_name('tc26-historical-proof-empty-' + datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '.json')
+        require(not archived.exists(), 'Proof archive collision')
+        PROOF.rename(archived)
+        green.emit('tc26_empty_provision_retry', {'prior_proof': str(archived), 'zero_fixture_footprint': True,
+                                                'no_prior_login_or_owner_journal': True})
     require(not STATE.exists() and not PROOF.exists(), 'Existing fixture/private journal; no automatic reprovision/login/replay')
     keys = historical_keys()
     before = fingerprints(keys)
@@ -117,5 +134,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--checkout', required=True)
     parser.add_argument('--inspect', action='store_true')
+    parser.add_argument('--retry-empty', action='store_true')
     args = parser.parse_args()
-    main(Path(args.checkout), args.inspect)
+    main(Path(args.checkout), args.inspect, args.retry_empty)

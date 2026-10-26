@@ -113,10 +113,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$CONFIRMATION" in FUTURE-INSPECT|FUTURE-DEPLOY|FUTURE-FIXTURE|FUTURE-DIAG) ;; *) exit 1 ;; esac
+          case "$CONFIRMATION" in FUTURE-INSPECT|FUTURE-DEPLOY|FUTURE-FIXTURE|FUTURE-DIAG|FUTURE-RETRY-EMPTY) ;; *) exit 1 ;; esac
           test "$DEPLOY_UAT" = false && test "$RUN_SEED" = false
           test "$OTHER_PREFLIGHT" = false && test "$OTHER_AUTH" = false && test "$OTHER_DEPLOY" = false && test "$OTHER_SMOKE" = false
           test "$HOST" = 42.96.16.197
+      - name: Restore ownership of generated runner bytecode only
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.UAT_SSH_HOST }}
+          username: ${{ secrets.UAT_SSH_USER }}
+          password: ${{ secrets.UAT_SSH_PASSWORD }}
+          script: |
+            set -eu
+            python3 - <<'PY'
+            from pathlib import Path
+            import os
+            base = Path('/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE')
+            target = base / 'devtest-future-source'
+            if target.exists():
+                assert not target.is_symlink() and target.resolve().parent == base.resolve()
+                owner = base.stat()
+                assert owner.st_uid != 0
+                for cache in target.rglob('__pycache__'):
+                    assert not cache.is_symlink() and target.resolve() in cache.resolve().parents
+                    for row in cache.rglob('*'):
+                        assert not row.is_symlink() and cache.resolve() in row.resolve().parents
+                        os.chown(row, owner.st_uid, owner.st_gid)
+                    os.chown(cache, owner.st_uid, owner.st_gid)
+            print('RUNNER_BYTECODE_OWNERSHIP_ONLY_NO_RUNTIME_OR_DATA_CHANGE')
+            PY
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
@@ -143,6 +168,7 @@ jobs:
           command_timeout: 20m
           script: |
             set -eu
+            export PYTHONDONTWRITEBYTECODE=1
             case "$OPS_SHA" in *[!0-9a-f]*|'') exit 1 ;; esac
             test "${#OPS_SHA}" = 40
             source=/opt/actions-runner/hoa-nam-vps42/_work/WMS_Warehouse_Hoa_Nam_BE/WMS_Warehouse_Hoa_Nam_BE/devtest-future-source
@@ -154,6 +180,7 @@ jobs:
               FUTURE-DEPLOY) python3 "$source/tools/deploy/deploy-green-future-evidence.py" --source "$source/future-package" --ops-sha "$OPS_SHA" ;;
               FUTURE-FIXTURE) python3 "$source/tools/deploy/run-tc26-fixtures.py" --checkout "$source" ;;
               FUTURE-DIAG) python3 "$source/tools/deploy/run-tc26-fixtures.py" --checkout "$source" --inspect ;;
+              FUTURE-RETRY-EMPTY) python3 "$source/tools/deploy/run-tc26-fixtures.py" --checkout "$source" --retry-empty ;;
               *) exit 1 ;;
             esac
   devtest-tc11-tc12-fixture:
