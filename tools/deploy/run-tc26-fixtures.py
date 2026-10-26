@@ -98,6 +98,10 @@ def main(checkout, inspect=False, retry_empty=False):
                 "FROM notification_recipients r JOIN notifications n ON n.id=r.notification_id JOIN app_user u ON u.user_id=r.user_id "
                 "WHERE n.actor_id='" + actor + "' AND u.email='admin@gmail.com' ORDER BY n.created_at,n.id) q"))
             stock_valid = len(stock) == 2 and all(row['variance'] == 0 and row['movements'] > 0 for row in stock)
+            catalog = json.loads(sql("SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM (SELECT sku_id,sku_code,sku_name,sku_type,status,unit,"
+                "brand_id,category_id,model_id,published_to_app FROM sku WHERE sku_code IN ('TC26-PRODUCT','TC26-COMPONENT') ORDER BY sku_code) q"))
+            suppliers = json.loads(sql("SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM (SELECT id,warehouse_id,name,status,version "
+                "FROM inbound_suppliers WHERE name='TC26 TEST SUPPLIER') q"))
             totals = {row['sku_code']: row['balance_qty'] for row in stock}
             in_stock = {row['sku_code']: row['item_count'] for row in items if row['item_status'] == 'IN_STOCK'}
             projection_valid = totals == in_stock and any(row['sku_code'] == 'TC26-PRODUCT' and row['item_status'] == 'IN_WARRANTY'
@@ -118,6 +122,7 @@ def main(checkout, inspect=False, retry_empty=False):
                 'approved_admin_recipient_ids': admin_recipients, 'test_stock_ledger_balance': stock,
                 'test_item_projection': items, 'new_test_ledger_balance_matches': stock_valid,
                 'new_test_inventory_projection_matches': projection_valid,
+                'test_catalog': catalog, 'test_suppliers': suppliers, 'catalog_provenance': 'CURRENT_TEST_CATALOG_READ_NOT_HISTORICAL_ENRICHMENT',
                 'evidence': evidence, 'new_login': False, 'writes_replayed': False, 'private_drafts_not_transferable': True}
             public = green.ROOT / 'backups/tc26-existing-redacted-live.json'
             public.write_text(json.dumps(report, ensure_ascii=False, indent=2))
