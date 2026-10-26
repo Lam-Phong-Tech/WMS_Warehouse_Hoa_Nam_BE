@@ -92,12 +92,16 @@ def main(checkout, inspect=False, retry_empty=False):
                 "coalesce(l.stock_status,b.stock_status) AS stock_status,l.movements,l.ledger_qty,b.balance_qty,"
                 "coalesce(b.balance_qty,0)-coalesce(l.ledger_qty,0) AS variance FROM l FULL JOIN b USING (warehouse_id,product_id,stock_status) "
                 "JOIN sku s ON s.sku_id=coalesce(l.product_id,b.product_id) ORDER BY s.sku_code) q"))
-            items = json.loads(sql("SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM (SELECT s.sku_code,i.status,count(*) AS item_count "
+            items = json.loads(sql("SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM (SELECT s.sku_code,i.item_status,count(*) AS item_count "
                 "FROM item_instances i JOIN sku s ON s.sku_id=i.sku_id WHERE s.sku_code IN ('TC26-PRODUCT','TC26-COMPONENT') GROUP BY 1,2 ORDER BY 1,2) q"))
             admin_recipients = json.loads(sql("SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM (SELECT r.id AS recipient_id,n.id AS notification_id,n.event_key,n.subject_id "
                 "FROM notification_recipients r JOIN notifications n ON n.id=r.notification_id JOIN app_user u ON u.user_id=r.user_id "
                 "WHERE n.actor_id='" + actor + "' AND u.email='admin@gmail.com' ORDER BY n.created_at,n.id) q"))
             stock_valid = len(stock) == 2 and all(row['variance'] == 0 and row['movements'] > 0 for row in stock)
+            totals = {row['sku_code']: row['balance_qty'] for row in stock}
+            in_stock = {row['sku_code']: row['item_count'] for row in items if row['item_status'] == 'IN_STOCK'}
+            projection_valid = totals == in_stock and any(row['sku_code'] == 'TC26-PRODUCT' and row['item_status'] == 'IN_WARRANTY'
+                and row['item_count'] == 1 for row in items)
             def data(name):
                 return operations.get(name, {}).get('data', {})
             fixture = {
@@ -113,6 +117,7 @@ def main(checkout, inspect=False, retry_empty=False):
                 'operations': {k: v.get('phase') for k, v in operations.items()}, 'notifications_persisted': notifications,
                 'approved_admin_recipient_ids': admin_recipients, 'test_stock_ledger_balance': stock,
                 'test_item_projection': items, 'new_test_ledger_balance_matches': stock_valid,
+                'new_test_inventory_projection_matches': projection_valid,
                 'evidence': evidence, 'new_login': False, 'writes_replayed': False, 'private_drafts_not_transferable': True}
             public = green.ROOT / 'backups/tc26-existing-redacted-live.json'
             public.write_text(json.dumps(report, ensure_ascii=False, indent=2))
@@ -126,6 +131,7 @@ def main(checkout, inspect=False, retry_empty=False):
             for index, part in enumerate(parts):
                 green.emit('tc26_redacted_evidence_frame', {'index': index, 'total': len(parts), 'sha256': checksum, 'text': part})
             require(stock_valid, 'New TEST ledger/balance comparison failed; no repair authorized')
+            require(projection_valid, 'New TEST item-status projection comparison failed; no repair authorized')
         return
     if retry_empty:
         require(not STATE.exists() and PROOF.exists() and not any(fixture_footprint().values()),
