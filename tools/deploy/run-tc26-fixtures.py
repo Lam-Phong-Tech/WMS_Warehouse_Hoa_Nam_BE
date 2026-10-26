@@ -70,6 +70,37 @@ def main(checkout, inspect=False, retry_empty=False):
             "FROM information_schema.columns WHERE table_schema='public' AND table_name IN ('role_permission','user_role','sku','inbound_suppliers')"))
         green.emit('tc26_read_only_diagnostic', {'state_exists': STATE.exists(), 'proof_exists': PROOF.exists(),
             'footprint': footprint, 'compatibility_columns': columns, 'policy': policy})
+        if STATE.exists():
+            state = json.loads(STATE.read_text())
+            actor = state.get('actor_id', '')
+            require(len(actor) == 36 and all(c in '0123456789abcdef-' for c in actor), 'Invalid TEST actor identity')
+            operations = state.get('operations', {})
+            # Only minimized, previously captured TEST HTTP is exported. Never auth responses/private secrets.
+            evidence = [e for e in state.get('evidence', []) if not e['path'].startswith('/auth/')]
+            notifications = json.loads(sql("SELECT coalesce(json_agg(row_to_json(q)),'[]'::json) FROM ("
+                "SELECT n.id AS notification_id,n.subject_id,n.event_key,s.job_title,s.capture_policy,s.captured_at,"
+                "(SELECT count(*) FROM notification_recipients r WHERE r.notification_id=n.id) AS recipient_count,"
+                "(SELECT count(*) FROM notification_recipients r WHERE r.notification_id=n.id AND r.user_id=n.actor_id) AS self_recipient_count "
+                "FROM notifications n LEFT JOIN notification_source_snapshots s ON s.notification_id=n.id "
+                "WHERE n.actor_id='" + actor + "' ORDER BY n.created_at,n.id) q"))
+            def data(name):
+                return operations.get(name, {}).get('data', {})
+            fixture = {
+                'tc04': {'document_id': data('tc04-source-create').get('document_id'), 'source': 'OUTBOUND'},
+                'tc07': {'draft_id': state.get('keys', {}).get('tc07-draft'), 'raw_code': 'HN1|SKU=TC26-PRODUCT|ITEM=TC26-RECEIPTABLE',
+                         'supplier_id': state.get('supplier_id'), 'quantity_limit': 1},
+                'tc11': {'source_document_id': data('tc11-source-create').get('document_id'),
+                         'source_version': data('tc11-source-create').get('version'), 'raw_code': 'HN1|SKU=TC26-PRODUCT|ITEM=TC26-OUTBOUND'},
+                'tc12': {'case_id': data('tc12-create').get('warranty_case_id'), 'component_code': 'TC26-COMPONENT',
+                         'status': data('tc12-checking').get('receipt', {}).get('status')},
+            }
+            report = {'status': 'EXISTING_TEST_OWNER_EVIDENCE_READ_ONLY', 'source_sha': policy['sha'], 'fixture': fixture,
+                'operations': {k: v.get('phase') for k, v in operations.items()}, 'notifications_persisted': notifications,
+                'evidence': evidence, 'new_login': False, 'writes_replayed': False, 'private_drafts_not_transferable': True}
+            public = green.ROOT / 'backups/tc26-existing-redacted-live.json'
+            public.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+            os.chmod(public, 0o600)
+            green.emit('tc26_existing_owner_evidence', report)
         return
     if retry_empty:
         require(not STATE.exists() and PROOF.exists() and not any(fixture_footprint().values()),
