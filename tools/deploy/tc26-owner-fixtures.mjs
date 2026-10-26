@@ -122,19 +122,13 @@ const document=await call('tc04-detail','GET','/mini-app/outbound-documents/'+ti
 for(const k of ['created','checked','sent'])if(document.p12.event_evidence.milestones[k].availability!=='RECORDED')throw Error('Milestone '+k+' missing');
 const caseDetail=await call('tc12-detail','GET','/mini-app/warranty-cases/'+warranty.warranty_case_id+'?warehouse_id='+state.warehouse_id);
 if(caseDetail.product_source.availability!=='RECORDED')throw Error('Intake snapshot missing');
-let notification;
-for(let attempt=0;attempt<12&&!notification;attempt++){
-  const notifications=await call('tc02-list-'+attempt,'GET','/notifications?cursor=start&per_page=100');
-  notification=notifications.find(n=>n.subject_id===receipt.document_id&&n.source_snapshot?.actor_job_title_snapshot==='Nhân viên kho TEST');
-  if(!notification)await new Promise(r=>setTimeout(r,2500));
-}
-if(!notification)throw Error('Queued TEST notification snapshot not available yet; read-only recheck required');
-await call('tc02-detail','GET','/notifications/'+notification.id);
-state.fixture={tc02:{recipient_id:notification.id},tc04:{document_id:timelineSource.document_id,source:'OUTBOUND',receipt_source:receipt.document_id},
+// The domain audience deliberately excludes its actor. A recipient-only GET
+// belongs to the separately authorized viewer, never a self-recipient backfill.
+state.fixture={tc02:{subject_id:receipt.document_id,status:'RECIPIENT_RETEST_PENDING',audience:'CREATOR_EXCLUDED_BY_DOMAIN_OWNER'},tc04:{document_id:timelineSource.document_id,source:'OUTBOUND',receipt_source:receipt.document_id},
   tc07:{draft_id:tc07Draft,scan_session_id:tc07Scan,raw_code:code('RECEIPTABLE'),supplier_id:state.supplier_id,quantity_limit:1},
   tc11:{source_document_id:outbound.document_id,source_version:outbound.version,draft_id:draft,scan_session_id:scan,
     draft_version:save.document.version,raw_code:code('OUTBOUND'),item_id:item.item_id},
   tc12:{case_id:warranty.warranty_case_id,status:checked.receipt.status,component_item_id:componentRead.item_id}};
 state.smoke_completed=true;persist();
-console.log(JSON.stringify({status:'TC26_OWNER_FIXTURES_PASS',source_sha:health.build.sha,fixture:state.fixture,
+console.log(JSON.stringify({status:'TC26_OWNER_FIXTURES_CREATED_RECIPIENT_RETEST_PENDING',source_sha:health.build.sha,fixture:state.fixture,
   original_family_drafts_are_not_transferable:true,evidence:redact(evidence.filter(e=>!e.path.startsWith('/auth/')))}));

@@ -36,6 +36,12 @@ class FutureReleaseTest(unittest.TestCase):
         self.assertNotIn('fwrite(STDERR', code)
         self.assertIn("file_put_contents('php://stderr'", code)
 
+    def test_creator_is_not_fabricated_as_notification_recipient(self):
+        code = Path(__file__).with_name('tc26-owner-fixtures.mjs').read_text(encoding='utf-8')
+        self.assertIn('RECIPIENT_RETEST_PENDING', code)
+        self.assertNotIn('Queued TEST notification snapshot not available yet', code)
+        self.assertNotIn("call('tc02-detail'", code)
+
 
 if __name__ == '__main__':
     unittest.main()

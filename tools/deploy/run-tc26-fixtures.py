@@ -169,7 +169,7 @@ def main(checkout, inspect=False, retry_empty=False):
                 'policy': 'CHECK_ONLY_NO_RELOGIN_REPAIR_OR_RESTORE', 'error': child.stderr[-600:] if 'Error:' in child.stderr else 'Read private coordinator state'})
             raise RuntimeError('TC26 owner smoke failed; retain journal and investigate')
         lines = [json.loads(line) for line in child.stdout.splitlines() if line.startswith('{')]
-        require(lines and lines[-1]['status'] == 'TC26_OWNER_FIXTURES_PASS', 'Fixture result incomplete')
+        require(lines and lines[-1]['status'] == 'TC26_OWNER_FIXTURES_CREATED_RECIPIENT_RETEST_PENDING', 'Fixture result incomplete')
         public = lines[-1]
         target = green.ROOT / 'backups/tc26-redacted-live.json'
         target.write_text(json.dumps(public, ensure_ascii=False, indent=2))
