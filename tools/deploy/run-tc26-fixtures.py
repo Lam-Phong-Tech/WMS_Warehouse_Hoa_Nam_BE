@@ -2,6 +2,7 @@
 """Run approved TEST owner commands without exposing credentials or editing old rows."""
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -100,7 +101,14 @@ def main(checkout, inspect=False, retry_empty=False):
             public = green.ROOT / 'backups/tc26-existing-redacted-live.json'
             public.write_text(json.dumps(report, ensure_ascii=False, indent=2))
             os.chmod(public, 0o600)
-            green.emit('tc26_existing_owner_evidence', report)
+            # SSH log scanners can silently drop a line above 64 KiB. Bound each
+            # redacted evidence frame and verify its full hash during collection.
+            payload = json.dumps(report, ensure_ascii=True)
+            parts = [payload[i:i + 8000] for i in range(0, len(payload), 8000)]
+            checksum = hashlib.sha256(payload.encode('utf-8')).hexdigest()
+            green.emit('tc26_existing_owner_metadata', {k: v for k, v in report.items() if k != 'evidence'})
+            for index, part in enumerate(parts):
+                green.emit('tc26_redacted_evidence_frame', {'index': index, 'total': len(parts), 'sha256': checksum, 'text': part})
         return
     if retry_empty:
         require(not STATE.exists() and PROOF.exists() and not any(fixture_footprint().values()),
