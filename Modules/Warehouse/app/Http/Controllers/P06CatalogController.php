@@ -22,6 +22,8 @@ final class P06CatalogController extends Controller
 {
     public const CONTRACT = 'mini-app-p06-v1';
 
+    public const CARD_METADATA_REVISION = 'p06-card-master-r1';
+
     public function __construct(private readonly P06CatalogReadModel $readModel) {}
 
     public function context(Request $request): JsonResponse
@@ -118,11 +120,13 @@ final class P06CatalogController extends Controller
             $total = (clone $query)->count();
             $page = (int) ($input['page'] ?? 1);
             $perPage = (int) ($input['per_page'] ?? 20);
-            $columns = ['s.sku_id', 's.sku_code', 's.sku_name', 's.sku_type', 's.status as sku_status', 's.unit', 's.version as sku_version', 's.updated_at as sku_updated_at'];
+            $columns = $this->cardColumns();
             if ($items) {
                 $columns = [...$columns, 'i.item_id', 'i.item_code', 'i.serial_number', 'i.item_status', 'i.item_condition', 'i.version as item_version', 'i.updated_at as item_updated_at'];
             }
-            $rows = $query->orderBy('s.sku_name')->orderBy('s.sku_id')
+            // Join only one-to-one master PKs after counts; never fan out the
+            // identity/count query or omit a parent with absent master data.
+            $rows = $this->withCardMasters($query)->orderBy('s.sku_name')->orderBy('s.sku_id')
                 ->when($items, fn (Builder $q): Builder => $q->orderBy('i.item_id'))
                 ->forPage($page, $perPage)->get($columns);
             $canStock = ! $items && $actor->hasPermission('inventory.view');
@@ -264,14 +268,14 @@ final class P06CatalogController extends Controller
 
     private function requireCard(array $scope, string $id, bool $item): object
     {
-        $columns = ['s.sku_id', 's.sku_code', 's.sku_name', 's.sku_type', 's.status as sku_status', 's.unit', 's.version as sku_version', 's.updated_at as sku_updated_at'];
+        $columns = $this->cardColumns();
         if ($item) {
             $this->permission($scope['actor'], 'item_instance.view');
-            $row = $this->itemQuery($scope)->where('i.item_id', $id)->first([
+            $row = $this->withCardMasters($this->itemQuery($scope))->where('i.item_id', $id)->first([
                 ...$columns, 'i.item_id', 'i.item_code', 'i.serial_number', 'i.item_status', 'i.item_condition', 'i.version as item_version', 'i.updated_at as item_updated_at',
             ]);
         } else {
-            $row = DB::table('sku as s')->where('s.sku_id', $id)->first($columns);
+            $row = $this->withCardMasters(DB::table('sku as s'))->where('s.sku_id', $id)->first($columns);
         }
         if ($row === null) {
             ApiError::abort(404, 'P06_RESOURCE_NOT_FOUND', 'Không tìm thấy đối tượng trong phạm vi đọc hiện tại.');
@@ -280,11 +284,54 @@ final class P06CatalogController extends Controller
         return $row;
     }
 
+    private function withCardMasters(Builder $query): Builder
+    {
+        return $query->leftJoin('product_categories as p06_category', 'p06_category.id', '=', 's.category_id')
+            ->leftJoin('brands as p06_brand', 'p06_brand.id', '=', 's.brand_id');
+    }
+
+    private function cardColumns(): array
+    {
+        return ['s.sku_id', 's.sku_code', 's.sku_name', 's.sku_type', 's.status as sku_status', 's.unit',
+            's.version as sku_version', 's.updated_at as sku_updated_at',
+            's.category_id', 'p06_category.id as category_source_id', 'p06_category.category_name', 'p06_category.status as category_source_status',
+            's.brand_id', 'p06_brand.id as brand_source_id', 'p06_brand.brand_name', 'p06_brand.status as brand_source_status'];
+    }
+
+    private function masterLabel(mixed $label): ?string
+    {
+        return is_string($label) && trim($label) !== '' ? $label : null;
+    }
+
+    private function masterLabelStatus(object $row, string $master): string
+    {
+        if ($row->{$master.'_id'} === null) {
+            return 'NOT_ASSIGNED';
+        }
+        if ($row->{$master.'_source_id'} === null) {
+            return 'REFERENCE_NOT_FOUND';
+        }
+        if ($this->masterLabel($row->{$master.'_name'}) === null) {
+            return 'LABEL_UNAVAILABLE';
+        }
+
+        return match ($row->{$master.'_source_status'}) {
+            'ACTIVE' => 'CURRENT_ACTIVE_MASTER',
+            'INACTIVE' => 'CURRENT_INACTIVE_MASTER',
+            default => 'CURRENT_MASTER_STATUS_UNKNOWN',
+        };
+    }
+
     private function card(object $row, bool $item): array
     {
         return [
             'card_type' => $item ? 'ITEM' : 'SKU', 'sku_id' => $row->sku_id, 'sku_code' => $row->sku_code,
             'sku_name' => $row->sku_name, 'sku_type' => $row->sku_type, 'sku_status' => $row->sku_status, 'unit' => $row->unit,
+            'category_name' => $this->masterLabel($row->category_name),
+            'brand_name' => $this->masterLabel($row->brand_name),
+            'description' => null,
+            'metadata_status' => ['category_name' => $this->masterLabelStatus($row, 'category'),
+                'brand_name' => $this->masterLabelStatus($row, 'brand'), 'description' => 'SOURCE_NOT_DEFINED'],
             'item_id' => $item ? $row->item_id : null, 'item_code' => $item ? $row->item_code : null,
             'serial_number' => $item ? $row->serial_number : null, 'item_status' => $item ? $row->item_status : null,
             'item_condition' => $item ? $row->item_condition : null,
@@ -401,7 +448,8 @@ final class P06CatalogController extends Controller
 
     private function respond(mixed $data, array $snapshot, array $meta = []): JsonResponse
     {
-        return response()->json(['success' => true, 'data' => $data, 'meta' => ['contract' => self::CONTRACT, 'snapshot' => $snapshot] + $meta])
+        return response()->json(['success' => true, 'data' => $data, 'meta' => ['contract' => self::CONTRACT,
+            'card_metadata_revision' => self::CARD_METADATA_REVISION, 'snapshot' => $snapshot] + $meta])
             ->header('Cache-Control', 'private, no-store');
     }
 }

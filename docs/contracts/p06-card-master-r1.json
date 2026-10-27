@@ -1,0 +1,49 @@
+{
+  "contract": "mini-app-p06-v1",
+  "revision": "p06-card-master-r1",
+  "status": "SOURCE_IMPLEMENTED_PENDING_RELEASE_REVIEW_AND_LIVE_ACCEPTANCE",
+  "scope": "DEV_TEST_CANDIDATE_ONLY",
+  "metadata_marker": "meta.card_metadata_revision",
+  "metadata_marker_applies_to": "All nine existing P06 GET responses; fields below only appear on cards",
+  "locations": {"sku_list": "data[]", "item_list": "data[]", "sku_detail": "data.card", "item_detail": "data.card"},
+  "additive_card_fields": {
+    "category_name": {"type": ["string", "null"], "source": "sku.category_id -> product_categories.id -> product_categories.category_name"},
+    "brand_name": {"type": ["string", "null"], "source": "sku.brand_id -> brands.id -> brands.brand_name"},
+    "description": {"type": ["string", "null"], "value": null, "source": null, "reason": "SOURCE_NOT_DEFINED; no canonical SKU description column or owner source verified"},
+    "metadata_status": {
+      "type": "object",
+      "required": ["category_name", "brand_name", "description"],
+      "label_status_values": ["NOT_ASSIGNED", "REFERENCE_NOT_FOUND", "LABEL_UNAVAILABLE", "CURRENT_ACTIVE_MASTER", "CURRENT_INACTIVE_MASTER", "CURRENT_MASTER_STATUS_UNKNOWN"],
+      "description_status": "SOURCE_NOT_DEFINED"
+    }
+  },
+  "null_reasons": {
+    "NOT_ASSIGNED": "The exact SKU foreign key is null",
+    "REFERENCE_NOT_FOUND": "The SKU foreign key is present but its LEFT JOIN master row is absent; no alternate master lookup",
+    "LABEL_UNAVAILABLE": "Referenced master exists but its label is null, blank or not a string",
+    "SOURCE_NOT_DEFINED": "Description deliberately null; never copy sku_name, Web HTML, specification array or another field"
+  },
+  "label_semantics": "CURRENT_FK_MASTER_LABEL_NOT_HISTORICAL_EVENT_SNAPSHOT",
+  "inactive_master_policy": "Keep the existing referenced label and disclose CURRENT_INACTIVE_MASTER. No eligibility grant, FK repair or master activation. SKU status filter remains independent.",
+  "unknown_master_status_policy": "Keep a valid label with CURRENT_MASTER_STATUS_UNKNOWN, never assume ACTIVE",
+  "shape_diff_from_proposal": "Same three requested field names and locations; additionally metadata_status provides per-card reasons and meta.card_metadata_revision identifies the additive revision",
+  "not_added": ["brand_id", "category_id", "is_serial_tracked", "new cursor", "location model", "new mutation capability"],
+  "identity": "Exact SKU UUID. ITEM follows item_instances.sku_id. Keyword search is not identity and does not merge case-sensitive SKU variants.",
+  "queries": "No changes to supported filters, mandatory warehouse_id, paging maximum 100, tab_totals, sort or count_unit. Two LEFT JOINs only in the row projection after original count queries. Master primary keys prevent fan-out; no per-row master queries.",
+  "cache_and_version": {
+    "cache_control": "private, no-store",
+    "result_cache": "No internal P06 result cache; each request reads current master rows inside its database snapshot",
+    "read_after_change": "Next GET observes committed FK/label changes; no global flush required",
+    "card_version": "Existing SKU or ITEM version, NOT a label content hash. Master-only label change need not increment it.",
+    "stock_version": "Existing quantity/balance fingerprint, unaffected by master label changes",
+    "etag": "No new ETag protocol or conditional GET shortcut; do not cache card metadata by SKU version alone",
+    "snapshot": "Single response only; no cross-request snapshot guarantee"
+  },
+  "authorization": "Unchanged auth:api/stable ACTIVE actor/confirmed READY session warehouse, sku.view, item_instance.view for ITEM/identity filters, inventory.view for stock, inventory.trace and/or warranty source rights for timeline. Metadata does not disclose actor or customer PII.",
+  "get_safety": "No body, no writes, no seed, no cache flush, no flag or grant change",
+  "routes_added": 0,
+  "migration_required": false,
+  "seed_required": false,
+  "production_activation": false,
+  "gaps_preserved": {"description": "SOURCE_NOT_DEFINED", "current_location": "NOT_ASSERTED", "stock_location_breakdown": "NOT_TRACKED", "timeline_date_type_filter": "UNSUPPORTED; rejected rather than silently ignored", "label_print": "Existing owner target required"}
+}

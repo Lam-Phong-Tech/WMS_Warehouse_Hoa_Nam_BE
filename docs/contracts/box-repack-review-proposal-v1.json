@@ -1,0 +1,26 @@
+{
+  "contract": "box-repack-review-proposal-v1",
+  "status": "PROPOSAL_NOT_APPROVED_NOT_REGISTERED_NOT_EXECUTABLE",
+  "target": {"box_code": "BOX-SEED-0005", "candidate_code": "DCA-BITSET", "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8"},
+  "current_blocker": "BLOCKED_OWNER_REPACK_FLOW_REQUIRED",
+  "missing_inputs": ["Fresh exact container/SKU UUIDs and versions", "Confirmed physical disposition/destination of old 8 cai", "Actual owner-verified DCA-BITSET packed quantity in bo", "Fresh serial_tracking=false and allocation/reservation evidence", "Atomic owner protocol, durable receipt and release approval"],
+  "existing_guard_patch": "PATCH /api/v1/containers/{id} returns 409 CONTAINER_REPACK_REQUIRED before writes when primary_sku_id actually changes and any active content exists. Clearing primary SKU is also a change. Same-primary metadata and empty-container updates retain existing semantics.",
+  "proposed_owner": {
+    "route": "POST /api/v1/containers/{id}/repack-operations",
+    "receipt_read": "GET /api/v1/containers/{id}/repack-operations/{original-key}?warehouse_id=UUID",
+    "route_status": "DESIGN_ONLY_DO_NOT_CALL",
+    "permission": "container.manage plus existing warehouse/org/actor/session ACL; live-revalidated, never role-name bypass",
+    "identity": ["Strong If-Match container version", "UUID Idempotency-Key", "Original X-Request-ID", "actor_id", "auth_session_id", "warehouse_id", "parent container_id", "canonical request fingerprint"],
+    "body_outline": ["warehouse_id", "expected active content IDs/versions/hash", "old content disposition with unchanged SKU/unit/quantity and audited destination", "new SKU UUID/version/unit and physically verified quantity", "source allocation references and versions", "reason and owner packing evidence"],
+    "admission": "Not a generic metadata update. Resolve open documents, putaway tasks, holds, allocations and original-family UNKNOWN before admitting a new repack. Never delete their journal or change identity.",
+    "atomicity": "One DB transaction; lock container, receipt key, old mappings, donor mappings/loose-allocation source, relevant inventory dimensions and source documents in deterministic order. Recheck all versions/ACL after locks. Coordinate with existing issue/putaway writers using the same locks.",
+    "conservation": "Old mappings retain immutable trace/reason/actor/time; deactivate rather than relabel. Account for old units at an explicit verified destination, not disappearance. Allocate the new quantity from proven unallocated available stock or transfer an existing allocation exactly once. No SKU/unit conversion, stock ledger, receipt/issue posting, status override or invented putaway.",
+    "stock_invariant": "All affected SKU warehouse balance totals, available/reserved/unavailable and ledger fingerprints unchanged. Active quantity allocations plus loose source never exceed permitted existing stock; SKU-level available is not BOX availability.",
+    "commit": "Insert new content and append-only operation/audit before commit; adjust parent version once; preserve physical/NFC identity. Placement/status can only change by their actual canonical owner. Receipt has before/after mapping/hash/version, quantity/unit provenance, stock_effect=NONE and SUCCEEDED.",
+    "recovery": "Persist original key/body/version before HTTP. Timeout is UNKNOWN/CHECK_ONLY. GET reconciles same actor/session/warehouse/parent/fingerprint. No automatic replay, key change, version rebasing, compensating document or new-login takeover.",
+    "cache": "After-commit targeted existing stock/container read namespace invalidation, never global flush",
+    "schema_review": "Durable operation receipt and allocation/disposition evidence may require reviewed additive schema; no migration is supplied or authorized here",
+    "acceptance": ["Injected failure at every write leaves no partial changes", "Same key/body replay is receipt-only, mismatch 409", "Stale If-Match 412", "Wrong actor/session/warehouse denied", "Race with component issue/putaway/other repack", "Old history and NFC unchanged", "All SKU stock and allocation conservation", "P18 fresh GET and TC26 read-only resolver agree", "UNKNOWN read-only recovery" ]
+  },
+  "execution": {"live_assignment": false, "new_quantity": null, "new_quantity_reason": "Physical packing has not been confirmed; 1 bo is only an E2E proposal", "record_post_seed_repair_migration": false, "production": false}
+}

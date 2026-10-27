@@ -12,6 +12,7 @@ use Illuminate\Testing\TestResponse;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Http\Controllers\P06CatalogController;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
 use Modules\Warehouse\Support\PvRelations;
@@ -28,6 +29,145 @@ class P06CatalogContractTest extends TestCase
     private const BASE = '/api/v1/mini-app/catalog';
 
     private const RIGHTS = ['sku.view', 'item_instance.view', 'inventory.view', 'inventory.trace', 'warranty.view', 'warranty.manage', 'label.print'];
+
+    public function test_master_labels_share_the_exact_sku_fk_across_four_card_surfaces_without_changing_counts(): void
+    {
+        [$actor, $token, $warehouse] = $this->actorSession();
+        $brand = $this->master('brands', 'brand', 'DongCheng & TEST');
+        $category = $this->master('product_categories', 'category', 'Máy khoan & vặn vít '.str_repeat('Đ', 90));
+        $sku = $this->skuFixture('P06-MASTER-DCJZ2090');
+        DB::table('sku')->where('sku_id', $sku->sku_id)->update(['brand_id' => $brand, 'category_id' => $category]);
+        $item = $this->seedItemInStock($sku->sku_id);
+        $this->movement($actor, $warehouse, $sku, 1, $item);
+        $before = $this->domainCounts();
+        foreach (['skus' => 'data.0', 'skus/'.$sku->sku_id => 'data.card', 'items' => 'data.0', 'items/'.$item => 'data.card'] as $path => $prefix) {
+            $query = str_contains($path, '/') ? [] : ['sku_id' => $sku->sku_id];
+            $response = $this->catalogGet($this->url($path, $warehouse, $query), $this->headers($token))->assertOk()
+                ->assertJsonPath('meta.contract', 'mini-app-p06-v1')->assertJsonPath('meta.card_metadata_revision', 'p06-card-master-r1')
+                ->assertJsonPath($prefix.'.sku_id', $sku->sku_id)->assertJsonPath($prefix.'.brand_name', 'DongCheng & TEST')
+                ->assertJsonPath($prefix.'.category_name', 'Máy khoan & vặn vít '.str_repeat('Đ', 90))
+                ->assertJsonPath($prefix.'.description', null)
+                ->assertJsonPath($prefix.'.metadata_status.category_name', 'CURRENT_ACTIVE_MASTER')
+                ->assertJsonPath($prefix.'.metadata_status.description', 'SOURCE_NOT_DEFINED');
+            if (! str_contains($path, '/')) {
+                $response->assertJsonPath('meta.total', 1)->assertJsonPath('meta.tab_totals.ALL', 1);
+            }
+        }
+        $this->assertSame($before, $this->domainCounts());
+    }
+
+    public function test_missing_and_inactive_master_labels_preserve_parent_and_do_not_become_eligibility(): void
+    {
+        [, $token, $warehouse] = $this->actorSession(['sku.view']);
+        $sku = $this->skuFixture('P06-MASTER-MISSING');
+        $this->catalogGet($this->url('skus/'.$sku->sku_id, $warehouse), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.card.category_name', null)->assertJsonPath('data.card.brand_name', null)
+            ->assertJsonPath('data.card.metadata_status.category_name', 'NOT_ASSIGNED')
+            ->assertJsonPath('data.stock_availability', 'FORBIDDEN');
+        $brand = $this->master('brands', 'brand', 'Nhãn cũ vẫn có nguồn', 'INACTIVE');
+        $category = $this->master('product_categories', 'category', '   ');
+        DB::table('sku')->where('sku_id', $sku->sku_id)->update(['brand_id' => $brand, 'category_id' => $category,
+            'specification' => json_encode(['description' => 'NOT A SKU DESCRIPTION'], JSON_THROW_ON_ERROR)]);
+        $this->catalogGet($this->url('skus/'.$sku->sku_id, $warehouse), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.card.brand_name', 'Nhãn cũ vẫn có nguồn')
+            ->assertJsonPath('data.card.metadata_status.brand_name', 'CURRENT_INACTIVE_MASTER')
+            ->assertJsonPath('data.card.category_name', null)->assertJsonPath('data.card.metadata_status.category_name', 'LABEL_UNAVAILABLE')
+            ->assertJsonPath('data.card.description', null)->assertJsonPath('data.stock', null)
+            ->assertJsonPath('data.capabilities.warranty.action_exposed', false);
+        $this->catalogGet($this->url('skus', $warehouse, ['sku_id' => $sku->sku_id]), $this->headers($token))->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.brand_name', 'Nhãn cũ vẫn có nguồn');
+    }
+
+    public function test_metadata_shape_handles_orphans_and_non_strings_without_disabling_foreign_keys(): void
+    {
+        // Projection unit boundary: real DB foreign keys stay enabled. A legacy
+        // missing LEFT JOIN row is simulated rather than manufacturing orphans.
+        $controller = app(P06CatalogController::class);
+        $label = new \ReflectionMethod($controller, 'masterLabel');
+        $status = new \ReflectionMethod($controller, 'masterLabelStatus');
+        foreach ([null, [], (object) ['name' => 'wrong'], false, 42, '  '] as $value) {
+            $this->assertNull($label->invoke($controller, $value));
+        }
+        $row = (object) ['category_id' => (string) Str::uuid(), 'category_source_id' => null,
+            'category_name' => null, 'category_source_status' => null];
+        $this->assertSame('REFERENCE_NOT_FOUND', $status->invoke($controller, $row, 'category'));
+        $row->category_source_id = $row->category_id;
+        $row->category_name = ['bad' => 'shape'];
+        $this->assertSame('LABEL_UNAVAILABLE', $status->invoke($controller, $row, 'category'));
+    }
+
+    public function test_variant_search_is_not_identity_and_metadata_join_has_constant_query_cost(): void
+    {
+        [, $token, $warehouse] = $this->actorSession(['sku.view']);
+        $brand = $this->master('brands', 'brand', 'Variant A');
+        $category = $this->master('product_categories', 'category', 'Variant B');
+        $ids = [];
+        foreach (['DCJZ2090', 'DCJZ2090i', 'DCJZ2090I'] as $n => $code) {
+            $sku = $this->skuFixture('P06-MASTER-'.$code);
+            DB::table('sku')->where('sku_id', $sku->sku_id)->update($n === 1 ? ['category_id' => $category] : ['brand_id' => $brand]);
+            $ids[$code] = $sku->sku_id;
+        }
+        $this->assertCount(3, array_unique($ids));
+        foreach ([1, 100] as $size) {
+            DB::enableQueryLog();
+            DB::flushQueryLog();
+            try {
+                $this->catalogGet($this->url('skus', $warehouse, ['keyword' => 'P06-MASTER-DCJZ2090', 'per_page' => $size]), $this->headers($token))
+                    ->assertOk()->assertJsonPath('meta.total', 3)->assertJsonPath('meta.tab_totals.PRODUCT', 3)->assertJsonCount(min($size, 3), 'data');
+                $selects = array_filter(DB::getQueryLog(), fn (array $q): bool => str_contains($q['query'], 'p06_category'));
+                $this->assertCount(1, $selects, 'Master labels must be in one batched row query, never N+1');
+            } finally {
+                DB::disableQueryLog();
+            }
+        }
+        $this->catalogGet($this->url('skus/'.$ids['DCJZ2090i'], $warehouse), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.card.sku_code', 'P06-MASTER-DCJZ2090i')->assertJsonPath('data.card.category_name', 'Variant B')
+            ->assertJsonPath('data.card.brand_name', null);
+        $this->catalogGet($this->url('skus/'.$ids['DCJZ2090I'], $warehouse), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.card.sku_code', 'P06-MASTER-DCJZ2090I')->assertJsonPath('data.card.brand_name', 'Variant A')
+            ->assertJsonPath('data.card.category_name', null);
+    }
+
+    public function test_next_get_uses_updated_master_label_without_stale_sku_version_or_global_cache_flush(): void
+    {
+        [$actor, $token, $warehouse] = $this->actorSession([...self::RIGHTS, 'catalog.manage']);
+        $brand = $this->master('brands', 'brand', 'Before rename');
+        $sku = $this->skuFixture('P06-MASTER-REFRESH');
+        DB::table('sku')->where('sku_id', $sku->sku_id)->update(['brand_id' => $brand]);
+        $item = $this->seedItemInStock($sku->sku_id);
+        $this->movement($actor, $warehouse, $sku, 1, $item);
+        $url = $this->url('skus/'.$sku->sku_id, $warehouse);
+        $before = $this->catalogGet($url, $this->headers($token))->assertOk();
+        $counts = $this->domainCounts();
+        $skuBefore = (array) DB::table('sku')->where('sku_id', $sku->sku_id)->first();
+        $this->patchJson('/api/v1/catalog-masters/brands/'.$brand, ['brand_name' => 'After rename'],
+            $this->commandHeaders($token) + ['If-Match' => '1'])->assertOk();
+        $after = $this->catalogGet($url, $this->headers($token))->assertOk()->assertJsonPath('data.card.brand_name', 'After rename');
+        $this->assertSame($before->json('data.card.version'), $after->json('data.card.version'));
+        $this->assertSame($before->json('data.stock.version'), $after->json('data.stock.version'));
+        $this->assertNotSame($before->json('meta.snapshot.id'), $after->json('meta.snapshot.id'));
+        $this->assertSame($skuBefore, (array) DB::table('sku')->where('sku_id', $sku->sku_id)->first());
+        $this->assertSame($counts, $this->domainCounts());
+        $this->catalogGet($this->url('items/'.$item, $warehouse), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.card.brand_name', 'After rename');
+        $this->assertStringContainsString('no-store', (string) $after->headers->get('Cache-Control'));
+    }
+
+    private function master(string $table, string $prefix, string $name, string $status = 'ACTIVE'): string
+    {
+        $id = (string) Str::uuid();
+        $code = 'P06-'.Str::random(10);
+        // SQLite retains the legacy master FK; PostgreSQL's canonical-to-legacy
+        // trigger supplies this same-ID mirror. Keep both real FK checks intact.
+        if (DB::getDriverName() === 'sqlite') {
+            DB::table('product_masters')->insert(['master_id' => $id, 'master_type' => strtoupper($prefix),
+                'code' => $code, 'name' => $name, 'status' => $status, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        DB::table($table)->insert(['id' => $id, $prefix.'_code' => $code, $prefix.'_name' => $name,
+            'status' => $status, 'version' => 1, 'sort_order' => 0, 'created_at' => now(), 'updated_at' => now()]);
+
+        return $id;
+    }
 
     public function test_all_p06_routes_are_read_only_and_require_authentication(): void
     {

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
@@ -140,6 +141,46 @@ class ContainerTest extends TestCase
             $this->withIfMatch($headers, 3)
         );
         $ok->assertOk()->assertJsonPath('data.container.version', 4)->assertJsonPath('data.container.zone_code', 'A1');
+    }
+
+    public function test_primary_sku_patch_cannot_relabel_active_contents_or_change_stock(): void
+    {
+        $headers = $this->authHeaders();
+        $old = $this->sku();
+        $new = $this->sku();
+        $old->update(['sku_type' => 'COMPONENT', 'is_serial_tracked' => false, 'unit' => 'cai']);
+        $new->update(['sku_type' => 'COMPONENT', 'is_serial_tracked' => false, 'unit' => 'bo']);
+        $box = Container::create(['container_code' => 'TEST-REPACK-GUARD', 'container_type' => 'BOX',
+            'primary_sku_id' => $old->sku_id, 'physical_code_id' => $this->code('TEST-REPACK-GUARD')->physical_code_id,
+            'status' => 'EMPTY', 'version' => 1]);
+        $this->postJson('/api/v1/containers/'.$box->container_id.'/items', ['sku_id' => $old->sku_id, 'quantity' => 8],
+            $this->withIfMatch($headers, 1))->assertCreated();
+        $boxBefore = (array) DB::table('containers')->where('container_id', $box->container_id)->first();
+        $contentsBefore = DB::table('container_items')->where('container_id', $box->container_id)->get()->toJson();
+        $counts = array_map(fn (string $t): int => DB::table($t)->count(), ['audit_log', 'stock_movements', 'inventory_balances']);
+        foreach ([$new->sku_id, null] as $target) {
+            $this->patchJson('/api/v1/containers/'.$box->container_id, ['primary_sku_id' => $target],
+                $this->withIfMatch($headers, (int) $boxBefore['version']))->assertConflict()->assertJsonPath('error.code', 'CONTAINER_REPACK_REQUIRED');
+            $this->assertSame($boxBefore, (array) DB::table('containers')->where('container_id', $box->container_id)->first());
+            $this->assertSame($contentsBefore, DB::table('container_items')->where('container_id', $box->container_id)->get()->toJson());
+            $this->assertSame($counts, array_map(fn (string $t): int => DB::table($t)->count(), ['audit_log', 'stock_movements', 'inventory_balances']));
+        }
+        $this->patchJson('/api/v1/containers/'.$box->container_id, ['primary_sku_id' => $old->sku_id, 'location_hint' => 'TEST same SKU'],
+            $this->withIfMatch($headers, (int) $boxBefore['version']))->assertOk()->assertJsonPath('data.container.primary_sku_id', $old->sku_id);
+    }
+
+    public function test_empty_container_can_change_primary_sku_without_fabricating_contents(): void
+    {
+        $headers = $this->authHeaders();
+        $old = $this->sku();
+        $new = $this->sku();
+        $box = Container::create(['container_code' => 'TEST-EMPTY-REASSIGN', 'container_type' => 'BOX',
+            'primary_sku_id' => $old->sku_id, 'physical_code_id' => $this->code('TEST-EMPTY-REASSIGN')->physical_code_id,
+            'status' => 'EMPTY', 'version' => 1]);
+        $this->patchJson('/api/v1/containers/'.$box->container_id, ['primary_sku_id' => $new->sku_id],
+            $this->withIfMatch($headers, 1))->assertOk()->assertJsonPath('data.container.primary_sku_id', $new->sku_id)
+            ->assertJsonPath('data.container.version', 2)->assertJsonPath('data.container.status', 'EMPTY')->assertJsonPath('data.stock_effect', 'NONE');
+        $this->assertFalse(DB::table('container_items')->where('container_id', $box->container_id)->exists());
     }
 
     public function test_container_item_xor_rule_rejects_both_and_neither(): void

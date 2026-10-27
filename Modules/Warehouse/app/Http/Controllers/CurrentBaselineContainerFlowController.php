@@ -2,10 +2,10 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\CacheService;
+use App\Support\Database\SchemaCache;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -210,7 +210,7 @@ class CurrentBaselineContainerFlowController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền container.manage'),
             new OA\Response(response: 404, description: 'Không tìm thấy container'),
-            new OA\Response(response: 409, description: 'CONTAINER_CLOSED'),
+            new OA\Response(response: 409, description: 'CONTAINER_CLOSED or CONTAINER_REPACK_REQUIRED when changing primary SKU with active contents'),
             new OA\Response(response: 412, description: 'STALE_VERSION'),
             new OA\Response(response: 422, description: 'PUTAWAY_MUST_USE_TASK_FLOW hoặc CONTAINER_STATUS_LIFECYCLE_MANAGED'),
             new OA\Response(response: 428, description: 'Thiếu header If-Match'),
@@ -236,6 +236,14 @@ class CurrentBaselineContainerFlowController extends Controller
             $this->assertVersion($container, $expectedVersion);
             if ($container->status === 'CLOSED') {
                 ApiError::abort(409, 'CONTAINER_CLOSED', 'Container CLOSED là immutable.');
+            }
+
+            // All content writers also lock this parent. Metadata PATCH cannot
+            // relabel existing contents as another SKU or discard their unit.
+            if (array_key_exists('primary_sku_id', $validated)
+                && strtolower((string) $validated['primary_sku_id']) !== strtolower((string) $container->primary_sku_id)
+                && DB::table('container_items')->where('container_id', $id)->where('is_active', true)->exists()) {
+                ApiError::abort(409, 'CONTAINER_REPACK_REQUIRED', 'Container còn nội dung; đổi SKU chính cần luồng repack nguyên tử được duyệt.');
             }
 
             // parent_container_id (BOX -> TRAY placement) chỉ được thay đổi qua vòng đời
