@@ -3,15 +3,17 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build",
+        "build": "node scripts/prepare-api-toolchain.mjs && vite build",
         "dev": "vite",
         "lint": "node scripts/verify-frontend-baseline.mjs",
         "test": "node scripts/verify-frontend-baseline.mjs && node scripts/verify-inventory-reconciliation-selftest.mjs",
         "health:contract": "node scripts/verify-frontend-baseline.mjs",
         "api:lint": "redocly lint storage/api-docs/api-docs.json",
         "api:mini-app-contract": "node scripts/verify-mini-app-swagger.mjs",
-        "api:postman": "openapi2postmanv2 -s storage/api-docs/api-docs.json -o \"docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json\" -p -O folderStrategy=Tags",
-        "api:smoke": "newman run \"docs/postman/WMS_HoaNam API Scenario Testing - TEST.postman_collection.json\" -e \"docs/postman/WMS_HoaNam - Local.postman_environment.json\""
+        "api:postman": "node scripts/prepare-api-toolchain.mjs && openapi2postmanv2 -s storage/api-docs/api-docs.json -o \"docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json\" -p -O folderStrategy=Tags",
+        "api:smoke": "node scripts/prepare-api-toolchain.mjs && newman run \"docs/postman/WMS_HoaNam API Scenario Testing - TEST.postman_collection.json\" -e \"docs/postman/WMS_HoaNam - Local.postman_environment.json\"",
+        "toolchain:prepare": "node scripts/prepare-api-toolchain.mjs",
+        "toolchain:test": "node scripts/prepare-api-toolchain.mjs && node --test tests/Tooling/api-toolchain.test.cjs"
     },
     "devDependencies": {
         "@redocly/cli": "^2.38.0",
@@ -32,7 +34,9 @@
         "uuid": "^11.1.1",
         "lodash": "^4.18.0",
         "handlebars": "4.7.10",
-        "node-forge": "^1.4.0",
+        "node-forge": "1.4.2",
+        "@faker-js/faker": "10.6.0",
+        "csv-parse": "7.0.3",
         "openapi-to-postmanv2": {
             "yaml": "^1.10.3"
         },

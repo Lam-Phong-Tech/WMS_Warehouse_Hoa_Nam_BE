@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+node scripts/prepare-api-toolchain.mjs
 
 OUT="${1:-build/evidence/wwhn-164}"
 rm -rf "$OUT"

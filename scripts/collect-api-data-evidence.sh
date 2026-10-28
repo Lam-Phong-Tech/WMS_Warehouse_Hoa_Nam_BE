@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+node scripts/prepare-api-toolchain.mjs
 
 EVIDENCE_DIR="${EVIDENCE_DIR:-build/evidence/WWHN-150}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"

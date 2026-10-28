@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+node scripts/prepare-api-toolchain.mjs
 
 ENGINE="${DB_CONNECTION:-sqlite}"
 EVIDENCE_DIR="${EVIDENCE_DIR:-build/evidence/wwhn-172/$ENGINE}"

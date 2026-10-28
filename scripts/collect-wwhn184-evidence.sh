@@ -8,6 +8,7 @@
 #                   deploy đúng candidate (script này KHÔNG deploy — nó tạo hồ sơ pin).
 #   DEV184-P1-03R : DB before/after quanh Newman + reconciliation, làm input cho QA1.
 set -euo pipefail
+node scripts/prepare-api-toolchain.mjs
 
 EVIDENCE_DIR="${EVIDENCE_DIR:-build/evidence/wwhn-184}"
 COLLECTION="docs/postman/WWHN-184 Inbound Contract.postman_collection.json"

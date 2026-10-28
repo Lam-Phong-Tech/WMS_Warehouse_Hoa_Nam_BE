@@ -1035,7 +1035,7 @@ jobs:
             -v "$PWD:/workspace" \
             -w /workspace \
             node:22-alpine \
-            sh -lc 'npm ci --ignore-scripts'
+            sh -lc 'npm ci --ignore-scripts && npm run toolchain:test'
 
       - name: Build frontend assets
         run: |
@@ -1053,10 +1053,8 @@ jobs:
       #  - dependency runtime (--omit=dev), chặn từ high. Repo hiện không có dependency
       #    runtime nào (newman đã về devDependencies), nên cổng này chặn việc thêm mới
       #    một package runtime mang lỗ hổng;
-      #  - toàn bộ cây, gồm công cụ build/test chạy ngay trong CI, chặn critical. Chuỗi
-      #    newman / openapi-to-postmanv2 -> postman-collection -> @faker-js/faker còn
-      #    advisory high chưa có bản vá cùng major nên chưa chặn ở high được; thay hay
-      #    bỏ bộ công cụ Postman là quyết định của chủ dự án.
+        #  - toàn bộ cây, gồm công cụ build/test, phải sạch ở mọi severity. Toolchain
+        #    28/10 dùng engine đã vá và adapter có kiểm hash, không còn ngoại lệ high.
       - name: npm dependency audit (online, hard)
         run: |
           docker run --rm \
@@ -1065,7 +1063,7 @@ jobs:
             -v "$PWD:/workspace" \
             -w /workspace \
             node:22-alpine \
-            sh -lc 'npm audit --omit=dev --audit-level=high && npm audit --audit-level=critical'
+            sh -lc 'npm audit --omit=dev --audit-level=high && npm audit'
 
       - name: Prepare Laravel runtime secrets
         run: |

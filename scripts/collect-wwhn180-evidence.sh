@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+node scripts/prepare-api-toolchain.mjs
 
 EVIDENCE_DIR="${EVIDENCE_DIR:-build/evidence/api-data}"
 COLLECTION="docs/postman/WWHN-180 Posting Contract.postman_collection.json"
