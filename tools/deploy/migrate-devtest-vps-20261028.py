@@ -89,7 +89,9 @@ def main():
     assert not done.exists(), 'Transfer already completed; never stop or resnapshot blindly'
     with (green.ROOT / '.deployment.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        running = [s for s in SERVICES if container(s)['State']['Running']]
+        present = set(green.run(['docker', 'ps', '-a', '--filter', 'label=com.docker.compose.project=hoa_nam_green', '--format', '{{.Names}}']).splitlines())
+        assert all('hoa_nam_green-' + s + '-1' in present for s in ('backend', 'queue', 'scheduler', 'minio', 'valkey'))
+        running = [s for s in SERVICES if 'hoa_nam_green-' + s + '-1' in present and container(s)['State']['Running']]
         stopped = False
         try:
             # Quiesce only the approved green application and private state stores.
