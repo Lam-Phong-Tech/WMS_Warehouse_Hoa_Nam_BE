@@ -113,7 +113,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "$CONFIRMATION" in FUTURE-INSPECT|FUTURE-DEPLOY|FUTURE-FIXTURE|FUTURE-DIAG|FUTURE-RETRY-EMPTY|FUTURE-P06-INSPECT|FUTURE-P06-DEPLOY|FUTURE-P06-VERIFY|FUTURE-VPS-TRANSFER-INSPECT|FUTURE-VPS-TRANSFER-EXPORT|FUTURE-VPS-ROUTING-INSPECT) ;; *) exit 1 ;; esac
+          case "$CONFIRMATION" in FUTURE-INSPECT|FUTURE-DEPLOY|FUTURE-FIXTURE|FUTURE-DIAG|FUTURE-RETRY-EMPTY|FUTURE-P06-INSPECT|FUTURE-P06-DEPLOY|FUTURE-P06-VERIFY|FUTURE-VPS-TRANSFER-INSPECT|FUTURE-VPS-TRANSFER-EXPORT|FUTURE-VPS-ROUTING-INSPECT|FUTURE-VPS-MINIO-PREPARE|FUTURE-VPS-MINIO-EXPORT) ;; *) exit 1 ;; esac
           test "$DEPLOY_UAT" = false && test "$RUN_SEED" = false
           test "$OTHER_PREFLIGHT" = false && test "$OTHER_AUTH" = false && test "$OTHER_DEPLOY" = false && test "$OTHER_SMOKE" = false
           test "$HOST" = 42.96.16.197
@@ -191,6 +191,8 @@ jobs:
               FUTURE-VPS-TRANSFER-INSPECT) python3 "$source/tools/deploy/migrate-devtest-vps-20261028.py" ;;
               FUTURE-VPS-TRANSFER-EXPORT) python3 "$source/tools/deploy/migrate-devtest-vps-20261028.py" --export ;;
               FUTURE-VPS-ROUTING-INSPECT) python3 "$source/tools/deploy/migrate-devtest-vps-20261028.py" --routing-inspect ;;
+              FUTURE-VPS-MINIO-PREPARE) python3 "$source/tools/deploy/prepare-minio-image-transfer.py" ;;
+              FUTURE-VPS-MINIO-EXPORT) python3 "$source/tools/deploy/export-minio-image.py" ;;
               FUTURE-P06-VERIFY) python3 "$source/tools/deploy/verify-p06-deployed.py" ;;
               FUTURE-P06-INSPECT) python3 "$source/tools/deploy/deploy-green-p06-master.py" --source "$source/p06-package" --ops-sha "$OPS_SHA" --inspect ;;
               FUTURE-P06-DEPLOY) python3 "$source/tools/deploy/deploy-green-p06-master.py" --source "$source/p06-package" --ops-sha "$OPS_SHA" ;;
