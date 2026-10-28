@@ -5,7 +5,10 @@ This change upgrades the actual registry dependencies, not the advisory threshol
 6.2.2 and the existing Postman collection engines remain installed. No package
 is renamed to hide an advisory, excluded from audit, downgraded, or patched to
 report a false upstream version. package-lock.json carries official tarball
-integrity hashes. Composer dependencies and application database are unchanged.
+integrity hashes. The application database is unchanged. A fresh Composer audit
+on 28 October also identified four newly indexed PhpSpreadsheet advisories;
+that one runtime library is separately upgraded from 5.9.0 to 5.10.0, with no
+other PHP package version changes.
 
 ## Explicit Preparation
 
@@ -50,8 +53,18 @@ They do not call WMS, log in, create business fixtures, or run seed/migrations.
 - Forge advisory: https://github.com/advisories/GHSA-86w9-cpqp-85rv
 - Legacy finance formatting source: https://github.com/faker-js/faker/blob/v5.5.3/lib/finance.js
 - Modern image API: https://fakerjs.dev/api/image.html
+- Spreadsheet reader advisory and patched release: https://github.com/advisories/GHSA-j2w7-387v-m2rq
+- Spreadsheet XML scanner advisory: https://github.com/advisories/GHSA-3x94-m842-937c
 
 Passing a current registry audit is not a claim of perfect security. Release
 evidence must retain exact source/lock hashes, audit date/results, compatibility
 tests and actual deployment identity. Production stays OFF; this does not
 authorize BOX repack, stock writes, seed or database migrations.
+
+The PHP dependency upgrade is built in a new private vendor volume, preserving
+the live/rollback vendor volume. Deployment requires both full audits to be
+clean, verifies exactly the one allowed PHP package delta, and compares existing
+business rows/media/schema before reopening. Tests include Unicode XLSX
+roundtrip, encoded-DOCTYPE rejection, bounded/unbounded ODS repeat guards, and
+existing SKU import/report download and format regressions. No unsafe sample
+file is loaded into a live service and no stock/seed mutation is used as proof.
