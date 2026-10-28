@@ -215,14 +215,18 @@ class Wwhn345PackingLabelExportFormatTest extends TestCase
     /** Nhãn đóng gói cấp document: đúng một label_snapshots cho mỗi phiếu xuất. */
     private function seedPackingLabels(int $count): void
     {
+        $warehouse = $this->ensureActiveWarehouse('KHO-PDF-TEST', 'TEST packing label export warehouse');
         for ($i = 0; $i < $count; $i++) {
             $documentId = (string) Str::uuid();
             DB::table('stock_documents')->insert([
                 'id' => $documentId,
-                'doc_type' => 'OUTBOUND',
+                'doc_type' => 'issue',
                 'doc_no' => 'PX-345-'.str_pad((string) $i, 4, '0', STR_PAD_LEFT),
                 'doc_date' => now()->toDateString(),
-                'status' => 'posted',
+                'status' => 'POSTED',
+                'src_warehouse_id' => $warehouse->id,
+                'posted_at' => now(),
+                'posted_by' => $this->user->user_id,
                 'recipient_name' => 'Đại lý Hoa Nam '.$i,
                 'created_by' => $this->user->user_id,
                 'created_at' => now(),

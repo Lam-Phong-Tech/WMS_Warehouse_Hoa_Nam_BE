@@ -10,6 +10,11 @@ on 28 October also identified four newly indexed PhpSpreadsheet advisories;
 that one runtime library is separately upgraded from 5.9.0 to 5.10.0, with no
 other PHP package version changes.
 
+Lightning CSS is aligned to the already-used 1.33.0 across Vite and Tailwind.
+Linux/Alpine exposed an optional native binary version mismatch between the
+previous 1.32.0 and nested 1.33.0 trees. The full npm ls check remains mandatory;
+it is not restricted to selected packages or made non-blocking.
+
 ## Explicit Preparation
 
 Keep `.npmrc` ignore-scripts=true and `npm ci --ignore-scripts`. Run
