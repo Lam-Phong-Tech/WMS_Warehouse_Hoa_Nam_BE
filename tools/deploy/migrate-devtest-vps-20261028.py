@@ -31,7 +31,7 @@ def volume(service, destination):
     rows = [m for m in container(service)['Mounts'] if m['Destination'] == destination]
     assert len(rows) == 1 and rows[0]['Type'] == 'volume'
     path = Path(rows[0]['Source']).resolve()
-    assert path.is_relative_to('/var/lib/docker/volumes')
+    path.relative_to('/var/lib/docker/volumes')
     return path
 
 
@@ -93,8 +93,8 @@ def main():
         stopped = False
         try:
             # Quiesce only the approved green application and private state stores.
-            green.run(['docker', 'stop', '--time', '120', *['hoa_nam_green-' + s + '-1' for s in running]], timeout=240)
             stopped = True
+            green.run(['docker', 'stop', '--time', '120', *['hoa_nam_green-' + s + '-1' for s in running]], timeout=240)
             before = green.fingerprints()
             media = green.media_manifest(root)
             dump = TRANSFER / 'database.dump'
@@ -110,6 +110,7 @@ def main():
                 'tables': before, 'schema': schema, 'media': media, 'minio': manifest_tree(minio), 'valkey': manifest_tree(valkey),
                 'overlays': report['source_sha256_after'], 'policy': policy, 'safe_configuration': safe_env,
                 'dump_sha256': green.digest(dump), 'dump_bytes': dump.stat().st_size,
+                'images': {s: json.loads(green.run(['docker', 'image', 'inspect', container(s)['Image']]))[0].get('RepoDigests', []) for s in ('postgres', 'minio', 'valkey', 'nginx')},
                 'stopped_services': running, 'production_touched': False, 'seed_run': False, 'migration_run': False,
             }
             assert before == green.fingerprints(), 'Database changed after quiesce'
