@@ -18,10 +18,9 @@ app_release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_release)
 green, tc12 = app_release.green, app_release.tc12
 require = app_release.require
-SOURCE = '5e92f64de61eb7a36aac254294541309957f343d'
+SOURCE = '382b1f75f0a3453fab9b1e8cfb2f9d161043f5b7'
 PREVIOUS = 'cdda3076a950be1f3860083768d9c9de6c7783ad'
 PREVIOUS_RELEASE = PREVIOUS + '-future-evidence-20261026T051148Z'
-RISK_DECISION = 'docs/evidence/P06_DEV_ONLY_RELEASE_DECISION_20261027.json'
 TLS = Path('/etc/nginx/sites-available/khohoanamdev.lptech.info.vn')
 TLS_SHA256 = '373414205df3f1604349736a51050d1f6f3c0922a0b6790837ec149fd0d168f9'
 NGINX = {
@@ -34,6 +33,7 @@ APPLICATION_DELTA = {
     'Modules/Warehouse/app/Http/Controllers/P06CatalogController.php',
     'Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php',
     'app/Swagger/P06CatalogOpenApi.php',
+    'composer.json', 'composer.lock',
 }
 SERVICES = ('backend', 'queue', 'scheduler')
 RESERVE = 1024 ** 3
@@ -47,6 +47,14 @@ def validate_delta(before, after):
         require(after[name] == expected, 'ETag template changed')
 
 
+def validate_dependency_delta(before, after):
+    old = {p['name']: p for section in ('packages', 'packages-dev') for p in before[section]}
+    new = {p['name']: p for section in ('packages', 'packages-dev') for p in after[section]}
+    changed = {name for name in set(old) | set(new) if old.get(name) != new.get(name)}
+    require(changed == {'phpoffice/phpspreadsheet'} and old['phpoffice/phpspreadsheet']['version'] == '5.9.0'
+            and new['phpoffice/phpspreadsheet']['version'] == '5.10.0', 'Unreviewed PHP dependency delta')
+
+
 def package(folder, ops_sha, output):
     require(re.fullmatch('[0-9a-f]{40}', ops_sha), 'Invalid operations SHA')
     require(tc12.git(folder, 'rev-parse', 'HEAD').decode().strip() == ops_sha, 'Checkout changed')
@@ -55,19 +63,37 @@ def package(folder, ops_sha, output):
     tc12.git(folder, 'merge-base', '--is-ancestor', PREVIOUS, SOURCE)
     runtime = (*app_release.RUNTIME, 'docker-compose.yml', 'docker-compose.perf.yml')
     tc12.git(folder, 'diff', '--exit-code', SOURCE, ops_sha, '--', *runtime)
-    # Reuse built assets only when their entire input and dependency tree is unchanged.
-    tc12.git(folder, 'diff', '--exit-code', PREVIOUS, SOURCE, '--', 'composer.json', 'composer.lock',
-             'package.json', 'package-lock.json', 'public', 'resources', 'vite.config.js', 'vite-module-loader.js')
+    # Only the reviewed Spreadsheet update is allowed in a fresh private vendor
+    # volume. Existing live/rollback dependency volumes are never modified.
+    validate_dependency_delta(json.loads(tc12.git(folder, 'show', PREVIOUS + ':composer.lock')),
+                              json.loads(tc12.git(folder, 'show', SOURCE + ':composer.lock')))
+    tc12.git(folder, 'diff', '--exit-code', PREVIOUS, SOURCE, '--', 'public', 'resources', 'vite.config.js', 'vite-module-loader.js')
+    tc12.git(folder, 'diff', '--exit-code', SOURCE, ops_sha, '--', 'scripts', 'tools/api-compat')
     before, after = app_release.files(folder, PREVIOUS), app_release.files(folder, SOURCE)
     validate_delta(before, after)
     output.mkdir(mode=0o700)
     archive = output / 'source.tar.gz'
     tc12.git(folder, 'archive', '--format=tar.gz', '--output=' + str(archive.resolve()), SOURCE)
+    audit_sources = {'npm': folder / 'p06-npm-audit.json', 'composer': folder / 'p06-composer-audit.json'}
+    audits = {name: json.loads(file.read_text()) for name, file in audit_sources.items()}
+    audit_gate(audits)
+    for name, file in audit_sources.items():
+        shutil.copy2(file, output / (name + '-audit.json'))
+    assets = folder / 'public/build'
+    require((assets / 'manifest.json').is_file(), 'Fresh asset build missing')
+    asset_files = [p for p in assets.rglob('*') if p.is_file()]
+    require(asset_files and all(not p.is_symlink() for p in assets.rglob('*')), 'Unsafe asset tree')
+    with tarfile.open(output / 'assets.tar.gz', 'w:gz') as bundle:
+        for file in sorted(asset_files):
+            bundle.add(file, arcname=file.relative_to(folder).as_posix(), recursive=False)
     proof = {'source_sha': SOURCE, 'ops_sha': ops_sha, 'previous_sha': PREVIOUS,
              'archive_sha256': green.digest(archive), 'previous_files': before, 'source_files': after,
              'migration_run': False, 'seed_run': False, 'ci_run': False,
-             'dev_audit_decision': json.loads((folder / RISK_DECISION).read_text()) if (folder / RISK_DECISION).is_file()
-                 else {'status': 'PENDING_EXPLICIT_USER_DECISION'}}
+             'audits': audits, 'audit_completed_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+             'audit_files_sha256': {name: green.digest(file) for name, file in audit_sources.items()},
+             'assets_sha256': green.digest(output / 'assets.tar.gz'),
+             'asset_files': {p.relative_to(folder).as_posix(): green.digest(p) for p in asset_files},
+             'node_lock_sha256': green.digest(folder / 'package-lock.json')}
     (output / 'proof.json').write_text(json.dumps(proof, indent=2))
     green.emit('p06_release_packaged', {k: proof[k] for k in ('source_sha', 'ops_sha', 'archive_sha256')})
 
@@ -89,14 +115,13 @@ def assert_unchanged(before, after, label):
     require(before == after, label + ' changed; automatic data restore is prohibited')
 
 
-def audit_gate(decision):
-    require(decision.get('status') == 'APPROVED_BY_USER_FOR_DEV_ONLY'
-            and decision.get('approved_by') == 'USER'
-            and decision.get('source_sha') == SOURCE and decision.get('environment') == 'DEV_TEST_ONLY'
-            and decision.get('npm_audit_status') == 'OPEN_NOT_PASS'
-            and decision.get('dependency_changes') is False and decision.get('production_activation') is False
-            and decision.get('migration_seed_box_assignment') is False,
-            'Npm audit remains OPEN; exact DEV-only user risk decision required before activation')
+def audit_gate(audits):
+    npm, composer = audits.get('npm', {}), audits.get('composer', {})
+    counts = npm.get('metadata', {}).get('vulnerabilities', {})
+    require(counts.get('total') == 0 and all(type(v) is int and v == 0 for v in counts.values())
+            and npm.get('vulnerabilities') == {} and not npm.get('error')
+            and composer.get('advisories') in ([], {}) and composer.get('abandoned', []) in ([], {})
+            and not composer.get('error'), 'Full online npm/Composer audits must PASS; no waiver or severity suppression')
 
 
 def master_diagnostics():
@@ -115,6 +140,52 @@ def master_diagnostics():
         "FROM containers c WHERE c.container_code='BOX-SEED-0005') q"))
     green.emit('p06_read_only_master_diagnostics', {'skus': skus, 'box': box, 'mutations': 0,
         'authenticated_owner_http': False, 'packing_quantity_confirmed': False})
+
+
+def prepare_private_vendor(release, old_vendor, images, expected_lock):
+    name = 'hoa_nam_green_p06_vendor_' + SOURCE[:12]
+    require(name != old_vendor and re.fullmatch('hoa_nam_green_p06_vendor_[0-9a-f]{12}', name), 'Invalid private vendor target')
+    check = subprocess.run(['docker', 'volume', 'inspect', name], capture_output=True, text=True)
+    labels = {'com.hoa-nam.scope': 'DEV_TEST_ONLY', 'com.hoa-nam.source': SOURCE}
+    if check.returncode == 0:
+        existing = json.loads(check.stdout)[0]
+        require(existing.get('Labels') == labels, 'Existing volume is not owned by this exact build')
+    else:
+        green.run(['docker', 'volume', 'create', '--label', 'com.hoa-nam.scope=DEV_TEST_ONLY',
+                   '--label', 'com.hoa-nam.source=' + SOURCE, name])
+    require(not green.run(['docker', 'ps', '-aq', '--filter', 'volume=' + name]).strip(), 'Private vendor already referenced; no live dependency mutation')
+    mode = json.loads(green.run(['docker', 'exec', 'hoa_nam_green-backend-1', 'php', '-r',
+        "$i=json_decode(file_get_contents('vendor/composer/installed.json'),true);echo json_encode(['dev'=>$i['dev']??true]);"]))
+    base = ['docker', 'run', '--rm', '-w', '/var/www/html', '-v', str(release) + ':/var/www/html:ro',
+            '-v', name + ':/var/www/html/vendor']
+    args = [*base, '-e', 'COMPOSER_ALLOW_SUPERUSER=1', '-e', 'APP_ENV=testing', '-e', 'DB_CONNECTION=sqlite',
+            '-e', 'DB_DATABASE=:memory:', '-e', 'CACHE_STORE=array', '-e', 'MAIL_MAILER=array',
+            '--entrypoint', 'composer', green.IMAGE_ID, 'install', '--no-scripts', '--no-interaction',
+            '--prefer-dist', '--optimize-autoloader', '--no-progress']
+    if not mode['dev']:
+        args.append('--no-dev')
+    green.run(args, timeout=900)
+    code = r"""require 'vendor/autoload.php';
+    if(!class_exists('Modules\\Warehouse\\Http\\Controllers\\P06CatalogController')
+       || Composer\InstalledVersions::getPrettyVersion('phpoffice/phpspreadsheet')!=='5.10.0') exit(2);
+    file_put_contents('vendor/.composer-lock.sha256',hash_file('sha256','composer.lock')."\n");
+    echo hash_file('sha256','composer.lock');"""
+    require(green.run([*base, '--entrypoint', 'php', green.IMAGE_ID, '-r', code]).strip() == expected_lock,
+            'Private vendor version/autoload mismatch')
+    green.run([*base, '--entrypoint', 'chown', green.IMAGE_ID, '-R', '33:33', '/var/www/html/vendor'])
+    before = json.loads(green.compose(release, ['config', '--format', 'json']))
+    logical = {next(v['source'] for v in before['services'][s]['volumes'] if v['target'] == '/var/www/html/vendor') for s in SERVICES}
+    require(len(logical) == 1, 'Runtime vendor references differ')
+    key = logical.pop()
+    require(before['volumes'][key]['name'] == old_vendor, 'Old vendor compose mapping changed')
+    pinned_images = {s: {'image': row['image']} for s, row in before['services'].items() if 'image' in row}
+    pinned_images.update({s: {'image': images[s]} for s in SERVICES})
+    override = {'services': pinned_images, 'volumes': {key: {'external': True, 'name': name}}}
+    (release / 'docker-compose.vendor-release.yml').write_text(json.dumps(override, indent=2))
+    before['volumes'][key] = {'external': True, 'name': name}
+    require(json.loads(green.compose(release, ['config', '--format', 'json'])) == before,
+            'Vendor override affected unrelated compose settings')
+    return name
 
 
 def deploy(folder, ops_sha, inspect_only):
@@ -170,13 +241,14 @@ def deploy(folder, ops_sha, inspect_only):
     require(len(vendors) == 1, 'Dependency mounts differ')
     vendor = vendors.pop()
     require(green.run(['docker', 'exec', 'hoa_nam_green-backend-1', 'cat', 'vendor/.composer-lock.sha256']).strip()
-            == proof['source_files']['composer.lock'], 'Dependency lock mismatch')
+            == proof['previous_files']['composer.lock'], 'Existing dependency lock mismatch')
+    vendor_bytes = int(green.run(['docker', 'exec', 'hoa_nam_green-backend-1', 'du', '-sb', 'vendor']).split()[0])
     with tarfile.open(folder / 'source.tar.gz') as bundle:
         source_bytes = sum(m.size for m in bundle.getmembers() if m.isfile())
     storage_bytes = int(green.run(['du', '-sb', str(previous / 'storage')]).split()[0])
     db_bytes = int(green.pg('SELECT pg_database_size(current_database())'))
     capacity = {'free_bytes': shutil.disk_usage(green.ROOT).free,
-                'required_bytes': RESERVE + source_bytes + storage_bytes + db_bytes + 128 * 1024 ** 2}
+                'required_bytes': RESERVE + source_bytes + storage_bytes + db_bytes + 2 * vendor_bytes + 128 * 1024 ** 2}
     require(capacity['free_bytes'] > capacity['required_bytes'], 'Insufficient reserve; no cleanup authorized')
     green.emit('p06_release_preflight', {'source_sha': SOURCE, 'ops_sha': ops_sha, 'policy': before_policy,
                'migration_count': 220, 'pending': before_schema['pending'], 'capacity': capacity,
@@ -185,7 +257,12 @@ def deploy(folder, ops_sha, inspect_only):
     master_diagnostics()
     if inspect_only:
         return
-    audit_gate(proof['dev_audit_decision'])
+    audit_gate(proof['audits'])
+    audited_at = datetime.datetime.fromisoformat(proof['audit_completed_at_utc'])
+    age = (datetime.datetime.now(datetime.timezone.utc) - audited_at).total_seconds()
+    require(0 <= age <= 7200, 'Audit evidence expired; rebuild and audit again')
+    for name, expected in proof['audit_files_sha256'].items():
+        require(green.digest(folder / (name + '-audit.json')) == expected, 'Audit file changed')
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     release = green.ROOT / 'releases' / (SOURCE + '-p06-master-' + stamp)
     report = green.ROOT / 'backups' / ('deploy-p06-master-' + stamp + '.json')
@@ -194,7 +271,9 @@ def deploy(folder, ops_sha, inspect_only):
                 'policy_before': before_policy, 'migration_run': False, 'seed_run': False, 'ci_run': False,
                 'data_restore': False, 'production_activation': False, 'authenticated_smoke': False,
                 'stage': 'prepare', 'tls_sha256': TLS_SHA256, 'inner_nginx_sha256': NGINX}
-    evidence['dev_audit_decision'] = proof['dev_audit_decision']
+    evidence['audits'] = proof['audits']
+    evidence['node_lock_sha256'] = proof['node_lock_sha256']
+    evidence['audit_exception_used'] = False
     paused = stopped = switched = reopened = False
     try:
         release.mkdir(mode=0o755)
@@ -210,7 +289,12 @@ def deploy(folder, ops_sha, inspect_only):
         shutil.copy2(previous / app_release.HISTORY, release / app_release.HISTORY)
         old_migrations, new_migrations = green.migrations(previous), green.migrations(release)
         require(new_migrations == old_migrations, 'No migration delta is authorized')
-        shutil.copytree(previous / 'public/build', release / 'public/build', dirs_exist_ok=True)
+        require(green.digest(folder / 'assets.tar.gz') == proof['assets_sha256'], 'Asset archive changed')
+        with tarfile.open(folder / 'assets.tar.gz') as bundle:
+            require(all(green.safe_archive_member(release, m) and m.name.startswith('public/build/') for m in bundle.getmembers()), 'Unsafe asset archive')
+            bundle.extractall(release)
+        require(all(green.digest(release / name) == value for name, value in proof['asset_files'].items()), 'Asset checksum mismatch')
+        require(green.digest(release / 'package-lock.json') == proof['node_lock_sha256'], 'Audited node lock mismatch')
         info = (previous / '.env').stat()
         (release / '.env').write_text(tc12.environment((previous / '.env').read_text(), {
             'APP_BUILD_SHA': SOURCE, 'APP_BUILD_REF': 'dev@' + SOURCE[:8] + '+p06-master+preserved-runtime-hotfixes',
@@ -227,6 +311,10 @@ def deploy(folder, ops_sha, inspect_only):
         code = r"$l=require 'vendor/autoload.php'; if($l->isClassMapAuthoritative() || !class_exists('Modules\Warehouse\Support\StockDocumentEventEvidence')) exit(2);"
         # Docker cannot create a nested volume mountpoint under a read-only source bind.
         (release / 'vendor').mkdir(mode=0o755)
+        evidence['stage'] = 'isolated-dependency-build'
+        vendor = prepare_private_vendor(release, vendor, images, proof['source_files']['composer.lock'])
+        evidence['private_vendor'] = vendor
+        evidence['dependency_update'] = {'phpoffice/phpspreadsheet': {'before': '5.9.0', 'after': '5.10.0'}}
         result = subprocess.run(['docker', 'run', '--rm', '--network', 'none', '-w', '/var/www/html',
                                  '-v', str(release) + ':/var/www/html:ro', '-v', vendor + ':/var/www/html/vendor:ro',
                                  '--entrypoint', 'php', green.IMAGE_ID, '-r', code],

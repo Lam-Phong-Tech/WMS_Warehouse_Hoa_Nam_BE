@@ -157,7 +157,14 @@ jobs:
           set -euo pipefail
           cd devtest-future-source
           case "$CONFIRMATION" in
-            FUTURE-P06-*) python3 tools/deploy/deploy-green-p06-master.py --package --checkout "$PWD" --ops-sha "$GITHUB_SHA" --output "$PWD/p06-package" ;;
+            FUTURE-P06-*)
+              docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/workspace" -w /workspace node:22-alpine \
+                sh -lc 'node --version && npm ci --ignore-scripts --no-fund && npm run toolchain:test && npm ls --all >/tmp/p06-dependency-tree.txt && npm audit --json >p06-npm-audit.json && npm run build && npm test'
+              docker run --rm -v "$PWD:/var/www/html:ro" -w /var/www/html --entrypoint composer \
+                sha256:69aad9b47acd88192a463c72045fb8ae77789719bbcc7421226e93c91eadd44b \
+                --no-plugins --no-scripts audit --locked --format=json --no-interaction >p06-composer-audit.json
+              python3 tools/deploy/deploy-green-p06-master.py --package --checkout "$PWD" --ops-sha "$GITHUB_SHA" --output "$PWD/p06-package"
+              ;;
             *) python3 tools/deploy/deploy-green-future-evidence.py --package --checkout "$PWD" --ops-sha "$GITHUB_SHA" --output "$PWD/future-package" ;;
           esac
       - name: Operate only green DEV with history and transport guards
