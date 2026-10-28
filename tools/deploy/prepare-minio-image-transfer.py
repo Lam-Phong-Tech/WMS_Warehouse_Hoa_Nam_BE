@@ -24,7 +24,7 @@ def main():
     subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'wms-minio-image-20261028', '-f', str(key)], check=True)
     (BASE / 'known_hosts').write_text(NEW_HOST_KEY)
     inspect = json.loads(run(['docker', 'image', 'inspect', IMAGE]))[0]
-    assert IMAGE.split('@', 1)[1] in inspect.get('RepoDigests', [])
+    assert IMAGE in inspect.get('RepoDigests', [])
     public = key.with_suffix('.pub').read_text().strip()
     print(json.dumps({'event': 'minio_image_transfer_prepared', 'data': {
         'image': IMAGE, 'image_id': inspect['Id'], 'public_key': public,
