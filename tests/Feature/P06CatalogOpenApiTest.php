@@ -26,6 +26,7 @@ final class P06CatalogOpenApiTest extends TestCase
                     $this->assertArrayNotHasKey($write, $doc['paths'][$path]);
                 }
                 $this->assertArrayNotHasKey('requestBody', $doc['paths'][$path]['get']);
+                $this->assertContains('#/components/parameters/P06CardRevision', array_column($doc['paths'][$path]['get']['parameters'], '$ref'));
                 $this->assertContains('auth:api', $route->gatherMiddleware());
             }
         }
@@ -35,11 +36,16 @@ final class P06CatalogOpenApiTest extends TestCase
             $this->assertSame('string', $schema['properties'][$field]['type']);
             $this->assertTrue($schema['properties'][$field]['nullable']);
         }
-        $this->assertSame([P06CatalogController::CARD_METADATA_REVISION], $doc['components']['schemas']['P06MetadataRevision']['properties']['card_metadata_revision']['enum']);
+        $this->assertSame([P06CatalogController::CARD_METADATA_REVISION, P06CatalogController::DESCRIPTION_METADATA_REVISION], $doc['components']['schemas']['P06MetadataRevision']['properties']['card_metadata_revision']['enum']);
         $contract = json_decode(file_get_contents(base_path('docs/contracts/p06-card-master-r1.json')), true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame(P06CatalogController::CONTRACT, $contract['contract']);
         $this->assertSame(P06CatalogController::CARD_METADATA_REVISION, $contract['revision']);
         $this->assertFalse($contract['migration_required']);
         $this->assertSame($contract['additive_card_fields']['metadata_status']['label_status_values'], $schema['properties']['metadata_status']['properties']['brand_name']['enum']);
+        $r2 = json_decode(file_get_contents(base_path('docs/contracts/p06-card-master-r2.json')), true, flags: JSON_THROW_ON_ERROR);
+        $this->assertSame(P06CatalogController::DESCRIPTION_METADATA_REVISION, $r2['revision']);
+        $this->assertSame($r2['description']['status_values'], $doc['components']['schemas']['P06CardMetadataR2']['properties']['metadata_status']['properties']['description']['enum']);
+        $this->assertSame(P06CatalogController::METADATA_REVISION_HEADER, $doc['components']['parameters']['P06CardRevision']['name']);
+        $this->assertFalse($r2['migration_required']);
     }
 }

@@ -15,6 +15,7 @@ use Modules\Auth\Support\StableAuthSession;
 use Modules\Auth\Support\WarehouseContext;
 use Modules\Warehouse\Support\P06CatalogReadModel;
 use Modules\Warehouse\Support\P06ReadSnapshot;
+use Modules\Warehouse\Support\PvRelations;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 
 /** P06 is read-only. SKU master cards and historically scoped ITEM cards never share an identity. */
@@ -23,6 +24,10 @@ final class P06CatalogController extends Controller
     public const CONTRACT = 'mini-app-p06-v1';
 
     public const CARD_METADATA_REVISION = 'p06-card-master-r1';
+
+    public const DESCRIPTION_METADATA_REVISION = 'p06-card-master-r2';
+
+    public const METADATA_REVISION_HEADER = 'X-P06-Card-Metadata-Revision';
 
     public function __construct(private readonly P06CatalogReadModel $readModel) {}
 
@@ -286,8 +291,17 @@ final class P06CatalogController extends Controller
 
     private function withCardMasters(Builder $query): Builder
     {
-        return $query->leftJoin('product_categories as p06_category', 'p06_category.id', '=', 's.category_id')
+        $query->leftJoin('product_categories as p06_category', 'p06_category.id', '=', 's.category_id')
             ->leftJoin('brands as p06_brand', 'p06_brand.id', '=', 's.brand_id');
+        if ($this->metadataRevision() === self::DESCRIPTION_METADATA_REVISION) {
+            // Aggregate legacy profiles before joining: duplicates must never
+            // multiply cards or choose an arbitrary description for a SKU.
+            $profiles = DB::table(PvRelations::READ_PROFILE)->select('product_id')
+                ->selectRaw('COUNT(*) AS profile_count, MAX(description) AS description')->groupBy('product_id');
+            $query->leftJoinSub($profiles, 'p06_profile', 'p06_profile.product_id', '=', 's.sku_id');
+        }
+
+        return $query;
     }
 
     private function cardColumns(): array
@@ -295,7 +309,9 @@ final class P06CatalogController extends Controller
         return ['s.sku_id', 's.sku_code', 's.sku_name', 's.sku_type', 's.status as sku_status', 's.unit',
             's.version as sku_version', 's.updated_at as sku_updated_at',
             's.category_id', 'p06_category.id as category_source_id', 'p06_category.category_name', 'p06_category.status as category_source_status',
-            's.brand_id', 'p06_brand.id as brand_source_id', 'p06_brand.brand_name', 'p06_brand.status as brand_source_status'];
+            's.brand_id', 'p06_brand.id as brand_source_id', 'p06_brand.brand_name', 'p06_brand.status as brand_source_status',
+            ...($this->metadataRevision() === self::DESCRIPTION_METADATA_REVISION
+                ? ['p06_profile.profile_count as description_profile_count', 'p06_profile.description as profile_description'] : [])];
     }
 
     private function masterLabel(mixed $label): ?string
@@ -324,14 +340,27 @@ final class P06CatalogController extends Controller
 
     private function card(object $row, bool $item): array
     {
+        $description = null;
+        $descriptionStatus = 'SOURCE_NOT_DEFINED';
+        if ($this->metadataRevision() === self::DESCRIPTION_METADATA_REVISION) {
+            $count = (int) ($row->description_profile_count ?? 0);
+            $description = $count === 1 ? $this->masterLabel($row->profile_description) : null;
+            $descriptionStatus = match (true) {
+                $count === 0 => 'PROFILE_NOT_FOUND',
+                $count > 1 => 'PROFILE_AMBIGUOUS',
+                $description === null => 'DESCRIPTION_UNAVAILABLE',
+                default => 'CURRENT_PV_PROFILE',
+            };
+        }
+
         return [
             'card_type' => $item ? 'ITEM' : 'SKU', 'sku_id' => $row->sku_id, 'sku_code' => $row->sku_code,
             'sku_name' => $row->sku_name, 'sku_type' => $row->sku_type, 'sku_status' => $row->sku_status, 'unit' => $row->unit,
             'category_name' => $this->masterLabel($row->category_name),
             'brand_name' => $this->masterLabel($row->brand_name),
-            'description' => null,
+            'description' => $description,
             'metadata_status' => ['category_name' => $this->masterLabelStatus($row, 'category'),
-                'brand_name' => $this->masterLabelStatus($row, 'brand'), 'description' => 'SOURCE_NOT_DEFINED'],
+                'brand_name' => $this->masterLabelStatus($row, 'brand'), 'description' => $descriptionStatus],
             'item_id' => $item ? $row->item_id : null, 'item_code' => $item ? $row->item_code : null,
             'serial_number' => $item ? $row->serial_number : null, 'item_status' => $item ? $row->item_status : null,
             'item_condition' => $item ? $row->item_condition : null,
@@ -420,6 +449,7 @@ final class P06CatalogController extends Controller
 
     private function input(Request $request, array $extra, bool $warehouse = true): array
     {
+        $this->metadataRevision();
         if ($request->getContent() !== '') {
             ApiError::abort(422, 'P06_QUERY_ONLY', 'P06 GET chỉ nhận query, không nhận body.');
         }
@@ -449,7 +479,17 @@ final class P06CatalogController extends Controller
     private function respond(mixed $data, array $snapshot, array $meta = []): JsonResponse
     {
         return response()->json(['success' => true, 'data' => $data, 'meta' => ['contract' => self::CONTRACT,
-            'card_metadata_revision' => self::CARD_METADATA_REVISION, 'snapshot' => $snapshot] + $meta])
-            ->header('Cache-Control', 'private, no-store');
+            'card_metadata_revision' => $this->metadataRevision(), 'snapshot' => $snapshot] + $meta])
+            ->header('Cache-Control', 'private, no-store')->setVary(self::METADATA_REVISION_HEADER, false);
+    }
+
+    private function metadataRevision(): string
+    {
+        $revision = request()->header(self::METADATA_REVISION_HEADER, self::CARD_METADATA_REVISION);
+        if (! in_array($revision, [self::CARD_METADATA_REVISION, self::DESCRIPTION_METADATA_REVISION], true)) {
+            ApiError::abort(422, 'P06_METADATA_REVISION_UNSUPPORTED', 'Revision metadata P06 không được hỗ trợ.');
+        }
+
+        return $revision;
     }
 }

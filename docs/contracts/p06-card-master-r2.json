@@ -1,0 +1,26 @@
+{
+  "contract": "mini-app-p06-v1",
+  "revision": "p06-card-master-r2",
+  "negotiation": {"header": "X-P06-Card-Metadata-Revision", "value": "p06-card-master-r2", "default": "p06-card-master-r1", "unsupported_http": 422, "unsupported_code": "P06_METADATA_REVISION_UNSUPPORTED"},
+  "marker": "meta.card_metadata_revision",
+  "locations": {"sku_list": "data[]", "item_list": "data[]", "sku_detail": "data.card", "item_detail": "data.card"},
+  "description": {
+    "type": ["string", "null"],
+    "source": "Exact sku.sku_id -> PvRelations::READ_PROFILE.product_id -> description; PostgreSQL canonical storage pv_product_profiles.sku_id/description",
+    "format": "PLAIN_TEXT_LITERAL",
+    "semantics": "Current catalog profile description, not historical evidence. Return the stored nonblank string unchanged; render as text, never HTML.",
+    "status_field": "metadata_status.description",
+    "status_values": ["CURRENT_PV_PROFILE", "PROFILE_NOT_FOUND", "PROFILE_AMBIGUOUS", "DESCRIPTION_UNAVAILABLE"],
+    "null_rules": {"PROFILE_NOT_FOUND": "No exact-SKU profile", "PROFILE_AMBIGUOUS": "More than one exact-SKU profile; do not choose one", "DESCRIPTION_UNAVAILABLE": "Unique profile but null, blank or invalid description"},
+    "publication": "Internal sku.view scope, same as the existing Mini App product owner. Publishing is not a new SKU visibility or eligibility filter.",
+    "forbidden_fallbacks": ["sku_name", "specification", "short_description", "category description", "brand description", "another SKU or variant", "current lookup for historical events"]
+  },
+  "compatibility": "No header or explicit r1 keeps r1 and description=null/SOURCE_NOT_DEFINED; r1 response is not silently changed. New App accepts legacy/r1/r2 and requests r2 on P06 GETs only. Unknown revisions and inconsistent status/value pairs remain rejected.",
+  "query_policy": "One grouped profile read join only in the batched card projection after existing counts. Never N+1, fanout, new filters, new route, or pagination/count changes. All reads use existing P06 snapshot.",
+  "failure_policy": "Database/source query errors propagate; never convert them into absent/empty success.",
+  "cache": "private,no-store; Vary includes X-P06-Card-Metadata-Revision, Authorization and Origin. Next GET sees committed profile edits; SKU/stock version is not a description cache key.",
+  "authorization": "Existing actor/session/warehouse/sku.view and ITEM permission rules unchanged; no writes, new grants or publish bypass.",
+  "migration_required": false,
+  "seed_required": false,
+  "production_activation": false
+}

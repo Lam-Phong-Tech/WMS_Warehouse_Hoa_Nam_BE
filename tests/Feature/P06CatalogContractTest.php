@@ -30,6 +30,95 @@ class P06CatalogContractTest extends TestCase
 
     private const RIGHTS = ['sku.view', 'item_instance.view', 'inventory.view', 'inventory.trace', 'warranty.view', 'warranty.manage', 'label.print'];
 
+    public function test_r2_reads_the_exact_pv_description_on_all_four_card_surfaces_and_keeps_r1_compatible(): void
+    {
+        [$actor, $token, $warehouse] = $this->actorSession();
+        $sku = $this->skuFixture('P06-PV-DCJZ2090');
+        $other = $this->skuFixture('P06-PV-DCJZ2090i');
+        $description = "Động cơ không chổi than, mô-men xoắn 90N.m.\nMô tả PV có nguồn.";
+        $this->profileDescription($sku, $description);
+        $this->profileDescription($other, 'Không được ghép mô tả biến thể khác.');
+        $item = $this->seedItemInStock($sku->sku_id);
+        $this->movement($actor, $warehouse, $sku, 1, $item);
+        $before = $this->domainCounts();
+        $headers = $this->headers($token) + [P06CatalogController::METADATA_REVISION_HEADER => P06CatalogController::DESCRIPTION_METADATA_REVISION];
+        foreach (['skus' => 'data.0', 'skus/'.$sku->sku_id => 'data.card', 'items' => 'data.0', 'items/'.$item => 'data.card'] as $path => $prefix) {
+            $query = str_contains($path, '/') ? [] : ['sku_id' => $sku->sku_id];
+            $url = $this->url($path, $warehouse, $query);
+            $r2 = $this->catalogGet($url, $headers)->assertOk()
+                ->assertJsonPath('meta.card_metadata_revision', 'p06-card-master-r2')
+                ->assertJsonPath($prefix.'.description', $description)
+                ->assertJsonPath($prefix.'.metadata_status.description', 'CURRENT_PV_PROFILE');
+            $this->assertContains(P06CatalogController::METADATA_REVISION_HEADER, $r2->getVary());
+            $this->catalogGet($url, $this->headers($token))->assertOk()
+                ->assertJsonPath('meta.card_metadata_revision', 'p06-card-master-r1')
+                ->assertJsonPath($prefix.'.description', null)
+                ->assertJsonPath($prefix.'.metadata_status.description', 'SOURCE_NOT_DEFINED');
+            if (! str_contains($path, '/')) {
+                $r2->assertJsonPath('meta.total', 1)->assertJsonPath('meta.tab_totals.ALL', 1);
+            }
+        }
+        $this->assertSame($before, $this->domainCounts());
+    }
+
+    public function test_r2_missing_and_blank_profile_descriptions_never_fall_back_or_grant_stock_permission(): void
+    {
+        [, $token, $warehouse] = $this->actorSession(['sku.view']);
+        $sku = $this->skuFixture('P06-PV-ABSENT');
+        DB::table('sku')->where('sku_id', $sku->sku_id)->update(['specification' => json_encode(['description' => 'Not a description source'])]);
+        // PostgreSQL's compatibility UPDATE can create a blank PV profile.
+        // Remove only this isolated test SKU's profile to exercise real absence.
+        $relation = PvRelations::profile();
+        DB::table($relation['table'])->where($relation['sku'], $sku->sku_id)->delete();
+        $headers = $this->headers($token) + [P06CatalogController::METADATA_REVISION_HEADER => P06CatalogController::DESCRIPTION_METADATA_REVISION];
+        $url = $this->url('skus/'.$sku->sku_id, $warehouse);
+        $this->catalogGet($url, $headers)->assertOk()->assertJsonPath('data.card.description', null)
+            ->assertJsonPath('data.card.metadata_status.description', 'PROFILE_NOT_FOUND')->assertJsonPath('data.stock', null);
+        $profile = $this->profileDescription($sku, '   ');
+        $this->catalogGet($url, $headers)->assertOk()->assertJsonPath('data.card.description', null)
+            ->assertJsonPath('data.card.metadata_status.description', 'DESCRIPTION_UNAVAILABLE');
+        DB::table($relation['table'])->where($relation['key'], $profile)->update(['description' => '<p>Literal catalog text</p>']);
+        $this->catalogGet($url, $headers)->assertOk()->assertJsonPath('data.card.description', '<p>Literal catalog text</p>')
+            ->assertJsonPath('data.card.metadata_status.description', 'CURRENT_PV_PROFILE')->assertJsonPath('data.stock_availability', 'FORBIDDEN');
+    }
+
+    public function test_r2_profile_edits_are_visible_without_changing_sku_or_stock_versions_and_unknown_revisions_fail(): void
+    {
+        [$actor, $token, $warehouse] = $this->actorSession();
+        $sku = $this->skuFixture('P06-PV-REFRESH');
+        $this->movement($actor, $warehouse, $sku, 2);
+        $profile = $this->profileDescription($sku, 'Before profile edit');
+        $headers = $this->headers($token) + [P06CatalogController::METADATA_REVISION_HEADER => P06CatalogController::DESCRIPTION_METADATA_REVISION];
+        $url = $this->url('skus/'.$sku->sku_id, $warehouse);
+        $before = $this->catalogGet($url, $headers)->assertOk();
+        $relation = PvRelations::profile();
+        DB::table($relation['table'])->where($relation['key'], $profile)->update(['description' => 'After profile edit']);
+        $after = $this->catalogGet($url, $headers)->assertOk()->assertJsonPath('data.card.description', 'After profile edit');
+        $this->assertSame($before->json('data.card.version'), $after->json('data.card.version'));
+        $this->assertSame($before->json('data.stock.version'), $after->json('data.stock.version'));
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        try {
+            $this->catalogGet($this->url('skus', $warehouse), $headers)->assertOk();
+            $this->assertCount(1, array_filter(DB::getQueryLog(), fn (array $q): bool => str_contains($q['query'], 'description_profile_count')));
+        } finally {
+            DB::disableQueryLog();
+        }
+        $this->catalogGet($url, $this->headers($token) + [P06CatalogController::METADATA_REVISION_HEADER => 'p06-card-master-r999'])
+            ->assertUnprocessable()->assertJsonPath('error_code', 'P06_METADATA_REVISION_UNSUPPORTED');
+    }
+
+    private function profileDescription(Sku $sku, ?string $description): string
+    {
+        $id = (string) Str::uuid();
+        $relation = PvRelations::profile();
+        DB::table($relation['table'])->insert([$relation['key'] => $id, $relation['sku'] => $sku->sku_id,
+            'display_name' => 'P06 profile description TEST', 'description' => $description,
+            'published' => false, 'sort_order' => 0, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+
+        return $id;
+    }
+
     public function test_master_labels_share_the_exact_sku_fk_across_four_card_surfaces_without_changing_counts(): void
     {
         [$actor, $token, $warehouse] = $this->actorSession();
