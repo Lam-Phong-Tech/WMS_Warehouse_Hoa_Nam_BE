@@ -18,7 +18,7 @@ app_release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(app_release)
 green, tc12 = app_release.green, app_release.tc12
 require = app_release.require
-SOURCE = '382b1f75f0a3453fab9b1e8cfb2f9d161043f5b7'
+SOURCE = 'bc05b5c84d8bebad2473bd4123fdf62f262fea39'
 PREVIOUS = 'cdda3076a950be1f3860083768d9c9de6c7783ad'
 PREVIOUS_RELEASE = PREVIOUS + '-future-evidence-20261026T051148Z'
 TLS = Path('/etc/nginx/sites-available/khohoanamdev.lptech.info.vn')
@@ -166,7 +166,7 @@ def prepare_private_vendor(release, old_vendor, images, expected_lock):
         args.append('--no-dev')
     green.run(args, timeout=900)
     code = r"""require 'vendor/autoload.php';
-    if(!class_exists('Modules\\Warehouse\\Http\\Controllers\\P06CatalogController')
+    if(!class_exists(\Modules\Warehouse\Http\Controllers\P06CatalogController::class)
        || Composer\InstalledVersions::getPrettyVersion('phpoffice/phpspreadsheet')!=='5.10.0') exit(2);
     file_put_contents('vendor/.composer-lock.sha256',hash_file('sha256','composer.lock')."\n");
     echo hash_file('sha256','composer.lock');"""
