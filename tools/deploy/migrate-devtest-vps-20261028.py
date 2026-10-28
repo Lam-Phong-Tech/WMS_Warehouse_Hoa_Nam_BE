@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tarfile
@@ -19,6 +20,32 @@ green = release.green
 NEW_HOST_KEY = '14.225.37.158 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIkPmCoxeO+4XyrbHSw3ojHzzfvtovcPyi/x1NwuOGZF\n'
 TRANSFER = Path('/opt/hoa-nam-green/backups/vps-transfer-20261028')
 SERVICES = ('backend', 'queue', 'scheduler', 'reverb', 'minio', 'valkey')
+
+
+class TransferWriter:
+    def __init__(self, stream):
+        self.stream = stream
+        self.digest = hashlib.sha256()
+        self.bytes = 0
+
+    def write(self, block):
+        result = self.stream.write(block)
+        assert result == len(block)
+        self.digest.update(block)
+        self.bytes += result
+        return result
+
+
+def routing_inspect():
+    found = {}
+    for folder in ('sites-enabled', 'sites-available', 'conf.d'):
+        for path in (Path('/etc/nginx') / folder).glob('*'):
+            if not path.is_file() or path.suffix in ('.key', '.pem', '.crt'):
+                continue
+            text = path.read_text()
+            if 'appqr.lptech.info.vn' in text:
+                found[str(path.resolve())] = {'sha256': green.digest(path), 'routes': [line.strip() for line in text.splitlines() if re.match(r'\s*(server_name|location|proxy_pass)\s', line)]}
+    green.emit('devtest_preview_routing', found)
 
 
 def container(service):
@@ -49,8 +76,12 @@ def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser()
     parser.add_argument('--export', action='store_true')
+    parser.add_argument('--routing-inspect', action='store_true')
     args = parser.parse_args()
     assert os.getuid() == 0
+    if args.routing_inspect:
+        routing_inspect()
+        return
     TRANSFER.mkdir(mode=0o700, exist_ok=True)
     key = TRANSFER / 'transfer_key'
     if not key.exists():
@@ -99,7 +130,9 @@ def main():
             green.run(['docker', 'stop', '--time', '120', *['hoa_nam_green-' + s + '-1' for s in running]], timeout=240)
             before = green.fingerprints()
             media = green.media_manifest(root)
-            dump = TRANSFER / 'database.dump'
+            attempt = TRANSFER / datetime.datetime.now(datetime.timezone.utc).strftime('attempt-%Y%m%dT%H%M%SZ')
+            attempt.mkdir(mode=0o700)
+            dump = attempt / 'database.dump'
             assert not dump.exists()
             with dump.open('xb') as stream:
                 result = subprocess.run(['docker', 'exec', 'hoa_nam_green-postgres-1', 'pg_dump', '-U', 'postgres', '-d', 'wms_hoanam_green', '-Fc', '--no-owner', '--no-acl'], stdout=stream, stderr=subprocess.PIPE, timeout=600)
@@ -117,11 +150,12 @@ def main():
             }
             assert before == green.fingerprints(), 'Database changed after quiesce'
             assert media == green.media_manifest(root), 'Media changed after quiesce'
-            manifest = TRANSFER / 'manifest.json'
+            manifest = attempt / 'manifest.json'
             manifest.write_text(json.dumps(data))
             ssh = subprocess.Popen(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=20', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=' + str(TRANSFER / 'known_hosts'), '-i', str(key), 'root@14.225.37.158', 'receive-devtest-20261028'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
-                with tarfile.open(fileobj=ssh.stdin, mode='w|gz') as archive:
+                writer = TransferWriter(ssh.stdin)
+                with tarfile.open(fileobj=writer, mode='w|gz') as archive:
                     for path, name in ((manifest, 'manifest.json'), (dump, 'database.dump'), (root / '.env', 'private/app.env'), (root / 'storage/app', 'storage/app'), (minio, 'minio'), (valkey, 'valkey')):
                         archive.add(path, arcname=name, recursive=True)
                     for name in data['overlays']:
@@ -132,7 +166,7 @@ def main():
                 code = ssh.wait(timeout=600)
                 assert code == 0, 'Secure receiver failed; sensitive error suppressed'
                 receipt = json.loads(response)
-                assert receipt['received'] and receipt['bytes'] > dump.stat().st_size
+                assert receipt['received'] and receipt['bytes'] == writer.bytes and receipt['sha256'] == writer.digest.hexdigest()
             finally:
                 if ssh.poll() is None:
                     ssh.kill()
