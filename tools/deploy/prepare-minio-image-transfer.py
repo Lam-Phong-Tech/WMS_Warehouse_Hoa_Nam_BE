@@ -19,10 +19,13 @@ def run(args):
 
 def main():
     os.umask(0o077)
-    BASE.mkdir(mode=0o700, parents=True, exist_ok=False)
+    BASE.mkdir(mode=0o700, parents=True, exist_ok=True)
     key = BASE / 'transfer_key'
-    subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'wms-minio-image-20261028', '-f', str(key)], check=True)
-    (BASE / 'known_hosts').write_text(NEW_HOST_KEY)
+    if not key.exists():
+        subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', 'wms-minio-image-20261028', '-f', str(key)], check=True)
+    known_hosts = BASE / 'known_hosts'
+    if not known_hosts.exists():
+        known_hosts.write_text(NEW_HOST_KEY)
     inspect = json.loads(run(['docker', 'image', 'inspect', IMAGE]))[0]
     assert IMAGE in inspect.get('RepoDigests', [])
     public = key.with_suffix('.pub').read_text().strip()
