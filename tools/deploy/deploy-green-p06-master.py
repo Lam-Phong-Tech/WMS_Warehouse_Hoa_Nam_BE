@@ -178,10 +178,7 @@ def prepare_private_vendor(release, old_vendor, images, expected_lock):
     require(len(logical) == 1, 'Runtime vendor references differ')
     key = logical.pop()
     require(before['volumes'][key]['name'] == old_vendor, 'Old vendor compose mapping changed')
-    pinned_images = {s: {'image': row['image']} for s, row in before['services'].items() if 'image' in row}
-    pinned_images.update({s: {'image': images[s]} for s in SERVICES})
-    override = {'services': pinned_images, 'volumes': {key: {'external': True, 'name': name}}}
-    (release / 'docker-compose.vendor-release.yml').write_text(json.dumps(override, indent=2))
+    green.run(['node', str(Path(__file__).with_name('rewrite-vendor-compose.mjs')), str(release), key, old_vendor, name])
     before['volumes'][key] = {'external': True, 'name': name}
     require(json.loads(green.compose(release, ['config', '--format', 'json'])) == before,
             'Vendor override affected unrelated compose settings')
