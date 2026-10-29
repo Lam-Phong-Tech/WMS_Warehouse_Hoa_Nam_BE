@@ -1,0 +1,40 @@
+{
+  "scope": "UAT_SCAN_v3 1fyH-UWHZEWMp3-Hh-Jw6L34aZueKnb3NkeHxB4ot200",
+  "observed_at": "2026-10-29T17:21:47+07:00",
+  "environment": "DEV_TEST",
+  "feature_source_sha": "9f49fed97c2217f51ce198e9ea1347c373139019",
+  "fixture_ops_sha": "b26d8bb87773ba530168b5e9cc496fbf65323f10",
+  "runtime_before_release": "d6b1cc60550e7e351ccfa00e95a0a0f0952450d1",
+  "release_candidate_sha": "SEE_DELIVERY_MANIFEST_AFTER_COMMIT",
+  "contract": "tc26-future-evidence-v1",
+  "migration": {
+    "name": "2026_10_26_000001_create_future_event_evidence",
+    "batch": 27,
+    "status": "Ran"
+  },
+  "tests": {
+    "sqlite": {"tests": 6, "assertions": 81, "status": "PASS"},
+    "postgresql_isolated": {"tests": 6, "assertions": 81, "status": "PASS"},
+    "full_ci": "NOT_RUN"
+  },
+  "audits": {
+    "composer_validate": "PASS",
+    "composer_advisories": 0,
+    "npm_vulnerabilities": 0,
+    "symfony_mime": "7.4.22"
+  },
+  "authenticated_http": {
+    "tc02_list_request_id": "0e46c5e3-cc18-4415-af6d-aa02527f7112",
+    "tc02_detail_request_id": "57756147-36e3-4da2-a998-bd1ef7ed0459",
+    "tc04_detail_request_id": "d7d5bb91-b425-46b6-a7f4-37e380be2a89",
+    "tc07_resolve_request_id": "0dc71c62-4de6-4d34-9214-8e1d5b880193",
+    "notification_read_patches": 0,
+    "business_writes": 0,
+    "logout_status": 200
+  },
+  "production_activation": false,
+  "seed_run": false,
+  "repair_run": false,
+  "historical_backfill": false,
+  "credentials_included": false
+}

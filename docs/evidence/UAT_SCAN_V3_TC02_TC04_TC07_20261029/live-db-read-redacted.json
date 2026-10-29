@@ -1,0 +1,149 @@
+{
+  "observed_at": "2026-10-29T17:21:47+07:00",
+  "database": "wms_hoanam_green",
+  "actor": {
+    "user_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+    "status": "ACTIVE",
+    "display_name": "TC26 TEST Operator",
+    "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+    "job_title": "Nhân viên kho TEST",
+    "job_title_source": "USER_APPROVED_TC26_TEST_FIXTURE",
+    "permissions": [
+      "catalog.view",
+      "documents.read",
+      "history.read",
+      "inbound.cancel",
+      "inbound.create",
+      "inbound.post",
+      "inbound.scan",
+      "inbound.view",
+      "inventory.trace",
+      "inventory.view",
+      "outbound.cancel",
+      "outbound.post",
+      "outbound.request.manual_create",
+      "outbound.scan",
+      "outbound.view",
+      "sku.view",
+      "warranty.component_issue",
+      "warranty.manage",
+      "warranty.view"
+    ]
+  },
+  "tc02": {
+    "notification": {
+      "id": "01a176ae-5174-7248-bd1a-43c6906b3cb3",
+      "event_key": "inbound.created",
+      "subject_type": "stock_document",
+      "subject_id": "a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+      "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+      "actor_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+      "actor_name": "TC26 TEST Operator",
+      "created_at": "2026-10-26 05:28:18+00",
+      "snapshot_actor_name": "TC26 TEST Operator",
+      "job_title": "Nhân viên kho TEST",
+      "warehouse_name": "Kho tổng Hoa Nam",
+      "capture_policy": "AT_DOMAIN_EVENT_DISPATCH",
+      "captured_at": "2026-10-26 05:28:11.272192+00"
+    },
+    "recipient": {
+      "recipient_id": "01a176ae-5459-7018-a3ac-cc062fc1d2ca",
+      "notification_id": "01a176ae-5174-7248-bd1a-43c6906b3cb3",
+      "user_id": "01a06f33-6610-7319-bc3f-e61cdda01dc7",
+      "read_at": "2026-10-29 07:29:54+00",
+      "created_at": "2026-10-26 05:28:19+00",
+      "email_masked": "a***@gmail.com"
+    }
+  },
+  "tc04": {
+    "document": {
+      "id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+      "doc_no": "PX-20261026122815-9DTVEQ",
+      "doc_type": "issue",
+      "status": "POSTED",
+      "src_warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+      "dst_warehouse_id": null,
+      "version": 3,
+      "created_by": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+      "created_at": "2026-10-26 12:28:15"
+    },
+    "events": [
+      {
+        "id": "d042b644-83a5-45e9-848d-df9c665108bb",
+        "document_id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+        "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+        "source": "OUTBOUND",
+        "event_key": "CREATED",
+        "document_version": 1,
+        "actor_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+        "actor_name": "TC26 TEST Operator",
+        "job_title": "Nhân viên kho TEST",
+        "description": "Document created by canonical owner",
+        "occurred_at": "2026-10-26 05:28:15.193265+00"
+      },
+      {
+        "id": "608686ae-27b6-4025-b0f6-4b4bda2bd824",
+        "document_id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+        "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+        "source": "OUTBOUND",
+        "event_key": "CHECKED",
+        "document_version": 1,
+        "actor_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+        "actor_name": "TC26 TEST Operator",
+        "job_title": "Nhân viên kho TEST",
+        "description": "User explicitly confirmed document check",
+        "occurred_at": "2026-10-26 05:28:15.726507+00"
+      },
+      {
+        "id": "565a55ff-6fb9-4abb-9c6a-6bcd5c25a490",
+        "document_id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+        "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+        "source": "OUTBOUND",
+        "event_key": "SENT",
+        "document_version": 2,
+        "actor_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+        "actor_name": "TC26 TEST Operator",
+        "job_title": "Nhân viên kho TEST",
+        "description": "Document submitted to Web by canonical RECORD owner",
+        "occurred_at": "2026-10-26 05:28:17.139085+00"
+      }
+    ],
+    "handoff": {
+      "stock_document_id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+      "source": "OUTBOUND",
+      "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+      "document_version_at_record": 2,
+      "submitted_at": "2026-10-26 05:28:17.127598+00"
+    }
+  },
+  "tc07": {
+    "sku": {
+      "sku_id": "01a176ae-276b-72e8-8910-2c32a864c1e0",
+      "sku_code": "TC26-PRODUCT",
+      "sku_name": "TC26 TEST PRODUCT",
+      "status": "ACTIVE",
+      "sku_type": "PRODUCT",
+      "unit": "cái",
+      "category_id": "0d137d4c-5e42-46d6-ae0f-ed3bd375c954"
+    },
+    "supplier": {
+      "id": "fe1a7c6d-ae98-490a-b176-d5c37b7b50ce",
+      "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+      "name": "TC26 TEST SUPPLIER",
+      "status": "ACTIVE",
+      "version": 1
+    },
+    "raw_code": "HN1|SKU=TC26-PRODUCT|ITEM=TC26-RECEIPTABLE",
+    "quantity_limit": 1,
+    "item_exists": false,
+    "physical_code_exists": false,
+    "legacy_private_draft": {
+      "document_id": "54d265f0-4387-4f80-b3a3-1b56f63d4255",
+      "status": "DRAFT",
+      "version": 1,
+      "title": "TC26 TEST TC07 receiptable",
+      "business_document_id": null,
+      "transferable_to_new_session": false
+    }
+  }
+}

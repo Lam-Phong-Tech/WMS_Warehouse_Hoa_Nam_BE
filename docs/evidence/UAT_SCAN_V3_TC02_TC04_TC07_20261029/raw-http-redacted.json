@@ -1,0 +1,444 @@
+{
+  "generated_at": "2026-10-29T10:25:23.037Z",
+  "business_writes": 0,
+  "notification_read_patches": 0,
+  "health": {
+    "status": 200,
+    "request_id": "742ac847-c94e-4573-8565-0bd6ec019047",
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store, private",
+      "x-content-type-options": "nosniff",
+      "x-request-id": "742ac847-c94e-4573-8565-0bd6ec019047",
+      "x-wms-deployment-tier": "dev-test",
+      "vary": "Accept-Encoding, Origin, Authorization"
+    },
+    "build": {
+      "sha": "d6b1cc60550e7e351ccfa00e95a0a0f0952450d1",
+      "ref": "dev@d6b1cc60+p06-description+preserved-runtime-hotfixes",
+      "built_at": "2026-10-28T10:22:58.896702+00:00"
+    },
+    "environment": "testing"
+  },
+  "login": {
+    "status": 200,
+    "request_id": "af8f65b7-419d-44a4-a04b-6a694c6c207b",
+    "response_body_included": false
+  },
+  "context_switch": {
+    "status": 200,
+    "request_id": "a8d08a1f-1ed8-49d5-a229-d9c963f6a866",
+    "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8"
+  },
+  "auth_owner": {
+    "user_id": "01a06f33-6610-7319-bc3f-e61cdda01dc7",
+    "auth_session_id": "7627c429-3e74-4a6f-998c-b998f92e4f34",
+    "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+    "warehouse_context": {
+      "status": "READY",
+      "error_code": null
+    },
+    "permissions_required": [
+      "inbound.view",
+      "inbound.scan"
+    ],
+    "permissions_present": true,
+    "request_id": "e96dcbfb-c3fc-4400-a57c-292138dd51a7"
+  },
+  "tc02_list": {
+    "method": "GET",
+    "route": "/api/v1/notifications?page=1&per_page=100",
+    "status": 200,
+    "request_id": "0e46c5e3-cc18-4415-af6d-aa02527f7112",
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store, private",
+      "x-content-type-options": "nosniff",
+      "x-request-id": "0e46c5e3-cc18-4415-af6d-aa02527f7112",
+      "x-wms-deployment-tier": "dev-test",
+      "vary": "Accept-Encoding, Origin, Authorization"
+    },
+    "response": {
+      "success": true,
+      "data": {
+        "id": "01a176ae-5459-7018-a3ac-cc062fc1d2ca",
+        "notification_id": "01a176ae-5174-7248-bd1a-43c6906b3cb3",
+        "event_key": "inbound.created",
+        "title": "Đã tạo phiếu nhập mới",
+        "body": "Phiếu nhập PN-20261026-0001 vừa được tạo ở trạng thái Nháp.",
+        "severity": "info",
+        "source_module": "warehouse",
+        "subject_type": "stock_document",
+        "subject_id": "a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+        "actor_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+        "actor_name": "TC26 TEST Operator",
+        "payload": {
+          "document_id": "a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+          "doc_no": "PN-20261026-0001",
+          "type": "receipt",
+          "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8"
+        },
+        "read_at": "2026-10-29T07:29:54.000000Z",
+        "read_at_status": "RECORDED",
+        "created_at": "2026-10-26T05:28:19.000000Z",
+        "payload_semantics": "EVENT_SNAPSHOT_NOT_AUTHORIZATION",
+        "subject": {
+          "requires_subject_revalidation": true,
+          "web_url": null,
+          "web_url_status": "NOT_CONFIGURED",
+          "mapping_revision": "p13-notifications-r2",
+          "mapping_status": "MAPPED",
+          "business_type": "INBOUND",
+          "business_id": "a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+          "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+          "identity_source": "PERSISTED_NOTIFICATION_EVENT_AND_PAYLOAD",
+          "read_target": {
+            "method": "GET",
+            "path": "/api/v1/mini-app/inbound-documents/a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+            "query": {
+              "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8"
+            }
+          },
+          "navigation_status": "OWNER_REVALIDATION_REQUIRED"
+        },
+        "source_snapshot": {
+          "contract": "notification-source-snapshot-v1",
+          "actor_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+          "availability": "RECORDED",
+          "actor_name_snapshot": "TC26 TEST Operator",
+          "actor_job_title_snapshot": "Nhân viên kho TEST",
+          "actor_job_title_status": "RECORDED",
+          "warehouse_name_snapshot": "Kho tổng Hoa Nam",
+          "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+          "captured_at": "2026-10-26T05:28:11.272192Z",
+          "timestamp_source": "notification_source_snapshots.captured_at",
+          "capture_policy": "AT_DOMAIN_EVENT_DISPATCH",
+          "job_title_source": "user_business_profiles.job_title AT_CAPTURE_NOT_CURRENT_IAM_ROLE"
+        }
+      },
+      "meta": {
+        "current_page": 1,
+        "per_page": 100,
+        "last_page": 6,
+        "total": 599,
+        "from": 1,
+        "to": 100,
+        "request_id": "0e46c5e3-cc18-4415-af6d-aa02527f7112",
+        "timestamp": "2026-10-29T17:25:27+07:00",
+        "contract": "p13-notifications-v1",
+        "projection_revision": "p13-notifications-r2",
+        "timestamp_contract": "notification-timestamps-v1",
+        "count_unit": "NOTIFICATION_RECIPIENT",
+        "pagination_mode": "offset",
+        "sort": {
+          "created_at": "desc",
+          "id": "desc"
+        },
+        "snapshot_consistent": false,
+        "mutable_unread_safe": false,
+        "keyset_start": "start"
+      },
+      "page_scanned": 1
+    }
+  },
+  "tc02_detail": {
+    "method": "GET",
+    "route": "/api/v1/notifications/01a176ae-5459-7018-a3ac-cc062fc1d2ca",
+    "status": 200,
+    "request_id": "57756147-36e3-4da2-a998-bd1ef7ed0459",
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store, private",
+      "x-content-type-options": "nosniff",
+      "x-request-id": "57756147-36e3-4da2-a998-bd1ef7ed0459",
+      "x-wms-deployment-tier": "dev-test",
+      "vary": "Accept-Encoding, Origin, Authorization"
+    },
+    "response": {
+      "success": true,
+      "data": {
+        "id": "01a176ae-5459-7018-a3ac-cc062fc1d2ca",
+        "notification_id": "01a176ae-5174-7248-bd1a-43c6906b3cb3",
+        "event_key": "inbound.created",
+        "title": "Đã tạo phiếu nhập mới",
+        "body": "Phiếu nhập PN-20261026-0001 vừa được tạo ở trạng thái Nháp.",
+        "severity": "info",
+        "source_module": "warehouse",
+        "subject_type": "stock_document",
+        "subject_id": "a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+        "actor_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+        "actor_name": "TC26 TEST Operator",
+        "payload": {
+          "document_id": "a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+          "doc_no": "PN-20261026-0001",
+          "type": "receipt",
+          "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8"
+        },
+        "read_at": "2026-10-29T07:29:54.000000Z",
+        "read_at_status": "RECORDED",
+        "created_at": "2026-10-26T05:28:19.000000Z",
+        "payload_semantics": "EVENT_SNAPSHOT_NOT_AUTHORIZATION",
+        "subject": {
+          "requires_subject_revalidation": true,
+          "web_url": null,
+          "web_url_status": "NOT_CONFIGURED",
+          "mapping_revision": "p13-notifications-r2",
+          "mapping_status": "MAPPED",
+          "business_type": "INBOUND",
+          "business_id": "a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+          "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+          "identity_source": "PERSISTED_NOTIFICATION_EVENT_AND_PAYLOAD",
+          "read_target": {
+            "method": "GET",
+            "path": "/api/v1/mini-app/inbound-documents/a87a33e8-c7ae-4b5a-b7eb-d6c09a24b8d3",
+            "query": {
+              "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8"
+            }
+          },
+          "navigation_status": "OWNER_REVALIDATION_REQUIRED"
+        },
+        "source_snapshot": {
+          "contract": "notification-source-snapshot-v1",
+          "actor_id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+          "availability": "RECORDED",
+          "actor_name_snapshot": "TC26 TEST Operator",
+          "actor_job_title_snapshot": "Nhân viên kho TEST",
+          "actor_job_title_status": "RECORDED",
+          "warehouse_name_snapshot": "Kho tổng Hoa Nam",
+          "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+          "captured_at": "2026-10-26T05:28:11.272192Z",
+          "timestamp_source": "notification_source_snapshots.captured_at",
+          "capture_policy": "AT_DOMAIN_EVENT_DISPATCH",
+          "job_title_source": "user_business_profiles.job_title AT_CAPTURE_NOT_CURRENT_IAM_ROLE"
+        }
+      },
+      "meta": {
+        "request_id": "57756147-36e3-4da2-a998-bd1ef7ed0459",
+        "timestamp": "2026-10-29T17:25:27+07:00",
+        "contract": "p13-notifications-v1",
+        "projection_revision": "p13-notifications-r2",
+        "timestamp_contract": "notification-timestamps-v1",
+        "count_unit": "NOTIFICATION_RECIPIENT"
+      }
+    }
+  },
+  "tc04_detail": {
+    "method": "GET",
+    "route": "/api/v1/mini-app/outbound-documents/1eb9356e-95bd-4396-a8a3-eb2f8d61b368?warehouse_id=01a06f33-6bff-70b8-a089-3c68a83b11a8",
+    "status": 200,
+    "request_id": "d7d5bb91-b425-46b6-a7f4-37e380be2a89",
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store, private",
+      "x-content-type-options": "nosniff",
+      "x-request-id": "d7d5bb91-b425-46b6-a7f4-37e380be2a89",
+      "x-wms-deployment-tier": "dev-test",
+      "vary": "Accept-Encoding, Origin, Authorization"
+    },
+    "response": {
+      "success": true,
+      "data": {
+        "id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+        "doc_no": "PX-20261026122815-9DTVEQ",
+        "status": "POSTED",
+        "src_warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+        "version": 3,
+        "p12": {
+          "identity": {
+            "source": "OUTBOUND",
+            "resource_type": "STOCK_DOCUMENT",
+            "id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+            "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8"
+          },
+          "event_evidence": {
+            "contract": "p12-event-evidence-v2",
+            "milestones": {
+              "created": {
+                "availability": "RECORDED",
+                "occurred_at": "2026-10-26T05:28:15.193265Z",
+                "event_id": "d042b644-83a5-45e9-848d-df9c665108bb",
+                "event_key": "CREATED",
+                "subject_type": "stock_document",
+                "subject_id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+                "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+                "document_version": 1,
+                "actor": {
+                  "id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+                  "name_snapshot": "TC26 TEST Operator",
+                  "job_title_snapshot": "Nhân viên kho TEST"
+                },
+                "description": "Document created by canonical owner",
+                "timestamp_source": "stock_document_event_evidence.occurred_at",
+                "snapshot_policy": "FUTURE_EVENT_CAPTURE_NO_HISTORICAL_BACKFILL"
+              },
+              "checked": {
+                "availability": "RECORDED",
+                "occurred_at": "2026-10-26T05:28:15.726507Z",
+                "event_id": "608686ae-27b6-4025-b0f6-4b4bda2bd824",
+                "event_key": "CHECKED",
+                "subject_type": "stock_document",
+                "subject_id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+                "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+                "document_version": 1,
+                "actor": {
+                  "id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+                  "name_snapshot": "TC26 TEST Operator",
+                  "job_title_snapshot": "Nhân viên kho TEST"
+                },
+                "description": "User explicitly confirmed document check",
+                "timestamp_source": "stock_document_event_evidence.occurred_at",
+                "snapshot_policy": "FUTURE_EVENT_CAPTURE_NO_HISTORICAL_BACKFILL"
+              },
+              "sent": {
+                "availability": "RECORDED",
+                "occurred_at": "2026-10-26T05:28:17.139085Z",
+                "event_id": "565a55ff-6fb9-4abb-9c6a-6bcd5c25a490",
+                "event_key": "SENT",
+                "subject_type": "stock_document",
+                "subject_id": "1eb9356e-95bd-4396-a8a3-eb2f8d61b368",
+                "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+                "document_version": 2,
+                "actor": {
+                  "id": "01a176ae-2654-7206-b01e-ea7f4878dd10",
+                  "name_snapshot": "TC26 TEST Operator",
+                  "job_title_snapshot": "Nhân viên kho TEST"
+                },
+                "description": "Document submitted to Web by canonical RECORD owner",
+                "timestamp_source": "stock_document_event_evidence.occurred_at",
+                "snapshot_policy": "FUTURE_EVENT_CAPTURE_NO_HISTORICAL_BACKFILL"
+              }
+            },
+            "semantics": "PERSISTED_FUTURE_EVENTS_NOT_CURRENT_STATUS"
+          }
+        },
+        "p13": {
+          "contract": "p13-record-handoff-v1",
+          "evidence_status": "NOT_ESTABLISHED",
+          "record_handoff": null,
+          "owner_snapshot_status": "POSTED",
+          "owner_snapshot_posted_at": "2026-10-29T08:14:32.000000Z",
+          "current_waiting_for_web": false,
+          "current_handoff": {
+            "contract": "p13-web-post-queue-v1",
+            "state": "POSTED",
+            "current_waiting_for_web": false,
+            "source": "mini_app_web_post_handoffs+stock_documents.status",
+            "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+            "submitted_at": "2026-10-26T05:28:17.127598Z",
+            "document_version_at_record": 2,
+            "reviewed_at": null,
+            "reviewed_status": "NOT_RECORDED",
+            "posted_at": "2026-10-29T08:14:32.000000Z",
+            "stock_effect": "READ_ONLY_PROJECTION"
+          },
+          "current_handoff_availability": "RECORDED",
+          "current_waiting_semantics": "PERSISTED_HANDOFF_INTENT_AND_CURRENT_CANONICAL_STATE_NOT_HISTORICAL_RECEIPT_OR_READINESS",
+          "recovery_owner": "P05_P03",
+          "write_operations": []
+        }
+      },
+      "meta": {
+        "request_id": "d7d5bb91-b425-46b6-a7f4-37e380be2a89",
+        "timestamp": "2026-10-29T17:25:27+07:00",
+        "p12": {
+          "contract": "p12-documents-read-v2",
+          "source": "OUTBOUND",
+          "owner": "P05",
+          "count_unit": "STOCK_DOCUMENT",
+          "all_sources_aggregate": false,
+          "cross_source_mapping": "PENDING_BA",
+          "query_contract": "P12_STOCK_CREATED_DATE_OFFSET",
+          "write_operations": [],
+          "owner_projection_contract": "p12-owner-projection-v1",
+          "event_evidence_contract": "p12-event-evidence-v2"
+        },
+        "p13": {
+          "contract": "p13-record-handoff-v1",
+          "receipt_scope": "CURRENT_ACTOR_AUTH_SESSION_AND_PERSISTED_DOCUMENT_WAREHOUSE",
+          "receipt_selection": "LATEST_VERIFIED_RECORD_BY_COMPLETED_AT_THEN_REQUEST_ID",
+          "count_unit": "STOCK_DOCUMENT",
+          "all_sources_aggregate": false,
+          "quantity_summary_source": "OWNER_SCAN_ENTRIES_META_SUMMARY_NOT_PAGE_ITEMS"
+        },
+        "timestamp_contract": "document-timestamps-v1",
+        "timestamps": {
+          "contract": "document-timestamps-v1",
+          "format": "RFC3339_UTC",
+          "legacy_naive_timezone": "Asia/Ho_Chi_Minh",
+          "offset_policy": "PRESERVE_INSTANT",
+          "fractional_digits": 6,
+          "precision_policy": "PRESERVE_AVAILABLE_ZERO_PAD_NOT_EXTRA_ACCURACY",
+          "null_policy": "PRESERVE_NULL"
+        }
+      }
+    }
+  },
+  "tc07_resolve": {
+    "method": "POST",
+    "route": "/api/v1/mini-app/inbound/resolve-code",
+    "status": 200,
+    "request_id": "0dc71c62-4de6-4d34-9214-8e1d5b880193",
+    "headers": {
+      "content-type": "application/json",
+      "cache-control": "no-store, private",
+      "x-content-type-options": "nosniff",
+      "x-request-id": "0dc71c62-4de6-4d34-9214-8e1d5b880193",
+      "x-wms-deployment-tier": "dev-test",
+      "vary": "Accept-Encoding, Origin, Authorization"
+    },
+    "response": {
+      "success": true,
+      "message": "Đã resolve mã cho local staging; chưa ghi nhận vào WMS.",
+      "data": {
+        "raw_code": "HN1|SKU=TC26-PRODUCT|ITEM=TC26-RECEIPTABLE",
+        "payload_format": "COMPOSITE_V1",
+        "payload_version": 1,
+        "sku_id": "01a176ae-276b-72e8-8910-2c32a864c1e0",
+        "sku_code": "TC26-PRODUCT",
+        "sku_name": "TC26 TEST PRODUCT",
+        "sku_type": "PRODUCT",
+        "is_serial_tracked": true,
+        "item_id": null,
+        "item_unique": "TC26-RECEIPTABLE",
+        "serial_number": null,
+        "normalized_code_value": "TC26-RECEIPTABLE",
+        "item_status": null,
+        "resolution_status": "NEW_ITEM_CANDIDATE",
+        "item_type": "ITEM",
+        "box_code": null,
+        "box_number": null,
+        "requires_quantity": false,
+        "requires_new_sku_type": false,
+        "warehouse_id": "01a06f33-6bff-70b8-a089-3c68a83b11a8",
+        "stock_effect": "NONE",
+        "movement_created": false,
+        "scan_evidence_created": false,
+        "wms_document_created": false
+      },
+      "meta": {
+        "request_id": "0dc71c62-4de6-4d34-9214-8e1d5b880193",
+        "timestamp": "2026-10-29T17:25:27+07:00"
+      }
+    }
+  },
+  "assertions": {
+    "tc02_contract": "p13-notifications-v1",
+    "tc02_projection_revision": "p13-notifications-r2",
+    "tc02_snapshot_status": "RECORDED",
+    "tc02_snapshot_title": "Nhân viên kho TEST",
+    "tc04_contract": "p12-event-evidence-v2",
+    "tc04_event_keys": [
+      "created",
+      "checked",
+      "sent"
+    ],
+    "tc07_resolution_status": "NEW_ITEM_CANDIDATE",
+    "tc07_sku_status": "ACTIVE_BY_RESOLVER_CONTRACT",
+    "stock_effect": "NONE"
+  },
+  "logout": {
+    "status": 200,
+    "request_id": "9be62f12-a84f-4cb1-907d-88462f494c47",
+    "response_body_included": false
+  }
+}
