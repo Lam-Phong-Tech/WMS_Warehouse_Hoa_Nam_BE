@@ -2,10 +2,10 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
+use App\Support\Database\SchemaCache;
 use App\Support\HoaNamErdSchema;
 use App\Support\WarrantyPiiMasker;
 use App\Traits\ApiResponse;
@@ -18,8 +18,8 @@ use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Support\ProductQrPayload;
-use OpenApi\Attributes as OA;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use OpenApi\Attributes as OA;
 
 /**
  * Lịch sử biến động tồn (inventory_movement) — append-only, không cho sửa/xoá.
@@ -538,7 +538,24 @@ class StockMovementController extends Controller
         } elseif ($resolvedType === 'SKU') {
             $movements = (clone $movementQuery)->where('stock_movements.product_id', $resolvedId)->select($movementSelect)->get();
         } elseif ($resolvedType === 'CONTAINER') {
-            $movements = (clone $movementQuery)->where('stock_movements.container_id', $resolvedId)->select($movementSelect)->get();
+            // Receipt movements are posted per line; the BOX identity remains on its scan
+            // evidence. Only attribute a whole line when every active scan belongs to
+            // this container. A multi-BOX line cannot prove a per-BOX ledger quantity.
+            $exclusiveLines = DB::table('inbound_scan_entries as e')
+                ->where('e.container_id', $resolvedId)
+                ->where(fn ($query) => $query->whereNull('e.status')->orWhere('e.status', '!=', 'REMOVED'))
+                ->whereNotExists(function ($query) use ($resolvedId): void {
+                    $query->selectRaw('1')->from('inbound_scan_entries as other')
+                        ->whereColumn('other.inbound_line_id', 'e.inbound_line_id')
+                        ->where(fn ($active) => $active->whereNull('other.status')->orWhere('other.status', '!=', 'REMOVED'))
+                        ->where(fn ($different) => $different->whereNull('other.container_id')->orWhere('other.container_id', '!=', $resolvedId));
+                })->distinct()->pluck('e.inbound_line_id');
+            $movements = (clone $movementQuery)->where(function ($query) use ($resolvedId, $exclusiveLines): void {
+                $query->where('stock_movements.container_id', $resolvedId);
+                if ($exclusiveLines->isNotEmpty()) {
+                    $query->orWhereIn('stock_movements.stock_document_line_id', $exclusiveLines);
+                }
+            })->select($movementSelect)->get();
         }
 
         $containerItems = collect();
