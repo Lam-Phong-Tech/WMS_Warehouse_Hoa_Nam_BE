@@ -1,10 +1,7 @@
 name: Fix Contract Refresh Seed Once
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/fix-contract-refresh-seed-once.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write

@@ -8,38 +8,7 @@ name: WWHN-234 Concurrency & State Gate
 #   2. một đường Post đổi tồn mới quên phát data.replayed (TC-P1-005/013/029/037).
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'app/Support/ConflictCode.php'
-      - 'app/Support/IdempotentEnvelope.php'
-      - 'app/Support/IdempotencyStore.php'
-      - 'Modules/Warehouse/app/Http/Controllers/**'
-      - 'Modules/Warehouse/app/Services/**'
-      - 'routes/api.php'
-      - 'storage/api-docs/api-docs.json'
-      - 'docs/evidence/WWHN-234/**'
-      - 'docs/decision-records/DISP-STK-233-*'
-      - 'scripts/verify-wwhn234-closure.mjs'
-      - 'scripts/generate-error-code-catalog.mjs'
-      - 'tests/Feature/Wwhn234*'
-      - '.github/workflows/wwhn-234-concurrency-state-gate.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'app/Support/ConflictCode.php'
-      - 'app/Support/IdempotentEnvelope.php'
-      - 'app/Support/IdempotencyStore.php'
-      - 'Modules/Warehouse/app/Http/Controllers/**'
-      - 'Modules/Warehouse/app/Services/**'
-      - 'routes/api.php'
-      - 'storage/api-docs/api-docs.json'
-      - 'docs/evidence/WWHN-234/**'
-      - 'docs/decision-records/DISP-STK-233-*'
-      - 'scripts/verify-wwhn234-closure.mjs'
-      - 'scripts/generate-error-code-catalog.mjs'
-      - 'tests/Feature/Wwhn234*'
-      - '.github/workflows/wwhn-234-concurrency-state-gate.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

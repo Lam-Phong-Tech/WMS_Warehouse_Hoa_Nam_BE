@@ -1,10 +1,7 @@
 name: Fix Global Migration Builtins Once
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/fix-global-migration-builtins-once.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write

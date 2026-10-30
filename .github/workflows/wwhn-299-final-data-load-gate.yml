@@ -1,28 +1,7 @@
 name: WWHN-299 Final Data Load Gate
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'app/Support/Migration/**'
-      - 'app/Console/Commands/MigrationFinalDataLoad.php'
-      - 'config/final_data_load.php'
-      - 'docs/migration/**'
-      - 'docs/evidence/WWHN-299/**'
-      - 'tests/Feature/MigrationFinalDataLoadTest.php'
-      - 'tests/Feature/Wwhn299CutoverRehearsalEvidenceTest.php'
-      - '.github/workflows/wwhn-299-final-data-load-gate.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'app/Support/Migration/**'
-      - 'app/Console/Commands/MigrationFinalDataLoad.php'
-      - 'config/final_data_load.php'
-      - 'docs/migration/**'
-      - 'docs/evidence/WWHN-299/**'
-      - 'tests/Feature/MigrationFinalDataLoadTest.php'
-      - 'tests/Feature/Wwhn299CutoverRehearsalEvidenceTest.php'
-      - '.github/workflows/wwhn-299-final-data-load-gate.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

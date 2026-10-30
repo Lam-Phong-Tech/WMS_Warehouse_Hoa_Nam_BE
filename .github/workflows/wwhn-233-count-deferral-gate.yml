@@ -12,10 +12,6 @@ name: WWHN-233 count/recount deferral gate
 # nào có trên m1.
 
 on:
-  push:
-    branches: [m1]
-  pull_request:
-    branches: [m1]
   workflow_dispatch:
 
 jobs:

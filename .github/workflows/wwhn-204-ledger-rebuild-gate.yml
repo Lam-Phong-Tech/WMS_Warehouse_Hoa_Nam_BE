@@ -15,30 +15,6 @@ name: WWHN-204 Ledger / Balance / Rebuild Closure
 # object thật, không đọc lại một con số chép tay.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php'
-      - 'Modules/Warehouse/app/Services/LedgerReconciliationService.php'
-      - 'Modules/Warehouse/database/migrations/2026_08_15_000100_enforce_stock_movements_append_only_trigger.php'
-      - 'Modules/Warehouse/database/migrations/2026_08_19_050100_enforce_stock_movements_append_only_on_sqlite.php'
-      - 'app/Console/Commands/ReconcileInventoryBalances.php'
-      - 'tests/Feature/Wwhn204LedgerProjectionRebuildTest.php'
-      - 'tests/Feature/Wwhn204LedgerReconciliationCoverageTest.php'
-      - 'scripts/verify-wwhn-204-closure.mjs'
-      - 'scripts/collect-wwhn204-pg-evidence.sh'
-      - 'docs/evidence/WWHN-204/**'
-      - 'docs/decision-records/DISP-INV-204-projection-rebuild.md'
-      - '.github/workflows/wwhn-204-ledger-rebuild-gate.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Services/InventoryProjectionRebuildService.php'
-      - 'app/Console/Commands/ReconcileInventoryBalances.php'
-      - 'tests/Feature/Wwhn204LedgerProjectionRebuildTest.php'
-      - 'scripts/verify-wwhn-204-closure.mjs'
-      - 'docs/evidence/WWHN-204/**'
-      - '.github/workflows/wwhn-204-ledger-rebuild-gate.yml'
   workflow_dispatch:
 
 permissions:

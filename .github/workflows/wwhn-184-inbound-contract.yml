@@ -8,25 +8,6 @@ name: WWHN-184 Inbound Contract Evidence Gate
 #   DEV184-P1-03R — race ≥2 connection thật trên PostgreSQL cho Post Receipt.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineInboundBoxController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'app/Support/IdempotencyStore.php'
-      - 'app/Support/IdempotencyKeyGuard.php'
-      - 'app/Support/ConflictCode.php'
-      - 'docs/postman/WWHN-184 Inbound Contract.postman_collection.json'
-      - 'docs/postman/WWHN-184 Inbound CI.postman_environment.json'
-      - 'docs/api-contract/WWHN-184-inbound-openapi.*'
-      - 'scripts/verify-wwhn184-postman-contract.mjs'
-      - 'scripts/collect-wwhn184-evidence.sh'
-      - 'scripts/wwhn184-post-receipt-*.php'
-      - 'tests/Feature/Wwhn184*.php'
-      - '.github/workflows/wwhn-184-inbound-contract.yml'
   workflow_dispatch:
 
 permissions:

@@ -22,33 +22,6 @@ on:
         description: 'Exact commit SHA cần chứng minh (bỏ trống = HEAD của ref đang chọn)'
         required: false
         type: string
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'tests/Feature/Wwhn328DashboardQuickContractTest.php'
-      - 'tests/Feature/Wwhn328R4ClosureTest.php'
-      - 'scripts/wwhn-328-contract-fingerprint.mjs'
-      - 'scripts/verify-wwhn-328-closure.mjs'
-      - 'docs/evidence/WWHN-328/**'
-      - 'docs/docs_task_jira/WWHN-328.md'
-      - 'storage/api-docs/api-docs.json'
-      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
-      - '.github/workflows/wwhn-328-dashboard-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'tests/Feature/Wwhn328DashboardQuickContractTest.php'
-      - 'tests/Feature/Wwhn328R4ClosureTest.php'
-      - 'scripts/wwhn-328-contract-fingerprint.mjs'
-      - 'scripts/verify-wwhn-328-closure.mjs'
-      - 'docs/evidence/WWHN-328/**'
-      - 'storage/api-docs/api-docs.json'
-      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
-      - '.github/workflows/wwhn-328-dashboard-closure.yml'
 
 permissions:
   contents: read

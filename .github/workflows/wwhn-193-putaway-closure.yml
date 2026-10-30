@@ -11,32 +11,7 @@ name: WWHN-193 Putaway Closure
 #      định TỪ NGOÀI, vì không commit nào chứa được hash của chính nó.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/PutawayController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php'
-      - 'tests/Feature/Wwhn193*.php'
-      - 'tests/Feature/Concerns/PreparesPutawayFixtures.php'
-      - 'Modules/Warehouse/database/migrations/2026_08_19_130000_sync_inbound_lines_mirror_deletes.php'
-      - 'docs/evidence/WWHN-193/**'
-      - 'docs/decision-records/DEC-PTW-RETRY-001-putaway-retry-recovery-contract.md'
-      - 'scripts/verify-wwhn193-closure.mjs'
-      - '.github/workflows/wwhn-193-putaway-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/PutawayController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselinePutawayTaskController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineContainerFlowController.php'
-      - 'tests/Feature/Wwhn193*.php'
-      - 'tests/Feature/Concerns/PreparesPutawayFixtures.php'
-      - 'Modules/Warehouse/database/migrations/2026_08_19_130000_sync_inbound_lines_mirror_deletes.php'
-      - 'docs/evidence/WWHN-193/**'
-      - 'docs/decision-records/DEC-PTW-RETRY-001-putaway-retry-recovery-contract.md'
-      - 'scripts/verify-wwhn193-closure.mjs'
-      - '.github/workflows/wwhn-193-putaway-closure.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

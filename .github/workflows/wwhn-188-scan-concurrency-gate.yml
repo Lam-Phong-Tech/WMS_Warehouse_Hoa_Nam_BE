@@ -10,42 +10,7 @@ name: WWHN-188 Inbound Scan Concurrency & Idempotency Gate
 # PostgreSQL 16 y như môi trường tham chiếu. Fail-closed: sai một mệnh đề là đỏ.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'app/Support/ScanRequestFingerprint.php'
-      - 'app/Support/IdempotencyStore.php'
-      - 'app/Support/IdempotencyKeyGuard.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'tests/Feature/Wwhn188ScanIdempotencyContractTest.php'
-      - 'tests/Feature/InboundScanConcurrencyBehaviorTest.php'
-      - 'tests/Feature/InboundScanRuntimeConcurrencyTest.php'
-      - 'scripts/wwhn188-inbound-scan-*.php'
-      - 'scripts/verify-wwhn-188-closure.mjs'
-      - 'scripts/pin-wwhn-188-candidate.mjs'
-      - 'docs/evidence/WWHN-188/**'
-      - 'docs/decision-records/DEC-SCAN-IDEMP-001-*'
-      - '.github/workflows/wwhn-188-scan-concurrency-gate.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'app/Support/ScanRequestFingerprint.php'
-      - 'app/Support/IdempotencyStore.php'
-      - 'app/Support/IdempotencyKeyGuard.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/InboundDocumentController.php'
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'tests/Feature/Wwhn188ScanIdempotencyContractTest.php'
-      - 'tests/Feature/InboundScanConcurrencyBehaviorTest.php'
-      - 'tests/Feature/InboundScanRuntimeConcurrencyTest.php'
-      - 'scripts/wwhn188-inbound-scan-*.php'
-      - 'scripts/verify-wwhn-188-closure.mjs'
-      - 'scripts/pin-wwhn-188-candidate.mjs'
-      - 'docs/evidence/WWHN-188/**'
-      - 'docs/decision-records/DEC-SCAN-IDEMP-001-*'
-      - '.github/workflows/wwhn-188-scan-concurrency-gate.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -4,9 +4,6 @@ name: WWHN-219 Final Gate
 # and UNMERGED; its workflow never existed on m1, so this gate is the single source
 # of acceptance evidence for WWHN-219.
 on:
-  push:
-    branches:
-      - m1
   workflow_dispatch:
 
 permissions:

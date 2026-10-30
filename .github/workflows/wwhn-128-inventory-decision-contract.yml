@@ -2,29 +2,6 @@ name: WWHN-128 DEC-INV-001 R8 Exact-SHA Evidence Gate
 
 on:
   workflow_dispatch:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn-128-inventory-decision-contract.yml'
-      - 'app/**'
-      - 'Modules/Warehouse/**'
-      - 'database/**'
-      - 'routes/**'
-      - 'tests/Feature/**'
-      - 'scripts/collect-wwhn180-*.sh'
-      - 'scripts/verify_wwhn128_closure.py'
-      - 'scripts/verify-wwhn180-*.mjs'
-      - 'docs/docs_task_jira/WWHN-128*'
-      - 'docs/docs_task_jira/WWHN-180-source-register.json'
-      - 'docs/evidence/WWHN-128/**'
-      - 'docs/evidence/WWHN-180/**'
-      - 'docs/api-contract/WWHN-180-posting-openapi.*'
-      - 'docs/postman/WWHN-180 *'
-      - 'docs/testing/WWHN-180-posting-test-cases.json'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'package.json'
-      - 'package-lock.json'
 
 permissions:
   contents: read

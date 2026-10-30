@@ -7,40 +7,7 @@ name: WWHN-230 Stocktake Scope Disposition
 # fails if the baseline the rule leans on ever stops saying it.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'docs/decision-records/DISP-STK-230-*'
-      - 'docs/traceability/TEMP_KEY_CANONICAL_REGISTER.json'
-      - 'docs/contracts/HoaNam_Current_Baseline_Contract.json'
-      - 'docs/HN_SRS_FRD_v1.12_FULL.md'
-      - 'docs/HoaNam_ERD_Moi_Nhat.md'
-      - 'tests/Feature/Wwhn230StocktakeScopeDispositionTest.php'
-      - 'scripts/verify-wwhn-230-closure.mjs'
-      - 'Modules/Warehouse/routes/**'
-      - 'Modules/Warehouse/app/Http/Controllers/**'
-      - 'Modules/Warehouse/app/Services/**'
-      - 'Modules/Warehouse/database/migrations/**'
-      - 'Modules/Auth/database/seeders/**'
-      - 'storage/api-docs/api-docs.json'
-      - '.github/workflows/wwhn-230-scope-disposition.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'docs/decision-records/DISP-STK-230-*'
-      - 'docs/traceability/TEMP_KEY_CANONICAL_REGISTER.json'
-      - 'docs/contracts/HoaNam_Current_Baseline_Contract.json'
-      - 'docs/HN_SRS_FRD_v1.12_FULL.md'
-      - 'docs/HoaNam_ERD_Moi_Nhat.md'
-      - 'tests/Feature/Wwhn230StocktakeScopeDispositionTest.php'
-      - 'scripts/verify-wwhn-230-closure.mjs'
-      - 'Modules/Warehouse/routes/**'
-      - 'Modules/Warehouse/app/Http/Controllers/**'
-      - 'Modules/Warehouse/app/Services/**'
-      - 'Modules/Warehouse/database/migrations/**'
-      - 'Modules/Auth/database/seeders/**'
-      - 'storage/api-docs/api-docs.json'
-      - '.github/workflows/wwhn-230-scope-disposition.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

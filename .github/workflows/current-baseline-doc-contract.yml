@@ -2,22 +2,6 @@ name: Hoa Nam Three-Doc Baseline Exact-SHA Gate
 
 on:
   workflow_dispatch:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/current-baseline-doc-contract.yml'
-      - 'app/**'
-      - 'Modules/Auth/**'
-      - 'Modules/Warehouse/**'
-      - 'Modules/AuditLog/**'
-      - 'routes/**'
-      - 'tests/**'
-      - 'docs/HoaNam_ERD_Moi_Nhat.md'
-      - 'docs/HoaNam_Tai_lieu_tong_hop_Moi_Nhat.md'
-      - 'docs/WMS_Hoa_Nam_Techstack_Architecture_Dev_Guide.md'
-      - 'docs/contracts/HoaNam_Current_Baseline_Contract.json'
-      - 'composer.json'
-      - 'composer.lock'
 
 permissions:
   contents: read

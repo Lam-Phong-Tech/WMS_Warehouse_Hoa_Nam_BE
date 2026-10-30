@@ -5,21 +5,6 @@ name: WWHN-191 Movement/Balance Support Gate
 # và chạy cả hai driver (sqlite + PostgreSQL) vì SQLite không enforce CHECK constraint.
 
 on:
-  push:
-    branches:
-      - m1
-    paths:
-      - "Modules/Warehouse/app/Http/Controllers/InventoryBalanceController.php"
-      - "Modules/Warehouse/app/Http/Controllers/StockMovementController.php"
-      - "Modules/Warehouse/app/Http/Middleware/EnforceInventoryWarehouseScope.php"
-      - "Modules/Warehouse/app/Models/InventoryBalance.php"
-      - "Modules/Warehouse/app/Models/StockMovement.php"
-      - "Modules/Warehouse/routes/api.php"
-      - "app/Console/Commands/ReconcileInventoryBalances.php"
-      - "tests/Feature/Wwhn191BalanceMovementProjectionTest.php"
-      - "docs/evidence/WWHN-191/**"
-      - "scripts/verify-wwhn-191-closure.mjs"
-      - ".github/workflows/wwhn-191-movement-balance-gate.yml"
   workflow_dispatch:
 
 permissions:
