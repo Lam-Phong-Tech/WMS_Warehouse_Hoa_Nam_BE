@@ -95,6 +95,31 @@ class ImportErrorFileService
     }
 
     /**
+     * Safe read projection of the persisted rejected rows. It uses the same masking,
+     * severity and spreadsheet escaping as the downloadable error file.
+     * Successful source rows are not persisted in import_reports.
+     *
+     * @param array<int, array<string, mixed>> $rowErrors
+     * @return array<int, array<string, mixed>>
+     */
+    public function previewRows(array $rowErrors): array
+    {
+        return array_map(function (array $error): array {
+            $code = (string) ($error['code'] ?? '');
+
+            return [
+                'row_no' => (int) ($error['row'] ?? 0),
+                'field' => $this->sanitizeCell((string) ($error['field'] ?? '')),
+                'error_code' => $this->sanitizeCell($code),
+                'message' => $this->sanitizeCell((string) ($error['message'] ?? '')),
+                'raw_value' => $this->sanitizeCell($this->maskIfPii($this->stringifyValue($error['value'] ?? null))),
+                'severity' => self::SEVERITY_BY_CODE[$code] ?? 'ERROR',
+                'suggested_action' => self::SUGGESTED_ACTION_BY_CODE[$code] ?? 'Sửa giá trị theo mô tả ở cột message rồi import lại.',
+            ];
+        }, $rowErrors);
+    }
+
+    /**
      * Sinh file CSV lỗi từ danh sách row_errors, đã sanitize giá trị để tránh CSV/formula
      * injection và giới hạn độ dài field không lộ dữ liệu ngoài phạm vi cần thiết.
      *

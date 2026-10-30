@@ -5,6 +5,8 @@ namespace Modules\Warehouse\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
+use App\Support\ReportExportFileName;
+use App\Support\ReportExportMemory;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -13,10 +15,13 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Services\ImportErrorFileService;
 use Modules\Warehouse\Support\SkuImportContract;
 use OpenApi\Attributes as OA;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ImportReportController extends Controller
@@ -224,6 +229,106 @@ class ImportReportController extends Controller
         return ($cached['report'] ?? null) !== null
             ? $this->respondSuccess($cached['report'])
             : $this->respondNotFound('Không tìm thấy Import báo cáo.');
+    }
+
+    #[OA\Get(path: '/api/v1/skus/import-reports/{id}/rows', operationId: 'sku_import_report_rows', summary: 'Các dòng lỗi đã lưu của một lần nhập SKU', description: 'Chỉ trả các dòng lỗi trong import_reports.row_errors. Dòng hợp lệ của tệp nguồn không được lưu. Cùng actor scope với chi tiết báo cáo; raw_value được che PII và escape công thức.', security: [['bearerAuth' => []]], tags: ['05. Product'], parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'Trang các dòng lỗi đã lưu'), new OA\Response(response: 404, description: 'Báo cáo ngoài phạm vi hoặc không tồn tại')])]
+    public function rows(Request $request, string $id, ImportErrorFileService $errorFiles): JsonResponse
+    {
+        $this->assertValidId($id);
+        $validated = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'page' => ['nullable', 'integer', 'min:1']]);
+        $report = $this->scopedQuery()->find($id);
+        if (! $report) {
+            return $this->respondNotFound('Không tìm thấy Import báo cáo.');
+        }
+
+        $all = $errorFiles->previewRows(is_array($report->row_errors) ? $report->row_errors : []);
+        $page = (int) ($validated['page'] ?? 1);
+        $perPage = (int) ($validated['per_page'] ?? 20);
+        $slice = array_slice($all, ($page - 1) * $perPage, $perPage);
+        $response = $this->respondPaginated(new LengthAwarePaginator($slice, count($all), $perPage, $page, ['path' => $request->url(), 'pageName' => 'page']));
+        $payload = $response->getData(true);
+        $payload['meta']['data_scope'] = $this->dataScopeLabel();
+        $payload['meta']['row_source'] = 'PERSISTED_ERRORS_ONLY';
+        $response->setData($payload);
+
+        return $response;
+    }
+
+    #[OA\Get(path: '/api/v1/skus/import-reports/export-excel', operationId: 'sku_import_quality_export', summary: 'Xuất đúng báo cáo lần nhập SKU và các dòng lỗi đã lưu', description: 'Nguồn import_reports import_type=SKU, không phải reports/import-match (đối soát toa xuất). Áp cùng actor scope với list/detail. Tối đa 10.000 dòng, che PII, escape công thức Excel.', security: [['bearerAuth' => []]], tags: ['05. Product'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'result', in: 'query', schema: new OA\Schema(type: 'string', enum: ['SUCCESS', 'FAILED', 'DUPLICATE'])), new OA\Parameter(name: 'issues_only', in: 'query', schema: new OA\Schema(type: 'boolean')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'XLSX đúng nguồn SKU import'), new OA\Response(response: 422, description: 'Bộ lọc sai hoặc vượt trần xuất')])]
+    public function exportExcel(Request $request, ImportErrorFileService $errorFiles): StreamedResponse
+    {
+        $validated = $request->validate([
+            'from_date' => ['nullable', 'date_format:Y-m-d'],
+            'to_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from_date'],
+            'result' => ['nullable', 'in:SUCCESS,FAILED,DUPLICATE'],
+            'issues_only' => ['nullable', 'boolean'],
+            'keyword' => ['nullable', 'string', 'max:200'],
+            'mode' => ['nullable', 'in:DRY_RUN,COMMIT'],
+            'status' => ['nullable', 'in:VALID,REJECTED,COMMITTED'],
+        ]);
+
+        $query = $this->scopedQuery();
+        if (isset($validated['from_date'])) $query->whereDate('created_at', '>=', $validated['from_date']);
+        if (isset($validated['to_date'])) $query->whereDate('created_at', '<=', $validated['to_date']);
+        if (isset($validated['mode'])) $query->where('mode', $validated['mode']);
+        if (isset($validated['status'])) $query->where('status', $validated['status']);
+
+        $rows = [];
+        $keyword = mb_strtolower(trim((string) ($validated['keyword'] ?? '')));
+        foreach ($query->orderByDesc('created_at')->cursor() as $report) {
+            $errors = $errorFiles->previewRows(is_array($report->row_errors) ? $report->row_errors : []);
+            if ($keyword !== '' && ! str_contains(mb_strtolower($report->getKey().' '.($report->file_name ?? '')), $keyword)) continue;
+            if (($validated['result'] ?? '') === 'SUCCESS' && $report->valid_rows < 1) continue;
+            $duplicateCount = collect($errors)->filter(fn (array $row): bool => $this->isDuplicateImportError($row['error_code']))->count();
+            if (($validated['result'] ?? '') === 'FAILED' && $report->error_rows - $duplicateCount < 1) continue;
+            if (($validated['result'] ?? '') === 'DUPLICATE' && $duplicateCount < 1) continue;
+            if (($validated['issues_only'] ?? false) && $report->error_rows < 1) continue;
+
+            foreach ($errors === [] ? [null] : $errors as $error) {
+                $rows[] = [
+                    $report->getKey(), $report->file_name, $report->created_at?->toIso8601String(),
+                    $report->mode, $report->status, $report->total_rows, $report->valid_rows, $report->error_rows,
+                    $error['row_no'] ?? '', $error['field'] ?? '', $error['error_code'] ?? '',
+                    $error['message'] ?? '', $error['raw_value'] ?? '', $error['severity'] ?? '',
+                    $error['suggested_action'] ?? '',
+                ];
+                if (count($rows) > 10000) ApiError::abort(422, 'EXPORT_ROW_LIMIT', 'Vượt giới hạn 10.000 dòng xuất.');
+            }
+        }
+
+        AuditLogger::record(
+            action: 'REPORT_EXPORTED', objectType: 'report', objectId: null,
+            actorId: auth('api')->id() !== null ? (string) auth('api')->id() : null,
+            requestId: $request->attributes->get('request_id'),
+            afterData: ['report' => 'sku-import-quality', 'format' => 'xlsx', 'row_count' => count($rows), 'filters' => $validated],
+        );
+
+        $name = ReportExportFileName::stamp('sku-import-quality.xlsx');
+        return response()->streamDownload(function () use ($rows): void {
+            ReportExportMemory::raise();
+            $book = new Spreadsheet;
+            $sheet = $book->getActiveSheet();
+            $sheet->setTitle('SKU Import Quality');
+            $sheet->fromArray(['Import ID', 'Tên tệp', 'Thời gian', 'Chế độ', 'Trạng thái', 'Tổng dòng', 'Dòng hợp lệ', 'Dòng lỗi', 'Dòng nguồn', 'Trường', 'Mã lỗi', 'Mô tả', 'Giá trị nguồn', 'Mức độ', 'Hướng xử lý'], null, 'A1');
+            foreach ($rows as $index => $row) {
+                $sheet->fromArray(array_map(static function (mixed $value): mixed {
+                    if (! is_string($value)) return $value;
+                    $trimmed = ltrim($value);
+                    return $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true) && ! str_starts_with($value, "'") ? "'".$value : $value;
+                }, $row), null, 'A'.($index + 2));
+            }
+            (new Xlsx($book))->save('php://output');
+            $book->disconnectWorksheets();
+        }, $name, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+    }
+
+    private function isDuplicateImportError(string $code): bool
+    {
+        $upper = strtoupper($code);
+
+        return str_contains($upper, 'DUPLICATE')
+            || str_contains($upper, 'ALREADY_EXISTS')
+            || str_contains($upper, 'ALREADY_MATCHED');
     }
 
     #[OA\Get(
