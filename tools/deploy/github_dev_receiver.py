@@ -107,6 +107,8 @@ def deploy_frontend(base, release, sha):
         raise ValueError("Frontend artifact SHA/environment mismatch")
     if health.get("source_sha") != sha or not (release / "index.html").is_file():
         raise ValueError("Frontend health/index artifact mismatch")
+    # mkdtemp creates the release root as 0700; nginx must traverse it.
+    release.chmod(0o755)
     old = (base / "current").resolve(strict=True)
     point_frontend(base, release)
     try:

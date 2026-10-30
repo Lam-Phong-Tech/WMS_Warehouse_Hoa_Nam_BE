@@ -71,7 +71,7 @@ jobs:
           set -euo pipefail
           sed 's/name="DB_HOST" value="postgres"/name="DB_HOST" value="127.0.0.1"/' \
             phpunit.pgsql.xml > .ci-phpunit.pgsql.xml
-          php artisan test --configuration=.ci-phpunit.pgsql.xml \
+          vendor/bin/phpunit --configuration=.ci-phpunit.pgsql.xml \
             tests/Feature/AuthSessionPersistenceTest.php \
             tests/Feature/SecurityRbacAuditNegativeTest.php \
             tests/Feature/StockDocumentConcurrencyGuardTest.php \
