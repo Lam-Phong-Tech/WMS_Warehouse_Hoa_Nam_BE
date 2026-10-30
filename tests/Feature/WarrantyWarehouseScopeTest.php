@@ -34,7 +34,8 @@ class WarrantyWarehouseScopeTest extends TestCase
         $warehouse = $this->ensureActiveWarehouse('OWNER-A');
         [$actor, $token] = $this->actor();
         $this->postJson(self::BASE, $this->body(), $this->headers($token))
-            ->assertStatus(409)->assertJsonPath('error.code', 'WAREHOUSE_CONTEXT_REQUIRED');
+            ->assertStatus(409)->assertJsonPath('error.code', 'WAREHOUSE_CONTEXT_REQUIRED')
+            ->assertJsonPath('message', 'Bạn chưa xác nhận kho tiếp nhận bảo hành. Vui lòng chọn và xác nhận kho trước khi lưu.');
         // P09 requires a persistent login before it can inspect warehouse context.
         $this->postJson(self::MINI, $this->body(), $this->headers($token))
             ->assertStatus(409)->assertJsonPath('error.code', 'AUTH_SESSION_REQUIRED');
