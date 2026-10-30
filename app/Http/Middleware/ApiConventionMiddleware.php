@@ -212,6 +212,13 @@ class ApiConventionMiddleware
             }
         }
 
+        if ($request->is('api/v1/auth/*')) {
+            // Access JWT and account details must not enter browser/proxy HTTP caches.
+            // React Query's short-lived in-memory profile cache is a separate layer.
+            $response->headers->set('Cache-Control', 'no-store, private');
+            $response->headers->set('Pragma', 'no-cache');
+        }
+
         $response->headers->set('X-Request-ID', $requestId);
 
         return $response;

@@ -54,7 +54,9 @@ class StockDocumentIdempotencyTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonStructure(['data' => ['access_token', 'refresh_token'], 'meta' => ['request_id']]);
+            ->assertJsonStructure(['data' => ['access_token'], 'meta' => ['request_id']]);
+        $this->assertArrayNotHasKey('refresh_token', $response->json('data'));
+        $response->assertCookie('wms_refresh_token');
     }
 
     public function test_login_with_wrong_password_returns_401_envelope(): void
@@ -359,6 +361,9 @@ class StockDocumentIdempotencyTest extends TestCase
 
     public function test_dashboard_quick_reports_period_totals_and_partial_documents(): void
     {
+        // Movement occurred_at is stamped with now(); keep it inside the period
+        // queried below so this test remains valid after July 2026.
+        $this->travelTo(now()->setDate(2026, 7, 29)->setTime(12, 0));
         $headers = $this->authHeaders();
 
         $warehouse = Warehouse::create(['code' => 'KHOTONG8', 'name' => 'Kho tong 8', 'status' => 'ACTIVE']);
@@ -384,5 +389,6 @@ class StockDocumentIdempotencyTest extends TestCase
             ->assertJsonPath('data.documents_partial.inbound', 1)
             ->assertJsonPath('data.documents_partial.outbound', 0)
             ->assertJsonStructure(['data' => ['warranty_cases_by_status', 'reconciliation_warnings']]);
+        $this->travelBack();
     }
 }
