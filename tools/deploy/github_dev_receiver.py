@@ -153,6 +153,8 @@ def wait_backend(sha):
 def deploy_backend(base, release, sha):
     if (release / ".ci-source-sha").read_text().strip() != sha:
         raise ValueError("Backend artifact SHA mismatch")
+    # PHP-FPM runs as www-data inside the bind-mounted release.
+    release.chmod(0o755)
     model = base / "compose.json"
     app_env = base / "shared" / "app.env"
     config = json.loads(model.read_text())
