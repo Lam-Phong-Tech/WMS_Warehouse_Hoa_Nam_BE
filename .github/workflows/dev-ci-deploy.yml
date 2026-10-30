@@ -1,0 +1,135 @@
+name: DEV backend test and deploy
+
+on:
+  pull_request:
+    branches: [dev]
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Composer test (isolated SQLite)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wms_hoanam_testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wms_hoanam_testing"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_URL: ''
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      BROADCAST_CONNECTION: 'null'
+      JWT_SECRET: github-dev-ci-only-jwt-secret-2026
+      WARRANTY_PHOTO_DISK: local
+      WARRANTY_VIDEO_DISK: local
+      DOCUMENT_ATTACHMENT_DISK: local
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, zip, gd, bcmath, sqlite3, pdo_sqlite, pdo_pgsql
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare disposable test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan config:clear
+      - name: Run the repository test command
+        run: composer test
+      - name: Run critical tests against disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed 's/name="DB_HOST" value="postgres"/name="DB_HOST" value="127.0.0.1"/' \
+            phpunit.pgsql.xml > .ci-phpunit.pgsql.xml
+          php artisan test --configuration=.ci-phpunit.pgsql.xml \
+            --filter 'AuthSessionPersistenceTest|SecurityRbacAuditNegativeTest|StockDocumentConcurrencyGuardTest'
+      - name: Package the exact tested source
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=tar HEAD > "$RUNNER_TEMP/backend.tar"
+          printf '%s\n' "$GITHUB_SHA" > .ci-source-sha
+          tar -rf "$RUNNER_TEMP/backend.tar" .ci-source-sha
+          gzip -n "$RUNNER_TEMP/backend.tar"
+          mv "$RUNNER_TEMP/backend.tar.gz" backend.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        with:
+          name: backend-${{ github.sha }}
+          path: backend.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    name: Deploy tested backend SHA to DEV VPS
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    needs: [test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: DEV
+    steps:
+      - name: Refuse a superseded dev commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head="$(gh api repos/$GITHUB_REPOSITORY/git/ref/heads/dev --jq .object.sha)"
+          test "$head" = "$GITHUB_SHA"
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-${{ github.sha }}
+      - name: Verify SSH host and deploy exact artifact
+        env:
+          DEPLOY_KEY: ${{ secrets.DEV_DEPLOY_SSH_KEY_BE }}
+          KNOWN_HOSTS: ${{ secrets.DEV_DEPLOY_KNOWN_HOSTS }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          head="$(gh api repos/$GITHUB_REPOSITORY/git/ref/heads/dev --jq .object.sha)"
+          test "$head" = "$GITHUB_SHA"
+          test -n "$DEPLOY_KEY" && test -n "$KNOWN_HOSTS"
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/hoanam-dev"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/hoanam-dev" "$HOME/.ssh/known_hosts"
+          { printf '%s\n' "$GITHUB_SHA"; cat backend.tar.gz; } |
+            ssh -i "$HOME/.ssh/hoanam-dev" -o IdentitiesOnly=yes -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes root@14.225.37.158
+      - name: Verify public backend health
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(curl --fail --silent --show-error --retry 5 --retry-delay 3 \
+            https://khohoanamdev.lptech.info.vn/api/v1/health | jq -r .data.build.sha)"
+          test "$actual" = "$GITHUB_SHA"
