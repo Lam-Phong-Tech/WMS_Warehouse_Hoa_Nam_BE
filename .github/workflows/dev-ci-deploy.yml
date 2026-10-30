@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   test:
-    name: Composer test (isolated SQLite)
+    name: Core regression (SQLite and PostgreSQL)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     services:
@@ -63,8 +63,8 @@ jobs:
           cp .env.example .env
           php artisan key:generate --force
           php artisan config:clear
-      - name: Run the repository test command
-        run: composer test
+      - name: Run the local core regression command
+        run: composer test:ci
       - name: Run critical tests against disposable PostgreSQL
         shell: bash
         run: |
@@ -72,7 +72,11 @@ jobs:
           sed 's/name="DB_HOST" value="postgres"/name="DB_HOST" value="127.0.0.1"/' \
             phpunit.pgsql.xml > .ci-phpunit.pgsql.xml
           php artisan test --configuration=.ci-phpunit.pgsql.xml \
-            --filter 'AuthSessionPersistenceTest|SecurityRbacAuditNegativeTest|StockDocumentConcurrencyGuardTest'
+            tests/Feature/AuthSessionPersistenceTest.php \
+            tests/Feature/SecurityRbacAuditNegativeTest.php \
+            tests/Feature/StockDocumentConcurrencyGuardTest.php \
+            tests/Feature/PostReceiptConcurrencyBehaviorTest.php \
+            tests/Feature/PostIssueConcurrencyBehaviorTest.php
       - name: Package the exact tested source
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         shell: bash

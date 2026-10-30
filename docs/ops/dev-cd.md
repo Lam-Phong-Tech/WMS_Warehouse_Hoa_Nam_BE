@@ -5,9 +5,13 @@ The backend and frontend repositories each have one primary workflow,
 Pushes to `dev` run the same checks, then deliver the tested SHA to the DEV VPS.
 Manual workflow dispatch runs checks without deployment.
 
-Backend checks use `composer test` against disposable SQLite, followed by the
-auth, RBAC and stock concurrency tests against disposable PostgreSQL 16.
-Frontend checks use `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`
+Backend checks use `composer test:ci` against disposable SQLite. This is the
+same named core regression command developers run locally; it covers
+authentication, authorization, inbound/outbound posting, idempotency,
+concurrency and migration/seed health. Five critical auth and stock tests
+also run against disposable PostgreSQL 16. The full
+`composer test` command remains available for broader manual regression.
+Frontend checks use `pnpm lint`, `pnpm typecheck`, `pnpm test:ci`, `pnpm build`
 and `pnpm health:check`. Deployment never runs after a failed check.
 
 The deploy job rejects a SHA that is no longer the head of `dev`. Each repo
