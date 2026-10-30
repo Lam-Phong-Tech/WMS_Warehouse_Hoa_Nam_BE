@@ -165,11 +165,11 @@ final class WarrantyWarehouseScope
         }
         $selected = $context['active_warehouse_id'];
         if ($selected !== null && $explicit !== null && $selected !== $explicit) {
-            ApiError::abort(409, 'WAREHOUSE_CONTEXT_MISMATCH', 'warehouse_id không khớp kho đã xác nhận trong phiên.');
+            ApiError::abort(409, 'WAREHOUSE_CONTEXT_MISMATCH', 'Kho tiếp nhận không khớp kho đang làm việc. Vui lòng chọn lại kho tiếp nhận hoặc chuyển kho làm việc trước khi lưu.');
         }
         $id = $selected ?? $explicit;
         if ($id === null) {
-            ApiError::abort(409, 'WAREHOUSE_CONTEXT_REQUIRED', 'Xác nhận kho làm việc hoặc gửi warehouse_id đã được xác nhận trước khi tiếp nhận bảo hành.');
+            ApiError::abort(409, 'WAREHOUSE_CONTEXT_REQUIRED', 'Bạn chưa xác nhận kho tiếp nhận bảo hành. Vui lòng chọn và xác nhận kho trước khi lưu.');
         }
         if (! $user->canAccessWarehouse($id)) {
             ApiError::abort(403, 'WARRANTY_WAREHOUSE_ACCESS_DENIED', 'Kho bảo hành nằm ngoài phạm vi được cấp.');
