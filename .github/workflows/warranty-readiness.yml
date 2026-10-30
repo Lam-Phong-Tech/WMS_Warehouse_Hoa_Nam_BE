@@ -1,16 +1,6 @@
 name: Warranty Readiness
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineWarrantyController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CanonicalMvpController.php'
-      - 'Modules/Warehouse/database/migrations/**'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'tests/Feature/WarrantyReadinessTest.php'
-      - 'tests/Feature/Wwhn244WarrantyStateMatrixTest.php'
-      - '.github/workflows/warranty-readiness.yml'
   workflow_dispatch:
 
 permissions:

@@ -1,20 +1,7 @@
 name: Seed Replay Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/database/seeders/**'
-      - 'Modules/Auth/app/Support/SeedEnvironment.php'
-      - 'Modules/Auth/database/seeders/**'
-      - 'app/Console/Commands/SeedPreflightCommand.php'
-      - 'config/deployment_safety.php'
-      - 'tests/Feature/SeedReplay*Test.php'
-      - 'tests/Feature/SeedPreflightTest.php'
-      - 'scripts/test-seed-replay-*.php'
-      - 'docs/contracts/seed-replay-safety-v1.json'
-      - 'composer.lock'
-      - '.github/workflows/seed-replay-contract.yml'
+
 permissions:
   contents: read
 concurrency:

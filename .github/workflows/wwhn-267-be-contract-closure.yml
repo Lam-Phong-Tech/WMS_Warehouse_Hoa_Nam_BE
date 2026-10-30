@@ -8,26 +8,6 @@ name: WWHN-267 BE contract closure
 # artifact để QA1 (WWHN-264) đối chiếu khi retest độc lập.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/WWHN-267/**'
-      - 'docs/docs_task_jira/WWHN-267_BE_CONTRACT_RECEIPT.md'
-      - 'tests/Feature/Wwhn267ContractClosureTest.php'
-      - 'scripts/verify-wwhn-267-closure.mjs'
-      - 'app/Traits/ApiResponse.php'
-      - 'app/Http/Middleware/ApiConventionMiddleware.php'
-      - 'app/Support/ConflictCode.php'
-      - 'Modules/Auth/database/seeders/AuthDatabaseSeeder.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - '.github/workflows/wwhn-267-be-contract-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/WWHN-267/**'
-      - 'tests/Feature/Wwhn267ContractClosureTest.php'
-      - 'scripts/verify-wwhn-267-closure.mjs'
-      - '.github/workflows/wwhn-267-be-contract-closure.yml'
   workflow_dispatch:
 
 permissions:

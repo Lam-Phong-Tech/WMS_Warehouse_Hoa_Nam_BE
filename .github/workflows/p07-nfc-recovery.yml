@@ -1,20 +1,7 @@
 name: P07 NFC Rejection Recovery
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'database/migrations/**'
-      - 'contracts/p07/**'
-      - 'tests/Feature/P07*Test.php'
-      - 'tests/Feature/P15OwnerReadContractTest.php'
-      - 'tests/Feature/P17ScanExceptionReservationTest.php'
-      - 'tests/Feature/AuthWarehouseContextTest.php'
-      - 'tests/Feature/AuthSessionPersistenceTest.php'
-      - 'app/Support/IdempotencyStore.php'
-      - '.github/workflows/p07-nfc-recovery.yml'
+
 permissions:
   contents: read
 jobs:

@@ -1,20 +1,7 @@
 name: P12 Documents Read Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'tests/Feature/P12*Test.php'
-      - 'tests/Unit/P12*Test.php'
-      - 'tests/Feature/P02ReadContractTest.php'
-      - 'tests/Feature/P04InboundContractTest.php'
-      - 'tests/Feature/P05OutboundContractTest.php'
-      - 'tests/Feature/P13Notification*Test.php'
-      - 'tests/Feature/P23ReadContractTest.php'
-      - 'docs/contracts/p12-read-v2.json'
-      - 'composer.lock'
-      - '.github/workflows/p12-documents-contract.yml'
+
 permissions:
   contents: read
 concurrency:

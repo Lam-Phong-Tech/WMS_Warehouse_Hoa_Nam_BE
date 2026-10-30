@@ -1,24 +1,7 @@
 name: P19 Linked Component Issue
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/app/Services/P19LinkedComponentIssue.php'
-      - 'Modules/Warehouse/app/Http/Middleware/MiniAppDraftHandoff.php'
-      - 'Modules/Warehouse/app/Services/MiniAppDraftService.php'
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php'
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppComponentIssueStagingController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php'
-      - 'Modules/Auth/**'
-      - 'contracts/p19/**'
-      - 'tests/Feature/P19*Test.php'
-      - 'tests/Feature/MiniAppComponentIssueStagingTest.php'
-      - 'tests/Feature/P03Draft*Test.php'
-      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
-      - 'tests/Feature/AuthWarehouseContextTest.php'
-      - '.github/workflows/p19-component-issue-linked.yml'
+
 permissions:
   contents: read
 jobs:

@@ -13,36 +13,6 @@ name: WWHN-382 Dashboard R4 Closure
 # nên chỉ đỏ khi ngữ nghĩa dashboard thật sự đổi.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'tests/Feature/Wwhn328DashboardQuickContractTest.php'
-      - 'tests/Feature/Wwhn328R4ClosureTest.php'
-      - 'storage/api-docs/api-docs.json'
-      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
-      - 'docs/evidence/WWHN-328/KPI_MATRIX.md'
-      - 'docs/evidence/WWHN-382/**'
-      - 'docs/docs_task_jira/WWHN-382.md'
-      - 'scripts/wwhn-328-contract-fingerprint.mjs'
-      - 'scripts/wwhn-382-pin-candidate.mjs'
-      - 'scripts/verify-wwhn-382-closure.mjs'
-      - '.github/workflows/wwhn-382-dashboard-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/OperationalReportController.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'tests/Feature/Wwhn328DashboardQuickContractTest.php'
-      - 'tests/Feature/Wwhn328R4ClosureTest.php'
-      - 'storage/api-docs/api-docs.json'
-      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
-      - 'docs/evidence/WWHN-328/KPI_MATRIX.md'
-      - 'docs/evidence/WWHN-382/**'
-      - 'scripts/wwhn-328-contract-fingerprint.mjs'
-      - 'scripts/verify-wwhn-382-closure.mjs'
-      - '.github/workflows/wwhn-382-dashboard-closure.yml'
   workflow_dispatch:
     inputs:
       expect_sha:

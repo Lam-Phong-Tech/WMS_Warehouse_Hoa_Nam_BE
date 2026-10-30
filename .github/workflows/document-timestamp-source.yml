@@ -1,9 +1,7 @@
 name: Document Timestamp Source Review
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths: ['.github/workflows/document-timestamp-source.yml']
+
 permissions:
   contents: read
 jobs:

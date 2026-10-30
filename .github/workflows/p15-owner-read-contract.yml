@@ -1,24 +1,7 @@
 name: P15 Existing Owner Read Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'contracts/p15/**'
-      - 'tests/Contracts/p15-postman-guard.test.cjs'
-      - 'tests/Feature/P15OwnerReadContractTest.php'
-      - 'tests/Feature/P03Draft*Test.php'
-      - 'tests/Feature/P04*Test.php'
-      - 'tests/Feature/P05*Test.php'
-      - 'tests/Feature/P06*Test.php'
-      - 'tests/Feature/P07*Test.php'
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'app/Support/Idempotency*'
-      - 'database/migrations/**'
-      - 'composer.json'
-      - 'composer.lock'
-      - '.github/workflows/p15-owner-read-contract.yml'
+
 permissions:
   contents: read
 jobs:

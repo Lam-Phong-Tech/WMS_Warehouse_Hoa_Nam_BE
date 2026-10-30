@@ -12,42 +12,7 @@ name: WWHN-289 Exact SHA Closure
 #      supersession được máy kiểm — bước đó chỉ có nghĩa khi PINS đã trỏ vào run xanh này.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/WWHN-289/**'
-      - 'scripts/verify-wwhn289-closure.mjs'
-      - 'tests/Feature/Wwhn289StockInvariantProofTest.php'
-      - 'tests/Feature/Wwhn289SecurityRegressionProofTest.php'
-      - 'tests/Feature/Wwhn289ClosureEvidenceTest.php'
-      - 'app/Support/IdempotencyStore.php'
-      - 'app/Support/RateLimitResponse.php'
-      - 'app/Providers/AppServiceProvider.php'
-      - 'config/rate_limit.php'
-      - 'Modules/Auth/app/Http/Controllers/AuthController.php'
-      - 'Modules/Auth/routes/api.php'
-      - 'Modules/Warehouse/app/Http/Middleware/**'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php'
-      - '.github/workflows/wwhn-289-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/WWHN-289/**'
-      - 'scripts/verify-wwhn289-closure.mjs'
-      - 'tests/Feature/Wwhn289StockInvariantProofTest.php'
-      - 'tests/Feature/Wwhn289SecurityRegressionProofTest.php'
-      - 'tests/Feature/Wwhn289ClosureEvidenceTest.php'
-      - 'app/Support/IdempotencyStore.php'
-      - 'app/Support/RateLimitResponse.php'
-      - 'app/Providers/AppServiceProvider.php'
-      - 'config/rate_limit.php'
-      - 'Modules/Auth/app/Http/Controllers/AuthController.php'
-      - 'Modules/Auth/routes/api.php'
-      - 'Modules/Warehouse/app/Http/Middleware/**'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'Modules/Warehouse/database/migrations/2026_08_19_000050_repair_erd_mirror_projection_casts.php'
-      - '.github/workflows/wwhn-289-closure.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

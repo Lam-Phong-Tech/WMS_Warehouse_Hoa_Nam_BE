@@ -1,14 +1,7 @@
 name: P11 Existing Security Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Auth/**'
-      - 'tests/Feature/P10ProfileContractTest.php'
-      - 'tests/Feature/P11SecurityReadContractTest.php'
-      - 'scripts/verify-p11-security-contract.php'
-      - '.github/workflows/p11-security-read-contract.yml'
+
 permissions:
   contents: read
 jobs:

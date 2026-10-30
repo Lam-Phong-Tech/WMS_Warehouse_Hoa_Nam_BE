@@ -2,28 +2,6 @@ name: WWHN-134 Reversal Decision Contract Exact-SHA Gate
 
 on:
   workflow_dispatch:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn-134-reversal-decision-contract.yml'
-      - 'scripts/verify_wwhn134_release.py'
-      - 'docs/decision-records/DEC-REV-001.md'
-      - 'docs/api-contract/WWHN-134-reversal-openapi.yaml'
-      - 'docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/**'
-      - 'docs/postman/WWHN-134-reversal.postman_collection.json'
-      - 'docs/docs_task_jira/WWHN-134*'
-      - 'docs/evidence/WWHN-134/**'
-  pull_request:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn-134-reversal-decision-contract.yml'
-      - 'scripts/verify_wwhn134_release.py'
-      - 'docs/decision-records/DEC-REV-001.md'
-      - 'docs/api-contract/WWHN-134-reversal-openapi.yaml'
-      - 'docs/api-contract/releases/DEC-REV-001/1.3.0-proposed/**'
-      - 'docs/postman/WWHN-134-reversal.postman_collection.json'
-      - 'docs/docs_task_jira/WWHN-134*'
-      - 'docs/evidence/WWHN-134/**'
 
 permissions:
   contents: read

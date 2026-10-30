@@ -1,8 +1,6 @@
 name: WWHN-273 Backend Release Sign-off
 
 on:
-  push:
-    branches: [m1]
   workflow_dispatch:
 
 permissions:

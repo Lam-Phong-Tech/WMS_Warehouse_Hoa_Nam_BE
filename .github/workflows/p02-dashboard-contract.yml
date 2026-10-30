@@ -1,27 +1,7 @@
 name: P02 Dashboard KPI Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppDashboardController.php'
-      - 'Modules/Warehouse/app/Support/WarrantyWarehouseScope.php'
-      - 'Modules/Warehouse/routes/mini_app.php'
-      - 'contracts/p02/**'
-      - 'tests/Feature/P02DashboardContractTest.php'
-      - 'tests/Feature/MiniAppDashboardSummaryTest.php'
-      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
-      - '.github/workflows/p02-dashboard-contract.yml'
-  pull_request:
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppDashboardController.php'
-      - 'Modules/Warehouse/app/Support/WarrantyWarehouseScope.php'
-      - 'Modules/Warehouse/routes/mini_app.php'
-      - 'contracts/p02/**'
-      - 'tests/Feature/P02DashboardContractTest.php'
-      - 'tests/Feature/MiniAppDashboardSummaryTest.php'
-      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
-      - '.github/workflows/p02-dashboard-contract.yml'
+
 permissions:
   contents: read
 jobs:

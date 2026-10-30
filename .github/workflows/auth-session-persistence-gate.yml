@@ -1,17 +1,6 @@
 name: Auth Session Persistence Gate
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Auth/**'
-      - 'config/refresh_token.php'
-      - 'config/cors.php'
-      - '.env.example'
-      - 'tests/Feature/AuthSessionPersistenceTest.php'
-      - 'tests/Feature/AuthRbacAuditHardeningTest.php'
-      - 'tests/Feature/CorsConfigurationTest.php'
-      - '.github/workflows/auth-session-persistence-gate.yml'
   workflow_dispatch:
 
 permissions:

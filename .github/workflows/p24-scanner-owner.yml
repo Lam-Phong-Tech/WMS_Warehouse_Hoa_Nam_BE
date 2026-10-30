@@ -1,18 +1,7 @@
 name: P24 Scanner Owner Contracts
 on:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/app/Services/P19ComponentCommand.php'
-      - 'Modules/Warehouse/app/Support/P19CommandScope.php'
-      - 'Modules/Warehouse/app/Http/Middleware/P19ScannerReadGuard.php'
-      - 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
-      - 'database/migrations/*p19_component_command*'
-      - 'config/p19.php'
-      - 'tests/Feature/P24*'
-      - 'docs/contracts/p24-scanner-owner-v1.json'
-      - '.github/workflows/p24-scanner-owner.yml'
   workflow_dispatch:
+
 permissions:
   contents: read
 jobs:

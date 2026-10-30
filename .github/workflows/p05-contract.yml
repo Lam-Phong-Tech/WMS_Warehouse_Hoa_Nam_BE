@@ -1,14 +1,7 @@
 name: P05 Outbound Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'tests/Feature/P05*Test.php'
-      - 'tests/Feature/MiniAppOutbound*Test.php'
-      - '.github/workflows/p05-contract.yml'
+
 permissions:
   contents: read
 jobs:

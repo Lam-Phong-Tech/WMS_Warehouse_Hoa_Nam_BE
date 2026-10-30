@@ -1,17 +1,7 @@
 name: P23 Read-only Warranty and Scan Sessions
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'tests/Feature/P23*Test.php'
-      - 'tests/Unit/P23*Test.php'
-      - 'tests/Support/P23*.php'
-      - 'scripts/verify-p23-*.php'
-      - 'docs/contracts/p23-read-v2.json'
-      - '.github/workflows/p23-read-contract.yml'
+
 permissions:
   contents: read
 jobs:

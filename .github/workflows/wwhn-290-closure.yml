@@ -15,38 +15,7 @@ name: WWHN-290 Exact SHA Closure
 # Nhờ vậy cổng không giấu lỗi hạ tầng, cũng không quy lỗi của ticket khác vào WWHN-290.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/wwhn-290/**'
-      - 'tests/Feature/Wwhn290ClosureEvidenceTest.php'
-      - 'scripts/verify-wwhn290-closure.sh'
-      - 'scripts/wwhn290-check-postman-namespace.php'
-      - 'tests/Feature/ReportFlow06ContractTest.php'
-      - 'tests/Feature/ReportFlow06IntegrationTest.php'
-      - 'tests/Feature/Flow06WarrantyReportAlignmentTest.php'
-      - 'tests/Feature/WarrantyFlow04ApiSurfaceTest.php'
-      - 'tests/Feature/WarrantyIdempotencyKeyContractTest.php'
-      - 'tests/Feature/AuthorizationTest.php'
-      - 'tests/Feature/InventoryReconciliationIntegrityTest.php'
-      - 'tests/Feature/BackendMigrationSeedHealthTest.php'
-      - 'tests/Feature/SwaggerRouteSyncTest.php'
-      - 'Modules/Warehouse/app/Http/Controllers/**'
-      - 'Modules/Warehouse/app/Services/**'
-      - 'Modules/Warehouse/database/migrations/**'
-      - 'storage/api-docs/api-docs.json'
-      - 'docs/postman/**'
-      - '.github/workflows/wwhn-290-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/wwhn-290/**'
-      - 'tests/Feature/Wwhn290ClosureEvidenceTest.php'
-      - 'scripts/verify-wwhn290-closure.sh'
-      - 'scripts/wwhn290-check-postman-namespace.php'
-      - 'storage/api-docs/api-docs.json'
-      - 'docs/postman/**'
-      - '.github/workflows/wwhn-290-closure.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

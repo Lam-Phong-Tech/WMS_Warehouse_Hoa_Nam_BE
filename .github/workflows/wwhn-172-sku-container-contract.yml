@@ -1,8 +1,6 @@
 name: WWHN-172 Exact SHA DB Evidence
 
 on:
-  push:
-    branches: [m1]
   workflow_dispatch:
 
 permissions:

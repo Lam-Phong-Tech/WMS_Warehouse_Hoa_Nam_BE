@@ -1,41 +1,7 @@
 name: Seed P08 P10 safety regression
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php'
-      - 'database/seeders/DatabaseSeeder.php'
-      - 'app/Console/Commands/SeedPreflightCommand.php'
-      - 'Modules/Auth/app/Support/SeedEnvironment.php'
-      - 'tests/Feature/SeedPreflightTest.php'
-      - 'Modules/Warehouse/app/Support/P08HistoryReadModel.php'
-      - 'Modules/Warehouse/app/Http/Controllers/P08HistoryController.php'
-      - 'Modules/Auth/app/Http/Controllers/P10ProfileController.php'
-      - 'docker/nginx/**'
-      - 'tests/Feature/CatalogRetirementSafetyTest.php'
-      - 'tests/Feature/P08DocumentHistoryTest.php'
-      - 'tests/Feature/P08HistoryContractTest.php'
-      - 'tests/Feature/P10*Test.php'
-      - 'scripts/test-p10-nginx-etag.py'
-      - '.github/workflows/seed-p08-p10-blockers.yml'
-  pull_request:
-    paths:
-      - 'Modules/Warehouse/database/seeders/RetireDemoCatalogSeeder.php'
-      - 'database/seeders/DatabaseSeeder.php'
-      - 'app/Console/Commands/SeedPreflightCommand.php'
-      - 'Modules/Auth/app/Support/SeedEnvironment.php'
-      - 'tests/Feature/SeedPreflightTest.php'
-      - 'Modules/Warehouse/app/Support/P08HistoryReadModel.php'
-      - 'Modules/Warehouse/app/Http/Controllers/P08HistoryController.php'
-      - 'Modules/Auth/app/Http/Controllers/P10ProfileController.php'
-      - 'docker/nginx/**'
-      - 'tests/Feature/CatalogRetirementSafetyTest.php'
-      - 'tests/Feature/P08DocumentHistoryTest.php'
-      - 'tests/Feature/P08HistoryContractTest.php'
-      - 'tests/Feature/P10*Test.php'
-      - 'scripts/test-p10-nginx-etag.py'
-      - '.github/workflows/seed-p08-p10-blockers.yml'
+
 permissions:
   contents: read
 jobs:

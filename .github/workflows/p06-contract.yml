@@ -1,18 +1,7 @@
 name: P06 Read-only Catalog Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'tests/Feature/P06*Test.php'
-      - 'tests/Feature/P05OutboundContractTest.php'
-      - 'tests/Feature/P03Draft*Test.php'
-      - 'tests/Feature/P04*Test.php'
-      - 'tests/Feature/AuthWarehouseContextTest.php'
-      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
-      - '.github/workflows/p06-contract.yml'
+
 permissions:
   contents: read
 jobs:

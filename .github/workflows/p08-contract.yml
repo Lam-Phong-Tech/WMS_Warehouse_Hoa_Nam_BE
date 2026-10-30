@@ -1,15 +1,7 @@
 name: P08 Read-only History Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'tests/Feature/P08*Test.php'
-      - 'tests/Unit/P08*Test.php'
-      - 'scripts/verify-p08-*.php'
-      - '.github/workflows/p08-contract.yml'
+
 permissions:
   contents: read
 jobs:

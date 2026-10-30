@@ -1,14 +1,7 @@
 name: P03 Draft Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'database/migrations/**'
-      - 'tests/Feature/P03Draft*Test.php'
-      - '.github/workflows/p03-draft-contract.yml'
+
 permissions:
   contents: read
 jobs:

@@ -1,40 +1,6 @@
 name: WWHN-300 Backend GoLive Check
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn-300-backend-golive-check.yml'
-      - 'app/Console/Commands/BackendGoLiveCheck.php'
-      - 'config/golive.php'
-      - 'database/golive/**'
-      - 'Modules/Auth/database/seeders/AuthDatabaseSeeder.php'
-      - 'Modules/Auth/database/seeders/WmsPermissionCompatibilitySeeder.php'
-      - 'tests/Feature/Wwhn300ProductionSafeSeedingTest.php'
-      - 'app/Support/HoaNamErdSchema.php'
-      - 'database/migrations/**'
-      - 'Modules/*/database/migrations/**'
-      - 'scripts/collect-wwhn300-golive-evidence.sh'
-      - 'tests/Feature/Wwhn300BackendGoLiveCheckTest.php'
-      - 'tests/Unit/HoaNamErdSchemaDropRelationTest.php'
-      - 'docs/evidence/WWHN-300/**'
-  pull_request:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn-300-backend-golive-check.yml'
-      - 'app/Console/Commands/BackendGoLiveCheck.php'
-      - 'config/golive.php'
-      - 'database/golive/**'
-      - 'Modules/Auth/database/seeders/AuthDatabaseSeeder.php'
-      - 'Modules/Auth/database/seeders/WmsPermissionCompatibilitySeeder.php'
-      - 'tests/Feature/Wwhn300ProductionSafeSeedingTest.php'
-      - 'app/Support/HoaNamErdSchema.php'
-      - 'database/migrations/**'
-      - 'Modules/*/database/migrations/**'
-      - 'scripts/collect-wwhn300-golive-evidence.sh'
-      - 'tests/Feature/Wwhn300BackendGoLiveCheckTest.php'
-      - 'tests/Unit/HoaNamErdSchemaDropRelationTest.php'
-      - 'docs/evidence/WWHN-300/**'
   workflow_dispatch:
 
 permissions:

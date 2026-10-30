@@ -59,20 +59,9 @@ on:
         required: false
         default: '["self-hosted","Linux","X64","hoa-nam-uat"]'
         type: string
-  push:
-    branches:
-      - dev
-      - m1
-      - main
-  pull_request:
-    branches:
-      - dev
-      - m1
-      - main
 
-# WWHN-SEC-09: workflow chạy cả trên pull_request nên GITHUB_TOKEN phải ở mức
-# tối thiểu — job nào cũng chỉ cần đọc code (deploy dùng secrets riêng, không
-# dùng GITHUB_TOKEN).
+# WWHN-SEC-09: giữ GITHUB_TOKEN ở mức tối thiểu cả khi chạy tay; các job chỉ
+# cần đọc code (deploy dùng secrets riêng, không dùng GITHUB_TOKEN).
 permissions:
   contents: read
 

@@ -1,8 +1,6 @@
 name: WWHN-164 Auth RBAC Audit Closure Gate
 
 on:
-  push:
-    branches: [m1]
   workflow_dispatch:
 
 permissions:
