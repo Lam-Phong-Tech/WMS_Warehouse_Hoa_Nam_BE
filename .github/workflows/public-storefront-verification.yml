@@ -1,21 +1,7 @@
 name: Public storefront contract verification
 on:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/PublicApi/**'
-      - 'Modules/Warehouse/app/Services/PublicCatalogReadModel.php'
-      - 'config/public_api.php'
-      - 'config/public_sandbox.php'
-      - 'app/Console/Commands/PublicQuoteSandbox.php'
-      - 'tests/Feature/PublicStorefront*Test.php'
-      - 'tests/Feature/PublicQuoteSandboxTest.php'
-      - 'tests/Feature/WwhnSecRefreshTokenTransportTest.php'
-      - 'tests/Feature/HandToolsFamilyVariantPublicTest.php'
-      - 'scripts/verify-public-quote-sandbox.mjs'
-      - 'docker/public-quote-sandbox/**'
-      - '.github/workflows/public-storefront-verification.yml'
   workflow_dispatch:
+
 permissions:
   contents: read
 concurrency:

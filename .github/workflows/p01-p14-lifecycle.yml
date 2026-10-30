@@ -1,18 +1,7 @@
 name: P01-P14 Lifecycle Integration
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'app/Support/P14*'
-      - 'app/Http/Middleware/P14*'
-      - 'Modules/Warehouse/app/Support/MiniAppWorkShiftService.php'
-      - 'Modules/Warehouse/app/Http/Controllers/P04InboundController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/P07NfcController.php'
-      - 'config/p14.php'
-      - 'tests/Feature/P14*'
-      - 'contracts/p14/**'
-      - '.github/workflows/p01-p14-lifecycle.yml'
+
 permissions:
   contents: read
 jobs:

@@ -1,25 +1,6 @@
 name: WWHN-218 Hardening Evidence
 
 on:
-  push:
-    branches:
-      - m1
-    paths:
-      - "app/Support/IdempotencyStore.php"
-      - "app/Support/IdempotencyKeyGuard.php"
-      - "Modules/Auth/**"
-      - "Modules/Warehouse/**"
-      - "scripts/wwhn218-*.php"
-      - "scripts/wwhn218-*.sh"
-      - "scripts/verify-canonical-stock-write-path.php"
-      - "tests/Feature/StockDocumentIdempotencyTest.php"
-      - "tests/Feature/StockDocumentConcurrencyGuardTest.php"
-      - "tests/Feature/CurrentBaselineIfMatchContractTest.php"
-      - "tests/Feature/Wwhn180IdempotencyAtomicityTest.php"
-      - "tests/Feature/Wwhn207InboundReversalFlowTest.php"
-      - "tests/Feature/Wwhn211InventoryScopeTest.php"
-      - "docs/evidence/WWHN-218/**"
-      - ".github/workflows/wwhn-218-hardening-evidence.yml"
   workflow_dispatch:
 
 permissions:

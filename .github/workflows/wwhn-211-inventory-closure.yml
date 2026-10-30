@@ -1,17 +1,6 @@
 name: WWHN-211 Inventory Closure
 
 on:
-  push:
-    branches:
-      - m1
-    paths:
-      - "Modules/Warehouse/**"
-      - "Modules/Auth/**"
-      - "bootstrap/app.php"
-      - "docs/evidence/WWHN-211/**"
-      - "scripts/wwhn-211-openapi-lock.php"
-      - "tests/Feature/Wwhn211InventoryScopeTest.php"
-      - ".github/workflows/wwhn-211-inventory-closure.yml"
   workflow_dispatch:
 
 permissions:

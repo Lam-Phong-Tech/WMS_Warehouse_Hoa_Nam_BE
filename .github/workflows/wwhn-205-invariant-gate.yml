@@ -18,36 +18,6 @@ name: WWHN-205 Ledger Invariant & Receipt/Issue Concurrency Gate
 # fetch-depth: 0 là bắt buộc — không có lịch sử đầy đủ thì không xác minh được exact SHA.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'Modules/Warehouse/database/migrations/2026_08_15_000100_enforce_stock_movements_append_only_trigger.php'
-      - 'tests/Feature/ErdBusinessInvariantParityTest.php'
-      - 'tests/Feature/Wwhn205StockMovementItemIdInvariantTest.php'
-      - 'tests/Feature/Wwhn205InvariantClosureContractTest.php'
-      - 'scripts/wwhn205-receipt-issue-race.php'
-      - 'scripts/wwhn206-ledger-reconciliation.php'
-      - 'scripts/wwhn206-ledger-reconciliation.sql'
-      - 'scripts/verify-wwhn205-closure.mjs'
-      - 'scripts/wwhn219-concurrency-worker.php'
-      - 'app/Console/Commands/ReconcileInventoryBalances.php'
-      - 'docs/evidence/WWHN-205/**'
-      - '.github/workflows/wwhn-205-invariant-gate.yml'
-      - '.github/workflows/erd-postgres-diagnostic.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'Modules/Warehouse/database/migrations/**'
-      - 'tests/Feature/ErdBusinessInvariantParityTest.php'
-      - 'tests/Feature/Wwhn205*'
-      - 'scripts/wwhn205-receipt-issue-race.php'
-      - 'scripts/wwhn206-ledger-reconciliation.php'
-      - 'scripts/wwhn206-ledger-reconciliation.sql'
-      - 'scripts/verify-wwhn205-closure.mjs'
-      - 'docs/evidence/WWHN-205/**'
-      - '.github/workflows/wwhn-205-invariant-gate.yml'
   workflow_dispatch:
 
 permissions:

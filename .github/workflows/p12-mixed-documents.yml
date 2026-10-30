@@ -1,21 +1,7 @@
 name: P12 Mixed Documents Read Contract
 on:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/app/Support/P12MixedDocument*.php'
-      - 'Modules/Warehouse/app/Support/P12DocumentPresentation.php'
-      - 'Modules/Warehouse/app/Support/P09Warranty*.php'
-      - 'Modules/Warehouse/app/Support/P06ReadSnapshot.php'
-      - 'Modules/Warehouse/app/Http/Controllers/P12MixedDocumentsController.php'
-      - 'Modules/Warehouse/app/Http/Middleware/P12MixedDocumentsReadGuard.php'
-      - 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
-      - 'Modules/Warehouse/routes/p12_mixed_documents.php'
-      - 'config/p12_mixed_documents.php'
-      - 'tests/Feature/P12MixedDocumentsTest.php'
-      - 'docs/contracts/p12-mixed-documents*.json'
-      - 'composer.lock'
-      - '.github/workflows/p12-mixed-documents.yml'
+  workflow_dispatch:
+
 permissions:
   contents: read
 concurrency:

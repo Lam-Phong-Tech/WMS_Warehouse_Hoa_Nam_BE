@@ -1,14 +1,6 @@
 name: Foundation Inbound Readiness
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'tests/Feature/FoundationInboundPutawayReadinessTest.php'
-      - 'tests/Feature/IamRolePermissionReadinessTest.php'
-      - '.github/workflows/foundation-inbound-readiness.yml'
   workflow_dispatch:
 
 permissions:

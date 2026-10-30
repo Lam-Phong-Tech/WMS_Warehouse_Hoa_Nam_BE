@@ -15,35 +15,6 @@ name: WWHN-190 Posting Contract & True Concurrency Gate
 # Fail-closed: sai một mệnh đề là đỏ, không có bước nào "best effort".
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'app/Support/IdempotencyStore.php'
-      - 'app/Support/IdempotencyKeyGuard.php'
-      - 'app/Support/ApiError.php'
-      - 'app/Support/ConflictCode.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php'
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'docs/api-contract/releases/WWHN-190/**'
-      - 'docs/decision-records/DEC-API-POSTING-002-*'
-      - 'docs/evidence/WWHN-190/**'
-      - 'scripts/build-wwhn190-posting-contract.mjs'
-      - 'scripts/wwhn190-*.php'
-      - 'tests/Feature/Wwhn190PostingContractParityTest.php'
-      - '.github/workflows/wwhn-190-posting-evidence-gate.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php'
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'docs/api-contract/releases/WWHN-190/**'
-      - 'scripts/build-wwhn190-posting-contract.mjs'
-      - 'scripts/wwhn190-*.php'
-      - 'tests/Feature/Wwhn190PostingContractParityTest.php'
-      - '.github/workflows/wwhn-190-posting-evidence-gate.yml'
   workflow_dispatch:
 
 permissions:

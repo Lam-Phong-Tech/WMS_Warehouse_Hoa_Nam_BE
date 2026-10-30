@@ -10,29 +10,6 @@ name: WWHN-224 SKU import P1 closure
 #   3. Register mapping SKU-only chưa bị code trôi khỏi, và vẫn ở trạng thái chờ BA (P1-01R).
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/ImportController.php'
-      - 'Modules/Warehouse/app/Services/ImportService.php'
-      - 'Modules/Warehouse/app/Services/ImportReportWriter.php'
-      - 'Modules/Warehouse/app/Exceptions/ImportReportPersistenceException.php'
-      - 'Modules/Warehouse/routes/import.php'
-      - 'docs/decision-records/DISP-IMP-224-sku-import-scope-mapping.json'
-      - 'docs/evidence/WWHN-224/**'
-      - 'tests/Feature/Wwhn224P1ClosureTest.php'
-      - 'scripts/verify-wwhn-224-closure.mjs'
-      - 'scripts/sync-wwhn224-import-openapi.php'
-      - '.github/workflows/wwhn-224-p1-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/ImportController.php'
-      - 'Modules/Warehouse/app/Services/ImportService.php'
-      - 'Modules/Warehouse/app/Services/ImportReportWriter.php'
-      - 'tests/Feature/Wwhn224P1ClosureTest.php'
-      - 'scripts/verify-wwhn-224-closure.mjs'
-      - '.github/workflows/wwhn-224-p1-closure.yml'
   workflow_dispatch:
 
 permissions:

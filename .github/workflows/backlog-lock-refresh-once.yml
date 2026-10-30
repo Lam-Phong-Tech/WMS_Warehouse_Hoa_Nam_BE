@@ -1,9 +1,8 @@
 # Exact-source preparation; the independent full matrix remains a required gate.
 name: Reviewed Backlog Dependency Lock Refresh
 on:
-  push:
-    branches: [dev]
-    paths: ['.github/workflows/backlog-lock-refresh-once.yml']
+  workflow_dispatch:
+
 permissions:
   contents: write
 concurrency:

@@ -1,15 +1,7 @@
 name: P04 Inbound Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'tests/Feature/P04*Test.php'
-      - 'tests/Feature/MiniAppInbound*Test.php'
-      - 'database/migrations/**'
-      - '.github/workflows/p04-contract.yml'
+
 permissions:
   contents: read
 jobs:

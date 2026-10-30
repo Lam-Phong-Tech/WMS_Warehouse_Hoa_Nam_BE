@@ -1,43 +1,7 @@
 name: P22 NFC History Read Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/app/Support/P22*'
-      - 'Modules/Warehouse/app/Support/P0[678]*'
-      - 'Modules/Warehouse/app/Http/Middleware/P22*'
-      - 'Modules/Warehouse/app/Http/Middleware/P07*'
-      - 'Modules/Warehouse/routes/p08_history.php'
-      - 'Modules/AuditLog/app/Services/AuditLogger.php'
-      - 'Modules/AuditLog/app/Models/AuditLog.php'
-      - 'Modules/AuditLog/database/migrations/**'
-      - 'Modules/Auth/app/Support/StableAuthSession.php'
-      - 'Modules/Auth/app/Support/WarehouseContext.php'
-      - 'contracts/p22/**'
-      - 'tests/Feature/P22*'
-      - 'tests/Feature/P07Nfc*'
-      - 'tests/Feature/P08*'
-      - 'tests/Unit/P08*'
-      - '.github/workflows/p22-nfc-history.yml'
-  pull_request:
-    paths:
-      - 'Modules/Warehouse/app/Support/P22*'
-      - 'Modules/Warehouse/app/Support/P0[678]*'
-      - 'Modules/Warehouse/app/Http/Middleware/P22*'
-      - 'Modules/Warehouse/app/Http/Middleware/P07*'
-      - 'Modules/Warehouse/routes/p08_history.php'
-      - 'Modules/AuditLog/app/Services/AuditLogger.php'
-      - 'Modules/AuditLog/app/Models/AuditLog.php'
-      - 'Modules/AuditLog/database/migrations/**'
-      - 'Modules/Auth/app/Support/StableAuthSession.php'
-      - 'Modules/Auth/app/Support/WarehouseContext.php'
-      - 'contracts/p22/**'
-      - 'tests/Feature/P22*'
-      - 'tests/Feature/P07Nfc*'
-      - 'tests/Feature/P08*'
-      - 'tests/Unit/P08*'
-      - '.github/workflows/p22-nfc-history.yml'
+
 permissions:
   contents: read
 jobs:

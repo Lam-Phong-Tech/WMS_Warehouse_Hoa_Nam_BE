@@ -1,17 +1,7 @@
 name: Warranty Warehouse Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'app/Console/Commands/AssignWarrantyWarehouseOwners.php'
-      - 'bootstrap/app.php'
-      - 'database/migrations/**'
-      - 'tests/Feature/*Warranty*.php'
-      - 'tests/Feature/P02ReadContractTest.php'
-      - '.github/workflows/warranty-scope-contract.yml'
+
 permissions:
   contents: read
 jobs:

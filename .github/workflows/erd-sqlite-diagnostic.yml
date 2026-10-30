@@ -1,10 +1,7 @@
 name: Hoa Nam ERD SQLite Diagnostic
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/erd-sqlite-diagnostic.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

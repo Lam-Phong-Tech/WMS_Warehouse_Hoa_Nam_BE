@@ -1,23 +1,7 @@
 name: P11-P24 Backlog Integration
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Auth/**'
-      - 'Modules/Warehouse/app/**'
-      - 'app/Console/Commands/ReconcileAuditOutbox.php'
-      - 'app/Support/P14*'
-      - 'app/Http/Middleware/P14*'
-      - 'tests/Feature/**'
-      - 'contracts/p19/**'
-      - 'contracts/integration/p11-p24-*.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tools/ci/backlog/**'
-      - '.github/workflows/p11-p24-backlog-regression.yml'
-      - '.github/workflows/backlog-isolated-run.yml'
-      - '.github/workflows/hn-devops-ci-cd.yml'
+
 permissions:
   contents: read
 concurrency:

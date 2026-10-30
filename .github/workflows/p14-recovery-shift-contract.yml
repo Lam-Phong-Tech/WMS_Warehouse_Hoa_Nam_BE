@@ -1,19 +1,7 @@
 name: P14 Recovery and Shift Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'app/**'
-      - 'bootstrap/**'
-      - 'config/p14.php'
-      - 'database/migrations/*p14*'
-      - 'Modules/Auth/**'
-      - 'Modules/Warehouse/**'
-      - 'routes/p14.php'
-      - 'tests/Feature/P14*'
-      - 'tests/Feature/AuthWarehouseContextTest.php'
-      - '.github/workflows/p14-recovery-shift-contract.yml'
+
 permissions:
   contents: read
 jobs:

@@ -1,22 +1,7 @@
 name: Document Timestamp Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'app/Support/DocumentTimestamp.php'
-      - 'config/document_timestamps.php'
-      - 'Modules/Warehouse/app/Support/DocumentTimestampSql.php'
-      - 'Modules/Warehouse/app/Support/SerializesDocumentTimestamps.php'
-      - 'Modules/Warehouse/app/Models/StockDocument.php'
-      - 'Modules/Warehouse/app/Http/Middleware/DocumentTimestampResponse.php'
-      - 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
-      - 'Modules/Warehouse/app/Support/P12MixedDocument*.php'
-      - 'tests/Unit/DocumentTimestampContractTest.php'
-      - 'tests/Feature/DocumentTimestampHttpTest.php'
-      - 'contracts/timestamps/**'
-      - 'tools/ci/timestamps/**'
-      - '.github/workflows/document-timestamps.yml'
+
 permissions:
   contents: read
 jobs:

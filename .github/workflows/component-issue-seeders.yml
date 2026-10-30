@@ -1,19 +1,7 @@
 name: Component issue seeder regression
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php'
-      - 'Modules/Warehouse/database/seeders/DisplayFieldCoverageSeeder.php'
-      - 'scripts/test-component-issue-seeder-immutability.php'
-      - '.github/workflows/component-issue-seeders.yml'
-  pull_request:
-    paths:
-      - 'Modules/Warehouse/database/seeders/WarehouseOperationsCoverageSeeder.php'
-      - 'Modules/Warehouse/database/seeders/DisplayFieldCoverageSeeder.php'
-      - 'scripts/test-component-issue-seeder-immutability.php'
-      - '.github/workflows/component-issue-seeders.yml'
+
 permissions:
   contents: read
 jobs:

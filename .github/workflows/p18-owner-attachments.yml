@@ -1,26 +1,7 @@
 name: P18 Owner Attachment Receipts
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'app/Support/*AttachmentScanner.php'
-      - 'contracts/p18/**'
-      - 'tests/Contracts/p18-postman-guard.test.cjs'
-      - 'database/migrations/**'
-      - 'tests/Feature/P18*Test.php'
-      - 'tests/Feature/DocumentAttachmentTest.php'
-      - 'tests/Feature/WarrantyFlow04ApiSurfaceTest.php'
-      - 'tests/Feature/Concerns/PreparesOutboundFixtures.php'
-      - 'tests/Feature/P15OwnerReadContractTest.php'
-      - 'tests/Feature/P17ScanExceptionReservationTest.php'
-      - 'tests/Feature/AuthWarehouseContextTest.php'
-      - 'tests/Feature/AuthSessionPersistenceTest.php'
-      - 'composer.json'
-      - 'composer.lock'
-      - '.github/workflows/p18-owner-attachments.yml'
+
 permissions:
   contents: read
 jobs:

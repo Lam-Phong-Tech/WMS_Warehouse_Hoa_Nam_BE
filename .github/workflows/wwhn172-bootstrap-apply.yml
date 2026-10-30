@@ -1,10 +1,6 @@
 name: WWHN-172 One Commit Bootstrap
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn172-bootstrap-apply.yml'
   workflow_dispatch:
 
 permissions:

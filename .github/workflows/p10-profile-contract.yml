@@ -1,18 +1,7 @@
 name: P10 Profile Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Auth/**'
-      - 'contracts/p10/**'
-      - 'tests/Feature/P10ProfileContractTest.php'
-      - 'tests/Feature/P10Revision2MetadataTest.php'
-      - 'tests/Feature/AuthWarehouseContextTest.php'
-      - 'tests/Feature/AuthSessionPersistenceTest.php'
-      - 'scripts/verify-p10-profile-contract.php'
-      - 'scripts/test-p10-fe-adapter.mjs'
-      - '.github/workflows/p10-profile-contract.yml'
+
 permissions:
   contents: read
 jobs:

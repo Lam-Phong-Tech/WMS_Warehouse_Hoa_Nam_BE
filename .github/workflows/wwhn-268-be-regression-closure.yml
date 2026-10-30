@@ -6,23 +6,6 @@ name: WWHN-268 BE regression closure
 # và xuất kết quả JSON làm artifact cho QA1 đối chiếu.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/WWHN-268/**'
-      - 'docs/docs_task_jira/WWHN-268_BE_REGRESSION_RECEIPT.md'
-      - 'tests/Feature/Wwhn268RegressionContractTest.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - 'Modules/Auth/app/Http/Middleware/CheckPermission.php'
-      - 'app/Traits/ApiResponse.php'
-      - 'app/Http/Middleware/ApiConventionMiddleware.php'
-      - '.github/workflows/wwhn-268-be-regression-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/WWHN-268/**'
-      - 'tests/Feature/Wwhn268RegressionContractTest.php'
-      - '.github/workflows/wwhn-268-be-regression-closure.yml'
   workflow_dispatch:
 
 permissions:

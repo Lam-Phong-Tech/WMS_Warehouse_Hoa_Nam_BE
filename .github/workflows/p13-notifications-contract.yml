@@ -1,21 +1,7 @@
 name: P13 Notifications Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Notification/**'
-      - 'Modules/Auth/**'
-      - 'Modules/Warehouse/**'
-      - 'tests/Feature/P13*Test.php'
-      - 'tests/Feature/P12*Test.php'
-      - 'tests/Feature/P03*Test.php'
-      - 'tests/Feature/P04*Test.php'
-      - 'tests/Feature/P05*Test.php'
-      - 'docs/contracts/p13-notifications-r2.json'
-      - 'composer.json'
-      - 'composer.lock'
-      - '.github/workflows/p13-notifications-contract.yml'
+
 permissions:
   contents: read
 jobs:

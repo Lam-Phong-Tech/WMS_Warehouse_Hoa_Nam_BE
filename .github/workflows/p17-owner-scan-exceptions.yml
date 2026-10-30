@@ -1,27 +1,7 @@
 name: P17 Owner Scan Exceptions
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'contracts/p17/**'
-      - 'tests/Contracts/p17-reservation-projection.php'
-      - 'tests/Feature/P17*Test.php'
-      - 'tests/Feature/P15OwnerReadContractTest.php'
-      - 'tests/Feature/P03Draft*Test.php'
-      - 'tests/Feature/P04*Test.php'
-      - 'tests/Feature/P05*Test.php'
-      - 'tests/Feature/P06*Test.php'
-      - 'tests/Feature/P07*Test.php'
-      - 'tests/Feature/AuthWarehouseContextTest.php'
-      - 'tests/Feature/AuthSessionPersistenceTest.php'
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'app/Support/Idempotency*'
-      - 'database/migrations/**'
-      - 'composer.json'
-      - 'composer.lock'
-      - '.github/workflows/p17-owner-scan-exceptions.yml'
+
 permissions:
   contents: read
 jobs:

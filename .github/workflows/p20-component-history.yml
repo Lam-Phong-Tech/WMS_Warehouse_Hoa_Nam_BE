@@ -1,21 +1,7 @@
 name: P20 Component History Read Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/app/Http/Controllers/P20ComponentHistoryController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentIssueQueryController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppWarrantyController.php'
-      - 'Modules/Warehouse/app/Support/P09Warranty*'
-      - 'Modules/Warehouse/app/Support/P06ReadSnapshot.php'
-      - 'Modules/Warehouse/routes/p09_warranty.php'
-      - 'Modules/Auth/**'
-      - 'tests/Feature/P20*Test.php'
-      - 'tests/Feature/P19LinkedComponentIssueTest.php'
-      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
-      - 'contracts/p20/**'
-      - '.github/workflows/p20-component-history.yml'
+
 permissions:
   contents: read
 jobs:

@@ -10,52 +10,6 @@ name: WWHN-295 Runtime Config Health Closure
 # CI không thay thế được và không được giả vờ thay thế.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn-295-runtime-config-health.yml'
-      - '.env.example'
-      - 'app/Console/Commands/BackendGoLiveCheck.php'
-      - 'app/Http/Controllers/HealthController.php'
-      - 'app/Http/Middleware/NoStoreApiResponses.php'
-      - 'app/Swagger/**'
-      - 'bootstrap/app.php'
-      - 'config/cache.php'
-      - 'config/health.php'
-      - 'config/queue.php'
-      - 'config/trustedproxy.php'
-      - 'docker-compose.yml'
-      - 'docker/nginx/default.conf'
-      - 'docs/evidence/WWHN-295/**'
-      - 'docs/docs_task_jira/WWHN-295.md'
-      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
-      - 'scripts/collect-wwhn295-runtime-evidence.sh'
-      - 'scripts/verify-wwhn-295-closure.mjs'
-      - 'storage/api-docs/**'
-      - 'tests/Feature/Wwhn295*.php'
-  pull_request:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn-295-runtime-config-health.yml'
-      - '.env.example'
-      - 'app/Console/Commands/BackendGoLiveCheck.php'
-      - 'app/Http/Controllers/HealthController.php'
-      - 'app/Http/Middleware/NoStoreApiResponses.php'
-      - 'app/Swagger/**'
-      - 'bootstrap/app.php'
-      - 'config/cache.php'
-      - 'config/health.php'
-      - 'config/queue.php'
-      - 'config/trustedproxy.php'
-      - 'docker-compose.yml'
-      - 'docker/nginx/default.conf'
-      - 'docs/evidence/WWHN-295/**'
-      - 'docs/docs_task_jira/WWHN-295.md'
-      - 'docs/postman/WMS_HoaNam API Contract - DEV.postman_collection.json'
-      - 'scripts/collect-wwhn295-runtime-evidence.sh'
-      - 'scripts/verify-wwhn-295-closure.mjs'
-      - 'storage/api-docs/**'
-      - 'tests/Feature/Wwhn295*.php'
   workflow_dispatch:
 
 permissions:

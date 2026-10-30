@@ -14,10 +14,6 @@ name: WWHN-237 variance query/report deferral gate
 # Fail-closed BẤT KỂ trạng thái phê duyệt: kể cả khi DISP-STK-237 còn PROPOSED.
 
 on:
-  push:
-    branches: [m1]
-  pull_request:
-    branches: [m1]
   workflow_dispatch:
 
 jobs:

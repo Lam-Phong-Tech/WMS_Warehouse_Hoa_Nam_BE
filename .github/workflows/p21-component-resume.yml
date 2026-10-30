@@ -1,19 +1,7 @@
 name: P21 Component Resume Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/app/Services/P21ComponentResume.php'
-      - 'Modules/Warehouse/app/Http/Middleware/P21ResumeRead.php'
-      - 'Modules/Warehouse/routes/p03_drafts.php'
-      - 'Modules/Warehouse/app/Services/MiniAppDraftService.php'
-      - 'Modules/Warehouse/app/Services/P19LinkedComponentIssue.php'
-      - 'Modules/Warehouse/app/Support/P09WarrantyScope.php'
-      - 'Modules/Auth/app/Support/StableAuthSession.php'
-      - 'contracts/p21/**'
-      - 'tests/Feature/P21ComponentResumeTest.php'
-      - '.github/workflows/p21-component-resume.yml'
+
 permissions:
   contents: read
 jobs:

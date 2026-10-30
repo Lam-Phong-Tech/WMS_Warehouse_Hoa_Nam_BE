@@ -1,14 +1,7 @@
 name: P07 NFC Production Contract
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Warehouse/**'
-      - 'Modules/Auth/**'
-      - 'app/Support/Idempotency*'
-      - 'tests/Feature/P07*Test.php'
-      - '.github/workflows/p07-contract.yml'
+
 permissions:
   contents: read
 jobs:

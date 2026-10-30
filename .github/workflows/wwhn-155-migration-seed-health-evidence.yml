@@ -1,22 +1,6 @@
 name: WWHN-155 Migration Seed Health Evidence
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - '.github/workflows/wwhn-155-migration-seed-health-evidence.yml'
-      - 'app/Http/Controllers/HealthController.php'
-      - 'app/Http/Middleware/ApiConventionMiddleware.php'
-      - 'app/Traits/ApiResponse.php'
-      - 'config/health.php'
-      - 'database/**'
-      - 'routes/api.php'
-      - 'tests/Feature/BackendMigrationSeedHealthTest.php'
-      - 'scripts/collect-wwhn155-evidence.sh'
-      - 'scripts/verify-wwhn155-release.mjs'
-      - 'docs/api-contract/releases/WWHN-155/**'
-      - 'docs/docs_task_jira/WWHN-155*'
-      - 'docs/testing/WWHN-155-health-test-cases.json'
   workflow_dispatch:
 
 permissions:

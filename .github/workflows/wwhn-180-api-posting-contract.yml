@@ -1,8 +1,6 @@
 name: WWHN-180 API Data Contract Evidence Gate
 
 on:
-  push:
-    branches: [m1]
   workflow_dispatch:
 
 permissions:

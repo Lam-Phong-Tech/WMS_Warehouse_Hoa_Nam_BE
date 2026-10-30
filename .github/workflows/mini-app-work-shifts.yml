@@ -1,25 +1,6 @@
 name: Mini App Work Shifts
 
 on:
-  push:
-    branches: [dev]
-    paths:
-      - 'Modules/Auth/**'
-      - 'Modules/Warehouse/app/Support/MiniAppWorkShiftService.php'
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppWorkShiftController.php'
-      - 'Modules/Warehouse/app/Providers/RouteServiceProvider.php'
-      - 'Modules/Warehouse/routes/work_shifts.php'
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/AlignedOutboundDocumentController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/Concerns/InteractsWithStockDocuments.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CanonicalMvpController.php'
-      - 'database/migrations/2026_10_05_000001_add_mini_app_work_shifts.php'
-      - 'tests/Feature/MiniAppWorkShiftTest.php'
-      - 'tests/Feature/AuthWarehouseContextTest.php'
-      - 'tests/Feature/P02ReadContractTest.php'
-      - 'database/migrations/2026_10_06_000001_add_auth_session_warehouse_contexts.php'
-      - '.github/workflows/mini-app-work-shifts.yml'
   workflow_dispatch:
 
 permissions:

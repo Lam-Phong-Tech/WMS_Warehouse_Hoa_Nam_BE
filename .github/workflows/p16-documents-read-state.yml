@@ -1,22 +1,7 @@
 name: P16 Owner Document Read States
 on:
   workflow_dispatch:
-  push:
-    branches: [dev]
-    paths:
-      - 'contracts/p16/**'
-      - 'tests/Contracts/p16*'
-      - 'tests/Feature/P16*'
-      - 'tests/Feature/P12DocumentsReadContractTest.php'
-      - 'tests/Feature/WarrantyWarehouseScopeTest.php'
-      - 'Modules/Warehouse/app/Support/SourceCountEvidence.php'
-      - 'Modules/Warehouse/app/Support/P12DocumentReadContract.php'
-      - 'Modules/Warehouse/app/Support/P09*.php'
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppInboundController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppOutboundController.php'
-      - 'Modules/Warehouse/app/Http/Controllers/MiniAppWarrantyController.php'
-      - 'Modules/Warehouse/routes/api.php'
-      - '.github/workflows/p16-documents-read-state.yml'
+
 permissions:
   contents: read
 concurrency:

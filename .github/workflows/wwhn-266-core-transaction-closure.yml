@@ -16,32 +16,7 @@ name: WWHN-266 Core Transaction Closure
 #      quay lại mà cổng vẫn xanh vì bản commit đang đúng.
 
 on:
-  push:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/WWHN-266/**'
-      - 'scripts/verify-wwhn-266-closure.mjs'
-      - 'scripts/sync-wwhn-266-postman-if-match.mjs'
-      - 'tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php'
-      - 'tests/Feature/Wwhn266IfMatchContractTruthTest.php'
-      - 'app/Swagger/Processors/RouteSyncProcessor.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php'
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php'
-      - '.github/workflows/wwhn-266-core-transaction-closure.yml'
-  pull_request:
-    branches: [m1]
-    paths:
-      - 'docs/evidence/WWHN-266/**'
-      - 'scripts/verify-wwhn-266-closure.mjs'
-      - 'scripts/sync-wwhn-266-postman-if-match.mjs'
-      - 'tests/Feature/Wwhn266ComponentIssueCoreTransactionTest.php'
-      - 'tests/Feature/Wwhn266IfMatchContractTruthTest.php'
-      - 'app/Swagger/Processors/RouteSyncProcessor.php'
-      - 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineComponentFlowController.php'
-      - 'Modules/Warehouse/app/Services/CurrentBaselineStockService.php'
-      - 'Modules/Warehouse/app/Services/ComponentContainerSubledgerService.php'
-      - '.github/workflows/wwhn-266-core-transaction-closure.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
