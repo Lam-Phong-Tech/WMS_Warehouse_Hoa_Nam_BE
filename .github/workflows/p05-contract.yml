@@ -66,13 +66,13 @@ jobs:
           php artisan key:generate
           php artisan config:clear
       - name: SQLite P05 and related regressions
-        run: php artisan test tests/Feature/P05*Test.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/MiniAppOutboundStagingTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p05-sqlite.xml
+        run: php artisan test tests/Feature/P05*Test.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/P14LifecycleIntegrationTest.php tests/Feature/MiniAppOutboundStagingTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p05-sqlite.xml
       - name: PostgreSQL P05 and related regressions
         if: success() || failure()
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p05_contract_test
-        run: php artisan test tests/Feature/P05*Test.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/MiniAppOutboundStagingTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p05-pgsql.xml
+        run: php artisan test tests/Feature/P05*Test.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/P14LifecycleIntegrationTest.php tests/Feature/MiniAppOutboundStagingTest.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php --log-junit p05-pgsql.xml
       - name: Publish isolated test evidence
         if: always()
         run: |
