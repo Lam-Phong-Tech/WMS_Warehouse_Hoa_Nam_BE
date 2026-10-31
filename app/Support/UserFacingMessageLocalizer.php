@@ -240,7 +240,7 @@ final class UserFacingMessageLocalizer
     private static function isMachineKey(string $key): bool
     {
         return preg_match(
-            '/(?:^|[._])(?:status|statuses|code|codes|id|ids|uuid|no|type|types|endpoint|endpoints|url|urls|uri|path|paths|field|fields|permission|permissions|key|keys)$/i',
+            '/(?:^|[._])(?:status|statuses|code|codes|id|ids|uuid|no|type|types|endpoint|endpoints|url|urls|uri|path|paths|field|fields|permission|permissions|key|keys|contract|contracts|revision|revisions|version|versions)$/i',
             $key
         ) === 1;
     }

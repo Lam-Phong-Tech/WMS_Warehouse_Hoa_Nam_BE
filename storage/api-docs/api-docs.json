@@ -21920,7 +21920,7 @@
                     "22. Mini App"
                 ],
                 "summary": "Mini App - xác nhận batch N/N và tạo phiếu xuất từ các mã đã quét",
-                "description": "Sau review local, client gửi toàn bộ raw scan. Server re-resolve authoritative, chống duplicate/reservation, kiểm aggregate available_qty, tự group SKU, atomically tạo canonical source chain + issue document rồi replay mọi scan qua canonical outbound handler. Full scan tự tạo Packing Label DRAFT. Toàn bộ bước này stock-neutral; lỗi bất kỳ rollback toàn bộ.",
+                "description": "Contract p05-outbound-record-field-matrix-v1, revision p05-record-field-matrix-r1. Sau review local, client gửi toàn bộ raw scan. name là optional/nullable; vắng, null, chuỗi rỗng hoặc chỉ có khoảng trắng đều chuẩn hóa thành null và BE không tự dựng tên. recipient_address/recipient_contact_phone nullable theo SRS v1.12. Server re-resolve authoritative, chống duplicate/reservation, kiểm aggregate available_qty, tự group SKU, atomically tạo canonical source chain + issue document rồi replay mọi scan qua canonical outbound handler. Full scan tự tạo Packing Label DRAFT. Toàn bộ bước này stock-neutral; lỗi bất kỳ rollback toàn bộ.",
                 "operationId": "mini_app_outbound_record",
                 "parameters": [
                     {
@@ -21941,7 +21941,6 @@
                         "application/json": {
                             "schema": {
                                 "required": [
-                                    "name",
                                     "warehouse_id",
                                     "recipient_name",
                                     "expected_total_qty",
@@ -21949,8 +21948,9 @@
                                 ],
                                 "properties": {
                                     "name": {
+                                        "description": "Optional. Vắng/null/rỗng/whitespace cùng semantics null; BE không tự dựng tên.",
                                         "type": "string",
-                                        "example": "Xuất hàng chiều 23/08",
+                                        "nullable": true,
                                         "maxLength": 200
                                     },
                                     "warehouse_id": {
@@ -22032,7 +22032,7 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Tạo phiếu + match đủ N/N. status=SCANNING, mini_app_status=LABELING, full_scan=true, Packing Label DRAFT, stock_effect=NONE.",
+                        "description": "Tạo phiếu + match đủ N/N. meta.contract/revision và data.readiness/missing_fields/invalid_fields/record_allowed được trả; status=SCANNING, full_scan=true, Packing Label DRAFT, stock_effect=NONE.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -22052,7 +22052,7 @@
                         }
                     },
                     "422": {
-                        "description": "Count/SKU/item/tồn/kho/phone không hợp lệ.",
+                        "description": "OUTBOUND_RECORD_FIELDS_REQUIRED trả missing_fields/invalid_fields allowlist; hoặc lỗi count/SKU/item/tồn/kho khác. Không trả raw body/PII.",
                         "content": {
                             "application/json": {
                                 "schema": {

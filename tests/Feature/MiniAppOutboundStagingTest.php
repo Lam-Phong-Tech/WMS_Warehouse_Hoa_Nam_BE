@@ -51,7 +51,6 @@ class MiniAppOutboundStagingTest extends TestCase
 
         $recordHeaders = $headers + ['Idempotency-Key' => 'mini-outbound-stage-record-001'];
         $record = $this->postJson('/api/v1/mini-app/outbound/record', [
-            'name' => 'Xuất Mini App scan trước',
             'warehouse_id' => (string) $warehouse->id,
             'recipient_name' => 'Đại lý Mini App',
             'expected_total_qty' => 2,
@@ -61,6 +60,13 @@ class MiniAppOutboundStagingTest extends TestCase
             ],
         ], $recordHeaders)
             ->assertCreated()
+            ->assertJsonPath('meta.contract', 'p05-outbound-record-field-matrix-v1')
+            ->assertJsonPath('meta.revision', 'p05-record-field-matrix-r1')
+            ->assertJsonPath('data.name', null)
+            ->assertJsonPath('data.readiness', 'READY')
+            ->assertJsonPath('data.missing_fields', [])
+            ->assertJsonPath('data.invalid_fields', [])
+            ->assertJsonPath('data.record_allowed', true)
             ->assertJsonPath('data.status', 'SCANNING')
             ->assertJsonPath('data.mini_app_status', 'READY_TO_ISSUE')
             ->assertJsonPath('data.full_scan', true)
@@ -89,7 +95,7 @@ class MiniAppOutboundStagingTest extends TestCase
             ->value('available_qty'));
 
         $replay = $this->postJson('/api/v1/mini-app/outbound/record', [
-            'name' => 'Xuất Mini App scan trước',
+            'name' => null,
             'warehouse_id' => (string) $warehouse->id,
             'recipient_name' => 'Đại lý Mini App',
             'expected_total_qty' => 2,
@@ -101,6 +107,21 @@ class MiniAppOutboundStagingTest extends TestCase
             ->assertCreated()
             ->assertHeader('Idempotent-Replay', 'true')
             ->assertJsonPath('data.document_id', $documentId);
+
+        $this->postJson('/api/v1/mini-app/outbound/record', [
+            'name' => '',
+            'warehouse_id' => (string) $warehouse->id,
+            'recipient_name' => 'Đại lý Mini App',
+            'expected_total_qty' => 2,
+            'items' => [
+                ['raw_code' => $raw1, 'scan_source' => 'CAMERA'],
+                ['raw_code' => $raw2, 'scan_source' => 'SCANNER'],
+            ],
+        ], $recordHeaders)
+            ->assertCreated()
+            ->assertHeader('Idempotent-Replay', 'true')
+            ->assertJsonPath('data.document_id', $documentId)
+            ->assertJsonPath('data.name', null);
 
         $this->assertSame(2, DB::table('outbound_item_matches as m')
             ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
@@ -163,5 +184,82 @@ class MiniAppOutboundStagingTest extends TestCase
             ->assertJsonPath('errors.unexpected_fields.1', 'items.1.resolved_item_id');
 
         $this->assertSame($documentsBefore, DB::table('stock_documents')->where('doc_type', 'issue')->count());
+    }
+
+    public function test_record_returns_allowlisted_missing_fields_without_pii_or_writes(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $documentsBefore = DB::table('stock_documents')->where('doc_type', 'issue')->count();
+
+        $response = $this->postJson('/api/v1/mini-app/outbound/record', [
+            'name' => '',
+            'recipient_name' => '',
+            'expected_total_qty' => null,
+            'items' => [],
+        ], $headers + ['Idempotency-Key' => 'mini-outbound-stage-missing-fields']);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'OUTBOUND_RECORD_FIELDS_REQUIRED')
+            ->assertJsonPath('error.details.contract', 'p05-outbound-record-field-matrix-v1')
+            ->assertJsonPath('error.details.revision', 'p05-record-field-matrix-r1')
+            ->assertJsonPath('error.details.missing_fields', [
+                'warehouse_id',
+                'recipient_name',
+                'expected_total_qty',
+                'items',
+            ])
+            ->assertJsonPath('error.details.invalid_fields', [])
+            ->assertJsonPath('error.details.record_allowed', false);
+
+        $payload = json_encode($response->json(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $this->assertIsString($payload);
+        $this->assertStringNotContainsString('recipient_address', $payload);
+        $this->assertStringNotContainsString('recipient_contact_phone', $payload);
+        $this->assertSame($documentsBefore, DB::table('stock_documents')->where('doc_type', 'issue')->count());
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_record_count_mismatch_and_changed_idempotent_body_do_not_create_extra_or_move_stock(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $sku = $this->productSkuFixture('PROD-MINI-STAGE-IDEMP-001');
+        $this->seedAvailableBalance((string) $warehouse->id, (string) $sku->sku_id, 1);
+        $item = $this->seedItemInStock((string) $sku->sku_id);
+        $unique = 'MINI-STAGE-IDEMP-ITEM-001';
+        $this->seedScanCode($item, $unique);
+        $raw = 'HN1|SKU='.$sku->sku_code.'|ITEM='.$unique;
+        $documentsBefore = DB::table('stock_documents')->where('doc_type', 'issue')->count();
+        $movementsBefore = DB::table('stock_movements')->count();
+
+        $base = [
+            'warehouse_id' => (string) $warehouse->id,
+            'recipient_name' => 'Đại lý Mini App',
+            'expected_total_qty' => 1,
+            'items' => [['raw_code' => $raw, 'scan_source' => 'CAMERA']],
+        ];
+        $this->postJson('/api/v1/mini-app/outbound/record', array_replace($base, [
+            'expected_total_qty' => 2,
+        ]), $headers + ['Idempotency-Key' => 'mini-outbound-stage-count-mismatch'])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'SCAN_COUNT_MISMATCH');
+        $this->assertSame($documentsBefore, DB::table('stock_documents')->where('doc_type', 'issue')->count());
+
+        $keyHeaders = $headers + ['Idempotency-Key' => 'mini-outbound-stage-idempotency-conflict'];
+        $created = $this->postJson('/api/v1/mini-app/outbound/record', $base, $keyHeaders)
+            ->assertCreated();
+        $this->postJson('/api/v1/mini-app/outbound/record', array_replace($base, [
+            'recipient_name' => 'Người nhận khác',
+        ]), $keyHeaders)
+            ->assertConflict()
+            ->assertJsonPath('error.code', 'IDEMPOTENCY_CONFLICT');
+
+        $this->assertSame($documentsBefore + 1, DB::table('stock_documents')->where('doc_type', 'issue')->count());
+        $this->assertSame($movementsBefore, DB::table('stock_movements')->count());
+        $this->assertDatabaseHas('stock_documents', [
+            'id' => $created->json('data.document_id'),
+            'recipient_name' => 'Đại lý Mini App',
+            'status' => 'SCANNING',
+        ]);
     }
 }

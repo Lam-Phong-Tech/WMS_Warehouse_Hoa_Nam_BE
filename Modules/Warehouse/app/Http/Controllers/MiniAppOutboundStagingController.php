@@ -11,6 +11,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Services\ProductIdentityResolver;
@@ -48,6 +49,10 @@ class MiniAppOutboundStagingController extends Controller
 
     private const MAX_BATCH_ITEMS = 1000;
 
+    private const RECORD_CONTRACT = 'p05-outbound-record-field-matrix-v1';
+
+    private const RECORD_REVISION = 'p05-record-field-matrix-r1';
+
     private const RECORD_FIELDS = [
         'name',
         'warehouse_id',
@@ -64,6 +69,21 @@ class MiniAppOutboundStagingController extends Controller
     private const RECORD_ITEM_FIELDS = [
         'raw_code',
         'scan_source',
+    ];
+
+    private const RECORD_VALIDATION_FIELD_ORDER = [
+        'name',
+        'warehouse_id',
+        'request_no',
+        'request_date',
+        'recipient_name',
+        'recipient_address',
+        'recipient_contact_phone',
+        'note',
+        'expected_total_qty',
+        'items',
+        'items[].raw_code',
+        'items[].scan_source',
     ];
 
     public function __construct(
@@ -109,24 +129,8 @@ class MiniAppOutboundStagingController extends Controller
     public function record(Request $request): JsonResponse
     {
         $this->assertRecordPayloadShape($request);
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:200'],
-            'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
-            'request_no' => ['nullable', 'string', 'max:80'],
-            'request_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.InputLimits::DATE_MIN, 'before_or_equal:'.InputLimits::pastDateMax()],
-            'recipient_name' => ['required', 'string', 'max:200'],
-            'recipient_address' => ['nullable', 'string', 'max:1000'],
-            'recipient_contact_phone' => ['nullable', 'string', 'max:50', 'regex:/^0\d{9}$/'],
-            'note' => ['nullable', 'string', 'max:1000'],
-            'expected_total_qty' => ['required', 'integer', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
-            'items' => ['required', 'array', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
-            'items.*' => ['required', 'array'],
-            'items.*.raw_code' => ['required', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
-            'items.*.scan_source' => ['nullable', 'string', 'in:CAMERA,SCANNER,HARDWARE,MANUAL'],
-        ], [
-            'recipient_contact_phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
-        ]);
+        $this->normalizeRecordName($request);
+        $validated = $this->validateRecordPayload($request);
 
         if (count($validated['items']) !== (int) $validated['expected_total_qty']) {
             ApiError::abort(422, 'SCAN_COUNT_MISMATCH', 'Số dòng scan local phải đúng bằng số lượng đã nhập trước khi xác nhận.', [
@@ -154,7 +158,7 @@ class MiniAppOutboundStagingController extends Controller
 
                     $draftPayload = [
                         'warehouse_id' => $warehouseId,
-                        'name' => trim((string) $validated['name']),
+                        'name' => $validated['name'] ?? null,
                         'request_no' => $validated['request_no'] ?? null,
                         'request_date' => $validated['request_date'] ?? null,
                         'recipient_name' => trim((string) $validated['recipient_name']),
@@ -270,11 +274,15 @@ class MiniAppOutboundStagingController extends Controller
                     P13WebPostHandoff::record($documentId, 'OUTBOUND', $warehouseId, $version);
 
                     return [
+                        'readiness' => 'READY',
+                        'missing_fields' => [],
+                        'invalid_fields' => [],
+                        'record_allowed' => true,
                         'document_id' => $documentId,
                         'doc_no' => (string) $document->doc_no,
                         'outbound_request_id' => $document->outbound_request_id !== null ? (string) $document->outbound_request_id : null,
                         'request_no' => $draft['request_no'] ?? null,
-                        'name' => trim((string) $validated['name']),
+                        'name' => $validated['name'] ?? null,
                         'src_warehouse_id' => $warehouseId,
                         'status' => (string) $document->status,
                         'mini_app_status' => 'READY_TO_ISSUE',
@@ -499,10 +507,112 @@ class MiniAppOutboundStagingController extends Controller
         }
 
         ApiError::abort(422, 'VALIDATION_ERROR', 'Dữ liệu gửi lên chứa trường không được khai báo trong hợp đồng outbound/record.', [
+            'contract' => self::RECORD_CONTRACT,
+            'revision' => self::RECORD_REVISION,
+            'missing_fields' => [],
+            'invalid_fields' => [],
+            'record_allowed' => false,
             'unexpected_fields' => array_values(array_unique($unexpected)),
             'allowed_fields' => self::RECORD_FIELDS,
             'allowed_item_fields' => self::RECORD_ITEM_FIELDS,
         ]);
+    }
+
+    private function normalizeRecordName(Request $request): void
+    {
+        $name = $request->input('name');
+        if (! $request->exists('name') || $name === null || (is_string($name) && trim($name) === '')) {
+            $request->merge(['name' => null]);
+
+            return;
+        }
+
+        if (is_string($name)) {
+            $request->merge(['name' => trim($name)]);
+        }
+    }
+
+    /** @return array<string,mixed> */
+    private function validateRecordPayload(Request $request): array
+    {
+        $utf8Rule = static function (string $attribute, mixed $value, \Closure $fail): void {
+            if (is_string($value) && ! mb_check_encoding($value, 'UTF-8')) {
+                $fail('Trường :attribute chứa ký tự không hợp lệ (không phải UTF-8).');
+            }
+        };
+        $validator = Validator::make($request->all(), [
+            'name' => ['nullable', 'string', 'max:200', $utf8Rule],
+            'warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
+            'request_no' => ['nullable', 'string', 'max:80', $utf8Rule],
+            'request_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.InputLimits::DATE_MIN, 'before_or_equal:'.InputLimits::pastDateMax()],
+            'recipient_name' => ['required', 'string', 'max:200', $utf8Rule],
+            'recipient_address' => ['nullable', 'string', 'max:1000', $utf8Rule],
+            'recipient_contact_phone' => ['nullable', 'string', 'max:50', 'regex:/^0\d{9}$/'],
+            'note' => ['nullable', 'string', 'max:1000', $utf8Rule],
+            'expected_total_qty' => ['required', 'integer', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
+            'items' => ['required', 'array', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
+            'items.*' => ['required', 'array'],
+            'items.*.raw_code' => ['required', 'string', 'min:1', 'max:'.(int) config('warehouse.product_qr.max_payload_length', 512)],
+            'items.*.scan_source' => ['nullable', 'string', 'in:CAMERA,SCANNER,HARDWARE,MANUAL'],
+        ], [
+            'recipient_contact_phone.regex' => 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.',
+        ]);
+
+        if ($validator->fails()) {
+            $missing = [];
+            $invalid = [];
+            foreach ($validator->failed() as $field => $failedRules) {
+                $canonical = $this->canonicalRecordField((string) $field);
+                if ($canonical === null) {
+                    continue;
+                }
+                $rules = array_map('strtolower', array_keys($failedRules));
+                $isMissing = in_array('required', $rules, true)
+                    || ($canonical === 'items' && in_array('min', $rules, true));
+                if ($isMissing) {
+                    $missing[] = $canonical;
+                } else {
+                    $invalid[] = $canonical;
+                }
+            }
+            $missing = $this->orderedRecordFields($missing);
+            $invalid = $this->orderedRecordFields(array_values(array_diff($invalid, $missing)));
+
+            ApiError::abort(422, 'OUTBOUND_RECORD_FIELDS_REQUIRED', 'Dữ liệu RECORD chưa đủ hoặc không hợp lệ.', [
+                'contract' => self::RECORD_CONTRACT,
+                'revision' => self::RECORD_REVISION,
+                'missing_fields' => $missing,
+                'invalid_fields' => $invalid,
+                'record_allowed' => false,
+            ]);
+        }
+
+        return $validator->validated();
+    }
+
+    private function canonicalRecordField(string $field): ?string
+    {
+        if (preg_match('/^items\.\d+\.raw_code$/', $field) === 1) {
+            return 'items[].raw_code';
+        }
+        if (preg_match('/^items\.\d+\.scan_source$/', $field) === 1) {
+            return 'items[].scan_source';
+        }
+        if (preg_match('/^items\.\d+$/', $field) === 1) {
+            return 'items';
+        }
+
+        return in_array($field, self::RECORD_VALIDATION_FIELD_ORDER, true) ? $field : null;
+    }
+
+    /** @param list<string> $fields @return list<string> */
+    private function orderedRecordFields(array $fields): array
+    {
+        $fields = array_values(array_unique($fields));
+        usort($fields, static fn (string $left, string $right): int => array_search($left, self::RECORD_VALIDATION_FIELD_ORDER, true)
+            <=> array_search($right, self::RECORD_VALIDATION_FIELD_ORDER, true));
+
+        return $fields;
     }
 
     private function availableQty(string $warehouseId, string $skuId): int
@@ -648,6 +758,8 @@ class MiniAppOutboundStagingController extends Controller
             'meta' => [
                 'request_id' => request()?->attributes->get('request_id'),
                 'timestamp' => now()->toIso8601String(),
+                'contract' => self::RECORD_CONTRACT,
+                'revision' => self::RECORD_REVISION,
             ],
         ];
     }

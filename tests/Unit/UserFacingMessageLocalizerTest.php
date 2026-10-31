@@ -89,6 +89,10 @@ class UserFacingMessageLocalizerTest extends TestCase
             'field' => 'reason',
             'error_code' => 'INVALID_QUANTITY',
             'allowed_statuses' => ['DRAFT', 'SCANNING'],
+            'contract' => 'p05-outbound-record-field-matrix-v1',
+            'revision' => 'p05-record-field-matrix-r1',
+            'missing_fields' => ['warehouse_id', 'recipient_name'],
+            'invalid_fields' => ['recipient_contact_phone'],
             'lines' => [['line_no' => 1, 'sku_code' => 'HN-MK-001', 'item_status' => 'QUARANTINE']],
             'current' => 'POSTED',
         ];

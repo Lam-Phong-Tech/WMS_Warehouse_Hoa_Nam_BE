@@ -1,0 +1,47 @@
+{
+  "contract": "p05-outbound-record-field-matrix-v1",
+  "revision": "p05-record-field-matrix-r1",
+  "status": "IMPLEMENTED_SOURCE_PENDING_RELEASE_AND_LIVE_SMOKE",
+  "route": {
+    "method": "POST",
+    "path": "/api/v1/mini-app/outbound/record",
+    "stock_effect": "NONE"
+  },
+  "stages": {
+    "BEGIN_SAVE": {
+      "metadata_may_be_incomplete": true,
+      "canonical_document_created": false,
+      "inventory_decreased": false
+    },
+    "RECORD": {
+      "fields": {
+        "name": {"required": false, "nullable": true, "max_length": 200, "normalization": "MISSING_NULL_EMPTY_OR_WHITESPACE_TO_NULL", "server_fallback": false},
+        "warehouse_id": {"required": true, "format": "uuid"},
+        "recipient_name": {"required": true, "max_length": 200},
+        "recipient_address": {"required": false, "nullable": true, "max_length": 1000, "decision_source": "SRS_v1.12_REQ-SRS-014"},
+        "recipient_contact_phone": {"required": false, "nullable": true, "format": "VIETNAM_10_DIGITS", "decision_source": "SRS_v1.12_REQ-SRS-014"},
+        "expected_total_qty": {"required": true, "type": "integer", "minimum": 1, "maximum": 1000},
+        "items": {"required": true, "type": "array", "minimum_items": 1, "maximum_items": 1000},
+        "items[].raw_code": {"required": true},
+        "items[].scan_source": {"required": false, "nullable": true, "enum": ["CAMERA", "SCANNER", "HARDWARE", "MANUAL"]}
+      },
+      "success_evidence": ["meta.contract", "meta.revision", "data.readiness", "data.missing_fields", "data.invalid_fields", "data.record_allowed"],
+      "validation_error": {
+        "http_status": 422,
+        "code": "OUTBOUND_RECORD_FIELDS_REQUIRED",
+        "details": ["contract", "revision", "missing_fields", "invalid_fields", "record_allowed"],
+        "field_names_only": true,
+        "raw_body_or_pii": false
+      },
+      "idempotency": "REQUIRED_SAME_KEY_SAME_NORMALIZED_BODY",
+      "atomic": true,
+      "creates_stock_movement": false,
+      "posts_issue": false
+    }
+  },
+  "p02_confirmation": {
+    "pending_approval_count": "SCANNING documents whose every line has scanned_qty=qty_planned",
+    "fe_label": "Phiếu chờ xử lý Web",
+    "mini_app_approval_or_post_ui_for_primary_inbound_outbound": false
+  }
+}

@@ -40,7 +40,7 @@ final class MiniAppOutboundStagingOpenApi
         operationId: 'mini_app_outbound_record',
         x: ['permission' => 'outbound.request.manual_create|outbound.import + outbound.scan'],
         summary: 'Mini App - xác nhận batch N/N và tạo phiếu xuất từ các mã đã quét',
-        description: 'Sau review local, client gửi toàn bộ raw scan. Server re-resolve authoritative, chống duplicate/reservation, kiểm aggregate available_qty, tự group SKU, atomically tạo canonical source chain + issue document rồi replay mọi scan qua canonical outbound handler. Full scan tự tạo Packing Label DRAFT. Toàn bộ bước này stock-neutral; lỗi bất kỳ rollback toàn bộ.',
+        description: 'Contract p05-outbound-record-field-matrix-v1, revision p05-record-field-matrix-r1. Sau review local, client gửi toàn bộ raw scan. name là optional/nullable; vắng, null, chuỗi rỗng hoặc chỉ có khoảng trắng đều chuẩn hóa thành null và BE không tự dựng tên. recipient_address/recipient_contact_phone nullable theo SRS v1.12. Server re-resolve authoritative, chống duplicate/reservation, kiểm aggregate available_qty, tự group SKU, atomically tạo canonical source chain + issue document rồi replay mọi scan qua canonical outbound handler. Full scan tự tạo Packing Label DRAFT. Toàn bộ bước này stock-neutral; lỗi bất kỳ rollback toàn bộ.',
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
         parameters: [
@@ -55,9 +55,9 @@ final class MiniAppOutboundStagingOpenApi
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['name', 'warehouse_id', 'recipient_name', 'expected_total_qty', 'items'],
+                required: ['warehouse_id', 'recipient_name', 'expected_total_qty', 'items'],
                 properties: [
-                    new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Xuất hàng chiều 23/08'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: 200, nullable: true, description: 'Optional. Vắng/null/rỗng/whitespace cùng semantics null; BE không tự dựng tên.'),
                     new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid'),
                     new OA\Property(property: 'request_no', type: 'string', maxLength: 80, nullable: true, description: 'Bỏ trống để BE tự sinh.'),
                     new OA\Property(property: 'request_date', type: 'string', format: 'date', nullable: true),
@@ -84,9 +84,9 @@ final class MiniAppOutboundStagingOpenApi
             )
         ),
         responses: [
-            new OA\Response(response: 201, description: 'Tạo phiếu + match đủ N/N. status=SCANNING, mini_app_status=LABELING, full_scan=true, Packing Label DRAFT, stock_effect=NONE.'),
+            new OA\Response(response: 201, description: 'Tạo phiếu + match đủ N/N. meta.contract/revision và data.readiness/missing_fields/invalid_fields/record_allowed được trả; status=SCANNING, full_scan=true, Packing Label DRAFT, stock_effect=NONE.'),
             new OA\Response(response: 409, description: 'Duplicate item, item bị phiếu khác giữ hoặc atomic handoff không hoàn tất.'),
-            new OA\Response(response: 422, description: 'Count/SKU/item/tồn/kho/phone không hợp lệ.'),
+            new OA\Response(response: 422, description: 'OUTBOUND_RECORD_FIELDS_REQUIRED trả missing_fields/invalid_fields allowlist; hoặc lỗi count/SKU/item/tồn/kho khác. Không trả raw body/PII.'),
             new OA\Response(response: 428, description: 'Thiếu Idempotency-Key.'),
         ]
     )]
