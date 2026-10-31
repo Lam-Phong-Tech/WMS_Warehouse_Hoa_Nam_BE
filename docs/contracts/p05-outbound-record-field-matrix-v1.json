@@ -33,7 +33,7 @@
         "field_names_only": true,
         "raw_body_or_pii": false
       },
-      "idempotency": "REQUIRED_SAME_KEY_SAME_NORMALIZED_BODY",
+      "idempotency": "REQUIRED_SAME_KEY_SAME_NORMALIZED_BODY; P14 tracked-shift replay reaches the native IdempotencyStore receipt without creating a second shift operation",
       "atomic": true,
       "creates_stock_movement": false,
       "posts_issue": false

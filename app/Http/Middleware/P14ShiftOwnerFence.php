@@ -57,6 +57,12 @@ final class P14ShiftOwnerFence
                     && $request->hasHeader('X-Draft-Scan-Session-ID')
                     && $request->hasHeader('X-Draft-Version')
                     && $request->hasHeader('Idempotency-Key');
+                $p05Standalone = $request->isMethod('POST')
+                    && $request->route()?->uri() === 'api/v1/mini-app/outbound/record'
+                    && $request->hasHeader('Idempotency-Key')
+                    && ! $request->exists('source_document_id')
+                    && ! $request->exists('source_version')
+                    && ! $p03Handoff;
                 $p09Owner = in_array($request->route()?->uri(), [
                     'api/v1/mini-app/warranty-cases', 'api/v1/mini-app/warranty-cases/{id}',
                 ], true) && in_array($request->method(), ['PATCH', 'POST'], true)
@@ -64,7 +70,7 @@ final class P14ShiftOwnerFence
                 $p19Owner = $request->header(P19ComponentCommand::HEADER) === P19ComponentCommand::CONTRACT
                     && isset(P19ComponentCommand::ROUTES[$request->route()?->uri() ?? ''])
                     && $request->hasHeader('Idempotency-Key');
-                $nativeOwnerReplay = $p18Upload || $p03Handoff || $p09Owner || $p19Owner;
+                $nativeOwnerReplay = $p18Upload || $p03Handoff || $p05Standalone || $p09Owner || $p19Owner;
                 $nfcHash = $request->isMethod('PATCH') && $request->is('api/v1/mini-app/items/*/nfc')
                     ? IdempotencyStore::requestHash($request) : null;
                 $existing = DB::table('p14_shift_operations')->where('shift_id', $id)->where('request_id', $requestId)->first();

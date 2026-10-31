@@ -190,6 +190,37 @@ class P14LifecycleIntegrationTest extends TestCase
             ->assertJsonPath('data.draft_snapshot.items.0.operation', 'OUTBOUND')->assertJsonPath('data.draft_snapshot.total', 1);
     }
 
+    public function test_p05_standalone_record_replays_its_native_idempotency_receipt_under_a_tracked_shift(): void
+    {
+        $f = $this->fixture();
+        $sku = $this->productSkuFixture('P14-P05-STANDALONE');
+        $this->seedAvailableBalance($f['warehouse_id'], $sku->sku_id, 1);
+        $item = $this->seedItemInStock($sku->sku_id);
+        $code = 'P14-P05-ITEM-'.Str::upper(Str::random(10));
+        $this->seedScanCode($item, $code);
+        $body = [
+            'warehouse_id' => $f['warehouse_id'],
+            'recipient_name' => 'P14 P05 isolated recipient',
+            'expected_total_qty' => 1,
+            'items' => [['raw_code' => 'HN1|SKU='.$sku->sku_code.'|ITEM='.$code, 'scan_source' => 'CAMERA']],
+        ];
+        $headers = $this->ownerHeaders($f, (string) Str::uuid()) + [
+            'Idempotency-Key' => 'p14-p05-'.Str::lower(Str::random(16)),
+        ];
+
+        $created = $this->postJson('/api/v1/mini-app/outbound/record', $body, $headers)
+            ->assertCreated()->assertHeader('Idempotent-Replay', 'false')
+            ->assertJsonPath('data.name', null)->assertJsonPath('data.stock_effect', 'NONE');
+        $this->postJson('/api/v1/mini-app/outbound/record', $body, $headers)
+            ->assertCreated()->assertHeader('Idempotent-Replay', 'true')
+            ->assertJsonPath('data.document_id', $created->json('data.document_id'));
+
+        $this->assertSame(1, DB::table('p14_shift_operations')->where('shift_id', $f['shift']['shift_id'])
+            ->where('operation', 'OUTBOUND')->count());
+        $this->assertDatabaseCount('stock_documents', 1);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
     public function test_changing_owner_key_or_contract_is_conflict_and_rotating_trace_cannot_repeat_intent(): void
     {
         $f = $this->fixture();
