@@ -36,16 +36,27 @@ class UserManagementTest extends TestCase
         $headers = $this->authHeaders();
 
         $response = $this->postJson('/api/v1/users', [
-            'username' => 'newstaff',
             'display_name' => 'Nhân viên mới',
             'email' => 'newstaff@wms-hoanam.local',
             'password' => TestCredentials::PASSWORD,
         ], $headers);
 
         $response->assertCreated()
-            ->assertJsonPath('data.username', 'newstaff')
+            ->assertJsonPath('data.email', 'newstaff@wms-hoanam.local')
             ->assertJsonMissingPath('data.password_hash')
             ->assertJsonMissingPath('data.password');
+        $this->assertStringStartsWith('u-', $response->json('data.username'));
+        $this->assertDatabaseHas('app_user', ['email' => 'newstaff@wms-hoanam.local', 'username' => $response->json('data.username')]);
+    }
+
+    public function test_email_is_required_when_creating_user(): void
+    {
+        $response = $this->postJson('/api/v1/users', [
+            'display_name' => 'No email',
+            'password' => TestCredentials::PASSWORD,
+        ], $this->authHeaders());
+
+        $response->assertStatus(422)->assertJsonStructure(['errors' => ['email']]);
     }
 
     public function test_username_must_be_unique(): void
@@ -62,6 +73,7 @@ class UserManagementTest extends TestCase
         $response = $this->postJson('/api/v1/users', [
             'username' => 'dupuser',
             'display_name' => 'Trung username',
+            'email' => 'dupuser@wms-hoanam.local',
             'password' => TestCredentials::PASSWORD,
         ], $headers);
 
@@ -232,6 +244,7 @@ class UserManagementTest extends TestCase
         $response = $this->postJson('/api/v1/users', [
             'username' => '  MixedCase  ',
             'display_name' => 'Mixed case user',
+            'email' => 'mixedcase@wms-hoanam.local',
             'password' => TestCredentials::PASSWORD,
         ], $headers);
 
@@ -300,6 +313,7 @@ class UserManagementTest extends TestCase
         $create = $this->postJson('/api/v1/users', [
             'username' => 'audited',
             'display_name' => 'Audited user',
+            'email' => 'audited@wms-hoanam.local',
             'password' => TestCredentials::PASSWORD,
         ], $headers);
         $id = $create->json('data.user_id');

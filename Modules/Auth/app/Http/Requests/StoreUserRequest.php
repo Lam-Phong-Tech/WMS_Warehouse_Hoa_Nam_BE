@@ -18,15 +18,18 @@ class StoreUserRequest extends FormRequest
         if ($this->has('username')) {
             $this->merge(['username' => Str::lower(trim((string) $this->input('username')))]);
         }
+        if ($this->has('email')) {
+            $this->merge(['email' => Str::lower(trim((string) $this->input('email')))]);
+        }
     }
 
     public function rules(): array
     {
         return [
-            'username' => ['required', 'string', 'max:100', 'unique:app_user,username'],
+            'username' => ['sometimes', 'string', 'max:100', 'unique:app_user,username'],
             'display_name' => ['required', 'string', 'max:255'],
             'job_title' => ['sometimes', 'nullable', 'string', 'max:160'],
-            'email' => ['nullable', 'email', 'max:255', 'unique:app_user,email'],
+            'email' => ['required', 'email', 'max:200', 'regex:/\A[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\z/', 'unique:app_user,email'],
             'phone' => ['nullable', 'string', 'max:30', 'regex:/^0\d{9}$/'],
             'department_id' => ['nullable', 'uuid', 'exists:department,department_id'],
             'password' => ['required', 'string', 'min:8', 'max:128'],

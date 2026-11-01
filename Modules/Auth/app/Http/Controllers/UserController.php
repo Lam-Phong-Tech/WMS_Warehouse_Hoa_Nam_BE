@@ -72,11 +72,11 @@ class UserController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['username', 'display_name', 'password'],
+                required: ['display_name', 'email', 'password'],
                 properties: [
-                    new OA\Property(property: 'username', type: 'string', maxLength: 100, example: 'nguyenvana'),
+                    new OA\Property(property: 'username', type: 'string', maxLength: 100, description: 'Khóa IAM nội bộ tùy chọn; nếu bỏ qua hệ thống tự cấp.', example: 'nguyenvana'),
                     new OA\Property(property: 'display_name', type: 'string', maxLength: 255, example: 'Nguyễn Văn A'),
-                    new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true, example: 'nguyenvana@gmail.com'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', maxLength: 200, example: 'nguyenvana@gmail.com'),
                     new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
                     new OA\Property(property: 'password', type: 'string', format: 'password', minLength: 8, description: 'Mật khẩu ban đầu do quản trị viên đặt; tài liệu API không công bố giá trị mẫu.'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true, example: 'ACTIVE'),
@@ -87,12 +87,14 @@ class UserController extends Controller
             new OA\Response(response: 201, description: 'Tạo người dùng thành công'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền user.manage'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (vd: username đã tồn tại)'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ (ví dụ: thiếu email hoặc email đã tồn tại)'),
         ]
     )]
     public function store(StoreUserRequest $request)
     {
         $data = $request->validated();
+        // Username remains an internal IAM key; new clients identify accounts by email.
+        $data['username'] ??= 'u-'.Str::uuid()->toString();
         $hasTitle = array_key_exists('job_title', $data);
         $jobTitle = $data['job_title'] ?? null;
         unset($data['job_title']);
@@ -166,7 +168,7 @@ class UserController extends Controller
             content: new OA\JsonContent(properties: [
                 new OA\Property(property: 'username', type: 'string', maxLength: 100, example: 'nguyenvana'),
                 new OA\Property(property: 'display_name', type: 'string', maxLength: 255, example: 'Nguyễn Văn A'),
-                new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true, example: 'nguyenvana@gmail.com'),
+                new OA\Property(property: 'email', type: 'string', format: 'email', maxLength: 200, example: 'nguyenvana@gmail.com'),
                 new OA\Property(property: 'phone', type: 'string', maxLength: 30, nullable: true, example: '0912345678'),
                 new OA\Property(property: 'password', type: 'string', format: 'password', minLength: 8, description: 'Mật khẩu ban đầu do quản trị viên đặt; tài liệu API không công bố giá trị mẫu.'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE', 'LOCKED'], nullable: true, example: 'ACTIVE'),
