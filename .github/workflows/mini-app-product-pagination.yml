@@ -1,0 +1,89 @@
+name: Mini App Product Pagination Contract
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-product-pagination-ci
+          POSTGRES_DB: product_pagination_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d product_pagination_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: sqlite
+      DB_DATABASE: ':memory:'
+      DB_HOST: '127.0.0.1'
+      DB_PORT: '5432'
+      DB_USERNAME: postgres
+      DB_PASSWORD: disposable-product-pagination-ci
+      DB_SSLMODE: disable
+      DB_URL: ''
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: 'null'
+      MAIL_MAILER: array
+      JWT_SECRET: product-pagination-isolated-ci-secret
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_SUPPORTS_CREDENTIALS: 'true'
+      REFRESH_TOKEN_COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, sqlite3, pdo_sqlite, pdo_pgsql, bcmath, gd, zip, intl
+          coverage: none
+          tools: composer:v2
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress > /tmp/product-pagination-composer.log 2>&1 || { tail -60 /tmp/product-pagination-composer.log; exit 1; }
+      - name: Syntax, style and audit
+        run: |
+          php -l Modules/Warehouse/app/Http/Controllers/MiniAppProductController.php
+          php -l tests/Feature/MiniAppProductPaginationTest.php
+          vendor/bin/pint --test Modules/Warehouse/app/Http/Controllers/MiniAppProductController.php tests/Feature/MiniAppProductPaginationTest.php
+          composer --no-plugins --no-scripts audit --locked --no-interaction
+      - name: Prepare isolated application and route cache
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+          php artisan route:cache
+      - name: SQLite canonical pagination
+        run: php artisan test tests/Feature/MiniAppProductPaginationTest.php --log-junit product-pagination-sqlite.xml
+      - name: PostgreSQL canonical pagination
+        if: success() || failure()
+        env:
+          DB_CONNECTION: pgsql
+          DB_DATABASE: product_pagination_test
+        run: php artisan test tests/Feature/MiniAppProductPaginationTest.php --log-junit product-pagination-pgsql.xml
+      - name: Publish test evidence
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for p in Path('.').glob('product-pagination-*.xml'):
+              if not p.stat().st_size: continue
+              root = ET.parse(p).getroot()
+              print('::notice title=Product pagination counts::'+p.name+' '+str([s.attrib for s in root.findall('./testsuite')]))
+              for tag in ['failure', 'error']:
+                  for e in root.iter(tag):
+                      msg = (e.text or '')[:3000].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+                      print('::error title=Product pagination '+p.name+'::'+msg)
+          PY

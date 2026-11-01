@@ -57,9 +57,7 @@ jobs:
           php -l Modules/Warehouse/app/Http/Controllers/P06CatalogController.php
           php -l Modules/Warehouse/app/Support/P06CatalogReadModel.php
           php -l Modules/Warehouse/app/Support/P06ReadSnapshot.php
-          php -l Modules/Warehouse/app/Http/Controllers/MiniAppProductController.php
           php -l Modules/Warehouse/routes/p06_catalog.php
-          php -l tests/Feature/MiniAppProductPaginationTest.php
           php -l tests/Feature/P06CatalogContractTest.php
           php -l tests/Feature/P06SnapshotTransactionTest.php
           php -l tests/Feature/WarrantyWarehouseScopeTest.php
@@ -69,16 +67,16 @@ jobs:
           php artisan key:generate
           php artisan config:clear
       - name: SQLite P06 and related regressions
-        run: php artisan test tests/Feature/P06*Test.php tests/Feature/MiniAppProductPaginationTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p06-sqlite.xml
+        run: php artisan test tests/Feature/P06*Test.php tests/Feature/P05OutboundContractTest.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p06-sqlite.xml
       - name: PostgreSQL P06 and related regressions
         if: success() || failure()
         env:
           DB_CONNECTION: pgsql
           DB_DATABASE: p06_contract_test
-        run: php artisan test tests/Feature/P06*Test.php tests/Feature/MiniAppProductPaginationTest.php tests/Feature/P05OutboundContractTest.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p06-pgsql.xml
+        run: php artisan test tests/Feature/P06*Test.php tests/Feature/P05OutboundContractTest.php tests/Feature/P03Draft*Test.php tests/Feature/P04*Test.php tests/Feature/AuthWarehouseContextTest.php tests/Feature/WarrantyWarehouseScopeTest.php --log-junit p06-pgsql.xml
       - name: Read-only P06 style check
         if: success() || failure()
-        run: vendor/bin/pint --test Modules/Warehouse/app/Http/Controllers/P06CatalogController.php Modules/Warehouse/app/Support/P06CatalogReadModel.php Modules/Warehouse/app/Support/P06ReadSnapshot.php Modules/Warehouse/app/Http/Controllers/MiniAppProductController.php Modules/Warehouse/routes/p06_catalog.php tests/Feature/P06CatalogContractTest.php tests/Feature/P06SnapshotTransactionTest.php tests/Feature/MiniAppProductPaginationTest.php
+        run: vendor/bin/pint --test Modules/Warehouse/app/Http/Controllers/P06CatalogController.php Modules/Warehouse/app/Support/P06CatalogReadModel.php Modules/Warehouse/app/Support/P06ReadSnapshot.php Modules/Warehouse/routes/p06_catalog.php tests/Feature/P06CatalogContractTest.php tests/Feature/P06SnapshotTransactionTest.php
       - name: Publish isolated test evidence
         if: always()
         run: |

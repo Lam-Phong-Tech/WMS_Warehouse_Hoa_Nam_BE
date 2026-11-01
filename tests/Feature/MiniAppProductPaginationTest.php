@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Support\Cache\CacheService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
 use Modules\Warehouse\Models\Sku;
@@ -20,7 +21,14 @@ class MiniAppProductPaginationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Cache::flush();
         $this->seed(AuthDatabaseSeeder::class);
+    }
+
+    protected function tearDown(): void
+    {
+        Cache::flush();
+        parent::tearDown();
     }
 
     public function test_canonical_sku_ids_are_distinct_and_stable_across_every_page(): void
