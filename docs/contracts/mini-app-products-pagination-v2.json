@@ -1,0 +1,22 @@
+{
+  "contract": "mini-app-products-pagination-v2",
+  "revision": "canonical-sku-id-r1",
+  "route": "GET /api/v1/mini-app/products",
+  "canonical_identity": "sku.sku_id",
+  "pagination": {
+    "distinct_before_paging": true,
+    "distinct_key": "sku_id",
+    "sort": [{"field": "sku_id", "direction": "ASC"}],
+    "total": "COUNT(DISTINCT sku.sku_id)",
+    "last_page": "ceil(total/per_page) with minimum 1"
+  },
+  "snapshot": {
+    "cross_page_snapshot_consistent": false,
+    "revision_field": "meta.snapshot_revision",
+    "etag": "strong representation ETag",
+    "client_rule": "All pages in one catalogue read must have the same snapshot_revision; otherwise restart at page 1."
+  },
+  "preserved_fields": ["sku_id", "sku_code", "sku_type", "status", "category_name", "brand_name"],
+  "profile_projection": "At most one deterministic profile per canonical SKU, lowest profile_id when legacy drift exists.",
+  "writes": false
+}

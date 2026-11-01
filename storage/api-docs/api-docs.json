@@ -22453,7 +22453,7 @@
                     "22. Mini App"
                 ],
                 "summary": "Mini App — tra cứu SKU kèm tồn khả dụng tại Kho tổng Hoa Nam",
-                "description": "Chỉ đọc. Mặc định chỉ trả SKU ACTIVE, sắp theo tên. `available_qty` là tồn AVAILABLE tại kho canonical duy nhất mà Mini App vận hành; `meta.warehouse_id` cho biết kho đó. Không có kho ACTIVE thì trả 422 WAREHOUSE_NOT_FOUND.",
+                "description": "Contract mini-app-products-pagination-v2, revision canonical-sku-id-r1. Chỉ đọc. Tập canonical được DISTINCT theo sku_id trước phân trang và sắp sku_id ASC. `snapshot_revision` phải giống nhau khi client ghép nhiều trang; đổi revision thì tải lại từ trang 1. Strong ETag định danh từng representation. `available_qty` là tồn AVAILABLE tại kho canonical duy nhất mà Mini App vận hành; các field sku_code/sku_type/status/category_name/brand_name giữ nguyên semantics.",
                 "operationId": "miniAppListProducts",
                 "parameters": [
                     {
@@ -22515,7 +22515,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Danh sách SKU; `meta` gồm current_page, per_page, total, last_page, warehouse_id.",
+                        "description": "Danh sách SKU duy nhất; meta gồm contract/revision/snapshot_revision/sort/distinct_key/current_page/per_page/total/last_page/warehouse_id; strong ETag.",
                         "content": {
                             "application/json": {
                                 "schema": {
