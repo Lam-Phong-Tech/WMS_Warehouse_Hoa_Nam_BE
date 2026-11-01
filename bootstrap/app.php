@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\ApiConventionMiddleware;
 use App\Http\Middleware\ApiRateLimit;
+use App\Http\Middleware\EncryptApiJsonResponse;
 use App\Http\Middleware\EnsurePublicApiEnvelope;
 use App\Http\Middleware\ExplicitReadFields;
 use App\Http\Middleware\NoStoreApiResponses;
@@ -62,6 +63,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // đi qua đây đúng một lần.
         // No-op ngoài tiền tố api/v1/public — xem EnsurePublicApiEnvelope.
         $middleware->prepend(EnsurePublicApiEnvelope::class);
+        // JSON encryption wraps the API convention/envelope layers, including
+        // their error responses, before outer cache/security headers run.
+        $middleware->prepend(EncryptApiJsonResponse::class);
         // Keep this outermost so every successful API response is forced to
         // no-store after downstream middleware/controllers finish processing.
         $middleware->prepend(NoStoreApiResponses::class);

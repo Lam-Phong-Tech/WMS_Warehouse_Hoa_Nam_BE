@@ -67,7 +67,7 @@ return [
     // Retry-After và X-RateLimit-*: cho FE khác origin đọc được thời gian chờ và hạn mức 429.
     'exposed_headers' => ['X-Request-ID', 'ETag', 'Content-Disposition', 'Idempotent-Replay',
         'Retry-After', 'X-RateLimit-Limit', 'X-RateLimit-Remaining',
-        'Vary', 'X-Content-Type-Options', 'X-Read-Fields-Contract'],
+        'Vary', 'X-Content-Type-Options', 'X-Read-Fields-Contract', 'X-WMS-Encrypted'],
 
     /*
      * Thời gian trình duyệt được nhớ kết quả preflight, tính bằng GIÂY.
