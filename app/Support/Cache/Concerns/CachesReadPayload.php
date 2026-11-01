@@ -114,7 +114,8 @@ trait CachesReadPayload
     }
 
     /**
-     * Dựng payload đọc qua cache, có chống stampede.
+     * Dựng payload đọc qua cache. Khoá dùng chung được chống stampede; khoá riêng
+     * từng actor không cần thêm vòng lock Valkey trên mỗi cache miss.
      *
      * @param  array<string, mixed>  $filters
      * @param  \Closure(): array<string, mixed>  $builder
@@ -130,17 +131,20 @@ trait CachesReadPayload
         string $versionNamespace = 'stock:version',
         ?string $actorId = null,
     ): array {
-        return $this->readCacheService()->rememberStampede(
-            $this->readCacheKey(
-                $namespace,
-                $filters,
-                $this->readCacheScopeIds(),
-                $versionNamespace,
-                $actorId,
-            ),
-            CacheTtl::seconds($ttlPolicy),
-            fn (): array => $this->plainReadPayload($builder())
+        $cache = $this->readCacheService();
+        $key = $this->readCacheKey(
+            $namespace,
+            $filters,
+            $this->readCacheScopeIds(),
+            $versionNamespace,
+            $actorId,
         );
+        $ttl = CacheTtl::seconds($ttlPolicy);
+        $resolver = fn (): array => $this->plainReadPayload($builder());
+
+        return $actorId === null
+            ? $cache->rememberStampede($key, $ttl, $resolver)
+            : $cache->remember($key, $ttl, $resolver);
     }
 
     /**
