@@ -13,7 +13,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 /** Rotation, password changes and family revocation serialize on the parent user. */
 class RefreshTokenService
 {
-    /** @return array{access_token: string, session: ?array{raw: string, id: string}} */
+    /** @return array{access_token: string, session: ?array{raw: string, id: string}, replaced_existing_session: bool} */
     public function completeLogin(User $user, Request $request, bool $issueRefresh): array
     {
         AccountSessionPolicy::assertReady();
@@ -26,7 +26,11 @@ class RefreshTokenService
             $accessToken = $this->accessTokenFor($user, $session['id'] ?? null);
             $user->forceFill(['last_login_at' => now()])->save();
 
-            return ['access_token' => $accessToken, 'session' => $issueRefresh ? $session : null];
+            return [
+                'access_token' => $accessToken,
+                'session' => $issueRefresh ? $session : null,
+                'replaced_existing_session' => (bool) ($session['replaced_existing_session'] ?? false),
+            ];
         }, 3);
     }
 
@@ -35,7 +39,7 @@ class RefreshTokenService
         return $this->issueSession($user, $request)['raw'];
     }
 
-    /** @return array{raw: string, id: string} */
+    /** @return array{raw: string, id: string, replaced_existing_session: bool} */
     public function issueSession(User $user, Request $request, ?string $authSessionId = null): array
     {
         return DB::transaction(function () use ($user, $request, $authSessionId): array {
@@ -47,8 +51,10 @@ class RefreshTokenService
             }
             $raw = $this->generateRawToken();
             $family = $authSessionId ?? (string) Str::uuid();
+            $replacedExistingSession = false;
             if ($authSessionId === null && AccountSessionPolicy::enabled()) {
                 AccountSessionPolicy::assertReady();
+                $replacedExistingSession = RefreshToken::query()->where('user_id', $fresh->user_id)->active()->exists();
                 // A new account login supersedes every prior credential, including
                 // rotated/logged-out ancestors; their late replay must not revoke B.
                 RefreshToken::query()->where('user_id', $fresh->user_id)
@@ -68,7 +74,8 @@ class RefreshTokenService
                 $currentRequest->attributes->set('wms.issued_auth_session_user_id', (string) $fresh->user_id);
             }
 
-            return ['raw' => $raw, 'id' => (string) $record->getKey()];
+            return ['raw' => $raw, 'id' => (string) $record->getKey(),
+                'replaced_existing_session' => $replacedExistingSession];
         }, 3);
     }
 
@@ -111,6 +118,7 @@ class RefreshTokenService
             if ($record->replaced_by_auth_session_id !== null) {
                 // Already committed login replacement is terminal even after flag rollback.
                 $request->attributes->set('wms.auth_refresh_failure', 'AUTH_SESSION_REPLACED');
+                $request->attributes->set('wms.auth_replacing_session_id', (string) $record->replaced_by_auth_session_id);
 
                 return null;
             }

@@ -200,7 +200,7 @@ class MfaController extends Controller
             ]
         )),
         responses: [
-            new OA\Response(response: 200, description: 'access_token + user. Refresh token KHÔNG nằm trong JSON: trình duyệt nhận qua cookie HttpOnly, client không phải trình duyệt chỉ nhận qua kênh `X-WMS-Token-Transport: body` khi máy chủ bật.'),
+            new OA\Response(response: 200, description: 'access_token + user + replaced_existing_session. Refresh token KHÔNG nằm trong JSON: trình duyệt nhận qua cookie HttpOnly, client không phải trình duyệt chỉ nhận qua kênh `X-WMS-Token-Transport: body` khi máy chủ bật.'),
             new OA\Response(response: 403, description: 'ACCESS_DENIED (tài khoản bị khoá), ORIGIN_NOT_ALLOWED hoặc TOKEN_TRANSPORT_NOT_ALLOWED'),
             new OA\Response(response: 401, description: 'MFA_CHALLENGE_INVALID hoặc MFA_CODE_INVALID'),
             new OA\Response(response: 423, description: 'MFA_LOCKED — quá số lần thử'),
@@ -289,6 +289,7 @@ class MfaController extends Controller
             // Cùng hồ sơ với POST /auth/login: FE dựng phiên từ `user`, thiếu nó thì bước 2
             // của đăng nhập ném AuthContractError trên web.
             'user' => AuthUserPayload::full($user),
+            'replaced_existing_session' => $completed['replaced_existing_session'],
             'second_factor' => $method,
             'recovery_codes_remaining' => $this->mfa->remainingRecoveryCodes($user),
         ], 'Đăng nhập thành công');

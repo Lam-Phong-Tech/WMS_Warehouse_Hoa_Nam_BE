@@ -42,7 +42,7 @@ final class P10SessionFamily
             ApiError::abort(401, 'AUTH_SESSION_EXPIRED', 'Phiên đăng nhập không còn hợp lệ.');
         }
         if ($row->replaced_by_auth_session_id !== null) {
-            AccountSessionPolicy::replaced();
+            AccountSessionPolicy::replaced((string) $row->replaced_by_auth_session_id);
         }
         $family = P10ProfilePolicy::family($row->auth_session_id, (string) $row->id);
         if (! self::query((string) $user->user_id, $family)->active()->exists()) {

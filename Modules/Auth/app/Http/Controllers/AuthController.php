@@ -16,6 +16,7 @@ use Modules\Auth\Http\Requests\LoginRequest;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\AuthUserPayload;
+use Modules\Auth\Support\AccountSessionPolicy;
 use Modules\Auth\Support\MfaService;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
@@ -49,7 +50,7 @@ class AuthController extends Controller
             ]
         )),
         responses: [
-            new OA\Response(response: 200, description: 'Đăng nhập thành công'),
+            new OA\Response(response: 200, description: 'Đăng nhập thành công; data.replaced_existing_session cho biết lần này đã đăng xuất phiên trước còn hoạt động hay chưa.'),
             new OA\Response(response: 401, description: 'Sai định danh hoặc mật khẩu'),
             new OA\Response(response: 403, description: 'Tài khoản bị khoá/ngừng hoạt động'),
             new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ'),
@@ -231,6 +232,7 @@ class AuthController extends Controller
             'token_type' => 'bearer',
             'expires_in' => auth('api')->factory()->getTTL() * 60,
             'user' => AuthUserPayload::full($user),
+            'replaced_existing_session' => $completed['replaced_existing_session'],
         ], 'Đăng nhập thành công');
 
         if ($session !== null) {
@@ -245,7 +247,7 @@ class AuthController extends Controller
     #[OA\Post(
         path: '/api/v1/auth/refresh', operationId: 'auth_refresh',
         summary: 'Xoay vòng refresh token và cấp access token mới',
-        description: 'Trình duyệt: body RỖNG; refresh token đi trong cookie HttpOnly `wms_refresh_token` (Path=/api/v1/auth) và request phải mang Origin thuộc allowlist CORS. Response KHÔNG chứa refresh_token — token mới chỉ nằm trong Set-Cookie. Client không phải trình duyệt: gửi header `X-WMS-Token-Transport: body` kèm `refresh_token` trong body (chỉ khi máy chủ bật REFRESH_TOKEN_BODY_TRANSPORT_ENABLED); token mới trả trong JSON, không có cookie. Token cũ bị thu hồi; replay giữ chính sách bảo mật hiện có. Riêng credential đã được login mới thay thế trả 401 AUTH_SESSION_REPLACED, không thu hồi phiên kế nhiệm và không cho refresh/retry tiếp.',
+        description: 'Trình duyệt: body RỖNG; refresh token đi trong cookie HttpOnly `wms_refresh_token` (Path=/api/v1/auth) và request phải mang Origin thuộc allowlist CORS. Response KHÔNG chứa refresh_token — token mới chỉ nằm trong Set-Cookie. Client không phải trình duyệt: gửi header `X-WMS-Token-Transport: body` kèm `refresh_token` trong body (chỉ khi máy chủ bật REFRESH_TOKEN_BODY_TRANSPORT_ENABLED); token mới trả trong JSON, không có cookie. Token cũ bị thu hồi; replay giữ chính sách bảo mật hiện có. Credential đã được login mới thay thế trả 401 AUTH_SESSION_REPLACED kèm replacement.device_label, replacement.signed_in_at và replacement.ip_hint (IPv4 đã che), không thu hồi phiên kế nhiệm và không cho refresh/retry tiếp.',
         tags: ['01. Authentication'], security: [],
         parameters: [
             new OA\Parameter(
@@ -302,7 +304,9 @@ class AuthController extends Controller
             );
 
             return $replaced
-                ? $this->respondError('Tài khoản đã đăng nhập ở phiên khác. Vui lòng đăng nhập lại.', [], 401, 'AUTH_SESSION_REPLACED')
+                ? $this->respondError('Tài khoản đã đăng nhập ở phiên khác. Vui lòng đăng nhập lại.', [], 401, 'AUTH_SESSION_REPLACED', [
+                    'replacement' => AccountSessionPolicy::replacementDetails($request->attributes->get('wms.auth_replacing_session_id')),
+                ])
                 : $this->respondError('Refresh token không hợp lệ hoặc đã hết hạn.', [], 401, 'UNAUTHENTICATED');
         }
 
@@ -374,7 +378,7 @@ class AuthController extends Controller
     #[OA\Get(
         path: '/api/v1/auth/me', operationId: 'auth_me',
         summary: 'Thông tin tài khoản, role, scope và permission hiện hành',
-        description: 'Có data.account_session_policy theo auth-session-replacement-v1. Phiên bị thay thế trả 401 AUTH_SESSION_REPLACED. Khi policy bật, JWT cũ thiếu sid trả 401 AUTH_SESSION_REQUIRED. Client kiểm tra khi foreground và trước lệnh; không có sự kiện đẩy tự ngắt thiết bị đang idle.',
+        description: 'Có data.account_session_policy theo auth-session-replacement-v1. Phiên bị thay thế trả 401 AUTH_SESSION_REPLACED kèm data.replacement (device_label, signed_in_at, ip_hint). Khi policy bật, JWT cũ thiếu sid trả 401 AUTH_SESSION_REQUIRED. Client kiểm tra khi foreground và trước lệnh; không có sự kiện đẩy tự ngắt thiết bị đang idle.',
         security: [['bearerAuth' => []]], tags: ['01. Authentication'],
         responses: [
             new OA\Response(response: 200, description: 'Thông tin tài khoản'),

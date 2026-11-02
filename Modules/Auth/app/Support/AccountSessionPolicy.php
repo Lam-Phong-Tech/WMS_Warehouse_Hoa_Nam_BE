@@ -4,6 +4,7 @@ namespace Modules\Auth\Support;
 
 use App\Support\ApiError;
 use Illuminate\Support\Facades\Schema;
+use Modules\Auth\Models\RefreshToken;
 
 /** Account-wide login replacement; no inferred device, role or warehouse exemptions. */
 final class AccountSessionPolicy
@@ -22,9 +23,51 @@ final class AccountSessionPolicy
         }
     }
 
-    public static function replaced(): never
+    public static function replaced(?string $replacingFamily = null): never
     {
-        ApiError::abort(401, 'AUTH_SESSION_REPLACED', 'Tài khoản đã đăng nhập ở phiên khác. Vui lòng đăng nhập lại.');
+        ApiError::abort(401, 'AUTH_SESSION_REPLACED', 'Tài khoản đã đăng nhập ở phiên khác. Vui lòng đăng nhập lại.', [], [
+            'replacement' => self::replacementDetails($replacingFamily),
+        ]);
+    }
+
+    /** Safe information for the displaced client; no raw IP or user agent. */
+    public static function replacementDetails(?string $family): array
+    {
+        if ($family === null || $family === '') {
+            return [];
+        }
+        $session = RefreshToken::query()->where('auth_session_id', $family)->oldest('created_at')->first();
+        if ($session === null) {
+            return [];
+        }
+        $agent = strtolower((string) $session->user_agent);
+        $browser = match (true) {
+            str_contains($agent, 'edg/') => 'Edge',
+            str_contains($agent, 'firefox/') => 'Firefox',
+            str_contains($agent, 'chrome/') || str_contains($agent, 'crios/') => 'Chrome',
+            str_contains($agent, 'safari/') => 'Safari',
+            default => null,
+        };
+        $device = match (true) {
+            str_contains($agent, 'iphone') => 'iPhone',
+            str_contains($agent, 'ipad') => 'iPad',
+            str_contains($agent, 'android') => 'Android',
+            str_contains($agent, 'windows') => 'Windows',
+            str_contains($agent, 'macintosh') || str_contains($agent, 'mac os') => 'macOS',
+            str_contains($agent, 'linux') => 'Linux',
+            default => 'Thiết bị khác',
+        };
+        $ipHint = null;
+        if (filter_var($session->ip_address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $octets = explode('.', (string) $session->ip_address);
+            $ipHint = implode('.', array_slice($octets, 0, 3)).'.xxx';
+        }
+
+        return [
+            'device_label' => $browser === null ? $device : $browser.' trên '.$device,
+            'signed_in_at' => $session->created_at?->toIso8601String(),
+            'ip_hint' => $ipHint,
+        ];
     }
 
     public static function contract(): array

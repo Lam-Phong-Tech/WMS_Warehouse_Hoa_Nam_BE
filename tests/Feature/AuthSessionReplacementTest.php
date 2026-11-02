@@ -43,7 +43,8 @@ class AuthSessionReplacementTest extends TestCase
         $b = $this->login($user, $password);
 
         $this->getJson('/api/v1/auth/me', $this->headers($a['access']))
-            ->assertUnauthorized()->assertJsonPath('error_code', 'AUTH_SESSION_REPLACED');
+            ->assertUnauthorized()->assertJsonPath('error_code', 'AUTH_SESSION_REPLACED')
+            ->assertJsonStructure(['data' => ['replacement' => ['device_label', 'signed_in_at']]]);
         $this->postJson('/api/v1/uat05/protected-command', [], $this->headers($a['access']))
             ->assertUnauthorized()->assertJsonPath('error_code', 'AUTH_SESSION_REPLACED');
         $this->resetAuth();
@@ -52,6 +53,37 @@ class AuthSessionReplacementTest extends TestCase
             ->assertJsonPath('data.account_session_policy.version', 'auth-session-replacement-v1')
             ->assertJsonPath('data.account_session_policy.scope', 'ACCOUNT_ALL_CLIENTS');
         $this->assertSame(1, RefreshToken::query()->where('user_id', $user->user_id)->active()->count());
+    }
+
+    public function test_replaced_refresh_describes_new_login_without_exposing_raw_agent_or_ip(): void
+    {
+        [$user, $password] = $this->fixture();
+        $a = $this->login($user, $password);
+        $this->resetAuth();
+        $this->flushHeaders();
+        $this->withHeader('User-Agent', 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0')
+            ->browserLogin($user->email, $password)->assertOk();
+        $this->resetAuth();
+        $response = $this->browserRefresh($a['refresh'])->assertUnauthorized()
+            ->assertJsonPath('error_code', 'AUTH_SESSION_REPLACED')
+            ->assertJsonPath('replacement.device_label', 'Chrome trên Android')
+            ->assertJsonPath('replacement.ip_hint', '127.0.0.xxx');
+
+        $this->assertNotEmpty($response->json('replacement.signed_in_at'));
+        $this->assertArrayNotHasKey('ip_address', $response->json('replacement'));
+        $this->assertArrayNotHasKey('user_agent', $response->json('replacement'));
+    }
+
+    public function test_completed_login_reports_whether_it_replaced_an_active_session(): void
+    {
+        [$user, $password] = $this->fixture();
+        $this->resetAuth();
+        $first = $this->browserLogin($user->email, $password)->assertOk()
+            ->assertJsonPath('data.replaced_existing_session', false);
+        $this->resetAuth();
+        $this->browserLogin($user->email, $password)->assertOk()
+            ->assertJsonPath('data.replaced_existing_session', true);
+        $this->assertNotEmpty($this->refreshTokenFromCookie($first));
     }
 
     public function test_wrong_password_or_denied_transport_never_replaces_an_active_login(): void
@@ -212,7 +244,7 @@ class AuthSessionReplacementTest extends TestCase
         $this->resetAuth();
         $completed = $this->withHeader('Origin', $this->browserOrigin())->postJson('/api/v1/auth/mfa/verify', [
             'mfa_token' => $challenge->json('data.mfa_token'), 'code' => Totp::code($enrollment['secret'], time()),
-        ])->assertOk();
+        ])->assertOk()->assertJsonPath('data.replaced_existing_session', true);
         $this->getJson('/api/v1/auth/me', $this->headers($a['access']))->assertUnauthorized()
             ->assertJsonPath('error_code', 'AUTH_SESSION_REPLACED');
         $this->getJson('/api/v1/auth/me', $this->headers((string) $completed->json('data.access_token')))->assertOk();
