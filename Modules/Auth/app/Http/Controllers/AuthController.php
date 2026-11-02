@@ -378,7 +378,7 @@ class AuthController extends Controller
     #[OA\Get(
         path: '/api/v1/auth/me', operationId: 'auth_me',
         summary: 'Thông tin tài khoản, role, scope và permission hiện hành',
-        description: 'Có data.account_session_policy theo auth-session-replacement-v1. Phiên bị thay thế trả 401 AUTH_SESSION_REPLACED kèm data.replacement (device_label, signed_in_at, ip_hint). Khi policy bật, JWT cũ thiếu sid trả 401 AUTH_SESSION_REQUIRED. Client kiểm tra khi foreground và trước lệnh; không có sự kiện đẩy tự ngắt thiết bị đang idle.',
+        description: 'Có data.account_session_policy theo auth-session-replacement-v1. Phiên bị thay thế trả 401 AUTH_SESSION_REPLACED kèm data.replacement (device_label, signed_in_at, ip_hint). Khi policy bật, JWT cũ thiếu sid trả 401 AUTH_SESSION_REQUIRED. Client kiểm tra phiên khi nhận sự kiện realtime, khi foreground và định kỳ nếu không có kết nối realtime.',
         security: [['bearerAuth' => []]], tags: ['01. Authentication'],
         responses: [
             new OA\Response(response: 200, description: 'Thông tin tài khoản'),

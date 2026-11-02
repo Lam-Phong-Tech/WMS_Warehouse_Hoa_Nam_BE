@@ -8,6 +8,7 @@ use App\Support\Security\Totp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
 use Mockery;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
+use Modules\Auth\Events\AuthSessionReplaced;
 use Modules\Auth\Support\MfaService;
 use Modules\Auth\Support\RefreshTokenService;
 use RuntimeException;
@@ -84,6 +86,27 @@ class AuthSessionReplacementTest extends TestCase
         $this->browserLogin($user->email, $password)->assertOk()
             ->assertJsonPath('data.replaced_existing_session', true);
         $this->assertNotEmpty($this->refreshTokenFromCookie($first));
+    }
+
+    public function test_completed_replacement_broadcasts_to_the_account_after_login(): void
+    {
+        Event::fake([AuthSessionReplaced::class]);
+        [$user, $password] = $this->fixture();
+
+        $this->browserLogin($user->email, $password)->assertOk()
+            ->assertJsonPath('data.replaced_existing_session', false);
+        Event::assertNotDispatched(AuthSessionReplaced::class);
+
+        $this->resetAuth();
+        $this->browserLogin($user->email, $password)->assertOk()
+            ->assertJsonPath('data.replaced_existing_session', true);
+
+        Event::assertDispatchedTimes(AuthSessionReplaced::class, 1);
+        Event::assertDispatched(AuthSessionReplaced::class, fn ($event) =>
+            $event->userId === (string) $user->user_id
+            && $event->broadcastAs() === 'auth.session-replaced'
+            && $event->broadcastOn()[0]->name === 'private-user.'.$user->user_id,
+        );
     }
 
     public function test_wrong_password_or_denied_transport_never_replaces_an_active_login(): void
@@ -231,6 +254,7 @@ class AuthSessionReplacementTest extends TestCase
     {
         [$user, $password] = $this->fixture();
         $a = $this->login($user, $password);
+        Event::fake([AuthSessionReplaced::class]);
         config()->set('pii.encryption.keys', json_encode(['v1' => 'base64:'.base64_encode(random_bytes(32))]));
         config()->set('pii.blind_index.keys', json_encode(['v1' => 'base64:'.base64_encode(random_bytes(32))]));
         PiiKeyring::flush();
@@ -240,11 +264,13 @@ class AuthSessionReplacementTest extends TestCase
         $mfa->confirmEnrollment($user, Totp::code($enrollment['secret'], time() - 30));
         $this->resetAuth();
         $challenge = $this->browserLogin($user->email, $password)->assertOk()->assertJsonPath('data.mfa_required', true);
+        Event::assertNotDispatched(AuthSessionReplaced::class);
         $this->getJson('/api/v1/auth/me', $this->headers($a['access']))->assertOk();
         $this->resetAuth();
         $completed = $this->withHeader('Origin', $this->browserOrigin())->postJson('/api/v1/auth/mfa/verify', [
             'mfa_token' => $challenge->json('data.mfa_token'), 'code' => Totp::code($enrollment['secret'], time()),
         ])->assertOk()->assertJsonPath('data.replaced_existing_session', true);
+        Event::assertDispatchedTimes(AuthSessionReplaced::class, 1);
         $this->getJson('/api/v1/auth/me', $this->headers($a['access']))->assertUnauthorized()
             ->assertJsonPath('error_code', 'AUTH_SESSION_REPLACED');
         $this->getJson('/api/v1/auth/me', $this->headers((string) $completed->json('data.access_token')))->assertOk();

@@ -5,9 +5,12 @@ namespace Modules\Auth\Support;
 use App\Support\ApiError;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
+use Modules\Auth\Events\AuthSessionReplaced;
+use Throwable;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 /** Rotation, password changes and family revocation serialize on the parent user. */
@@ -18,7 +21,7 @@ class RefreshTokenService
     {
         AccountSessionPolicy::assertReady();
 
-        return DB::transaction(function () use ($user, $request, $issueRefresh): array {
+        $completed = DB::transaction(function () use ($user, $request, $issueRefresh): array {
             // Access-only clients also need a persisted family when replacement is enabled.
             $session = $issueRefresh || AccountSessionPolicy::enabled()
                 ? $this->issueSession($user, $request)
@@ -32,6 +35,21 @@ class RefreshTokenService
                 'replaced_existing_session' => (bool) ($session['replaced_existing_session'] ?? false),
             ];
         }, 3);
+
+        // The old session must see the committed replacement before it checks /auth/me.
+        // Reverb availability must never turn a completed login into an error.
+        if ($completed['replaced_existing_session']) {
+            try {
+                event(new AuthSessionReplaced((string) $user->user_id));
+            } catch (Throwable $error) {
+                Log::warning('Auth session replacement broadcast failed', [
+                    'user_id' => (string) $user->user_id,
+                    'exception' => $error::class,
+                ]);
+            }
+        }
+
+        return $completed;
     }
 
     public function issue(User $user, Request $request): string
