@@ -2,18 +2,22 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
-use App\Support\Database\SchemaCache;
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
+use App\Support\Database\SchemaCache;
 use App\Support\IdempotencyStore;
 use App\Support\Validation\InputLimits;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Events\StockDocumentCancelled;
+use Modules\Warehouse\Events\StockDocumentCreated;
+use Modules\Warehouse\Services\InboundDocumentNumber;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
@@ -279,6 +283,9 @@ class CurrentBaselineDocumentController extends Controller
 
             $documentId = (string) Str::uuid();
             $docNo = $validated['doc_no'] ?? (($type === 'receipt' ? 'PN-' : 'PX-').now()->format('YmdHis').'-'.Str::upper(Str::random(4)));
+            if ($type === 'receipt' && isset($validated['doc_no'])) {
+                app(InboundDocumentNumber::class)->guardExplicit($docNo);
+            }
             DB::table('stock_documents')->insert([
                 'id' => $documentId,
                 'doc_type' => $type,
@@ -340,7 +347,7 @@ class CurrentBaselineDocumentController extends Controller
                 afterData: ['status' => 'DRAFT', 'version' => 1, 'outbound_request_id' => $validated['outbound_request_id'] ?? null],
             );
 
-            event(new \Modules\Warehouse\Events\StockDocumentCreated($documentId, (string) $docNo, $type, $warehouseId, $actorId));
+            event(new StockDocumentCreated($documentId, (string) $docNo, $type, $warehouseId, $actorId));
 
             return $this->documentPayload($documentId);
         }, 3);
@@ -356,6 +363,10 @@ class CurrentBaselineDocumentController extends Controller
                 ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ DRAFT/SCANNING mới được cập nhật.');
             }
             $this->assertDraftNotExpired($document);
+
+            if ($type === 'receipt' && isset($validated['doc_no']) && $validated['doc_no'] !== $document->doc_no) {
+                app(InboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
+            }
 
             $lineUpdateMode = 'NONE';
             if (isset($validated['lines'])) {
@@ -551,7 +562,7 @@ class CurrentBaselineDocumentController extends Controller
             );
 
             $warehouseId = $type === 'receipt' ? $document->dst_warehouse_id : $document->src_warehouse_id;
-            event(new \Modules\Warehouse\Events\StockDocumentCancelled(
+            event(new StockDocumentCancelled(
                 $id,
                 (string) $document->doc_no,
                 $type,
@@ -666,7 +677,7 @@ class CurrentBaselineDocumentController extends Controller
         // riêng nên phiếu cũ và phiếu mới luôn dùng cùng một quy tắc.
         $expiresAt = empty($document->created_at)
             ? null
-            : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek();
+            : Carbon::parse($document->created_at)->addWeek();
         if ($expiresAt !== null && now()->greaterThanOrEqualTo($expiresAt)) {
             ApiError::abort(409, 'DRAFT_EXPIRED', 'Phiếu nháp đã hết hạn sau 07 ngày. Hãy hủy phiếu hoặc tạo phiếu mới.', [
                 'document_id' => (string) $document->id,
@@ -724,7 +735,7 @@ class CurrentBaselineDocumentController extends Controller
         $warehouse = $warehouseId === null ? null : DB::table('warehouses')->where('id', $warehouseId)->first();
         $draftExpiresAt = empty($document->created_at)
             ? null
-            : \Illuminate\Support\Carbon::parse($document->created_at)->addWeek();
+            : Carbon::parse($document->created_at)->addWeek();
         $draftExpired = (string) $document->status === 'DRAFT'
             && $draftExpiresAt !== null
             && now()->greaterThanOrEqualTo($draftExpiresAt);
@@ -765,5 +776,4 @@ class CurrentBaselineDocumentController extends Controller
             'meta' => ['request_id' => request()?->attributes->get('request_id'), 'timestamp' => now()->toIso8601String()],
         ];
     }
-
 }

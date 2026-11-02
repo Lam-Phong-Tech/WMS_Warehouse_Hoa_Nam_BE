@@ -18,6 +18,7 @@ use Modules\Warehouse\Events\InboundSkuInfoPending;
 use Modules\Warehouse\Events\StockDocumentCreated;
 use Modules\Warehouse\Services\BoxCodeParser;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
+use Modules\Warehouse\Services\InboundDocumentNumber;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
 use Modules\Warehouse\Services\SkuAggregateService;
@@ -270,17 +271,22 @@ class MiniAppInboundStagingController extends Controller
         $actorId = $this->actorId();
         $idempotencyKey = IdempotencyKeyGuard::require($request);
         $requestHash = IdempotencyStore::requestHash($request);
+        $reservedNumber = $request->attributes->get('p04.document_no');
+        if ($reservedNumber !== null && (! $request->attributes->get('p03.draft_handoff')
+            || app(InboundDocumentNumber::class)->forDraft((string) $request->header('X-Draft-ID')) !== $reservedNumber)) {
+            ApiError::abort(409, 'P04_NUMBER_IDENTITY_MISMATCH', 'Mã phiếu không khớp nháp nhập đã xác nhận.');
+        }
 
         [$code, $body, $replayed] = IdempotencyStore::handle(
             $idempotencyKey,
             'mini_app_inbound_record',
             $actorId,
             $requestHash,
-            function () use ($validated, $actorId, $idempotencyKey): array {
-                $result = DB::transaction(function () use ($validated, $actorId, $idempotencyKey): array {
+            function () use ($validated, $actorId, $idempotencyKey, $reservedNumber): array {
+                $result = DB::transaction(function () use ($validated, $actorId, $idempotencyKey, $reservedNumber): array {
                     $prepared = $this->prepareBatch($validated['items']);
                     $documentId = (string) Str::uuid();
-                    $docNo = 'PN-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4));
+                    $docNo = $reservedNumber ?? app(InboundDocumentNumber::class)->next();
                     $now = now();
 
                     DB::table('stock_documents')->insert([

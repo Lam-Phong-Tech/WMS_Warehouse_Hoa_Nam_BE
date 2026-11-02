@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -11,6 +13,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Services\StockDocumentService;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -77,16 +80,188 @@ class P04InboundContractTest extends TestCase
         $this->getJson($url.'&per_page=101', $this->headers($token))->assertStatus(422);
     }
 
-    public function test_draft_and_scan_session_are_persistent_but_do_not_allocate_a_wms_number_or_stock(): void
+    public function test_draft_and_scan_session_reserve_a_real_number_without_creating_stock(): void
     {
         [$actor, $token, , $warehouse] = $this->actor();
         [$id, $body] = $this->save($token, $warehouse);
         $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()
             ->assertJsonPath('data.document.actor_id', (string) $actor->user_id)
-            ->assertJsonPath('data.document.document_no', null)->assertJsonPath('data.document.operation', 'INBOUND')
+            ->assertJsonPath('data.document.operation', 'INBOUND')
             ->assertJsonPath('data.document.scan_session.status', 'OPEN')->assertJsonPath('data.document.scan_session.expiry_policy', 'AUTH_SESSION');
         $this->getJson($this->draftUrl($id, $body, '/scan-session'), $this->headers($token))->assertOk()
             ->assertJsonPath('data.scan_session_id', $body['scan_session_id'])->assertJsonPath('data.document_id', $id);
+        $this->assertStockNeutral();
+        $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->json('data.document.document_no');
+        $this->assertMatchesRegularExpression('/^PN-[0-9]{8}-[0-9]{4,}$/D', (string) $number);
+    }
+
+    public function test_context_advertises_save_numbering_and_the_three_approved_categories(): void
+    {
+        [, $token] = $this->actor();
+        $this->getJson(self::BASE.'/context', $this->headers($token))->assertOk()
+            ->assertJsonPath('data.document_number_assignment', 'WITH_DRAFT_SAVE')
+            ->assertJsonPath('data.document_number_format', 'PN-YYYYMMDD-STT')
+            ->assertJsonPath('data.ui_metadata_extension', 'p04-ui-options-v1')
+            ->assertJsonPath('data.inbound_categories.0.id', 'PRODUCT')
+            ->assertJsonPath('data.inbound_categories.1.id', 'COMPONENT')
+            ->assertJsonPath('data.inbound_categories.2.id', 'OTHER');
+        $this->assertStockNeutral();
+    }
+
+    public function test_initial_empty_save_replay_and_metadata_edits_keep_one_reserved_number(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $id = (string) Str::uuid();
+        $body = $this->body($warehouse, ['name' => '', 'items' => []]);
+        $key = (string) Str::uuid();
+        $first = $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 0, $key))->assertCreated();
+        $number = $first->json('data.document.document_no');
+        $this->assertMatchesRegularExpression('/^PN-[0-9]{8}-[0-9]{4,}$/D', (string) $number);
+        $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 0, $key))->assertCreated()
+            ->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.document.document_no', $number);
+        $body['name'] = $number;
+        $body['inbound_category'] = 'COMPONENT';
+        $body['note'] = "Ghi chú giữ nguyên\nTiếng Việt đ";
+        $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 1, (string) Str::uuid()))->assertOk()
+            ->assertJsonPath('data.document.document_no', $number)
+            ->assertJsonPath('data.document.metadata.inbound_category', 'COMPONENT')
+            ->assertJsonPath('data.document.version', 2);
+        $this->assertDatabaseCount('inbound_draft_numbers', 1);
+        $this->getJson($this->receiptUrl($id, $body, $key, 'SAVE'), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.outcome', 'SUCCEEDED')->assertJsonPath('data.document.document_no', $number);
+        $this->assertStockNeutral();
+    }
+
+    public function test_each_category_survives_save_review_record_and_keeps_the_reserved_number(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        foreach (['PRODUCT', 'COMPONENT', 'OTHER'] as $category) {
+            $item = $this->body($warehouse)['items'][0];
+            $item['raw_code'] .= '-'.$category; // Physical ITEM identity is globally unique, even across SKUs.
+            [$id, $body] = $this->save($token, $warehouse, ['inbound_category' => $category, 'note' => 'P04 '.$category, 'items' => [$item]]);
+            $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()->json('data.document.document_no');
+            $this->postJson(self::BASE.'/drafts/'.$id.'/review', $this->identity($body), $this->headers($token, 1))->assertOk()
+                ->assertJsonPath('data.metadata.inbound_category', $category)->assertJsonPath('data.can_record', true);
+            $key = (string) Str::uuid();
+            $record = $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, $key))->assertCreated()
+                ->assertJsonPath('data.doc_no', $number)->assertJsonPath('data.inbound_category', $category)
+                ->assertJsonPath('data.status', 'SCANNING')->assertJsonPath('data.posted', false)->assertJsonPath('data.stock_effect', 'NONE');
+            $this->assertDatabaseHas('mini_app_inbound_record_metadata', ['draft_id' => $id, 'inbound_category' => $category]);
+            $this->assertDatabaseHas('stock_documents', ['id' => $record->json('data.document_id'), 'doc_no' => $number, 'note' => 'P04 '.$category]);
+        }
+        $this->assertDatabaseCount('stock_documents', 3);
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseCount('inventory_balances', 0);
+    }
+
+    public function test_daily_numbers_follow_vietnam_midnight_and_do_not_reuse_a_cancelled_number(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-02T16:59:50Z'));
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body, $key] = $this->save($token, $warehouse);
+        $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->json('data.document.document_no');
+        $this->assertSame('PN-20261102-0001', $number);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/cancel', $this->identity($body) + ['confirmed_request_id' => $key, 'reason' => 'Cancel isolated draft'], $this->headers($token, 1, (string) Str::uuid()))->assertOk();
+        [$next, $nextBody] = $this->save($token, $warehouse);
+        $this->getJson($this->draftUrl($next, $nextBody), $this->headers($token))->assertOk()->assertJsonPath('data.document.document_no', 'PN-20261102-0002');
+        $this->travelTo(Carbon::parse('2026-11-02T17:00:01Z'));
+        [$tomorrow, $tomorrowBody] = $this->save($token, $warehouse);
+        $this->getJson($this->draftUrl($tomorrow, $tomorrowBody), $this->headers($token))->assertOk()->assertJsonPath('data.document.document_no', 'PN-20261103-0001');
+        $this->travelBack();
+        $this->assertStockNeutral();
+    }
+
+    public function test_web_receipt_creation_cannot_take_a_number_reserved_by_an_app_draft(): void
+    {
+        [$actor, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->json('data.document.document_no');
+        $this->assertNotEmpty($number);
+        try {
+            app(StockDocumentService::class)->create('receipt', [
+                'doc_no' => $number, 'dst_warehouse_id' => (string) $warehouse->id, 'lines' => [],
+            ], (string) $actor->user_id);
+            $this->fail('A reserved draft number cannot be taken by another receipt.');
+        } catch (HttpResponseException $error) {
+            $this->assertSame(409, $error->getResponse()->getStatusCode());
+            $this->assertSame('DOCUMENT_NUMBER_RESERVED', $error->getResponse()->getData(true)['error']['code']);
+        }
+        $this->assertStockNeutral();
+    }
+
+    public function test_active_web_patch_cannot_rename_another_receipt_to_a_reserved_draft_number(): void
+    {
+        [$actor, $token, , $warehouse] = $this->actor();
+        $permission = Permission::firstOrCreate(['permission_key' => 'inbound.update'], ['permission_name' => 'inbound.update', 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']);
+        DB::table('role_permission')->insert(['role_permission_id' => (string) Str::uuid(), 'role_id' => $actor->roles()->first()->role_id, 'permission_id' => $permission->permission_id, 'created_at' => now(), 'updated_at' => now()]);
+        [$id, $body] = $this->save($token, $warehouse);
+        $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->json('data.document.document_no');
+        $web = app(StockDocumentService::class)->create('receipt', [
+            'doc_no' => 'WEB-NUMBER-KEEP', 'dst_warehouse_id' => (string) $warehouse->id, 'lines' => [],
+        ], (string) $actor->user_id);
+        $this->patchJson('/api/v1/inbound-documents/'.$web->id, ['doc_no' => $number], $this->headers($token, 1, (string) Str::uuid()))
+            ->assertConflict()->assertJsonPath('error.code', 'DOCUMENT_NUMBER_RESERVED');
+        $this->assertDatabaseHas('stock_documents', ['id' => $web->id, 'doc_no' => 'WEB-NUMBER-KEEP', 'version' => 1]);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, (string) Str::uuid()))
+            ->assertCreated()->assertJsonPath('data.doc_no', $number)->assertJsonPath('data.stock_effect', 'NONE');
+        $this->assertDatabaseCount('stock_documents', 2);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_shared_document_service_cannot_take_a_reserved_receipt_number_for_another_type(): void
+    {
+        [$actor, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->json('data.document.document_no');
+        try {
+            app(StockDocumentService::class)->create('issue', [
+                'doc_no' => $number, 'src_warehouse_id' => (string) $warehouse->id, 'lines' => [],
+            ], (string) $actor->user_id);
+            $this->fail('A shared globally unique document number must respect the P04 reservation.');
+        } catch (HttpResponseException $e) {
+            $this->assertSame(409, $e->getResponse()->getStatusCode());
+            $this->assertSame('DOCUMENT_NUMBER_RESERVED', $e->getResponse()->getData(true)['error']['code']);
+        }
+        $this->assertDatabaseCount('stock_documents', 0);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_allocator_skips_existing_web_numbers_and_keeps_more_than_four_sequence_digits(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-02T03:00:00Z'));
+        [$actor, $token, , $warehouse] = $this->actor();
+        app(StockDocumentService::class)->create('receipt', [
+            'doc_no' => 'PN-20261102-9999', 'dst_warehouse_id' => (string) $warehouse->id, 'lines' => [],
+        ], (string) $actor->user_id);
+        [$id, $body] = $this->save($token, $warehouse);
+        $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.document.document_no', 'PN-20261102-10000');
+        $this->assertDatabaseCount('stock_documents', 1);
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->travelBack();
+    }
+
+    public function test_unknown_category_is_rejected_without_allocating_a_number(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $this->putJson(self::BASE.'/drafts/'.Str::uuid(), $this->body($warehouse, ['inbound_category' => 'TRANSFER']), $this->headers($token, 0, (string) Str::uuid()))->assertStatus(422);
+        $this->assertDatabaseCount('mini_app_drafts', 0);
+        $this->assertStockNeutral();
+    }
+
+    public function test_legacy_cancelled_save_receipt_replay_does_not_allocate_a_replacement_number(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body, $key] = $this->save($token, $warehouse);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/cancel', $this->identity($body) + [
+            'confirmed_request_id' => $key, 'reason' => 'Historical cancelled draft fixture',
+        ], $this->headers($token, 1, (string) Str::uuid()))->assertOk();
+        // Test DB only: represent a pre-extension cancelled checkpoint that
+        // never had a number. A historical SAVE receipt still has to replay.
+        DB::table('inbound_draft_numbers')->where('draft_id', $id)->delete();
+        $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 0, $key))->assertCreated()
+            ->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.document.document_no', null);
+        $this->assertDatabaseCount('inbound_draft_numbers', 0);
         $this->assertStockNeutral();
     }
 

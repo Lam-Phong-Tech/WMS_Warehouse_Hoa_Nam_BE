@@ -32,6 +32,9 @@ class StockDocumentService
 
             $this->assertWarehouseActive($src);
             $this->assertWarehouseActive($dst);
+            if (isset($data['doc_no'])) {
+                app(InboundDocumentNumber::class)->guardExplicit($data['doc_no']);
+            }
 
             $doc = StockDocument::create([
                 'doc_type' => $type,
@@ -57,6 +60,9 @@ class StockDocumentService
     {
         return DB::transaction(function () use ($doc, $data, $userId) {
             $this->assertStatus($doc, [StockDocument::STATUS_DRAFT], 'update');
+            if (isset($data['doc_no']) && $data['doc_no'] !== $doc->doc_no) {
+                app(InboundDocumentNumber::class)->guardExplicit($data['doc_no']);
+            }
 
             $doc->update(array_filter([
                 'doc_no' => $data['doc_no'] ?? null,

@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Events\StockDocumentCreated;
+use Modules\Warehouse\Services\InboundDocumentNumber;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
@@ -101,6 +103,7 @@ class BaM1InboundDocumentController extends Controller
 
         if ($key === '') {
             [$code, $body] = $execute();
+
             return response()->json($body, $code)
                 ->header('ETag', '"1"');
         }
@@ -187,6 +190,10 @@ class BaM1InboundDocumentController extends Controller
                 ]);
             }
 
+            if (isset($validated['doc_no']) && $validated['doc_no'] !== $document->doc_no) {
+                app(InboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
+            }
+
             $updates = [];
             foreach (['doc_no', 'doc_date', 'note'] as $field) {
                 if (array_key_exists($field, $validated)) {
@@ -228,6 +235,9 @@ class BaM1InboundDocumentController extends Controller
             $id = (string) Str::uuid();
             $source = $validated['source_reference'] ?? $validated['source_name'] ?? null;
             $now = now();
+            if (isset($validated['doc_no'])) {
+                app(InboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
+            }
             DB::table('stock_documents')->insert([
                 'id' => $id,
                 'doc_type' => 'receipt',
@@ -259,7 +269,7 @@ class BaM1InboundDocumentController extends Controller
                 ],
             );
 
-            event(new \Modules\Warehouse\Events\StockDocumentCreated(
+            event(new StockDocumentCreated(
                 $id,
                 (string) $row->doc_no,
                 'receipt',
@@ -321,10 +331,11 @@ class BaM1InboundDocumentController extends Controller
     private function expectedVersion(Request $request): int
     {
         $raw = trim((string) $request->header('If-Match'));
-        $raw = trim($raw, "\" ");
+        $raw = trim($raw, '" ');
         if ($raw === '' || ! ctype_digit($raw) || (int) $raw < 1) {
             ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Thiếu If-Match hợp lệ khi cập nhật phiếu nhập.');
         }
+
         return (int) $raw;
     }
 

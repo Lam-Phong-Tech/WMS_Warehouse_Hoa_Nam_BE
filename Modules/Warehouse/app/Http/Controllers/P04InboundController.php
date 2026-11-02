@@ -17,6 +17,7 @@ use Modules\Auth\Support\StableAuthSession;
 use Modules\Auth\Support\WarehouseContext;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Services\InboundDocumentNumber;
 use Modules\Warehouse\Services\MiniAppDraftService;
 
 /** Typed inbound staging over P03 persistence and the existing canonical record service. */
@@ -53,7 +54,14 @@ final class P04InboundController extends Controller
         $data['scan_event_mode'] = 'LOCAL_UNTIL_RECORD';
         $data['scan_session_creation'] = 'WITH_DRAFT_SAVE';
         $data['scan_session_expiry_policy'] = 'AUTH_SESSION';
-        $data['document_number_assignment'] = 'ON_RECORD';
+        $data['document_number_assignment'] = 'WITH_DRAFT_SAVE';
+        $data['document_number_format'] = 'PN-YYYYMMDD-STT';
+        $data['ui_metadata_extension'] = 'p04-ui-options-v1';
+        $data['inbound_categories'] = [
+            ['id' => 'PRODUCT', 'label' => 'Nhập sản phẩm'],
+            ['id' => 'COMPONENT', 'label' => 'Nhập linh kiện'],
+            ['id' => 'OTHER', 'label' => 'Khác'],
+        ];
         $data['supplier_directory'] = ['scope' => 'GLOBAL', 'source' => 'inbound_suppliers', 'required' => false];
 
         return $this->response($data);
@@ -120,6 +128,7 @@ final class P04InboundController extends Controller
         $input = $this->input($request, [
             'scan_session_id' => ['required', 'uuid'],
             'inbound_type' => ['required', Rule::in([StockDocument::TYPE_RECEIPT])],
+            'inbound_category' => ['sometimes', 'nullable', Rule::in(['PRODUCT', 'COMPONENT', 'OTHER'])],
             'supplier_id' => ['sometimes', 'nullable', 'uuid'],
             'name' => ['sometimes', 'nullable', 'string', 'max:200'],
             'note' => ['sometimes', 'nullable', 'string', 'max:1000'],
@@ -141,7 +150,7 @@ final class P04InboundController extends Controller
             }
             $form = [
                 'p04_contract' => self::CONTRACT,
-                'metadata' => array_intersect_key($input, array_flip(['inbound_type', 'supplier_id', 'name', 'note', 'doc_date'])),
+                'metadata' => array_intersect_key($input, array_flip(['inbound_type', 'inbound_category', 'supplier_id', 'name', 'note', 'doc_date'])),
                 'item_options' => $options,
             ];
             $response = $this->drafts->save($this->subrequest($request, 'PUT', '/api/v1/mini-app/drafts/'.$id, [
@@ -149,6 +158,13 @@ final class P04InboundController extends Controller
                 'scan_session_id' => strtolower($input['scan_session_id']),
                 'title' => $input['name'] ?? null, 'codes' => $codes, 'form' => $form,
             ]), $id);
+
+            // A historical SAVE receipt can replay after CANCEL/RECORD. Read
+            // current state before allocating; never issue a new number for a
+            // legacy closed checkpoint that had none in its original receipt.
+            if (DB::table(MiniAppDraftService::TABLE)->where('document_id', $id)->value('status') === 'DRAFT') {
+                app(InboundDocumentNumber::class)->reserve($id);
+            }
 
             return $this->decorate($request, $response);
         });
@@ -266,6 +282,7 @@ final class P04InboundController extends Controller
                 $payload['items'] = $items;
                 $command = $this->subrequest($handoff, 'POST', '/api/v1/mini-app/inbound/record', $payload);
                 $command->attributes->set('p03.draft_handoff', true);
+                $command->attributes->set('p04.document_no', app(InboundDocumentNumber::class)->reserve($id));
                 // Existing service is the only implementation of recording. It
                 // re-resolves/locks the domain, creates scan evidence, NEVER Posts.
                 $response = $this->inbound->record($command);
@@ -276,11 +293,13 @@ final class P04InboundController extends Controller
                 $documentId = $body['data']['document_id'];
                 DB::table('mini_app_inbound_record_metadata')->insert([
                     'document_id' => $documentId, 'draft_id' => $id, 'inbound_type' => $metadata['inbound_type'],
+                    'inbound_category' => $metadata['inbound_category'] ?? null,
                     'supplier_id' => $supplier?->id, 'supplier_name' => $supplier?->name,
                     'supplier_version' => $supplier?->version, 'recorded_at' => now(),
                 ]);
                 $body['data']['draft_id'] = $id;
                 $body['data']['inbound_type'] = $metadata['inbound_type'];
+                $body['data']['inbound_category'] = $metadata['inbound_category'] ?? null;
                 $body['data']['supplier'] = $supplier;
                 $body['data']['record_status'] = 'RECORDED';
                 $body['data']['posted'] = false;
@@ -306,6 +325,10 @@ final class P04InboundController extends Controller
             $document = $body->data->document;
             $body->data->state = $body->data->outcome === 'UNKNOWN' ? 'UNKNOWN'
                 : (($document?->business_status === 'POSTED') ? 'POSTED' : $document?->status);
+            if ($document !== null) {
+                $body->data->document = (object) $this->decorateDraft($request,
+                    json_decode(json_encode($document, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR));
+            }
             $body->meta->contract = self::CONTRACT;
 
             return $response->setData($body);
@@ -450,6 +473,7 @@ final class P04InboundController extends Controller
 
         return Validator::make($metadata, [
             'inbound_type' => ['required', Rule::in([StockDocument::TYPE_RECEIPT])],
+            'inbound_category' => ['sometimes', 'nullable', Rule::in(['PRODUCT', 'COMPONENT', 'OTHER'])],
             'name' => ['required', 'string', 'max:200'],
             'supplier_id' => ['sometimes', 'nullable', 'uuid'],
             'note' => ['sometimes', 'nullable', 'string', 'max:1000'],
@@ -589,9 +613,9 @@ final class P04InboundController extends Controller
     private function decorateDraft(Request $request, array $draft): array
     {
         $draft['actor_id'] = (string) $request->user()->user_id;
-        $draft['document_no'] = $draft['business_document_id'] === null ? null
+        $draft['document_no'] = $draft['business_document_id'] === null ? app(InboundDocumentNumber::class)->forDraft($draft['document_id'])
             : DB::table('stock_documents')->where('id', $draft['business_document_id'])->value('doc_no');
-        $draft['numbering_status'] = $draft['document_no'] === null ? 'ASSIGNED_ON_RECORD' : 'ASSIGNED';
+        $draft['numbering_status'] = $draft['document_no'] === null ? 'AWAITING_SAVE' : 'ASSIGNED';
         // Typed resume data: FE never needs to reconstruct the private keyed
         // options map or use the UI snapshot as a canonical record request.
         $draft['metadata'] = (object) ($draft['form']['metadata'] ?? []);
