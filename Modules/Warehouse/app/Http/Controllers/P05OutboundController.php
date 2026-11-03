@@ -17,6 +17,7 @@ use Modules\Auth\Support\StableAuthSession;
 use Modules\Auth\Support\WarehouseContext;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\MiniAppDraftService;
+use Modules\Warehouse\Services\P05NumberedDraft;
 use Modules\Warehouse\Support\P13WebPostHandoff;
 
 /** P05 consumes an existing planned issue; never creates a replacement source or Posts. */
@@ -32,6 +33,8 @@ final class P05OutboundController extends Controller
         $rights = $data['permissions']['OUTBOUND'];
         $data['actor_id'] = (string) $actor->user_id;
         $data['permissions'] = $rights + ['record' => $rights['save'] && $rights['read']];
+        $data['numbering'] = app(P05NumberedDraft::class)->capability($request, $data['active_warehouse_id'] ?? null);
+        $data['document_number_assignment'] = $data['numbering']['schema_ready'] ? 'WITH_DRAFT_SAVE' : 'UNAVAILABLE';
         $data['selector'] = [
             'method' => 'GET', 'path' => '/api/v1/mini-app/outbound/sources',
             'source_kind' => 'WMS_OUTBOUND_DOCUMENT', 'status' => 'DRAFT',

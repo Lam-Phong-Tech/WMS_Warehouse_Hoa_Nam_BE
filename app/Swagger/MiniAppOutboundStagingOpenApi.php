@@ -44,6 +44,7 @@ final class MiniAppOutboundStagingOpenApi
         security: [['bearerAuth' => []]],
         tags: [self::TAG],
         parameters: [
+            new OA\Parameter(name: 'X-Outbound-Numbering-Contract', in: 'header', description: 'Opt-in p05-save-numbering-v1 manual-create mode. Requires original P03 draft/scan-session/version headers; RECORD reuses the persisted SAVE PX at data.doc_no. Does not manufacture name or Post Issue; selected-Web-source mode retains its source doc_no and must not use a numbered manual draft.', schema: new OA\Schema(type: 'string', enum: ['p05-save-numbering-v1'])),
             new OA\Parameter(
                 name: 'Idempotency-Key',
                 in: 'header',

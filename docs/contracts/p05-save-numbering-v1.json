@@ -1,0 +1,80 @@
+{
+  "contract":"p05-save-numbering-v1",
+  "revision":"p05-save-numbering-r1",
+  "context_owner":"mini-app-p05-v1",
+  "draft_owner":"mini-app-p03-v1",
+  "scope":"P05 manual create on DEV/TEST; production activation remains OFF",
+  "context":{"method":"GET","path":"/api/v1/mini-app/outbound/context","document_number_assignment":"WITH_DRAFT_SAVE when schema_ready, otherwise UNAVAILABLE","numbering":{"contract":"p05-save-numbering-v1","revision":"p05-save-numbering-r1","mode":"MANUAL_CREATE_ONLY","allowed":"Actual active scoped grants and schema readiness, not the root legacy role-derived permissions flag","format":"PX-YYYYMMDD-SEQUENCE","cancel_policy":"RETAIN_NEVER_REUSE","source_linked_policy":"KEEP_SOURCE_DOCUMENT_NO"}},
+  "routes":{
+    "save":"PUT /api/v1/mini-app/drafts/{draft_id}",
+    "detail":"GET /api/v1/mini-app/drafts/{draft_id}",
+    "list":"GET /api/v1/mini-app/drafts",
+    "cancel":"POST /api/v1/mini-app/drafts/{draft_id}/cancel",
+    "reconcile":"GET /api/v1/mini-app/drafts/{draft_id}/requests/{operation_key}",
+    "record":"POST /api/v1/mini-app/outbound/record"
+  },
+  "transport":{
+    "opt_in_header":{"X-Outbound-Numbering-Contract":"p05-save-numbering-v1"},
+    "save_headers":["Idempotency-Key: original stable UUID","If-Match: quoted draft version, 0 for first SAVE"],
+    "tracked_shift_headers":["X-Work-Shift-ID","X-Request-ID"],
+    "record_headers":["Idempotency-Key","X-Draft-ID","X-Draft-Scan-Session-ID","X-Draft-Version"],
+    "rule":"Keep original key/body/version/session/warehouse and tracked shift request identity. This header does not replace P03 or P14 identity/preconditions.",
+    "read_query":{"warehouse_id":"required confirmed UUID","operation":"OUTBOUND required","scan_session_id":"original UUID; required by reconcile","command":"SAVE|CANCEL|RECORD required by reconcile"}
+  },
+  "save_request":{
+    "required":["warehouse_id","operation=OUTBOUND","scan_session_id","codes"],
+    "optional":["title","form"],
+    "partial_form":"Recipient/address/quantity/scan rows may be incomplete at SAVE. codes=[] and absent/null title are accepted. Existing P03 JSON limits, secret rejection and unknown top-level field rejection remain unchanged.",
+    "form":"Untrusted UI snapshot, never executed as a business request. Preserve nested JSON object/array shapes. form.p05_create may retain the App snapshot; structured address dataset names do not become BE-validated address codes.",
+    "forbidden":"No client doc_no/document_no/actor/session/version override; numbered create mode rejects source_document_id/source_version/source_id or p05_source linkage.",
+    "source_kind":"Personal staging draft only. A canonical Web document ID must not be reused as the numbered draft ID."
+  },
+  "save_response":{
+    "official_number":"data.document.document_no",
+    "status":"data.document.numbering_status=ASSIGNED",
+    "identity":["data.document.document_id","data.document.scan_session_id","data.document.auth_session_id","data.document.warehouse_id","data.document.version"],
+    "receipt":"data.receipt is the existing P03 durable receipt; original numbered response is persisted in the same transaction.",
+    "meta":{"contract":"mini-app-p03-v1","numbering_contract":"p05-save-numbering-v1","numbering_revision":"p05-save-numbering-r1"},
+    "read_detail":"data.document_no; list uses data[].document_no; reconcile current document uses data.document.document_no.",
+    "no_name_substitute":"A number is not a fabricated title/name/note/recipient. The existing optional name semantics remain unchanged.",
+    "stock_effect":"NONE","canonical_document_created":false,"request_import_created":false,"inventory_reserved":false,"movement_created":false
+  },
+  "persistence":{
+    "tables":["outbound_daily_numbers","outbound_draft_numbers"],
+    "ownership":"outbound_draft_numbers.draft_id FK -> mini_app_drafts.document_id -> exact actor/auth_session/warehouse/scan identity. One unique doc_no per unique draft.",
+    "counter":"Global receipt-independent PX sequence per Asia/Ho_Chi_Minh assignment date, minimum four digits. Lock the date row and include both existing stock_documents.doc_no and retained reservations; never COUNT+1.",
+    "later_save":"New key/current version on the same draft preserves its number, even across Vietnam midnight. Changes to address or other UI metadata never regenerate it.",
+    "cancel":"Retain the reservation and counter permanently; do not recycle the number.",
+    "atomicity":"Draft, receipt, counter and reservation commit together or roll back together.",
+    "legacy":"No migration backfill and no allocation on GET/replay. A legacy SAVE receipt with no number stays unnumbered. To assign one, perform an explicit new authorized SAVE with a new intent key and current known version after resolving UNKNOWN."
+  },
+  "record":{
+    "validation":"Existing p05-outbound-record-field-matrix-v1 and N/N/identity/availability/source checksum/transaction rules remain authoritative. SAVE success is not RECORD readiness.",
+    "number_mapping":"The owned reservation is passed internally to the existing canonical creator; data.doc_no equals the SAVE number. Draft UUID, business UUID and source import/request IDs remain distinct.",
+    "receipt":"Existing P03 handoff/RECORD receipt and original-key replay remain unchanged. The reservation is enforced even if the numbering header is omitted on a later call with the same draft.",
+    "source_linked":"The old selected-Web-source mode uses its original doc_no and P05 source/version guards. A numbered manual draft cannot switch to source-linked RECORD.",
+    "stock_effect":"NONE","post_issue":false,
+    "precondition":"Sending the numbering header without original P03 draft identity is rejected. A draft not explicitly numbered cannot be recorded under the new opt-in contract."
+  },
+  "authorization":{
+    "save_record":"Actual ACTIVE outbound.scan AND (outbound.request.manual_create OR outbound.import) grants scoped to the confirmed warehouse.",
+    "read":"Actual ACTIVE outbound.view grant.",
+    "cancel":"Actual ACTIVE outbound.cancel grant, plus confirmed latest SAVE receipt/version.",
+    "grant_source":"Effective ACTIVE roles scoped to the warehouse (or genuine unscoped role grants), ACTIVE permissions and direct ACTIVE user grants. Admin/SUPER_ADMIN names alone are not a bypass for this capability.",
+    "scope":"Existing P03 active account, stable authenticated family, confirmed warehouse context and warehouse ACL remain required.",
+    "revocation":"Existing numbered objects recheck actual grants even when a caller drops the opt-in header; no ownership takeover or new login to bypass the original context."
+  },
+  "unknown_and_replay":{
+    "original_receipt":"Same key/body/version/context returns the original response and number. Current document and historical receipt response are separate.",
+    "unknown":"GET the original operation key only; opt-in reconcile returns retry=CHECK_ONLY, new_document_allowed=false. Absence is not failure or permission to allocate another draft/number.",
+    "tracked_shift":"P14 may return OWNER_RECONCILE_REQUIRED instead of replaying a SAVE mutation. Use the original-key GET. Do not change request identity or disable the shift fence.",
+    "conflicts":"Existing version/scan-session/body/key mismatches remain errors, never a replacement draft/number."
+  },
+  "release":{
+    "migration":"database/migrations/2026_11_03_000001_add_p05_outbound_number_reservations.php",
+    "migration_scope":"Only two additive empty reservation/counter tables. No product/stock/document repair, history backfill, role grant or seed.",
+    "deploy":"Stage and verify the exact candidate preserving P18, assets, dependencies, environment, flags, storage and nginx configuration. Run only the named migration path; do not execute pending P11 or unrestricted migrate.",
+    "rollback":"Retain tables/counters. Old code is reservation-unaware: automatic code rollback is allowed only before any PX reservation has been issued; otherwise require a reservation-aware forward fix.",
+    "app_acceptance":"Source tests, migration and health do not imply authenticated live write/App UAT PASS. Live SAVE/RECORD needs a separately permitted TEST owner/identity, never real stock posting to obtain evidence."
+  }
+}
