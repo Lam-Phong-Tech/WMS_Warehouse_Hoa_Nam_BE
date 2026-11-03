@@ -35,6 +35,7 @@ use Modules\Warehouse\Http\Controllers\ItemInstanceController;
 use Modules\Warehouse\Http\Controllers\MiniAppComponentIssueStagingController;
 use Modules\Warehouse\Http\Controllers\OperationalReportController;
 use Modules\Warehouse\Http\Controllers\OutboundDocumentController;
+use Modules\Warehouse\Http\Controllers\OutboundNfcReadController;
 use Modules\Warehouse\Http\Controllers\OutboundRequestController;
 use Modules\Warehouse\Http\Controllers\PhysicalCodeController;
 use Modules\Warehouse\Http\Controllers\ProductController;
@@ -176,6 +177,10 @@ Route::prefix('v1')->group(function (): void {
         // (nhãn per-item PENDING_PRINT + in ngay lúc scan, code_value max lệch nhau).
         // Nay trỏ thẳng handler canonical.
         Route::get('outbound-documents', [AlignedOutboundDocumentController::class, 'index'])
+            ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
+        Route::get('outbound-documents/nfc-items', [OutboundNfcReadController::class, 'index'])
+            ->middleware('permission:outbound.view');
+        Route::get('outbound-documents/{id}/items/{itemId}/nfc-history', [OutboundNfcReadController::class, 'history'])
             ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
         Route::get('outbound-documents/{id}', [OutboundDocumentController::class, 'show'])
             ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
