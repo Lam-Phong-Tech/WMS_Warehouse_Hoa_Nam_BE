@@ -23,6 +23,13 @@ general SSH session. The versioned receiver source is
 `tools/deploy/github_dev_receiver.py`. Reinstall it as a root-owned, mode 0700
 file on the VPS after changing it.
 
+The receiver updates the exact SHA in both `shared/app.env` and explicit PHP
+service `environment` entries in `compose.json`. The P05 DEV rollout pinned
+those entries, which override `env_file`. Until the installed receiver is
+updated, a GitHub-tested backend artifact reports its verified `.ci-source-sha`
+marker as the running build identity; malformed markers stop boot rather than
+claiming an unverified SHA.
+
 The receiver serializes both deployments with one lock. Frontend switches the
 `/opt/wms-hoanam-fe/current` symlink only after validating the build manifest,
 and restores the old target if live health fails. Backend backs up

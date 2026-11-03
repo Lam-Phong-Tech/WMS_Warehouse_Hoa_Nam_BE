@@ -150,6 +150,20 @@ def wait_backend(sha):
     raise RuntimeError("Backend live health did not reach target SHA")
 
 
+def update_backend_build_identity(config, services, sha, built_at):
+    # compose service.environment overrides shared/app.env. The reviewed P05
+    # release put the previous SHA in every PHP service explicitly.
+    for name in services:
+        if name == "nginx":
+            continue
+        environment = config["services"][name].get("environment")
+        if not isinstance(environment, dict) or environment.get("AUTO_MIGRATE") != "false":
+            raise ValueError(f"AUTO_MIGRATE must remain disabled for {name}")
+        environment["APP_BUILD_SHA"] = sha
+        environment["APP_BUILD_REF"] = f"dev@{sha}"
+        environment["APP_BUILD_TIME"] = built_at
+
+
 def deploy_backend(base, release, sha):
     if (release / ".ci-source-sha").read_text().strip() != sha:
         raise ValueError("Backend artifact SHA mismatch")
@@ -193,10 +207,12 @@ def deploy_backend(base, release, sha):
             for volume in config["services"][name].get("volumes", []):
                 if isinstance(volume, dict) and volume.get("target") == "/var/www/html":
                     volume["source"] = str(release)
+        built_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        update_backend_build_identity(config, services, sha, built_at)
         lines = [line for line in app_env.read_text().splitlines()
                  if not line.startswith(("APP_BUILD_SHA=", "APP_BUILD_REF=", "APP_BUILD_TIME="))]
         lines += [f"APP_BUILD_SHA={sha}", f"APP_BUILD_REF=dev@{sha}",
-                  "APP_BUILD_TIME=" + datetime.datetime.now(datetime.timezone.utc).isoformat()]
+                  "APP_BUILD_TIME=" + built_at]
         changed = True
         app_env.write_text("\n".join(lines) + "\n")
         model.write_text(json.dumps(config, indent=2) + "\n")

@@ -1,5 +1,7 @@
 <?php
 
+use App\Support\BuildIdentity;
+
 /**
  * WWHN-295 — Readiness/identity contract của /api/v1/health.
  *
@@ -10,12 +12,15 @@
  * DevOps/CI inject APP_BUILD_SHA/REF/TIME lúc build image; thiếu chúng ở môi
  * trường ngoài local/testing bị `wms:golive-check` chặn (release.build_identity).
  */
+$build = BuildIdentity::resolve(
+    base_path('.ci-source-sha'),
+    env('APP_BUILD_SHA'),
+    env('APP_BUILD_REF'),
+    env('APP_BUILD_TIME'),
+);
+
 return [
     'version' => env('APP_VERSION', '1.0.0'),
 
-    'build' => [
-        'sha' => env('APP_BUILD_SHA') ?: null,
-        'ref' => env('APP_BUILD_REF') ?: null,
-        'built_at' => env('APP_BUILD_TIME') ?: null,
-    ],
+    'build' => $build,
 ];
