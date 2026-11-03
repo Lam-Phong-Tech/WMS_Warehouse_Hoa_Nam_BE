@@ -9,6 +9,7 @@ use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Warehouse\Support\P18BoxReadModel;
+use Modules\Warehouse\Support\P18ComponentLocationRead;
 use stdClass;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -73,7 +74,9 @@ final class ExplicitReadFields
         ], true);
         $box = in_array($route, ['api/v1/containers', 'api/v1/containers/{id}'], true)
             && $request->header(P18BoxReadModel::HEADER) === P18BoxReadModel::CONTRACT;
-        if (! $allowed && ! $box) {
+        $location = in_array($route, ['api/v1/containers/{id}', 'api/v1/item-instances/{id}'], true)
+            && $request->header(P18ComponentLocationRead::HEADER) === P18ComponentLocationRead::CONTRACT;
+        if (! $allowed && ! $box && ! $location) {
             ApiError::abort(422, 'READ_FIELDS_ROUTE_UNSUPPORTED', 'No availability projection is defined for this route; native receipts/binary reads keep their owner contract.');
         }
         if (! $response instanceof JsonResponse) {

@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Events\StockDocumentCreated;
+use Modules\Warehouse\Services\OutboundDocumentNumber;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 
 /**
@@ -79,14 +80,22 @@ class MiniAppOutboundDraftController extends Controller
         $actorId = $this->actorId();
         $key = IdempotencyKeyGuard::require($request);
         $hash = IdempotencyStore::requestHash($request);
+        $reserved = $request->attributes->get('p05.document_no');
+        if ($reserved !== null) {
+            if (! $request->attributes->get('p03.draft_handoff')) {
+                ApiError::abort(409, 'P05_NUMBER_IDENTITY_MISMATCH', 'Số PX yêu cầu đúng owner P03.');
+            }
+            app(OutboundDocumentNumber::class)->assertForRecord((string) $request->attributes->get('p05.numbered_draft_id'),
+                (string) $reserved, $actorId, (string) $validated['warehouse_id']);
+        }
 
         [$code, $body, $replay] = IdempotencyStore::handle(
             $key,
             'mini_app_outbound_create',
             $actorId,
             $hash,
-            function () use ($validated, $actorId, $key): array {
-                $data = DB::transaction(fn (): array => $this->createDraft($validated, $actorId, $key), 3);
+            function () use ($validated, $actorId, $key, $reserved): array {
+                $data = DB::transaction(fn (): array => $this->createDraft($validated, $actorId, $key, $reserved), 3);
 
                 return [201, $this->envelope(
                     $data,
@@ -106,7 +115,7 @@ class MiniAppOutboundDraftController extends Controller
      * @param  array<string,mixed>  $payload
      * @return array<string,mixed>
      */
-    private function createDraft(array $payload, string $actorId, string $idempotencyKey): array
+    private function createDraft(array $payload, string $actorId, string $idempotencyKey, ?string $reservedNumber = null): array
     {
         $warehouseId = (string) $payload['warehouse_id'];
         $warehouse = DB::table('warehouses')
@@ -242,7 +251,7 @@ class MiniAppOutboundDraftController extends Controller
         }
 
         $documentId = (string) Str::uuid();
-        $docNo = 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6));
+        $docNo = $reservedNumber ?? 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6));
         $documentCreatedAt = now();
         $documentInsert = [
             'id' => $documentId,

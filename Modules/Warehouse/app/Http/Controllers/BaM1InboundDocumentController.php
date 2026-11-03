@@ -15,6 +15,7 @@ use Illuminate\Validation\Rule;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Events\StockDocumentCreated;
 use Modules\Warehouse\Services\InboundDocumentNumber;
+use Modules\Warehouse\Services\OutboundDocumentNumber;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use OpenApi\Attributes as OA;
 
@@ -192,6 +193,7 @@ class BaM1InboundDocumentController extends Controller
 
             if (isset($validated['doc_no']) && $validated['doc_no'] !== $document->doc_no) {
                 app(InboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
+                app(OutboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
             }
 
             $updates = [];
@@ -237,6 +239,7 @@ class BaM1InboundDocumentController extends Controller
             $now = now();
             if (isset($validated['doc_no'])) {
                 app(InboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
+                app(OutboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
             }
             DB::table('stock_documents')->insert([
                 'id' => $id,

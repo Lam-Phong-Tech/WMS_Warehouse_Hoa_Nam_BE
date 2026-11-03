@@ -6,6 +6,7 @@ use App\Support\ApiError;
 use Closure;
 use Illuminate\Http\Request;
 use Modules\Warehouse\Services\MiniAppDraftService;
+use Modules\Warehouse\Services\P05NumberedDraft;
 use Modules\Warehouse\Services\P19LinkedComponentIssue;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -16,6 +17,14 @@ final class MiniAppDraftHandoff
     {
         $operation = MiniAppDraftService::RECORD_ROUTES[$request->path()] ?? null;
         $hasContext = $request->hasHeader('X-Draft-ID') || $request->hasHeader('X-Draft-Version') || $request->hasHeader('X-Draft-Scan-Session-ID');
+        if ($operation === 'OUTBOUND' && $request->isMethod('POST') && $request->hasHeader(P05NumberedDraft::HEADER)) {
+            if ($request->header(P05NumberedDraft::HEADER) !== P05NumberedDraft::CONTRACT) {
+                ApiError::abort(409, 'P05_NUMBERING_CONTRACT_UNSUPPORTED', 'Contract giữ số PX không hợp lệ.');
+            }
+            if (! $hasContext) {
+                ApiError::abort(409, 'P05_DRAFT_IDENTITY_REQUIRED', 'RECORD phải giữ đúng nháp, phiên quét và phiên bản gốc.');
+            }
+        }
         if ($operation === 'COMPONENT_ISSUE' && $request->isMethod('POST') && $request->hasHeader(P19LinkedComponentIssue::HEADER)) {
             if ($request->header(P19LinkedComponentIssue::HEADER) !== P19LinkedComponentIssue::VERSION) {
                 ApiError::abort(422, 'P19_CONTRACT_INVALID', 'Phiên bản contract xuất linh kiện không được hỗ trợ.');

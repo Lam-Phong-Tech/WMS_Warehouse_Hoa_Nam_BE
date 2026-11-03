@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\Warehouse\Services\MiniAppDraftService;
+use Modules\Warehouse\Services\P05NumberedDraft;
 use OpenApi\Attributes as OA;
 
 #[OA\Schema(schema: 'P03DraftScope', type: 'object', required: ['warehouse_id', 'operation'], properties: [
@@ -42,6 +43,7 @@ final class P03DraftController extends Controller
     }
 
     #[OA\Get(path: '/api/v1/mini-app/drafts', operationId: 'p03DraftList', summary: 'Personal drafts, exact actor/login-family/confirmed-warehouse scope; SQL totals before paging', security: [['bearerAuth' => []]], tags: ['22. Mini App'], parameters: [
+        new OA\Parameter(name: 'X-Outbound-Numbering-Contract', in: 'header', description: 'Opt-in p05-save-numbering-v1: operation=OUTBOUND required, data[].document_no from existing reservations only. No allocation on GET.', schema: new OA\Schema(type: 'string', enum: ['p05-save-numbering-v1'])),
         new OA\Parameter(name: 'warehouse_id', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         new OA\Parameter(name: 'operation', in: 'query', schema: new OA\Schema(type: 'string', enum: MiniAppDraftService::OPERATIONS)),
         new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['DRAFT', 'CANCELLED', 'RECORDED'], default: 'DRAFT')),
@@ -50,10 +52,14 @@ final class P03DraftController extends Controller
     ], responses: [new OA\Response(response: 200, description: 'data[]; meta.total; deterministic updated_at DESC, document_id DESC'), new OA\Response(response: 403, description: 'WAREHOUSE_ACCESS_DENIED / P03_OPERATION_DENIED'), new OA\Response(response: 409, description: 'Warehouse context unavailable/mismatched'), new OA\Response(response: 422, description: 'Invalid filter')])]
     public function index(Request $request): JsonResponse
     {
+        if ($request->hasHeader(P05NumberedDraft::HEADER)) {
+            return app(P05NumberedDraft::class)->index($request);
+        }
         return $this->drafts->index($request);
     }
 
     #[OA\Get(path: '/api/v1/mini-app/drafts/{id}', operationId: 'p03DraftDetail', summary: 'Resume data only: authoritative persisted draft, never records or posts', security: [['bearerAuth' => []]], tags: ['22. Mini App'], parameters: [
+        new OA\Parameter(name: 'X-Outbound-Numbering-Contract', in: 'header', description: 'Opt-in p05-save-numbering-v1: data.document_no, stable reserved PX or null/AWAITING_EXPLICIT_SAVE for legacy. No allocation on GET; actual outbound.view grant required.', schema: new OA\Schema(type: 'string', enum: ['p05-save-numbering-v1'])),
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         new OA\Parameter(name: 'warehouse_id', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         new OA\Parameter(name: 'operation', in: 'query', required: true, schema: new OA\Schema(type: 'string', enum: MiniAppDraftService::OPERATIONS)),
@@ -62,30 +68,42 @@ final class P03DraftController extends Controller
     ], responses: [new OA\Response(response: 200, description: 'data.document_id/scan_session_id/version/codes/form/summary/status; ETag'), new OA\Response(response: 404, description: 'DRAFT_NOT_FOUND including another actor/session/operation'), new OA\Response(response: 412, description: 'STALE_VERSION when optional If-Match differs')])]
     public function show(Request $request, string $id): JsonResponse
     {
+        if ($request->hasHeader(P05NumberedDraft::HEADER)) {
+            return app(P05NumberedDraft::class)->show($request, $id);
+        }
         return $this->drafts->show($request, $id);
     }
 
     #[OA\Put(path: '/api/v1/mini-app/drafts/{id}', operationId: 'p03DraftSave', summary: 'Save full snapshot at a client-generated stable draft UUID; no canonical WMS document or stock effect', security: [['bearerAuth' => []]], tags: ['22. Mini App'], parameters: [
+        new OA\Parameter(name: 'X-Outbound-Numbering-Contract', in: 'header', description: 'p05-save-numbering-v1 for OUTBOUND manual create. Partial form/codes=[] allowed. One draft reserves one PX atomically with receipt; SAVE response data.document.document_no. Preserve original key/version/session/warehouse and X-Work-Shift-ID/X-Request-ID when tracked. Never create a business document, hold stock, or fabricate name/address. Source-linked mode must not use this header.', schema: new OA\Schema(type: 'string', enum: ['p05-save-numbering-v1'])),
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         new OA\Parameter(name: 'If-Match', in: 'header', required: true, description: 'Strong quoted integer ETag; "0" for create, last version for replace.', schema: new OA\Schema(type: 'string')),
         new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, description: 'Stable UUID; also the receipt request_id.', schema: new OA\Schema(type: 'string', format: 'uuid')),
     ], requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(ref: '#/components/schemas/P03DraftSave')), responses: [new OA\Response(response: 201, description: 'Created snapshot + committed receipt'), new OA\Response(response: 200, description: 'Replaced snapshot + receipt'), new OA\Response(response: 409, description: 'IDEMPOTENCY_CONFLICT / DRAFT_STATE_CONFLICT / SCAN_SESSION_CONFLICT'), new OA\Response(response: 412, description: 'STALE_VERSION'), new OA\Response(response: 428, description: 'Missing If-Match or Idempotency-Key'), new OA\Response(response: 422, description: 'Invalid payload')])]
     public function save(Request $request, string $id): JsonResponse
     {
+        if ($request->hasHeader(P05NumberedDraft::HEADER)) {
+            return app(P05NumberedDraft::class)->save($request, $id);
+        }
         return $this->drafts->save($request, $id);
     }
 
     #[OA\Post(path: '/api/v1/mini-app/drafts/{id}/cancel', operationId: 'p03DraftCancel', summary: 'Soft cancel DRAFT only with confirmed latest SAVE receipt; never DELETE', security: [['bearerAuth' => []]], tags: ['22. Mini App'], parameters: [
+        new OA\Parameter(name: 'X-Outbound-Numbering-Contract', in: 'header', description: 'p05-save-numbering-v1. Original cancel owner/version/key guards remain; retain PX permanently, never recycle.', schema: new OA\Schema(type: 'string', enum: ['p05-save-numbering-v1'])),
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
         new OA\Parameter(name: 'Idempotency-Key', in: 'header', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
     ], requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(ref: '#/components/schemas/P03DraftCancel')), responses: [new OA\Response(response: 200, description: 'CANCELLED; snapshot/receipts retained'), new OA\Response(response: 409, description: 'DRAFT_STATE_CONFLICT / DRAFT_OUTCOME_UNKNOWN / IDEMPOTENCY_CONFLICT'), new OA\Response(response: 412, description: 'STALE_VERSION'), new OA\Response(response: 428, description: 'Missing precondition')])]
     public function cancel(Request $request, string $id): JsonResponse
     {
+        if ($request->hasHeader(P05NumberedDraft::HEADER)) {
+            return app(P05NumberedDraft::class)->cancel($request, $id);
+        }
         return $this->drafts->cancel($request, $id);
     }
 
     #[OA\Get(path: '/api/v1/mini-app/drafts/{id}/requests/{requestId}', operationId: 'p03DraftReconcile', summary: 'Reconcile one exact command; receipt absent = UNKNOWN, never inferred failure or replacement document', security: [['bearerAuth' => []]], tags: ['22. Mini App'], parameters: [
+        new OA\Parameter(name: 'X-Outbound-Numbering-Contract', in: 'header', description: 'p05-save-numbering-v1: current data.document is separate from original data.response. UNKNOWN returns CHECK_ONLY; do not change key/body/version/context or create a replacement. Legacy original responses are never backfilled with a number.', schema: new OA\Schema(type: 'string', enum: ['p05-save-numbering-v1'])),
         new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         new OA\Parameter(name: 'requestId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
         new OA\Parameter(name: 'warehouse_id', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
@@ -95,6 +113,9 @@ final class P03DraftController extends Controller
     ], responses: [new OA\Response(response: 200, description: 'outcome SUCCEEDED with receipt/current document/original response, or UNKNOWN + SAME_REQUEST_ONLY; no writes'), new OA\Response(response: 409, description: 'REQUEST_IDENTITY_MISMATCH / warehouse context mismatch')])]
     public function reconcile(Request $request, string $id, string $requestId): JsonResponse
     {
+        if ($request->hasHeader(P05NumberedDraft::HEADER)) {
+            return app(P05NumberedDraft::class)->reconcile($request, $id, $requestId);
+        }
         return $this->drafts->reconcile($request, $id, $requestId);
     }
 }

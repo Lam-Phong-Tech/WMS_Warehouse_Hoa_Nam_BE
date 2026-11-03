@@ -61,6 +61,7 @@ return [
                     // danh sách scan — cùng lỗi lớp với các mục HN-BE-API-005 bên dưới,
                     // route thật publish dạng skeleton generic thay vì contract thật.
                     base_path('Modules/Notification/app/Http/Controllers'),
+                    base_path('Modules/Warehouse/app/Http/Controllers/P03DraftController.php'),
                     // BaM1* là handler THẬT đang chạy cho inbound/outbound/warranty GĐ1
                     // (đăng ký sau trong Flow06AlignmentServiceProvider nên ghi đè route
                     // cùng path+method của InboundDocumentController/OutboundDocumentController
@@ -457,6 +458,7 @@ return [
          * Set this to `false` to disable swagger generation on production
          */
         'generate_always' => env('L5_SWAGGER_GENERATE_ALWAYS', false),
+        'generate_always_configured' => env('L5_SWAGGER_GENERATE_ALWAYS') !== null,
 
         /*
          * Set this to `true` to generate a copy of documentation in yaml format

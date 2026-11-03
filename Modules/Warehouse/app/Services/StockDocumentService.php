@@ -34,6 +34,7 @@ class StockDocumentService
             $this->assertWarehouseActive($dst);
             if (isset($data['doc_no'])) {
                 app(InboundDocumentNumber::class)->guardExplicit($data['doc_no']);
+                app(OutboundDocumentNumber::class)->guardExplicit($data['doc_no']);
             }
 
             $doc = StockDocument::create([
@@ -62,6 +63,7 @@ class StockDocumentService
             $this->assertStatus($doc, [StockDocument::STATUS_DRAFT], 'update');
             if (isset($data['doc_no']) && $data['doc_no'] !== $doc->doc_no) {
                 app(InboundDocumentNumber::class)->guardExplicit($data['doc_no']);
+                app(OutboundDocumentNumber::class)->guardExplicit($data['doc_no']);
             }
 
             $doc->update(array_filter([
@@ -428,6 +430,9 @@ class StockDocumentService
 
     private function genCode(string $type): string
     {
+        if ($type === StockDocument::TYPE_ISSUE) {
+            return app(OutboundDocumentNumber::class)->next();
+        }
         $prefix = self::PREFIX[$type] ?? 'PK';
         $prefixWithDate = $prefix.'-'.now()->format('Ymd').'-';
         $count = StockDocument::where('doc_no', 'like', $prefixWithDate.'%')->count();

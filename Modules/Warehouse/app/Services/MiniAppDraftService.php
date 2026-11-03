@@ -81,6 +81,11 @@ final class MiniAppDraftService
             $perPage = (int) ($input['per_page'] ?? 20);
             $page = (int) ($input['page'] ?? 1);
             $rows = $query->orderByDesc('updated_at')->orderByDesc('document_id')->forPage($page, $perPage)->get();
+            foreach ($rows as $row) {
+                if ($row->operation === 'OUTBOUND') {
+                    $this->authorizeNumberedOutbound($request, $scope, $row->document_id, 'read');
+                }
+            }
 
             return $this->response($rows->map(fn (object $row): array => $this->document($row))->all(), 200, [
                 'page' => $page, 'per_page' => $perPage, 'total' => $total,
@@ -99,6 +104,9 @@ final class MiniAppDraftService
             $scope = $this->scope($request, $input);
             $this->authorize($scope, $input['operation'], 'read');
             $row = $this->findOwned($scope, $id, $input['operation'], $input['scan_session_id'] ?? null);
+            if ($input['operation'] === 'OUTBOUND') {
+                $this->authorizeNumberedOutbound($request, $scope, $id, 'read');
+            }
             if ($request->hasHeader('If-Match')) {
                 $this->version($row, $this->expectedVersion($request));
             }
@@ -134,6 +142,9 @@ final class MiniAppDraftService
         return DB::transaction(function () use ($request, $input, $id, $expected, $key): JsonResponse {
             $scope = $this->scope($request, $input);
             $this->authorize($scope, $input['operation'], 'save');
+            if ($input['operation'] === 'OUTBOUND') {
+                $this->authorizeNumberedOutbound($request, $scope, $id, 'save');
+            }
             $hash = $this->hash(['SAVE', $id, $expected, $input, $scope['warehouse_id']]);
             if ($replay = $this->replay($scope, $key, $hash)) {
                 return $replay;
@@ -189,6 +200,9 @@ final class MiniAppDraftService
         return DB::transaction(function () use ($request, $input, $id, $expected, $key): JsonResponse {
             $scope = $this->scope($request, $input);
             $this->authorize($scope, $input['operation'], 'cancel');
+            if ($input['operation'] === 'OUTBOUND') {
+                $this->authorizeNumberedOutbound($request, $scope, $id, 'cancel');
+            }
             $hash = $this->hash(['CANCEL', $id, $expected, $input, $scope['warehouse_id']]);
             if ($replay = $this->replay($scope, $key, $hash)) {
                 return $replay;
@@ -223,6 +237,9 @@ final class MiniAppDraftService
             $scope = $this->scope($request, $input);
             $this->authorize($scope, $input['operation'], 'read');
             $receipt = $this->receiptQuery($scope, $requestId)->first();
+            if ($input['operation'] === 'OUTBOUND') {
+                $this->authorizeNumberedOutbound($request, $scope, $id, 'read');
+            }
             if ($receipt !== null && ($receipt->document_id !== $id || $receipt->scan_session_id !== strtolower($input['scan_session_id'])
                 || $receipt->warehouse_id !== $scope['warehouse_id'] || $receipt->operation !== $input['operation'] || $receipt->command !== $input['command'])) {
                 ApiError::abort(409, 'REQUEST_IDENTITY_MISMATCH', 'request_id không khớp bản nháp, phiên quét hoặc thao tác yêu cầu.');
@@ -267,6 +284,9 @@ final class MiniAppDraftService
             $scope = $this->scope($request, ['warehouse_id' => $pre->warehouse_id]);
             $this->authorize($scope, $operation, 'save');
             $row = $this->findOwned($scope, $id, $operation, $identity['scan_session_id']);
+            if ($operation === 'OUTBOUND') {
+                $this->authorizeNumberedOutbound($request, $scope, $id, 'save');
+            }
             // Includes all owner request fields and its optimistic header; never hashes transport tokens.
             $hash = $this->hash(['RECORD', $id, $identity, $request->method(), $request->path(), $request->query(), $request->json()->all(), $request->header('If-Match')]);
             if ($replay = $this->replay($scope, $key, $hash)) {
@@ -274,6 +294,24 @@ final class MiniAppDraftService
             }
             $this->editable($row);
             $this->version($row, (int) $identity['version']);
+            if ($operation === 'OUTBOUND') {
+                $numbers = app(OutboundDocumentNumber::class);
+                $reserved = $numbers->ready() ? $numbers->forDraft($id) : null;
+                if ($request->hasHeader(P05NumberedDraft::HEADER) && $request->header(P05NumberedDraft::HEADER) !== P05NumberedDraft::CONTRACT) {
+                    ApiError::abort(409, 'P05_NUMBERING_CONTRACT_UNSUPPORTED', 'Contract giữ số PX không hợp lệ.');
+                }
+                if ($request->hasHeader(P05NumberedDraft::HEADER) && $reserved === null) {
+                    ApiError::abort(409, 'P05_DOCUMENT_NUMBER_REQUIRED', 'SAVE đúng nháp tạo mới để cấp PX trước RECORD.');
+                }
+                if ($reserved !== null) {
+                    P05NumberedDraft::authorize($request, $scope['warehouse_id'], 'save');
+                    if ($request->exists('source_document_id') || $request->exists('source_version')) {
+                        ApiError::abort(409, 'P05_NUMBER_SOURCE_LINKED_UNSUPPORTED', 'Không đổi nháp đã giữ PX sang phiếu nguồn Web.');
+                    }
+                    $request->attributes->set('p05.document_no', $reserved);
+                    $request->attributes->set('p05.numbered_draft_id', $id);
+                }
+            }
             foreach (['warehouse_id', 'src_warehouse_id', 'dst_warehouse_id'] as $field) {
                 if ($request->filled($field) && strtolower((string) $request->input($field)) !== $scope['warehouse_id']) {
                     ApiError::abort(409, 'WAREHOUSE_CONTEXT_MISMATCH', 'Kho của thao tác ghi nhận không khớp kho bản nháp.');
@@ -327,6 +365,14 @@ final class MiniAppDraftService
         unset($entry);
 
         return $matrix;
+    }
+
+    private function authorizeNumberedOutbound(Request $request, array $scope, string $id, string $action): void
+    {
+        $numbers = app(OutboundDocumentNumber::class);
+        if ($numbers->ready() && $numbers->forDraft($id) !== null) {
+            P05NumberedDraft::authorize($request, $scope['warehouse_id'], $action);
+        }
     }
 
     private function actor(Request $request): User

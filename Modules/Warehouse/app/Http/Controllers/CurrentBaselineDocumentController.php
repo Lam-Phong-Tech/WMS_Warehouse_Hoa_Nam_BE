@@ -18,6 +18,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Events\StockDocumentCancelled;
 use Modules\Warehouse\Events\StockDocumentCreated;
 use Modules\Warehouse\Services\InboundDocumentNumber;
+use Modules\Warehouse\Services\OutboundDocumentNumber;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
@@ -286,6 +287,9 @@ class CurrentBaselineDocumentController extends Controller
             if ($type === 'receipt' && isset($validated['doc_no'])) {
                 app(InboundDocumentNumber::class)->guardExplicit($docNo);
             }
+            if (isset($validated['doc_no'])) {
+                app(OutboundDocumentNumber::class)->guardExplicit($docNo);
+            }
             DB::table('stock_documents')->insert([
                 'id' => $documentId,
                 'doc_type' => $type,
@@ -366,6 +370,9 @@ class CurrentBaselineDocumentController extends Controller
 
             if ($type === 'receipt' && isset($validated['doc_no']) && $validated['doc_no'] !== $document->doc_no) {
                 app(InboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
+            }
+            if (isset($validated['doc_no']) && $validated['doc_no'] !== $document->doc_no) {
+                app(OutboundDocumentNumber::class)->guardExplicit($validated['doc_no']);
             }
 
             $lineUpdateMode = 'NONE';
