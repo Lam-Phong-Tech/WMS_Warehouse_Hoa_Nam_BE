@@ -12,8 +12,8 @@ import shutil
 spec = importlib.util.spec_from_file_location('p18_deploy', Path(__file__).with_name('deploy-devtest-p18-location.py'))
 base = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(base)
-BASE = '99ffd6c652a662470c762da3487e743ccb67497a'
-COMPOSE_HASH = '08c9d07fa050bbc4fc0157dd1c1b652b974f523bfb42165434be4205b5b4da66'
+BASE = '15885bc2b69048ce0fe6c8e243c82e5265832068'
+COMPOSE_HASH = '1843dd5af915c1f92d6b11541765b464efeb6a0a7c87debbfcfd6b046e208049'
 MIGRATION = '2026_11_03_000001_add_p05_outbound_number_reservations'
 MIGRATION_FILE = 'database/migrations/' + MIGRATION + '.php'
 APP_FILES = {
@@ -30,6 +30,7 @@ APP_FILES = {
     'app/Swagger/P05SaveNumberingSchemas.php',
     'app/Swagger/MiniAppOutboundStagingOpenApi.php',
     'config/l5-swagger.php',
+    'app/Providers/AppServiceProvider.php',
     MIGRATION_FILE,
 }
 base.BASE = BASE
@@ -37,7 +38,7 @@ base.APP_FILES = APP_FILES
 
 
 def allowed(path):
-    return path in APP_FILES or path.startswith(('tests/Feature/P05SaveNumbering', 'tests/Feature/P05NumberingConcurrency',
+    return path in APP_FILES or path.startswith(('tests/Feature/P05SaveNumbering', 'tests/Feature/P05NumberingConcurrency', 'tests/Feature/P05SwaggerPolicy',
         'docs/contracts/p05-save-numbering-', 'docs/fe-handoff/P05_SAVE_NUMBERING_', 'tools/deploy/deploy-devtest-p05-numbering',
         'tools/deploy/test_deploy_devtest_p05_numbering'))
 
