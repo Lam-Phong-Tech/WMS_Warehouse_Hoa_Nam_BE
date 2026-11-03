@@ -35,6 +35,9 @@ trait InteractsWithStockDocuments
                 ($this->docType() === StockDocument::TYPE_RECEIPT ? 'dst_warehouse_id' : 'src_warehouse_id'),
                 $request->input('warehouse_id'),
             ));
+        if ($this->docType() === StockDocument::TYPE_RECEIPT) {
+            $query->with(['createdBy' => fn ($creator) => $creator->withTrashed()->select('user_id', 'display_name')]);
+        }
 
         // WWHN-SEC-09 (BOLA): danh sách phải theo warehouse data-scope như các
         // route chi tiết. Middleware Enforce{Inbound,Outbound}WarehouseScope chỉ
@@ -81,6 +84,9 @@ trait InteractsWithStockDocuments
         $page = $query->paginate($this->perPage($request));
 
         $this->decoratePendingProductInfo($page->getCollection());
+        if ($this->docType() === StockDocument::TYPE_RECEIPT) {
+            $page->getCollection()->each(fn (StockDocument $document) => $this->attachCreatorName($document));
+        }
 
         return $this->respondPaginated($page);
     }
@@ -164,6 +170,12 @@ trait InteractsWithStockDocuments
         });
     }
 
+    private function attachCreatorName(StockDocument $document): void
+    {
+        $document->setAttribute('created_by_name', $document->createdBy?->display_name);
+        $document->unsetRelation('createdBy');
+    }
+
     public function show(string $id)
     {
         // `lines.product_id` chỉ là UUID thô — FE (bảng "Hàng thực nhận/xuất theo
@@ -176,7 +188,11 @@ trait InteractsWithStockDocuments
         // (PRODUCT/COMPONENT) cho phép FE hiện badge "Sản phẩm/Linh kiện" ngay trên
         // dòng, không phụ thuộc danh sách SKU tải sẵn (bị giới hạn per_page) như
         // product_code/product_name ở trên.
-        $doc = StockDocument::with(['lines.product:sku_id,sku_code,sku_name,sku_type,unit', 'movements', 'statusHistory'])
+        $relations = ['lines.product:sku_id,sku_code,sku_name,sku_type,unit', 'movements', 'statusHistory'];
+        if ($this->docType() === StockDocument::TYPE_RECEIPT) {
+            $relations['createdBy'] = fn ($creator) => $creator->withTrashed()->select('user_id', 'display_name');
+        }
+        $doc = StockDocument::with($relations)
             ->where('doc_type', $this->docType())
             ->find($id);
 
@@ -206,6 +222,10 @@ trait InteractsWithStockDocuments
             $line->setAttribute('product_info_complete', $missingInfo === []);
             $line->unsetRelation('product');
         });
+
+        if ($this->docType() === StockDocument::TYPE_RECEIPT) {
+            $this->attachCreatorName($doc);
+        }
 
         return $this->respondSuccess($doc);
     }
