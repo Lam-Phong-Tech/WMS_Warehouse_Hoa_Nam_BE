@@ -13,6 +13,7 @@ use Modules\Warehouse\Http\Requests\UpdateContainerRequest;
 use Modules\Warehouse\Repositories\Contracts\ContainerItemRepositoryInterface;
 use Modules\Warehouse\Repositories\Contracts\ContainerRepositoryInterface;
 use Modules\Warehouse\Support\P18BoxReadModel;
+use Modules\Warehouse\Support\P18ComponentLocationRead;
 use OpenApi\Attributes as OA;
 
 /**
@@ -93,6 +94,8 @@ class ContainerController extends Controller
         tags: ['23. Container'],
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'X-Component-Location-Contract', in: 'header', description: 'Opt-in p18-component-location-read-v1 with X-Read-Fields-Contract=explicit-read-fields-v1 and warehouse_id. Exact BOX identity; placement only from persisted confirmed putaway matching current parent and POSTED receipt. putaway.view/manage required for location, otherwise explicitly redacted. No writes, hints or fake grid. Existing BOX v1 remains unchanged without this header.', schema: new OA\Schema(type: 'string', enum: ['p18-component-location-read-v1'])),
+            new OA\Parameter(name: 'X-Read-Fields-Contract', in: 'header', description: 'Required with the P18 location contract: absent values are omitted and explained, never null/default.', schema: new OA\Schema(type: 'string', enum: ['explicit-read-fields-v1'])),
             new OA\Parameter(name: 'X-Container-Read-Contract', in: 'header', description: 'Optional read-only scoped BOX projection, not an upload/move protocol.', schema: new OA\Schema(type: 'string', enum: ['p18-single-warehouse-boxes-v1'])),
             new OA\Parameter(name: 'warehouse_id', in: 'query', description: 'Required in P18 header mode; confirmed session warehouse UUID.', schema: new OA\Schema(type: 'string', format: 'uuid')),
         ],
@@ -104,6 +107,9 @@ class ContainerController extends Controller
     )]
     public function show(string $id)
     {
+        if (request()->hasHeader(P18ComponentLocationRead::HEADER)) {
+            return app(P18ComponentLocationRead::class)->read(request(), 'BOX', $id);
+        }
         if (request()->hasHeader(P18BoxReadModel::HEADER)) {
             return app(P18BoxReadModel::class)->read(request(), $id);
         }

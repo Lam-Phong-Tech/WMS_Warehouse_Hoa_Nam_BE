@@ -11,6 +11,7 @@ use Modules\Warehouse\Http\Requests\StoreItemInstanceRequest;
 use Modules\Warehouse\Http\Requests\UpdateItemInstanceRequest;
 use Modules\Warehouse\Models\StockMovement;
 use Modules\Warehouse\Repositories\Contracts\ItemInstanceRepositoryInterface;
+use Modules\Warehouse\Support\P18ComponentLocationRead;
 use OpenApi\Attributes as OA;
 
 /**
@@ -106,7 +107,10 @@ class ItemInstanceController extends Controller
         summary: 'Chi tiết item instance',
         security: [['bearerAuth' => []]],
         tags: ['24. Item Instance'],
-        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'X-Component-Location-Contract', in: 'header', description: 'Opt-in p18-component-location-read-v1: exact ITEM with sku.view/item_instance.view; location requires putaway.view/manage, consistent active ITEM membership and confirmed BOX putaway. No SKU/serial inference or writes. Requires explicit-read-fields-v1 and warehouse_id; old detail unchanged without this header.', schema: new OA\Schema(type: 'string', enum: ['p18-component-location-read-v1'])),
+            new OA\Parameter(name: 'X-Read-Fields-Contract', in: 'header', schema: new OA\Schema(type: 'string', enum: ['explicit-read-fields-v1'])),
+            new OA\Parameter(name: 'warehouse_id', in: 'query', description: 'Required assertion in P18 location mode; must equal confirmed authorized warehouse.', schema: new OA\Schema(type: 'string', format: 'uuid'))],
         responses: [
             new OA\Response(response: 200, description: 'Chi tiết item instance'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
@@ -115,6 +119,9 @@ class ItemInstanceController extends Controller
     )]
     public function show(string $id)
     {
+        if (request()->hasHeader(P18ComponentLocationRead::HEADER)) {
+            return app(P18ComponentLocationRead::class)->read(request(), 'ITEM', $id);
+        }
         $item = $this->itemInstances->find($id);
 
         return $item ? $this->respondSuccess($item) : $this->respondNotFound('Không tìm thấy item instance.');

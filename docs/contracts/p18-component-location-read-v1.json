@@ -1,0 +1,57 @@
+{
+  "contract": "p18-component-location-read-v1",
+  "revision": "p18-component-location-read-r1",
+  "scope": "DEV_TEST_READ_ONLY_NO_PRODUCTION_ACTIVATION",
+  "routes": [
+    {"method":"GET","path":"/api/v1/containers/{container_id}","identity_kind":"BOX"},
+    {"method":"GET","path":"/api/v1/item-instances/{item_id}","identity_kind":"ITEM"}
+  ],
+  "request": {
+    "headers": {"X-Component-Location-Contract":"p18-component-location-read-v1","X-Read-Fields-Contract":"explicit-read-fields-v1"},
+    "query":{"warehouse_id":"Required UUID, must match confirmed authenticated warehouse"},
+    "identity":"Exact persisted UUID only. SKU and arbitrary raw-code resolution are not accepted by these detail routes; retain the ID from the existing approved resolver/catalog/BOX owner.",
+    "unknown_query_or_body":"422 P18_LOCATION_QUERY_UNSUPPORTED",
+    "conditional_cache":"Rejected by explicit-read-fields-v1; request a fresh no-store response."
+  },
+  "authorization": {
+    "common":"Fresh ACTIVE actor, current stable authenticated family, confirmed READY warehouse context, canAccessWarehouse and actual active sku.view grant.",
+    "box_identity":"At least one active grant: container.view, putaway.view, putaway.manage; existing route middleware also remains active.",
+    "item_identity":"Active item_instance.view grant; existing route middleware remains active.",
+    "placement":"Active putaway.view OR putaway.manage grant. Without it, identity/master may be read but current_location is omitted with REDACTED_PERMISSION. No placement source query or location label is returned.",
+    "grant_source":"User.activeRoles with effective dates and scope_ref null/empty or the confirmed warehouse, ACTIVE role_permission/permission, plus ACTIVE user_permission. Role code or display name alone does not grant this new capability.",
+    "scope":"This revision requires exactly one persisted ACTIVE warehouse row. A second inactive warehouse also fails closed until global registry ownership is modeled; selected query warehouse is never placement proof.",
+    "tenant":"Compare trusted actor/warehouse tenant_id, org_id, organization_id when present; filter every source with those dimensions. An unresolvable tenant-scoped source fails 503. With no tenant columns, require a single-tenant database; no cross-tenant capability is claimed.",
+    "revalidation":"Compare identity, current context, actor version, dimensions and actual grants after the read snapshot. Committed scope changes fail closed."
+  },
+  "source_mapping": {
+    "box_identity":"containers.container_id/container_code, container_type=BOX. container_code is a physical BOX code, not SKU.",
+    "item_identity":"item_instances.item_id; physical_code only from exactly one ACTIVE physical_codes row assigned_object_type=ITEM, assigned_object_id=item_id, carrier_type QR or BARCODE. Compatibility item_code/serial is not physical-code proof; ambiguity omits code with SOURCE_INCONSISTENT.",
+    "master":"Exact sku join from ITEM.sku_id or BOX.primary_sku_id. sku_id/sku_code/sku_name/unit are current directory values, never historical snapshots. Known non-COMPONENT SKU is rejected; missing labels are omitted and explained.",
+    "warehouse_id":"Confirmed authorized registry/context warehouse, labeled SINGLE_WAREHOUSE_REGISTER_NOT_PHYSICAL_PLACEMENT. current_location.warehouse_id separately requires persisted putaway/receipt ownership.",
+    "placement":"Latest unambiguously timed putaway_events with status CONFIRMED for the exact box_container_id, matching container_id alias, warehouse_id, to_tray_id/to_parent_container_id and current BOX.parent_container_id. Requires actual TRAY, usable status, BOX status STORED or PARTIAL and a nondeleted POSTED receipt in the same dst_warehouse_id.",
+    "current_record_rule":"Draft/cancelled putaways never supersede a confirmation. Ambiguous confirmation times, missing/invalid/future confirmed_at, mismatched parent/aliases or invalid receipt/TRAY fail SOURCE_INCONSISTENT. No event => NOT_RECORDED. A newer confirmation never falls back to an older apparently usable one.",
+    "item_inheritance":"Exactly one ACTIVE/is_active container_items ITEM-mode row with matching item_id and item_instances.container_id. ERD ITEM-mode has sku_id=null and quantity=null; SKU derives from exact ITEM and must match BOX.primary_sku_id. Requires ITEM IN_STOCK and a valid membership version; otherwise no inference.",
+    "location":"Actual TRAY containers.container_id/container_code. location_label equals its actual code and is labeled ACTUAL_CONTAINER_CODE_NOT_SHELF_OR_BIN. This does not invent shelf/bin identity or a full warehouse grid.",
+    "effective_at":"putaway_events.confirmed_at only, document-timestamps-v1 RFC3339 UTC Z. Existing naive putaway storage follows the documented Asia/Ho_Chi_Minh legacy convention; explicit offsets preserve instant. No created_at/updated_at/Date.now substitute.",
+    "observed_at":"Response database snapshot observation time, not placement effective time.",
+    "versions":"Persisted putaway_events.version, containers.version for BOX and TRAY, plus exact membership ID/version for inherited ITEM placement.",
+    "excluded":"location_hint, zone_code, free-form notes, shared SKU counts, readiness and current lookup cannot establish placement. No audit actor/customer PII is exposed."
+  },
+  "response": {
+    "meta.contract":"explicit-read-fields-v1",
+    "meta.read_fields.owner_contract":"p18-component-location-read-v1",
+    "meta.revision":"p18-component-location-read-r1",
+    "data":["warehouse_id","warehouse_scope_basis","identity","sku_id","sku_code","component_name","unit","master_source","master_semantics","current_location","hierarchy","capacity","stock_effect"],
+    "location":["location_id","location_code","location_label","location_kind","label_semantics","warehouse_id","placement_version","box_version","location_version","effective_at","observed_at","provenance"],
+    "missing":"Omit the missing value path. Explain it in meta.read_fields.missing_fields with path, status, source=AUTHORIZED_OWNER_RESPONSE, value_supplied=false. No null or fabricated empty/zero value in a successful explicit representation.",
+    "availability_statuses":["NOT_RECORDED","SOURCE_INCONSISTENT","REDACTED_PERMISSION","NOT_CONFIGURED"],
+    "source_failure":"503 P18_LOCATION_SOURCE_UNAVAILABLE, not empty/NOT_RECORDED success.",
+    "hierarchy_capacity":"Omit + NOT_CONFIGURED. Neither hierarchy nor capacity is needed for a valid current TRAY location.",
+    "capability":{"supported":true,"model":"CONFIRMED_BOX_PUTAWAY","direct_item_placement_supported":false,"write_operations":[]},
+    "cache_policy":"NO_INTERNAL_RESULT_CACHE; SINGLE_RESPONSE_DATABASE_SNAPSHOT, not a cross-request frozen snapshot.",
+    "headers":{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Vary":"Authorization, Origin, X-Component-Location-Contract, X-Read-Fields-Contract","X-Request-ID":"Original correlation ID"}
+  },
+  "errors":{"401":"Unauthenticated/revoked session","403":"Actual grants/scope denied or changed","404":"Exact identity/master/placement outside accessible scope","409":"Unsupported or missing contract / unconfirmed context","422":"Invalid query/body/conditional headers or known non-COMPONENT SKU","503":"Source or single-warehouse/tenant scope unavailable"},
+  "compatibility":{"without_new_header":"Existing Web/BOX/P06 contracts unchanged.","no_silent_v1_semantic_change":true,"new_routes":[],"new_permissions":[],"new_migrations":[],"new_flags":[],"write_operations":[],"seed_required":false},
+  "acceptance":"Source tests and deployment do not imply positive live ITEM placement or App/device UAT PASS. Live data without proof stays absent, never seeded/repaired to obtain evidence."
+}
