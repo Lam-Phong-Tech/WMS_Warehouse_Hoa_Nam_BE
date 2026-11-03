@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Models\Brand;
 use Modules\Warehouse\Models\ProductMaster;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
@@ -33,6 +34,40 @@ class SkuManagementTest extends TestCase
         $token = auth('api')->login($user);
 
         return ['Authorization' => "Bearer {$token}"];
+    }
+
+    public function test_product_keyword_search_finds_sku_code_and_brand_name(): void
+    {
+        $headers = $this->authHeaders();
+        // SQLite retains the legacy SKU FK to product_masters; production
+        // PostgreSQL repoints it to brands in the canonical-master migration.
+        $legacyBrand = ProductMaster::create([
+            'master_type' => 'BRAND',
+            'code' => 'DCC',
+            'name' => 'DongCheng',
+            'status' => 'ACTIVE',
+        ]);
+        $brand = Brand::create([
+            'id' => $legacyBrand->master_id,
+            'brand_code' => 'DCC',
+            'brand_name' => 'DongCheng',
+            'status' => 'ACTIVE',
+        ]);
+        $sku = Sku::create([
+            'sku_code' => 'DCC-20V-500',
+            'sku_name' => 'Máy khoan',
+            'sku_type' => 'PRODUCT',
+            'unit' => 'cái',
+            'brand_id' => $brand->id,
+            'status' => 'ACTIVE',
+        ]);
+
+        $this->getJson('/api/v1/products?keyword=DCC-20V-500&per_page=50', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.0.sku_id', $sku->sku_id);
+        $this->getJson('/api/v1/products?keyword=DongCheng&per_page=50', $headers)
+            ->assertOk()
+            ->assertJsonPath('data.0.sku_id', $sku->sku_id);
     }
 
     public function test_sku_update_sets_brand_category_model_and_package_variant(): void

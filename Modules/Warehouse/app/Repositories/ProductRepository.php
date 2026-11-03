@@ -37,7 +37,7 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
                 $skuQuery->where('sku_code', $operator, "%{$keyword}%")
                     ->orWhere('sku_name', $operator, "%{$keyword}%")
                     ->orWhereHas('brand', function (Builder $brandQuery) use ($keyword, $operator) {
-                        $brandQuery->where('name', $operator, "%{$keyword}%");
+                        $brandQuery->where('brand_name', $operator, "%{$keyword}%");
                     });
             });
         }
