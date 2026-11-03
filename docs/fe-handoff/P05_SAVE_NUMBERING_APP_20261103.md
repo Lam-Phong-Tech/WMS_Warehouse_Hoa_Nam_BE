@@ -74,6 +74,10 @@ One additive migration creates only `outbound_daily_numbers` and
 no seed is needed. Deployment runs only the allowlisted migration path;
 pending P11 and production activation remain untouched.
 
+Swagger is explicitly built by a CLI process with its own memory allowance;
+DEV serves the generated release JSON instead of regenerating on each request.
+This does not increase FPM memory limits or change business/auth feature flags.
+
 After a number has escaped, old reservation-unaware code is not a safe
 rollback: retain counters/reservations and use a reviewed forward fix.
 

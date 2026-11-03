@@ -76,12 +76,36 @@ def migration_command():
         '--entrypoint', 'php', 'backend', 'artisan', 'migrate', '--force', '--no-interaction', '--path=' + MIGRATION_FILE]
 
 
+def swagger_command():
+    return ['docker', 'exec', 'hoa_nam_dev-backend-1', 'php', '-d', 'memory_limit=512M', 'artisan', 'l5-swagger:generate']
+
+
+def schema_mode(current, baseline, resume):
+    if len(current) == 221 and MIGRATION not in current and not resume:
+        return 'APPLY_ONCE'
+    if resume and len(current) == 222 and len(baseline) == 221:
+        assert_migration_delta(baseline, current)
+        return 'ALREADY_APPLIED_SKIP'
+    raise RuntimeError('Unexpected schema or resume decision; no migration is inferred')
+
+
+def candidate_compose(config, target, sha):
+    modified, current = base.patched_compose(config, target, sha)
+    for service in base.SERVICES:
+        if service != 'nginx':
+            modified['services'][service]['environment']['APP_BUILD_REF'] = 'dev-p05-save-numbering@' + sha
+            # Build once in the bounded CLI process; FPM serves the release JSON.
+            modified['services'][service]['environment']['L5_SWAGGER_GENERATE_ALWAYS'] = 'false'
+    return modified, current
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sha', required=True)
     parser.add_argument('--archive', type=Path, required=True)
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--resume-schema', action='store_true')
     args = parser.parse_args()
     if not re.fullmatch('[a-f0-9]{40}', args.sha) or args.sha == BASE or os.getuid() != 0:
         raise RuntimeError('Exact candidate and approved DEV operator required')
@@ -90,10 +114,7 @@ def main():
     if hashlib.sha256(original).hexdigest() != COMPOSE_HASH:
         raise RuntimeError('DEV compose drift; inspect again')
     target = base.ROOT / 'releases' / (args.sha + '-p05-save-numbering-20261103')
-    modified, current = base.patched_compose(json.loads(original), target, args.sha)
-    for service in base.SERVICES:
-        if service != 'nginx':
-            modified['services'][service]['environment']['APP_BUILD_REF'] = 'dev-p05-save-numbering@' + args.sha
+    modified, current = candidate_compose(json.loads(original), target, args.sha)
     if current.parent != base.ROOT / 'releases' or not current.is_dir() or target.exists():
         raise RuntimeError('Unexpected source release')
     files = base.archive_files(args.archive)
@@ -109,13 +130,15 @@ def main():
         if hashlib.sha256(blob).hexdigest() != manifest['files'][name]:
             raise RuntimeError('Candidate file hash mismatch')
     before = schema()
-    if len(before) != 221 or MIGRATION in before:
-        raise RuntimeError('Expected retained 221-migration DEV schema only')
+    mode = schema_mode(before, manifest.get('migration_baseline', {}), args.resume_schema)
+    if mode == 'ALREADY_APPLIED_SKIP' and db_json('SELECT to_json(count(*)) FROM outbound_draft_numbers') != 0:
+        raise RuntimeError('Existing issued numbers require a separately reviewed forward release')
     prod = sorted(base.production_ids())
     baseline_data = domain()
     report = {'base': BASE, 'candidate': args.sha, 'environment': 'DEV_TEST', 'apply': args.apply,
         'migration_allowlist': [MIGRATION_FILE], 'migrations_before': before, 'domain_before': baseline_data,
-        'production_container_ids_before': prod, 'seed_executed': False, 'repair_executed': False}
+        'production_container_ids_before': prod, 'seed_executed': False, 'repair_executed': False,
+        'schema_mode': mode, 'migration_executed': False}
     if not args.apply:
         print(json.dumps(report, indent=2))
         return
@@ -143,16 +166,21 @@ def main():
     try:
         # One-shot CLI uses the candidate mount, existing DEV connection and
         # private cache paths. No pending P11 or other migration is executed.
-        base.run(migration_command())
+        if mode == 'APPLY_ONCE':
+            base.run(migration_command())
+            report['migration_executed'] = True
         after = schema()
-        assert_migration_delta(before, after)
+        if mode == 'APPLY_ONCE':
+            assert_migration_delta(before, after)
+        elif after != before:
+            raise RuntimeError('Resumed rollout must not change schema history')
         report['migrations_after'] = after
         report['domain_after_migration'] = domain()
         if report['domain_after_migration'] != baseline_data:
             raise RuntimeError('Business data changed during additive schema step; inspect, never restore/repair automatically')
         base.run(base.compose_args() + ['up', '-d', '--no-deps', '--force-recreate', *base.SERVICES])
         base.run(['docker', 'exec', 'hoa_nam_dev-backend-1', 'php', 'artisan', 'route:cache'])
-        base.run(['docker', 'exec', 'hoa_nam_dev-backend-1', 'php', 'artisan', 'l5-swagger:generate'])
+        base.run(swagger_command())
         report['health'] = base.healthy(args.sha)
         report['production_container_ids_after'] = sorted(base.production_ids())
         if report['production_container_ids_after'] != prod:
@@ -160,6 +188,7 @@ def main():
         report['domain_after_rollout'] = domain()
         report['domain_unchanged_through_rollout'] = report['domain_after_rollout'] == baseline_data
         report['source_root'] = str(target)
+        report['swagger_policy'] = 'CACHED_RELEASE_JSON_EXPLICIT_CLI_BUILD_512M'
         report['deployed_at'] = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).isoformat()
         report['status'] = 'DEPLOYED_PENDING_AUTHENTICATED_OWNER_ACCEPTANCE'
     except Exception:

@@ -34,6 +34,34 @@ class P05DeploymentSafetyTest(unittest.TestCase):
                 self.assertFalse(deploy.allowed(path))
         self.assertTrue(deploy.allowed(deploy.MIGRATION_FILE))
 
+    def test_resume_requires_exact_known_previous_schema_and_does_not_repeat_migration(self):
+        baseline = {'old_' + str(i): 1 for i in range(221)}
+        current = {**baseline, deploy.MIGRATION: 2}
+        self.assertEqual(deploy.schema_mode(baseline, {}, False), 'APPLY_ONCE')
+        self.assertEqual(deploy.schema_mode(current, baseline, True), 'ALREADY_APPLIED_SKIP')
+        for state, previous, resume in [(current, baseline, False), (current, {}, True), ({**current, 'pending_p11': 2}, baseline, True)]:
+            with self.subTest(resume=resume), self.assertRaises(RuntimeError):
+                deploy.schema_mode(state, previous, resume)
+
+    def test_extra_memory_is_scoped_only_to_swagger_cli(self):
+        self.assertEqual(deploy.swagger_command(), ['docker', 'exec', 'hoa_nam_dev-backend-1', 'php', '-d', 'memory_limit=512M', 'artisan', 'l5-swagger:generate'])
+        self.assertNotIn('memory_limit=512M', deploy.migration_command())
+
+    def test_only_swagger_cache_policy_and_build_identity_change_in_service_environment(self):
+        config = {'services': {name: {'volumes': [{'type': 'bind', 'source': '/opt/wms-hoanam/releases/' + deploy.BASE,
+            'target': '/var/www/html', 'read_only': True}], 'environment': {'AUTO_MIGRATE': 'false', 'APP_BUILD_SHA': deploy.BASE,
+            'P14_SHIFT_ENABLED': 'true', 'P19_ENABLED': 'false', 'L5_SWAGGER_GENERATE_ALWAYS': 'true'}, 'image': 'retained-image'} for name in deploy.base.SERVICES}}
+        changed, _ = deploy.candidate_compose(config, Path('/candidate'), 'a' * 40)
+        for name in deploy.base.SERVICES:
+            self.assertEqual(config['services'][name]['image'], changed['services'][name]['image'])
+            before, after = config['services'][name]['environment'], changed['services'][name]['environment']
+            if name == 'nginx':
+                self.assertEqual(before, after)
+                continue
+            self.assertEqual(after['L5_SWAGGER_GENERATE_ALWAYS'], 'false')
+            for key in ['AUTO_MIGRATE', 'P14_SHIFT_ENABLED', 'P19_ENABLED']:
+                self.assertEqual(before[key], after[key])
+
 
 if __name__ == '__main__':
     unittest.main()
