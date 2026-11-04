@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
@@ -12,7 +11,6 @@ use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\P10ProfileController;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
-use Modules\Auth\Support\P10SessionFamily;
 use Modules\Auth\Support\RefreshTokenService;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
@@ -25,10 +23,11 @@ class P10ProfileContractTest extends TestCase
 
     private const BASE = '/api/v1/auth/';
 
-    public function test_existing_routes_use_p10_and_no_avatar_or_receipt_route_is_invented(): void
+    public function test_existing_and_new_self_service_routes_use_authenticated_p10(): void
     {
         $this->assertInstanceOf(P10ProfileController::class, app(AuthController::class));
-        $wanted = ['me', 'logout', 'sessions', 'sessions/{id}', 'change-password'];
+        $wanted = ['me', 'logout', 'sessions', 'sessions/{id}', 'change-password',
+            'me/avatar', 'preferences', 'devices', 'devices/{id}', 'sessions/revoke-others'];
         $seen = [];
         foreach (Route::getRoutes() as $route) {
             $path = str_replace('api/v1/auth/', '', $route->uri());
@@ -37,7 +36,7 @@ class P10ProfileContractTest extends TestCase
                 $seen[$path] = true;
             }
         }
-        $this->assertCount(5, $seen);
+        $this->assertCount(10, $seen);
     }
 
     public function test_me_exposes_etag_canonical_context_and_explicit_unsupported_actions(): void
@@ -47,7 +46,7 @@ class P10ProfileContractTest extends TestCase
             ->assertJsonPath('data.user_id', $user->user_id)
             ->assertJsonPath('meta.profile_contract.ui_name_field', 'display_name')
             ->assertJsonPath('meta.profile_contract.nickname_supported', false)
-            ->assertJsonPath('meta.profile_contract.avatar.supported', false)
+            ->assertJsonPath('meta.profile_contract.avatar.supported', true)
             ->assertJsonPath('meta.profile_contract.request_reconciliation.supported', false);
         $this->assertSame('"'.$response->json('data.version').'"', $response->headers->get('ETag'));
         $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
@@ -187,12 +186,14 @@ class P10ProfileContractTest extends TestCase
             'status' => 'ACTIVE', 'version' => 1, 'must_change_password' => false]);
         $this->resetGuards();
         $response = $this->browserLogin($user->email, $secret)->assertOk();
+
         return [$user, $response->json('data.access_token'), $secret, $this->refreshTokenFromCookie($response)];
     }
 
     private function headers(string $token, ?int $version = null): array
     {
         $this->resetGuards();
+
         return ['Authorization' => 'Bearer '.$token] + ($version === null ? [] : ['If-Match' => '"'.$version.'"']);
     }
 

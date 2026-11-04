@@ -75,6 +75,7 @@ jobs:
             phpunit.pgsql.xml > .ci-phpunit.pgsql.xml
           vendor/bin/phpunit --configuration=.ci-phpunit.pgsql.xml \
             tests/Feature/AuthSessionPersistenceTest.php \
+            tests/Feature/ProfileSelfServiceTest.php \
             tests/Feature/SecurityRbacAuditNegativeTest.php \
             tests/Feature/StockDocumentConcurrencyGuardTest.php \
             tests/Feature/PostReceiptConcurrencyBehaviorTest.php \

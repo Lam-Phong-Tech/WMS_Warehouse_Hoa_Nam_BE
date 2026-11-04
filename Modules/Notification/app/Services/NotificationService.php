@@ -3,12 +3,17 @@
 namespace Modules\Notification\Services;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\ProfilePreferences;
 use Modules\Notification\Events\NotificationPushed;
+use Modules\Notification\Mail\ProfileNotificationMail;
 use Modules\Notification\Models\Notification;
 use Modules\Notification\Models\NotificationRecipient;
 use Modules\Notification\Support\EventSourceSnapshot;
+use Throwable;
 
 class NotificationService
 {
@@ -37,6 +42,25 @@ class NotificationService
         if ($userIds === []) {
             return null;
         }
+        $category = ProfilePreferences::category($eventKey, $sourceModule);
+        $inAppIds = [];
+        $emailRecipients = [];
+        $users = User::query()->whereIn('user_id', $userIds)->get(['user_id', 'email', 'status'])->keyBy('user_id');
+        foreach ($userIds as $userId) {
+            $channels = $category === null ? ['in_app' => true, 'email' => false]
+                : ProfilePreferences::read($userId)['notifications'][$category];
+            if ($category === 'account' || $channels['in_app']) {
+                $inAppIds[] = $userId;
+            }
+            $recipient = $users->get($userId);
+            if ($channels['email'] && $recipient !== null && $recipient->status === 'ACTIVE'
+                && filter_var($recipient->email, FILTER_VALIDATE_EMAIL)) {
+                $emailRecipients[] = $recipient->email;
+            }
+        }
+        if ($inAppIds === [] && $emailRecipients === []) {
+            return null;
+        }
 
         // Snapshot tên hiển thị NGAY tại thời điểm tạo thông báo (bảng append-only):
         // nếu sau này actor đổi tên hoặc bị xoá tài khoản, thông báo cũ vẫn giữ
@@ -58,7 +82,7 @@ class NotificationService
             $actorName = $sourceSnapshot['actor_name'] ?? null;
         }
         $notification = DB::transaction(function () use (
-            $eventKey, $title, $body, $userIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName, $sourceSnapshot
+            $eventKey, $title, $body, $inAppIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName, $sourceSnapshot
         ): Notification {
             $notification = Notification::create([
                 'id' => (string) Str::uuid(),
@@ -79,7 +103,7 @@ class NotificationService
                 DB::table('notification_source_snapshots')->insert(['notification_id' => $notification->id, ...$sourceSnapshot]);
             }
 
-            foreach ($userIds as $userId) {
+            foreach ($inAppIds as $userId) {
                 NotificationRecipient::create([
                     'id' => (string) Str::uuid(),
                     'notification_id' => $notification->id,
@@ -94,8 +118,21 @@ class NotificationService
 
         // Bắn broadcast NGOÀI transaction ghi DB: nếu broadcaster lỗi (Reverb down),
         // notification vẫn đã được ghi nhận bền vững và sẽ thấy được qua GET /notifications.
-        foreach ($userIds as $userId) {
+        foreach ($inAppIds as $userId) {
             event(new NotificationPushed($notification, $userId));
+        }
+        foreach ($emailRecipients as $email) {
+            // A transport/queue outage must not turn the committed notification or
+            // its originating stock operation into an apparent failed mutation.
+            DB::afterCommit(function () use ($email, $title, $body, $notification): void {
+                try {
+                    Mail::to($email)->queue(new ProfileNotificationMail($title, $body));
+                } catch (Throwable $error) {
+                    Log::warning('Notification email enqueue failed', [
+                        'notification_id' => (string) $notification->id, 'exception' => $error::class,
+                    ]);
+                }
+            });
         }
 
         return $notification;

@@ -7,9 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Modules\Auth\Events\AuthSessionReplaced;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
-use Modules\Auth\Events\AuthSessionReplaced;
 use Throwable;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -81,6 +81,9 @@ class RefreshTokenService
             }
             $record = RefreshToken::create([
                 'user_id' => $fresh->user_id, 'auth_session_id' => $family,
+                'auth_device_id' => ClientInstallations::forSession((string) $fresh->user_id, $request, $authSessionId),
+                'auth_session_started_at' => $authSessionId === null ? now('UTC')
+                    : P10SessionFamily::query((string) $fresh->user_id, $authSessionId)->whereNotNull('auth_session_started_at')->value('auth_session_started_at'),
                 'token_hash' => $this->hash($raw),
                 'user_agent' => Str::limit((string) $request->userAgent(), 250, ''),
                 'ip_address' => Str::limit((string) $request->ip(), 45, ''),
@@ -107,7 +110,7 @@ class RefreshTokenService
     {
         try {
             $sid = JWTAuth::parseToken()->getPayload()->get('sid');
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return null;
         }
 

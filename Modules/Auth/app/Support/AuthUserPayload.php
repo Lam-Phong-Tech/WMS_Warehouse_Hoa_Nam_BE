@@ -37,6 +37,11 @@ final class AuthUserPayload
             'created_at' => $user->created_at?->toIso8601String(),
             'updated_at' => $user->updated_at?->toIso8601String(),
             'version' => (int) $user->version,
+            'department' => $user->department === null ? null : [
+                'department_id' => $user->department->department_id, 'department_name' => $user->department->department_name,
+            ],
+            'business_profile' => UserBusinessProfile::read((string) $user->user_id),
+            'avatar' => ProfileAvatar::metadata((string) $user->user_id),
         ];
     }
 

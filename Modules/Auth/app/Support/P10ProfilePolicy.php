@@ -7,7 +7,7 @@ use InvalidArgumentException;
 /** Published constraints, not inferred UI permissions or new API operations. */
 final class P10ProfilePolicy
 {
-    public const EDITABLE = ['display_name', 'phone'];
+    public const EDITABLE = ['display_name', 'phone', 'email'];
 
     public static function version(string $header): int
     {
@@ -19,6 +19,7 @@ final class P10ProfilePolicy
         if ($value >= 2147483647) {
             throw new InvalidArgumentException('INVALID_VERSION');
         }
+
         return $value;
     }
 
@@ -43,7 +44,10 @@ final class P10ProfilePolicy
             'phone' => ['nullable' => true, 'pattern' => '^0[0-9]{9}$'],
             'if_match_required' => true,
             'etag_scope' => 'USER_VERSION_NOT_AUTHORIZATION_SNAPSHOT',
-            'avatar' => ['supported' => false, 'reason' => 'UPLOAD_COMMIT_ACL_RECEIPT_CONTRACT_NOT_LOCKED'],
+            'email' => ['nullable' => false, 'current_password_required_when_changed' => true, 'unique' => true],
+            'avatar' => ['supported' => true, 'max_bytes' => 2097152, 'mime_types' => ['image/png', 'image/jpeg', 'image/webp'],
+                'private_read' => 'GET /api/v1/auth/me/avatar', 'upload' => 'POST /api/v1/auth/me/avatar',
+                'atomic_profile_fields' => true, 'if_match_scope' => 'USER_VERSION', 'request_receipt_supported' => false],
             'ui_permission_groups' => ['status' => 'BA_MAPPING_REQUIRED', 'groups' => null],
             'authorization_source' => 'SERVER_ROLES_PERMISSIONS_WAREHOUSE_SCOPE',
             'request_reconciliation' => [

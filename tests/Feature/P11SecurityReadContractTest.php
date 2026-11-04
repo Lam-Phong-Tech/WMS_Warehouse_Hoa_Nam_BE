@@ -29,7 +29,7 @@ class P11SecurityReadContractTest extends TestCase
         $response = $this->getJson(self::BASE.'me', $this->headers($token))->assertOk()
             ->assertJsonPath('data.user_id', $user->user_id)
             ->assertJsonPath('data.password_changed_at', null)
-            ->assertJsonPath('meta.profile_contract.avatar.supported', false)
+            ->assertJsonPath('meta.profile_contract.avatar.supported', true)
             ->assertJsonPath('meta.security_contract.version', P11SecurityContract::VERSION)
             ->assertJsonPath('meta.security_contract.password_policy.min_length', 8)
             ->assertJsonPath('meta.security_contract.password_policy.confirmation_required', true)

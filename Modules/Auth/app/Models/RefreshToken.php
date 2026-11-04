@@ -20,6 +20,8 @@ class RefreshToken extends Model
     protected $fillable = [
         'user_id',
         'auth_session_id',
+        'auth_device_id',
+        'auth_session_started_at',
         'token_hash',
         'user_agent',
         'ip_address',
@@ -30,6 +32,7 @@ class RefreshToken extends Model
 
     protected $casts = [
         'expires_at' => 'datetime',
+        'auth_session_started_at' => 'datetime',
         'revoked_at' => 'datetime',
     ];
 

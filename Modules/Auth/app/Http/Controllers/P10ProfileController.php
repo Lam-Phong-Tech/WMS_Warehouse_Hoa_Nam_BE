@@ -4,26 +4,33 @@ namespace Modules\Auth\Http\Controllers;
 
 use App\Support\ApiError;
 use Closure;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\AuthUserPayload;
+use Modules\Auth\Support\ClientInstallations;
 use Modules\Auth\Support\P10ProfilePolicy as Policy;
 use Modules\Auth\Support\P10SessionFamily as Family;
 use Modules\Auth\Support\P11SecurityCommands;
 use Modules\Auth\Support\P11SecurityContract as SecurityContract;
+use Modules\Auth\Support\ProfileAvatar;
+use Modules\Auth\Support\ProfilePreferences;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
 use Throwable;
 
-/** Existing self-service routes only. Login/refresh/MFA behavior remains inherited. */
+/** Self-service profile and installation APIs; login/refresh/MFA remain inherited. */
 final class P10ProfileController extends AuthController
 {
     public function me(Request $request): JsonResponse
@@ -36,42 +43,226 @@ final class P10ProfileController extends AuthController
     public function updateMe(Request $request): JsonResponse
     {
         $this->noQuery($request);
-        $body = $this->body($request, Policy::EDITABLE, 'PROFILE_FIELD_NOT_EDITABLE');
+        $body = $this->body($request, [...Policy::EDITABLE, 'current_password'], 'PROFILE_FIELD_NOT_EDITABLE');
+
+        return $this->saveProfile($request, $this->profileFields($body), $this->expectedVersion($request));
+    }
+
+    private function profileFields(array $body): array
+    {
         if (isset($body['display_name']) && is_string($body['display_name'])) {
             $body['display_name'] = trim($body['display_name']);
         }
-        $data = Validator::make($body, [
+        if (isset($body['email']) && is_string($body['email'])) {
+            $body['email'] = strtolower(trim($body['email']));
+        }
+
+        return Validator::make($body, [
             'display_name' => ['sometimes', 'required', 'string', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:30', 'regex:/^0[0-9]{9}$/D'],
+            'email' => ['sometimes', 'required', 'string', 'email:rfc', 'max:200'],
+            'current_password' => ['sometimes', 'nullable', 'string', 'max:4096'],
         ])->validate();
-        if ($data === []) {
-            ApiError::abort(422, 'PROFILE_EMPTY_UPDATE', 'Không có trường nào để cập nhật.');
-        }
+    }
+
+    private function expectedVersion(Request $request): int
+    {
         $header = trim((string) $request->header('If-Match'));
         if ($header === '') {
-            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Gửi If-Match theo ETag của GET auth/me.');
+            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'Gửi If-Match theo ETag mới nhất.');
         }
         try {
-            $expected = Policy::version($header);
+            return Policy::version($header);
         } catch (\InvalidArgumentException) {
             ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là phiên bản số nguyên dương hoặc ETag tương ứng.');
         }
+    }
+
+    private function saveProfile(Request $request, array $data, int $expected, ?array $avatar = null, bool $removeAvatar = false): JsonResponse
+    {
+        if (array_diff(array_keys($data), ['current_password']) === [] && $avatar === null && ! $removeAvatar) {
+            ApiError::abort(422, 'PROFILE_EMPTY_UPDATE', 'Không có trường nào để cập nhật.');
+        }
+        try {
+            return DB::transaction(function () use ($request, $data, $expected, $avatar, $removeAvatar): JsonResponse {
+                $user = $this->actor($request, true);
+                if ((int) $user->version !== $expected) {
+                    ApiError::abort(412, 'STALE_VERSION', 'Hồ sơ đã thay đổi; đọc lại trước khi lưu.', [
+                        'expected_version' => $expected, 'current_version' => (int) $user->version,
+                    ]);
+                }
+                if (array_key_exists('email', $data)) {
+                    if (strtolower((string) $user->email) !== $data['email']
+                        && (! is_string($data['current_password'] ?? null) || ! Hash::check($data['current_password'], $user->password_hash))) {
+                        ApiError::abort(422, 'INVALID_CURRENT_PASSWORD', 'Nhập mật khẩu hiện tại để thay đổi email.',
+                            ['current_password' => ['Mật khẩu hiện tại không đúng hoặc chưa được nhập.']]);
+                    }
+                    Validator::make($data, ['email' => [Rule::unique('app_user', 'email')->ignore($user->user_id, 'user_id')]])->validate();
+                    if (User::withTrashed()->where('user_id', '!=', $user->user_id)->whereRaw('LOWER(email) = ?', [$data['email']])->exists()) {
+                        throw ValidationException::withMessages(['email' => ['Email đã được sử dụng.']]);
+                    }
+                }
+                unset($data['current_password']);
+                $user->forceFill([...$data, 'version' => $expected + 1])->save();
+                if ($avatar !== null) {
+                    DB::table('user_profile_avatars')->updateOrInsert(['user_id' => $user->user_id], [...$avatar, 'updated_at' => now('UTC')]);
+                } elseif ($removeAvatar) {
+                    DB::table('user_profile_avatars')->where('user_id', $user->user_id)->delete();
+                }
+                // Log changed field names only, not the customer's/employee's PII.
+                AuditLogger::record(action: 'UPDATE_PROFILE', objectType: 'app_user',
+                    objectId: (string) $user->user_id, actorId: (string) $user->user_id,
+                    requestId: $request->attributes->get('request_id'),
+                    afterData: ['changed_fields' => [...array_keys($data), ...($avatar !== null || $removeAvatar ? ['avatar'] : [])], 'version' => (int) $user->version]);
+
+                return $this->profile($user->fresh(), 'Cập nhật hồ sơ thành công');
+            }, 3);
+        } catch (QueryException $error) {
+            // Different users hold different parent locks; the unique index is the
+            // final arbiter when two email changes race after validation.
+            if (in_array((string) $error->getCode(), ['23000', '23505'], true)
+                && str_contains(strtolower($error->getMessage()), 'app_user')
+                && str_contains(strtolower($error->getMessage()), 'email')) {
+                throw ValidationException::withMessages(['email' => ['Email đã được sử dụng.']]);
+            }
+            throw $error;
+        }
+    }
+
+    public function uploadAvatar(Request $request): JsonResponse
+    {
+        $this->noQuery($request);
+        $body = $request->request->all();
+        if (array_diff(array_keys($body), [...Policy::EDITABLE, 'current_password']) !== []
+            || array_diff(array_keys($request->allFiles()), ['avatar']) !== []) {
+            ApiError::abort(422, 'PROFILE_FIELD_NOT_EDITABLE', 'Chỉ gửi ảnh và các trường hồ sơ được phép.');
+        }
+        $expected = $this->expectedVersion($request);
+        $data = $this->profileFields($body);
+        Validator::make($request->allFiles(), ['avatar' => ['required', 'file', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048']])->validate();
+
+        return $this->saveProfile($request, $data, $expected, ProfileAvatar::image($request->file('avatar')));
+    }
+
+    public function deleteAvatar(Request $request): JsonResponse
+    {
+        $this->noQuery($request);
+        $this->body($request, []);
+
+        return $this->saveProfile($request, [], $this->expectedVersion($request), removeAvatar: true);
+    }
+
+    public function avatar(Request $request): Response
+    {
+        $this->noQuery($request);
+        $user = $this->actor($request);
+        $row = DB::table('user_profile_avatars')->where('user_id', $user->user_id)->first();
+        if ($row === null) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Chưa có ảnh đại diện.');
+        }
+
+        return response(base64_decode($row->image_base64, true))->header('Content-Type', $row->mime_type)
+            ->header('Content-Length', (string) $row->size)->header('Cache-Control', 'private, no-store, no-transform')
+            ->header('X-Content-Type-Options', 'nosniff')->header('Content-Disposition', 'inline; filename="avatar"');
+    }
+
+    public function preferences(Request $request): JsonResponse
+    {
+        $this->noQuery($request);
+        $data = ProfilePreferences::read((string) $this->actor($request)->user_id);
+
+        return $this->respondSuccess($data)->header('ETag', '"'.$data['version'].'"')->header('Cache-Control', 'private, no-store');
+    }
+
+    public function updatePreferences(Request $request): JsonResponse
+    {
+        $this->noQuery($request);
+        $data = ProfilePreferences::validate($this->body($request, array_keys(ProfilePreferences::defaults()), 'PREFERENCE_FIELD_NOT_EDITABLE'));
+        $expected = $this->expectedVersion($request);
 
         return DB::transaction(function () use ($request, $data, $expected): JsonResponse {
             $user = $this->actor($request, true);
-            if ((int) $user->version !== $expected) {
-                ApiError::abort(412, 'STALE_VERSION', 'Hồ sơ đã thay đổi; đọc lại trước khi lưu.', [
-                    'expected_version' => $expected, 'current_version' => (int) $user->version,
-                ]);
-            }
-            $user->forceFill([...$data, 'version' => $expected + 1])->save();
-            // Log changed field names only, not the customer's/employee's PII.
-            AuditLogger::record(action: 'UPDATE_PROFILE', objectType: 'app_user',
-                objectId: (string) $user->user_id, actorId: (string) $user->user_id,
-                requestId: $request->attributes->get('request_id'),
-                afterData: ['changed_fields' => array_keys($data), 'version' => (int) $user->version]);
+            $saved = ProfilePreferences::put((string) $user->user_id, $data, $expected);
+            AuditLogger::record(action: 'UPDATE_PROFILE_PREFERENCES', objectType: 'app_user', objectId: (string) $user->user_id,
+                actorId: (string) $user->user_id, requestId: $request->attributes->get('request_id'),
+                afterData: ['changed_fields' => array_keys($data), 'version' => $saved['version']]);
 
-            return $this->profile($user->fresh(), 'Cập nhật hồ sơ thành công');
+            return $this->respondSuccess($saved)->header('ETag', '"'.$saved['version'].'"')->header('Cache-Control', 'private, no-store');
+        }, 3);
+    }
+
+    public function devices(Request $request): JsonResponse
+    {
+        $this->noQuery($request);
+
+        return DB::transaction(function () use ($request): JsonResponse {
+            $user = $this->actor($request, true);
+            $groups = ClientInstallations::groups((string) $user->user_id, Family::current($user, true));
+            $response = $this->respondSuccess($groups['data']);
+            $payload = $response->getData(true);
+            $payload['meta'] = [...($payload['meta'] ?? []), ...$groups['meta']];
+
+            return $response->setData($payload)->header('Cache-Control', 'private, no-store');
+        }, 3);
+    }
+
+    public function revokeDevice(Request $request, string $id): JsonResponse
+    {
+        $this->noQuery($request);
+        $this->body($request, []);
+        if (! Str::isUuid($id)) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy thiết bị.');
+        }
+
+        return DB::transaction(function () use ($request, $id): JsonResponse {
+            $user = $this->actor($request, true);
+            $device = DB::table('auth_client_installations')->where('user_id', $user->user_id)->where('id', $id)->first();
+            if ($device === null) {
+                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy thiết bị.');
+            }
+            $current = Family::current($user, true);
+            $rows = ClientInstallations::activeFamilies((string) $user->user_id)->where('auth_device_id', $id);
+            foreach ($rows as $row) {
+                if (hash_equals($current, Policy::family($row->auth_session_id, (string) $row->id))) {
+                    ApiError::abort(409, 'CURRENT_DEVICE_PROTECTED', 'Không thể thu hồi thiết bị có phiên hiện tại.');
+                }
+            }
+            foreach ($rows as $row) {
+                Family::revoke((string) $user->user_id, Policy::family($row->auth_session_id, (string) $row->id));
+            }
+            if ($rows->isNotEmpty()) {
+                AuditLogger::record(action: 'REVOKE_DEVICE', objectType: 'auth_client_installation', objectId: $id,
+                    actorId: (string) $user->user_id, requestId: $request->attributes->get('request_id'), afterData: ['revoked_session_count' => $rows->count()]);
+            }
+
+            return $this->respondSuccess(['device_id' => $id, 'revoked' => true, 'revoked_session_count' => $rows->count(),
+                'already_revoked' => $rows->isEmpty(), 'was_current' => false, 'request_receipt_supported' => false])->header('Cache-Control', 'private, no-store');
+        }, 3);
+    }
+
+    public function revokeOtherSessions(Request $request): JsonResponse
+    {
+        $this->noQuery($request);
+        $this->body($request, []);
+
+        return DB::transaction(function () use ($request): JsonResponse {
+            $user = $this->actor($request, true);
+            $current = Family::current($user, true);
+            $count = 0;
+            foreach (ClientInstallations::activeFamilies((string) $user->user_id) as $row) {
+                $family = Policy::family($row->auth_session_id, (string) $row->id);
+                if (! hash_equals($current, $family)) {
+                    Family::revoke((string) $user->user_id, $family);
+                    $count++;
+                }
+            }
+            if ($count > 0) {
+                AuditLogger::record(action: 'REVOKE_OTHER_SESSIONS', objectType: 'app_user', objectId: (string) $user->user_id,
+                    actorId: (string) $user->user_id, requestId: $request->attributes->get('request_id'), afterData: ['revoked_session_count' => $count]);
+            }
+
+            return $this->respondSuccess(['revoked' => true, 'revoked_session_count' => $count,
+                'preserved_session_id' => $current, 'request_receipt_supported' => false])->header('Cache-Control', 'private, no-store');
         }, 3);
     }
 
@@ -89,26 +280,15 @@ final class P10ProfileController extends AuthController
             // Count/page only the caller's active families. The target id stays the
             // existing refresh-row UUID; auth_session_id is the stable login family.
             $ranked = RefreshToken::query()->where('user_id', $user->user_id)->active()
-                ->select(['id', 'auth_session_id', 'user_agent', 'ip_address', 'created_at', 'expires_at'])
+                ->select(['id', 'auth_session_id', 'auth_device_id', 'auth_session_started_at', 'user_agent', 'ip_address', 'created_at', 'expires_at'])
                 ->selectRaw('ROW_NUMBER() OVER (PARTITION BY COALESCE(auth_session_id, id) ORDER BY created_at DESC, id DESC) AS p10_rank');
             $page = DB::query()->fromSub($ranked, 'p10_sessions')->where('p10_rank', 1)
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->paginate((int) ($input['per_page'] ?? 20), ['*'], 'page', (int) ($input['page'] ?? 1));
-            $page->setCollection($page->getCollection()->map(function (object $row) use ($current): array {
-                $family = Policy::family($row->auth_session_id, (string) $row->id);
-                $isCurrent = hash_equals($current, $family);
+            $page->setCollection($page->getCollection()->map(function (object $row) use ($current, $user): array {
+                $device = $row->auth_device_id === null ? null : DB::table('auth_client_installations')->where('user_id', $user->user_id)->where('id', $row->auth_device_id)->first();
 
-                return [
-                    'id' => (string) $row->id, 'auth_session_id' => $family,
-                    'session_id' => $family,
-                    'is_current' => $isCurrent, 'can_revoke' => ! $isCurrent,
-                    'device_label' => null, 'location' => null,
-                    'user_agent' => $row->user_agent, 'ip_address' => $row->ip_address,
-                    'metadata_source' => 'STORED_REQUEST_HEADERS_NOT_VERIFIED_DEVICE_OR_LOCATION',
-                    'last_active_at' => $row->created_at === null ? null : Carbon::parse($row->created_at)->toIso8601String(),
-                    'last_active_semantics' => 'LOGIN_OR_TOKEN_REFRESH_NOT_EACH_API_REQUEST',
-                    'expires_at' => $row->expires_at === null ? null : Carbon::parse($row->expires_at)->toIso8601String(),
-                ];
+                return ClientInstallations::session($row, $current, $device);
             }));
             $response = $this->respondPaginated($page);
             $payload = $response->getData(true);

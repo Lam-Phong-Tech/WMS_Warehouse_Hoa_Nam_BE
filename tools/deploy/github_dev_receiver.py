@@ -14,6 +14,7 @@ import os
 import pathlib
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -131,7 +132,113 @@ def deploy_frontend(base, release, sha):
 def migration_files(release):
     paths = list((release / "database" / "migrations").glob("*.php"))
     paths += list((release / "Modules").glob("*/database/migrations/*.php"))
-    return {str(path.relative_to(release)): sha256(path) for path in paths}
+    return {path.relative_to(release).as_posix(): sha256(path) for path in paths}
+
+
+def check_reviewed_path_stat(path, result, *, directory):
+    expected_kind = stat.S_ISDIR if directory else stat.S_ISREG
+    if not expected_kind(result.st_mode) or result.st_uid != 0:
+        raise ValueError(f"Reviewed migration receipt path must be root-owned and trusted: {path}")
+    mode = stat.S_IMODE(result.st_mode)
+    if (directory and mode & 0o022) or (not directory and (mode != 0o600 or result.st_nlink != 1)):
+        raise ValueError(f"Reviewed migration receipt path has untrusted permissions or links: {path}")
+    return result
+
+
+def trusted_reviewed_path_stat(path, *, directory):
+    return check_reviewed_path_stat(path, path.lstat(), directory=directory)
+
+
+def reviewed_file_stat(fd):
+    return os.fstat(fd)
+
+
+def unique_receipt_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Reviewed migration receipt contains duplicate JSON keys")
+        result[key] = value
+    return result
+
+
+def read_reviewed_migration_receipt(base, sha):
+    # Only the fixed operations directory OUTSIDE the incoming artifact is trusted.
+    # Validate every ancestor: a secure file under an attacker-writable parent is
+    # insufficient. Never follow receipt/directory symlinks or accept hardlinks.
+    if not base.is_absolute() or '..' in base.parts or not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise ValueError("Invalid reviewed migration receipt path or release identity")
+    path = base / "operations" / "reviewed-migrations" / (sha + ".json")
+    fd = None
+    try:
+        for parent in reversed(path.parents):
+            trusted_reviewed_path_stat(parent, directory=True)
+        expected = trusted_reviewed_path_stat(path, directory=False)
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0)
+        fd = os.open(path, flags)
+        opened = check_reviewed_path_stat(path, reviewed_file_stat(fd), directory=False)
+        if (expected.st_dev, expected.st_ino) != (opened.st_dev, opened.st_ino):
+            raise ValueError("Reviewed migration receipt file identity changed during open")
+        with os.fdopen(fd, "rb") as source:
+            fd = None
+            raw = source.read(65537)
+        if len(raw) > 65536:
+            raise ValueError("Reviewed migration receipt exceeds size limit")
+        receipt = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_receipt_object)
+        return receipt, hashlib.sha256(raw).hexdigest()
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("Missing or unreadable trusted reviewed migration receipt") from error
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
+def release_build_sha(release, label):
+    try:
+        marker = release / ".ci-source-sha"
+        if not stat.S_ISREG(marker.lstat().st_mode):
+            raise ValueError(f"Invalid {label} release build identity")
+        value = marker.read_text().strip()
+    except OSError as error:
+        raise ValueError(f"Missing {label} release build identity") from error
+    if not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise ValueError(f"Invalid {label} release build identity")
+    return value
+
+
+def verify_reviewed_additive_migrations(base, old, release, sha):
+    previous = migration_files(old)
+    incoming = migration_files(release)
+    if previous == incoming:
+        return None
+    # A receipt can only acknowledge newly added, independently reviewed files.
+    # Editing/removing even one historical migration is never approved here.
+    if any(incoming.get(path) != digest for path, digest in previous.items()):
+        raise ValueError("Existing migrations changed or removed; separate database release required")
+    additions = {path: digest for path, digest in incoming.items() if path not in previous}
+    receipt, receipt_digest = read_reviewed_migration_receipt(base, sha)
+    keys = {"schema", "release_sha", "base_sha", "base_release", "status", "added_migrations", "applied_at", "verification"}
+    if not isinstance(receipt, dict) or set(receipt) != keys:
+        raise ValueError("Reviewed migration receipt schema does not match")
+    if (receipt["schema"] != "hoanam-reviewed-additive-migrations-v1"
+            or receipt["release_sha"] != sha or release_build_sha(release, "incoming") != sha
+            or receipt["base_sha"] != release_build_sha(old, "base")
+            or receipt["base_release"] != str(old.resolve(strict=True))):
+        raise ValueError("Reviewed migration receipt release/base identity mismatch")
+    if (receipt["status"] != "APPLIED" or receipt["verification"] != "MANUAL_MIGRATION_SUCCEEDED"
+            or receipt["added_migrations"] != additions):
+        raise ValueError("Reviewed migration receipt does not acknowledge the exact applied additions")
+    try:
+        if not isinstance(receipt["applied_at"], str):
+            raise ValueError("Invalid timestamp type")
+        applied = datetime.datetime.fromisoformat(receipt["applied_at"].replace("Z", "+00:00"))
+        if (applied.tzinfo is None or applied.utcoffset() != datetime.timedelta(0)
+                or applied > datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5)):
+            raise ValueError("Invalid applied timestamp")
+    except (ValueError, TypeError) as error:
+        raise ValueError("Reviewed migration receipt requires a valid past UTC applied_at") from error
+    return {"receipt_sha256": receipt_digest, "release_sha": sha, "base_sha": receipt["base_sha"],
+            "added_migrations": additions, "applied_at": receipt["applied_at"]}
 
 
 def compose(model, *args):
@@ -183,8 +290,7 @@ def deploy_backend(base, release, sha):
     old = old_paths.pop().resolve(strict=True)
     if sha256(release / "composer.lock") != sha256(old / "composer.lock"):
         raise ValueError("composer.lock changed; vendor volume needs a separate reviewed release")
-    if migration_files(release) != migration_files(old):
-        raise ValueError("Migrations changed; database release needs a separate reviewed migration")
+    migration_review = verify_reviewed_additive_migrations(base, old, release, sha)
     if (old / "public" / "build").exists() and not (release / "public" / "build").exists():
         shutil.copytree(old / "public" / "build", release / "public" / "build")
     (release / ".env").touch()
@@ -223,7 +329,8 @@ def deploy_backend(base, release, sha):
         wait_backend(sha)
         report = {"component": "be", "sha": sha, "release": str(release),
                   "previous_release": str(old), "backup": str(backup),
-                  "health": "ok", "migration_run": False, "seed_run": False}
+                  "health": "ok", "migration_run": False, "seed_run": False,
+                  "reviewed_migration_receipt": migration_review}
         (backup / "deployment.json").write_text(json.dumps(report, indent=2) + "\n")
         return report
     except Exception:
