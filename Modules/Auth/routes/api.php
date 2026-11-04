@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\DepartmentController;
 use Modules\Auth\Http\Controllers\MfaController;
+use Modules\Auth\Http\Controllers\P10ProfileController;
 use Modules\Auth\Http\Controllers\PasswordResetController;
 use Modules\Auth\Http\Controllers\PermissionController;
 use Modules\Auth\Http\Controllers\RoleController;
@@ -48,6 +49,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('auth/preferences', [AuthController::class, 'preferences']);
         Route::patch('auth/preferences', [AuthController::class, 'updatePreferences']);
         Route::get('auth/devices', [AuthController::class, 'devices']);
+        Route::get('auth/device-history', [P10ProfileController::class, 'deviceHistory']);
         Route::delete('auth/devices/{id}', [AuthController::class, 'revokeDevice']);
         Route::post('auth/sessions/revoke-others', [AuthController::class, 'revokeOtherSessions']);
         Route::post('auth/change-password', [AuthController::class, 'changePassword'])

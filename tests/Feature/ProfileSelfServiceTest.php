@@ -173,6 +173,54 @@ class ProfileSelfServiceTest extends TestCase
         $this->assertSame(1, RefreshToken::where('user_id', $user->user_id)->active()->count());
     }
 
+    public function test_login_history_keeps_replaced_phone_and_separates_login_families(): void
+    {
+        config()->set('refresh_token.single_active_session.enabled', true);
+        [$user] = $this->identity();
+        [$foreign] = $this->identity();
+        $service = app(RefreshTokenService::class);
+        $phone = Request::create('/');
+        $phone->headers->add(['X-Device-Id' => (string) Str::uuid(), 'X-Device-Label' => 'Phone Chrome',
+            'X-Client-Type' => 'web', 'X-Client-Platform' => 'Android', 'User-Agent' => 'Chrome/140 Mobile Android']);
+        $login = $service->issueSession($user, $phone);
+        $rotated = $service->rotate($login['raw'], $phone);
+        $phoneToken = $service->accessTokenFor($user, $rotated['id']);
+        $this->getJson('/api/v1/auth/device-history', $this->headers($phoneToken))->assertOk()->assertJsonCount(0, 'data');
+        $this->travel(1)->minutes();
+        [$current] = $this->makeSession($user, (string) Str::uuid());
+        [$otherToken] = $this->makeSession($foreign, (string) Str::uuid());
+        $history = $this->getJson('/api/v1/auth/device-history?per_page=1', $this->headers($current))->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.device_label', 'Phone Chrome')
+            ->assertJsonPath('data.0.status', 'SIGNED_OUT')->assertJsonPath('data.0.can_revoke', false)
+            ->assertJsonPath('data.0.is_current', false)->assertJsonPath('data.0.platform', 'Android');
+        $this->assertNotNull($history->json('data.0.started_at'));
+        $this->assertNotNull($history->json('data.0.ended_at'));
+        $this->assertArrayNotHasKey('token_hash', $history->json('data.0'));
+        $this->assertStringNotContainsString($login['raw'], $history->getContent());
+        $this->getJson('/api/v1/auth/device-history', $this->headers($otherToken))->assertOk()->assertJsonCount(0, 'data');
+        $service->issueSession($user, $phone);
+        $this->travel(1)->minutes();
+        [$current] = $this->makeSession($user, (string) Str::uuid());
+        $this->getJson('/api/v1/auth/device-history?per_page=1&page=2', $this->headers($current))->assertOk()
+            ->assertJsonPath('meta.total', 3)->assertJsonPath('meta.current_page', 2)->assertJsonCount(1, 'data');
+        $this->getJson('/api/v1/auth/devices', $this->headers($current))->assertOk()->assertJsonPath('meta.active_session_count', 1);
+    }
+
+    public function test_login_history_includes_expiry_and_rejects_foreign_filters(): void
+    {
+        config()->set('refresh_token.single_active_session.enabled', false);
+        [$user] = $this->identity();
+        [, $expired] = $this->makeSession($user);
+        RefreshToken::whereKey($expired['id'])->update(['expires_at' => now()->subMinute()]);
+        [$current] = $this->makeSession($user);
+        $this->getJson('/api/v1/auth/device-history', $this->headers($current))->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.status', 'EXPIRED')
+            ->assertJsonPath('data.0.can_revoke', false);
+        $this->getJson('/api/v1/auth/device-history?user_id=someone', $this->headers($current))->assertUnprocessable();
+        $this->getJson('/api/v1/auth/device-history?per_page=101', $this->headers($current))->assertUnprocessable();
+        $this->getJson('/api/v1/auth/device-history', $this->headers(''))->assertUnauthorized();
+    }
+
     public function test_photo_profile_failure_is_atomic_and_other_users_cannot_read_it(): void
     {
         [$user] = $this->identity();

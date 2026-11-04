@@ -206,6 +206,42 @@ final class P10ProfileController extends AuthController
         }, 3);
     }
 
+    /** Read-only ended login families; active device inventory remains unchanged. */
+    public function deviceHistory(Request $request): JsonResponse
+    {
+        $this->noQuery($request, ['page', 'per_page']);
+        $input = Validator::make($request->query(), [
+            'page' => ['sometimes', 'integer', 'min:1', 'max:100000'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ])->validate();
+
+        return DB::transaction(function () use ($request, $input): JsonResponse {
+            $user = $this->actor($request, true);
+            // Rank ALL rows before testing inactivity: a revoked rotation ancestor
+            // must never make a still-active login appear signed out. Prefer an
+            // unrevoked descendant even when timestamps tie within one second.
+            $ranked = RefreshToken::query()->where('user_id', $user->user_id)
+                ->select(['id', 'auth_session_id', 'auth_device_id', 'auth_session_started_at', 'user_agent', 'ip_address', 'created_at', 'expires_at', 'revoked_at'])
+                ->selectRaw('ROW_NUMBER() OVER (PARTITION BY COALESCE(auth_session_id, id) ORDER BY CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END, created_at DESC, expires_at DESC, id DESC) AS history_rank');
+            $page = DB::query()->fromSub($ranked, 'login_history')->where('history_rank', 1)
+                ->where(fn ($query) => $query->whereNotNull('revoked_at')->orWhere('expires_at', '<=', now()))
+                ->orderByDesc('created_at')->orderByDesc('id')
+                ->paginate((int) ($input['per_page'] ?? 6), ['*'], 'page', (int) ($input['page'] ?? 1));
+            $devices = DB::table('auth_client_installations')->where('user_id', $user->user_id)
+                ->whereIn('id', $page->getCollection()->pluck('auth_device_id')->filter())->get()->keyBy('id');
+            $page->setCollection($page->getCollection()->map(function (object $row) use ($devices): array {
+                $expiredFirst = $row->revoked_at === null || Carbon::parse($row->expires_at)->lte(Carbon::parse($row->revoked_at));
+
+                return [...ClientInstallations::session($row, '', $devices->get($row->auth_device_id)),
+                    'is_current' => false, 'can_revoke' => false,
+                    'status' => $expiredFirst ? 'EXPIRED' : 'SIGNED_OUT',
+                    'ended_at' => ClientInstallations::time($expiredFirst ? $row->expires_at : $row->revoked_at)];
+            }));
+
+            return $this->respondPaginated($page)->header('Cache-Control', 'private, no-store');
+        }, 3);
+    }
+
     public function revokeDevice(Request $request, string $id): JsonResponse
     {
         $this->noQuery($request);
