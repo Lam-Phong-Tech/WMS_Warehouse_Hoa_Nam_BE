@@ -78,6 +78,12 @@ class OutboundNfcReadTest extends TestCase
             'line_id' => $created['line_ids'][0], 'quantity' => 1, 'item_id' => $itemId,
         ], $headers + ['If-Match' => '1'])->assertOk();
 
+        // Looking up an untagged product is valid and must not fail while
+        // joining the PostgreSQL audit compatibility view.
+        $this->getJson("/api/v1/outbound-documents/{$documentId}/items/{$itemId}/nfc-history?page=1&per_page=10", $headers)
+            ->assertOk()->assertJsonPath('meta.total', 0)
+            ->assertJsonCount(0, 'data');
+
         $this->seedNfcTag($itemId, 'INACTIVE');
         $this->seedNfcTag($itemId);
         $tags = DB::table('physical_codes')->where('carrier_type', 'NFC')

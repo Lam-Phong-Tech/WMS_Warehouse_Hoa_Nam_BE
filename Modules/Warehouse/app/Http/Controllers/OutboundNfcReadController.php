@@ -175,7 +175,10 @@ class OutboundNfcReadController extends Controller
         $perPage = (int) ($input['per_page'] ?? 20);
         $page = (int) ($input['page'] ?? 1);
         $events = DB::table((new AuditLog)->getTable().' as a')
-            ->join('physical_codes as pc', 'pc.physical_code_id', '=', 'a.object_id')
+            // audit_log is a compatibility VIEW on PostgreSQL: object_id is
+            // text, while physical_code_id is UUID. Cast the trusted UUID to
+            // text; casting audit IDs to UUID would fail on other audit types.
+            ->join('physical_codes as pc', DB::raw('CAST(pc.physical_code_id AS VARCHAR(150))'), '=', 'a.object_id')
             ->leftJoin('app_user as u', 'u.user_id', '=', 'a.actor_id')
             ->where('a.object_type', 'physical_code')->whereIn('a.object_id', $tagIds)
             ->whereIn('a.action', ['ASSIGN_ITEM_NFC', 'REVOKE_ITEM_NFC'])
