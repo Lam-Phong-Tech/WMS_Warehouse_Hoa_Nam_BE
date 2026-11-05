@@ -115,6 +115,17 @@ class Rpt05PackingLabelExportFilterParityTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_failed_explicit_reprint_matches_action_and_status_on_the_same_attempt(): void
+    {
+        $label = $this->createLabel('PX-RPT05-EXPLICIT', 'PKL-RPT05-EXPLICIT', 'PRINT_FAILED');
+        $this->createPrintEvent($label, 'PRINTED', $this->printerA);
+        $this->createPrintEvent($label, 'FAILED', $this->printerB, 'PRINTER_UNAVAILABLE');
+        DB::table('label_print_events')->where('label_snapshot_id', $label)->where('status', 'FAILED')->update(['event_type' => 'REPRINT']);
+        $this->assertLabelCodes(['PKL-RPT05-EXPLICIT'], $this->rows('&action=REPRINT&status=PRINT_FAILED'));
+        $this->assertLabelCodes(['PKL-RPT05-03'], $this->rows('&action=PRINT&status=PRINT_FAILED'));
+        $this->assertLabelCodes([], $this->rows('&action=REPRINT&status=PRINT_FAILED&printer_id='.$this->printerA));
+    }
+
     // ── status: kết quả LẦN IN, không phải vòng đời của NHÃN ─
 
     /**
@@ -136,6 +147,19 @@ class Rpt05PackingLabelExportFilterParityTest extends TestCase
         );
     }
 
+    public function test_combined_status_printer_and_actor_filters_must_match_the_same_attempt(): void
+    {
+        $other = User::create(['username' => 'rpt05-other', 'display_name' => 'Other operator',
+            'password_hash' => 'unused-fixture-hash', 'status' => 'ACTIVE', 'version' => 1]);
+        DB::table('label_print_events')->where('label_snapshot_id', $this->failedThenPrinted)->where('status', 'PRINTED')
+            ->update(['printer_config_id' => $this->printerA, 'created_by' => $other->user_id]);
+        $this->assertLabelCodes([], $this->rows('&status=PRINT_FAILED&printer_id='.$this->printerA));
+        $this->assertLabelCodes([], $this->rows('&status=PRINT_FAILED&actor_id='.$other->user_id));
+        $this->assertLabelCodes(['PKL-RPT05-03'], $this->rows('&status=PRINT_FAILED&printer_id='.$this->printerB.'&actor_id='.$this->user->user_id));
+        $this->assertLabelCodes([], $this->rows('&status=PRINT_FAILED&keyword=Zebra'));
+        $this->assertLabelCodes(['PKL-RPT05-03'], $this->rows('&status=PRINT_FAILED&keyword=TSC'));
+    }
+
     // ── keyword: cùng phạm vi với ô tìm kiếm của màn hình ────
 
     public function test_keyword_matches_the_label_code_shown_on_screen(): void
@@ -152,6 +176,20 @@ class Rpt05PackingLabelExportFilterParityTest extends TestCase
     public function test_keyword_matches_the_printer_error_code(): void
     {
         $this->assertLabelCodes(['PKL-RPT05-03'], $this->rows('&keyword=OUT_OF_PAPER'));
+    }
+
+    public function test_keyword_matches_snapshot_sku_summary_in_both_array_and_legacy_string_formats(): void
+    {
+        foreach ([
+            'DCJZ23-10i' => [['sku_code' => 'DCJZ23-10i', 'quantity' => 2]],
+            'LEGACY-SKU-100' => 'LEGACY-SKU-100 x2',
+        ] as $keyword => $summary) {
+            DB::table('label_snapshots')->where('id', $this->reprinted)->update(['label_payload' => json_encode([
+                'label_code' => 'PKL-RPT05-02', 'sku_summary' => $summary,
+            ])]);
+            $this->assertLabelCodes(['PKL-RPT05-02'], $this->rows('&keyword='.$keyword));
+        }
+        $this->assertLabelCodes([], $this->rows('&keyword=NONEXISTENT-SKU'));
     }
 
     public function test_keyword_still_matches_the_outbound_document_number(): void

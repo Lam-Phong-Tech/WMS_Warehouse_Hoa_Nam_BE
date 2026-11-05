@@ -49,7 +49,7 @@ class AlignedLabelLogReportController extends Controller
         return WarrantyPiiMasker::phone($phone);
     }
 
-    #[OA\Get(path: '/api/v1/reports/label-log', operationId: 'report_label_log', summary: 'RPT-LABEL-01 nhật ký nhãn Packing Label', description: '§13.10 RPT-LABEL-01: label/outbound/printer/result/reprint count + tóm tắt SKU/số lượng. Cardinality hiện hành là đúng 01 Packing Label cho mỗi phiếu/lô xuất; mọi action in đều stock-neutral.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', description: 'Kết quả in — lọc nhãn CÓ ÍT NHẤT MỘT lần in mang kết quả này', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'action', in: 'query', description: 'Thao tác in — PRINT: nhãn đã in ít nhất một lần; REPRINT: nhãn có lần in thành công thứ hai trở đi', schema: new OA\Schema(type: 'string', enum: ['PRINT', 'REPRINT'])), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'actor_id', in: 'query', description: 'Người thực hiện lần in', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'Nhật ký nhãn')])]
+    #[OA\Get(path: '/api/v1/reports/label-log', operationId: 'report_label_log', summary: 'RPT-LABEL-01 nhật ký nhãn Packing Label', description: '§13.10 RPT-LABEL-01: label/outbound/printer/result/reprint count + tóm tắt SKU/số lượng. Cardinality hiện hành là đúng 01 Packing Label cho mỗi phiếu/lô xuất; mọi action in đều stock-neutral.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'status', in: 'query', description: 'Kết quả in — lọc nhãn CÓ ÍT NHẤT MỘT lần in mang kết quả này', schema: new OA\Schema(type: 'string', enum: ['PENDING_PRINT', 'PRINTED', 'PRINT_FAILED'])), new OA\Parameter(name: 'action', in: 'query', description: 'Thao tác lần in — khớp cùng lần in với kết quả, máy in và người in; REPRINT gồm lần in lại tường minh và lịch sử suy từ lần thành công trước', schema: new OA\Schema(type: 'string', enum: ['PRINT', 'REPRINT'])), new OA\Parameter(name: 'printer_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'actor_id', in: 'query', description: 'Người thực hiện lần in', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'Nhật ký nhãn')])]
     public function index(Request $request)
     {
         $report = $this->build($request);
@@ -180,43 +180,14 @@ class AlignedLabelLogReportController extends Controller
                 'pa.total_attempts', 'pa.failed_count', 'pa.printed_count'
             );
 
-        // Ba bộ lọc dưới đây hỏi CÙNG một câu: "nhãn này có lần in nào khớp không?".
-        // Đó là cách duy nhất diễn đạt bộ lọc per-event của màn RPT-05 trên một báo
-        // cáo per-nhãn (§13.10 RPT-LABEL-01) — xem ghi chú hợp đồng ở đầu build().
-        $hasAttempt = function (callable $constrain) use ($query): void {
-            $query->whereExists(function ($sub) use ($constrain): void {
+        // A filtered screen row is one attempt: status, printer and actor must all
+        // match that same attempt, even though export aggregates one row per label.
+        if (! empty($validated['status']) || ! empty($validated['printer_id']) || ! empty($validated['actor_id']) || ! empty($validated['action'])) {
+            $query->whereExists(function ($sub) use ($validated): void {
                 $sub->selectRaw('1')->from('label_print_events as lpe')
                     ->whereColumn('lpe.label_snapshot_id', 'ls.id');
-                $constrain($sub);
+                $this->constrainAttempt($sub, $validated, 'lpe');
             });
-        };
-
-        if (! empty($validated['status'])) {
-            // Trước đây lọc `ls.status` — vòng đời của NHÃN, không phải kết quả của
-            // LẦN IN mà màn hình đang lọc. Nhãn in lỗi rồi in lại thành công có
-            // ls.status = PRINTED nên biến mất khỏi file khi người dùng chọn "In lỗi",
-            // dù lần in lỗi đó vẫn nằm nguyên trên màn hình. Chấp cả hai bộ từ vựng vì
-            // trigger PostgreSQL chuẩn hoá status sự kiện in về bộ ERD — cùng lý do
-            // failed_count phải đếm cả 'PRINT_FAILED' lẫn 'FAILED'.
-            $statuses = self::EVENT_STATUS_VOCABULARY[$validated['status']];
-            $hasAttempt(fn ($sub) => $sub->whereIn('lpe.status', $statuses));
-        }
-        if (! empty($validated['action'])) {
-            // In lại = lần in THÀNH CÔNG thứ hai trở đi của cùng một nhãn (đúng định
-            // nghĩa reprint_count ở dưới, và đúng thứ FE suy ra cho cột "Thao tác").
-            // Lần in đầu của một nhãn luôn là Print ⇒ "chỉ In" ở mức nhãn nghĩa là
-            // nhãn đã có ít nhất một lần in.
-            $query->whereRaw($validated['action'] === 'REPRINT'
-                ? 'COALESCE(pa.printed_count, 0) >= 2'
-                : 'COALESCE(pa.total_attempts, 0) >= 1');
-        }
-        if (! empty($validated['printer_id'])) {
-            $printerId = $validated['printer_id'];
-            $hasAttempt(fn ($sub) => $sub->where('lpe.printer_config_id', $printerId));
-        }
-        if (! empty($validated['actor_id'])) {
-            $actorId = $validated['actor_id'];
-            $hasAttempt(fn ($sub) => $sub->where('lpe.created_by', $actorId));
         }
         if (! empty($validated['keyword'])) {
             $keyword = '%'.trim((string) $validated['keyword']).'%';
@@ -226,16 +197,20 @@ class AlignedLabelLogReportController extends Controller
             $labelCode = $driver === 'pgsql'
                 ? "ls.label_payload::jsonb ->> 'label_code'"
                 : "json_extract(ls.label_payload, '\$.label_code')";
-            $query->where(function ($sub) use ($keyword, $operator, $labelCode): void {
+            $skuSummary = $driver === 'pgsql'
+                ? "CAST(ls.label_payload::jsonb -> 'sku_summary' AS TEXT)"
+                : "CAST(json_extract(ls.label_payload, '\$.sku_summary') AS TEXT)";
+            $query->where(function ($sub) use ($keyword, $operator, $labelCode, $skuSummary, $validated): void {
                 $sub->where('sd.doc_no', $operator, $keyword)
                     ->orWhere('sd.recipient_name', $operator, $keyword)
                     ->orWhere('ag.agency_name', $operator, $keyword)
                     ->orWhereRaw("{$labelCode} {$operator} ?", [$keyword])
+                    ->orWhereRaw("{$skuSummary} {$operator} ?", [$keyword])
                     ->orWhereRaw("CAST(ls.id AS TEXT) {$operator} ?", [$keyword])
                     // Ô tìm kiếm của màn hình soi cả mã nhãn, máy in, người in và mã
                     // lỗi. Bốn thứ sau chỉ có ở bảng sự kiện / danh mục, nên trước bản
                     // vá này gõ tên máy in rồi bấm Xuất ra file KHÔNG lọc gì cả.
-                    ->orWhereExists(function ($inner) use ($keyword, $operator): void {
+                    ->orWhereExists(function ($inner) use ($keyword, $operator, $validated): void {
                         $inner->selectRaw('1')->from('label_print_events as lpe2')
                             ->leftJoin('printer_configs as pc2', 'pc2.id', '=', 'lpe2.printer_config_id')
                             ->leftJoin('app_user as au2', 'au2.user_id', '=', 'lpe2.created_by')
@@ -247,6 +222,7 @@ class AlignedLabelLogReportController extends Controller
                                     ->orWhere('au2.username', $operator, $keyword)
                                     ->orWhere('lpe2.error_code', $operator, $keyword);
                             });
+                        $this->constrainAttempt($inner, $validated, 'lpe2');
                     });
             });
         }
@@ -317,6 +293,34 @@ class AlignedLabelLogReportController extends Controller
             ],
             'rows' => $rows,
         ];
+    }
+
+    /** Keep event filters and event-specific keyword matches on one screen row. */
+    private function constrainAttempt($query, array $filters, string $alias): void
+    {
+        if (! empty($filters['status'])) {
+            $query->whereIn($alias.'.status', self::EVENT_STATUS_VOCABULARY[$filters['status']]);
+        }
+        if (! empty($filters['printer_id'])) {
+            $query->where($alias.'.printer_config_id', $filters['printer_id']);
+        }
+        if (! empty($filters['actor_id'])) {
+            $query->where($alias.'.created_by', $filters['actor_id']);
+        }
+        if (! empty($filters['action'])) {
+            // Legacy writers left event_type=PRINT on reprints. Match the screen:
+            // explicit REPRINT wins; otherwise infer from chronological successes.
+            $currentTime = "COALESCE({$alias}.requested_at, {$alias}.printed_at, {$alias}.created_at)";
+            $priorTime = 'COALESCE(previous_print.requested_at, previous_print.printed_at, previous_print.created_at)';
+            $reprint = "(COALESCE({$alias}.event_type, 'PRINT') = 'REPRINT' OR
+                (SELECT COUNT(*) FROM label_print_events AS previous_print
+                  WHERE previous_print.label_snapshot_id = {$alias}.label_snapshot_id
+                    AND previous_print.status = 'PRINTED'
+                    AND ({$priorTime}, COALESCE(previous_print.attempt_no, 0), previous_print.id)
+                        < ({$currentTime}, COALESCE({$alias}.attempt_no, 0), {$alias}.id))
+                >= CASE WHEN {$alias}.status = 'PRINTED' THEN 1 ELSE 2 END)";
+            $query->whereRaw($filters['action'] === 'REPRINT' ? $reprint : "NOT {$reprint}");
+        }
     }
 
     /**
