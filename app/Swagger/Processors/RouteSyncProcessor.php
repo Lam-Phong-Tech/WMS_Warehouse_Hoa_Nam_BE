@@ -57,6 +57,21 @@ class RouteSyncProcessor
     ];
 
     private const ROUTE_SUMMARIES = [
+        'get api/v1/auth/device-history' => 'Lịch sử đăng nhập của chính tài khoản hiện tại',
+        'get api/v1/auth/devices' => 'Danh sách thiết bị của chính tài khoản hiện tại',
+        'delete api/v1/auth/devices/{id}' => 'Thu hồi phiên thiết bị thuộc tài khoản hiện tại',
+        'get api/v1/auth/me/avatar' => 'Đọc ảnh đại diện của tài khoản hiện tại',
+        'post api/v1/auth/me/avatar' => 'Cập nhật ảnh đại diện của tài khoản hiện tại',
+        'delete api/v1/auth/me/avatar' => 'Xóa ảnh đại diện của tài khoản hiện tại',
+        'get api/v1/auth/preferences' => 'Đọc tùy chọn cá nhân của tài khoản hiện tại',
+        'patch api/v1/auth/preferences' => 'Cập nhật tùy chọn cá nhân theo phiên bản',
+        'post api/v1/auth/sessions/revoke-others' => 'Thu hồi các phiên khác và giữ phiên đang dùng',
+        'get api/v1/notification-delivery/capabilities' => 'Đọc trạng thái cấu hình thông báo thiết bị',
+        'get api/v1/notification-delivery/installations/{installationid}' => 'Đối chiếu đăng ký thông báo của thiết bị hiện tại',
+        'put api/v1/notification-delivery/installations/{installationid}' => 'Đăng ký thông báo theo chủ sở hữu và phiên bản thiết bị',
+        'delete api/v1/notification-delivery/installations/{installationid}' => 'Tắt đăng ký thông báo của đúng chủ sở hữu thiết bị',
+        'post api/v1/notification-delivery/test-self' => 'Gửi thử thông báo đến thiết bị đã được chủ sở hữu đồng ý',
+        'get api/v1/notification-delivery/test-self/{requestkey}' => 'Đối chiếu biên nhận gửi thử bằng định danh gốc',
         'post api/v1/auth/recovery-requests' => 'Gửi yêu cầu hỗ trợ khôi phục tài khoản',
         'get api/v1/auth/recovery-requests/operations/{operationid}' => 'Tra cứu biên nhận hỗ trợ bằng bằng chứng riêng',
         'get api/v1/mini-app/catalog/context' => 'Ngữ cảnh kho và quyền đọc danh mục Mini App',

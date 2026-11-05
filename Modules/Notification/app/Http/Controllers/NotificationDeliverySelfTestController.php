@@ -57,8 +57,11 @@ final class NotificationDeliverySelfTestController extends Controller
     }
     private function proof(Request $r,string $id,bool $lock=false):array
     {
-        $q=DB::table('notification_delivery_bindings')->where('id',$id);if($lock)$q->lockForUpdate();$b=$q->first();
+        $b=DB::table('notification_delivery_bindings')->where('id',$id)->first();
         $q=$b===null?null:DB::table('notification_delivery_installations')->where('id',$b->installation_id);if($lock&&$q!==null)$q->lockForUpdate();$i=$q?->first();
+        // Match registry writes: installation before binding, then re-read the
+        // binding under lock after any concurrent replacement or opt-out.
+        if($lock&&$i!==null)$b=DB::table('notification_delivery_bindings')->where('id',$id)->where('installation_id',$i->id)->lockForUpdate()->first();
         $p=(string)$r->header('X-Installation-Proof');if($b===null||$i===null||!InstallationRegistry::validProof($p)||!hash_equals($i->proof_hash,InstallationRegistry::proofHash($p)))ApiError::abort(403,'NOTIFICATION_INSTALLATION_PROOF_REQUIRED','Không xác minh được thiết bị gửi thử.');
         return [$b,$i];
     }

@@ -56,11 +56,18 @@ class NotificationDeliveryOutboxTest extends PushDeliveryTestCase
     {
         return app(NotificationService::class)->notify('system.notification.test','TEST notification','TEST no PII',[(string)$u->user_id],sourceModule:'notification',dispatchKey:$key);
     }
-    public function test_worker_crash_lease_recovery_reuses_same_committed_delivery_and_recipient():void
+    public function test_worker_crash_lease_becomes_unknown_without_automatic_resend():void
     {
         [$u]=$this->registered();$n=$this->notice($u,'crash-lease');$id=DB::table('notification_deliveries')->value('id');
         DB::table('notification_deliveries')->where('id',$id)->update(['state'=>'SENDING','lease_token'=>(string)Str::uuid(),'lease_expires_at'=>now()->utc()->subMinutes(3)->toIso8601String()]);
-        $sender=$this->sender();app(NotificationOutbox::class)->drain($sender);$this->assertCount(1,$sender->seen);$this->assertSame($id,$sender->seen[0]['data']['delivery_id']);$this->assertSame(1,DB::table('notification_deliveries')->count());$this->assertSame(1,DB::table('notifications')->where('id',$n->id)->count());$this->assertSame(1,DB::table('notification_recipients')->where('notification_id',$n->id)->count());
+        $sender=$this->sender();$outbox=app(NotificationOutbox::class);
+        $this->assertSame(0,$outbox->drain($sender));
+        $this->assertSame([],$sender->seen);
+        $this->assertSame('UNKNOWN',DB::table('notification_deliveries')->where('id',$id)->value('state'));
+        $this->travel(3)->minutes();
+        $this->assertSame(0,$outbox->drain($sender));
+        $this->assertSame([],$sender->seen);
+        $this->assertSame(1,DB::table('notification_deliveries')->count());$this->assertSame(1,DB::table('notifications')->where('id',$n->id)->count());$this->assertSame(1,DB::table('notification_recipients')->where('notification_id',$n->id)->count());
     }
     private function sender(string $outcome='PROVIDER_ACCEPTED'): DeliverySender
     {
@@ -95,15 +102,32 @@ class NotificationDeliveryOutboxTest extends PushDeliveryTestCase
         app(NotificationOutbox::class)->drain($s);$this->assertSame([],$s->seen);
         $this->assertSame('SUPPRESSED',DB::table('notification_deliveries')->value('state'));
     }
-    public function test_unknown_retry_keeps_delivery_identity_and_invalid_token_only_revokes_matching_binding(): void
+    public function test_unknown_keeps_original_identity_without_retry_and_invalid_token_only_revokes_matching_binding(): void
     {
         [$u,$binding]=$this->registered();$this->notice($u);$s=$this->sender('UNKNOWN');$out=app(NotificationOutbox::class);
         $out->drain($s);$first=$s->seen[0]['data']['delivery_id'];
         $this->assertSame('UNKNOWN',DB::table('notification_deliveries')->value('state'));
-        $this->travel(2)->minutes();$out->drain($s);$this->assertSame($first,$s->seen[1]['data']['delivery_id']);
-        $this->travel(6)->minutes();$bad=$this->sender('UNREGISTERED');$out->drain($bad);
+        $original=DB::table('notification_deliveries')->where('id',$first)->first();
+        $this->travel(2)->minutes();$this->assertSame(0,$out->drain($s));$this->assertCount(1,$s->seen);
+        $unchanged=DB::table('notification_deliveries')->where('id',$first)->first();
+        $this->assertEquals($original,$unchanged);
+        $this->notice($u,'independent-new-event');$bad=$this->sender('UNREGISTERED');$this->assertSame(1,$out->drain($bad));
+        $this->assertNotSame($first,$bad->seen[0]['data']['delivery_id']);
+        $this->assertSame('UNKNOWN',DB::table('notification_deliveries')->where('id',$first)->value('state'));
         $this->assertSame('INVALID',DB::table('notification_delivery_bindings')->where('id',$binding)->value('status'));
         $this->assertNull(DB::table('notification_delivery_bindings')->where('id',$binding)->value('token_ciphertext'));
+    }
+    public function test_disabled_delivery_keeps_pending_transport_unchanged_and_never_sends(): void
+    {
+        [$user]=$this->registered();$notification=$this->notice($user,'disabled-transport');
+        $before=DB::table('notification_deliveries')->first();
+        config()->set('notification_delivery.enabled',false);
+        $sender=$this->sender();$outbox=app(NotificationOutbox::class);
+        $this->assertSame(0,$outbox->enqueue($notification));
+        $this->assertSame(0,$outbox->drain($sender));
+        $this->assertSame([],$sender->seen);
+        $this->assertEquals($before,DB::table('notification_deliveries')->first());
+        $this->assertNull(NotificationRecipient::where('notification_id',$notification->id)->value('read_at'));
     }
     public function test_missing_business_source_is_suppressed_without_replacing_recipient_data(): void
     {

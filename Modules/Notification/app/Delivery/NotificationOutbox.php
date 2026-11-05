@@ -32,7 +32,9 @@ final class NotificationOutbox
         if(DB::transactionLevel()>0||!config('notification_delivery.enabled',false)||!Schema::hasTable('notification_deliveries'))return 0;
         $now=now()->utc()->toIso8601String();
         $this->due(DB::table('notification_deliveries')->where('state','SENDING'),'lease_expires_at',$now)->update(['state'=>'UNKNOWN','lease_token'=>null,'lease_expires_at'=>null,'available_at'=>$now,'last_code'=>'LEASE_EXPIRED']);
-        $rows=$this->due(DB::table('notification_deliveries')->whereIn('state',['PENDING','UNKNOWN','RETRYABLE','CONFIGURATION_ERROR']),'available_at',$now)->orderBy('created_at')->limit(max(1,min(100,$limit)))->get();
+        // FCM has no receipt reconciliation by delivery_id. An uncertain send
+        // or expired lease must not automatically send the same signal again.
+        $rows=$this->due(DB::table('notification_deliveries')->whereIn('state',['PENDING','RETRYABLE','CONFIGURATION_ERROR']),'available_at',$now)->orderBy('created_at')->limit(max(1,min(100,$limit)))->get();
         $sent=0;
         foreach($rows as $candidate){
             $lease=(string)Str::uuid();

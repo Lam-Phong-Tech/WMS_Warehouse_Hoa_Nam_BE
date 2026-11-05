@@ -14,6 +14,23 @@ class NotificationDeliverySelfTest extends PushDeliveryTestCase
         $r=$this->putJson(self::BASE.'/installations/'.$id,$this->body(),$this->headersFor($t,$p))->assertCreated();
         return [$u,$t,$p,$r->json('data.registration_id')];
     }
+    public function test_self_test_locks_installation_before_binding_like_registration():void
+    {
+        Queue::fake();config()->set('notification_delivery.self_test_enabled',true);[$u,$token,$proof,$registration]=$this->registration();
+        $locks=[];
+        DB::listen(function(\Illuminate\Database\Events\QueryExecuted $query)use(&$locks):void{
+            if(!str_contains(strtolower($query->sql),'for update'))return;
+            foreach(['notification_delivery_installations','notification_delivery_bindings']as$table){
+                if(str_contains($query->sql,'"'.$table.'"'))$locks[]=$table;
+            }
+        });
+        $key=(string)Str::uuid();
+        $this->postJson(self::BASE.'/test-self',['registration_id'=>$registration,'binding_version'=>1,'request_key'=>$key],$this->headersFor($token,$proof))->assertCreated()
+            ->assertJsonPath('data.registration_id',$registration)->assertJsonPath('data.request_key',$key);
+        if(DB::getDriverName()==='pgsql'){
+            $this->assertSame(['notification_delivery_installations','notification_delivery_bindings'],$locks);
+        }
+    }
     public function test_self_test_targets_only_the_selected_installation_not_other_owned_devices():void
     {
         Queue::fake();config()->set('notification_delivery.self_test_enabled',true);[$u,$t,$p,$reg]=$this->registration();
