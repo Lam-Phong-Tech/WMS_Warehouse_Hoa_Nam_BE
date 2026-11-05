@@ -181,13 +181,16 @@ class Rpt05PackingLabelExportFilterParityTest extends TestCase
     public function test_keyword_matches_snapshot_sku_summary_in_both_array_and_legacy_string_formats(): void
     {
         foreach ([
-            'DCJZ23-10i' => [['sku_code' => 'DCJZ23-10i', 'quantity' => 2]],
-            'LEGACY-SKU-100' => 'LEGACY-SKU-100 x2',
-        ] as $keyword => $summary) {
-            DB::table('label_snapshots')->where('id', $this->reprinted)->update(['label_payload' => json_encode([
-                'label_code' => 'PKL-RPT05-02', 'sku_summary' => $summary,
-            ])]);
-            $this->assertLabelCodes(['PKL-RPT05-02'], $this->rows('&keyword='.$keyword));
+            'ARRAY' => ['DCJZ23-10i', [['sku_code' => 'DCJZ23-10i', 'quantity' => 2]]],
+            'LEGACY' => ['LEGACY-SKU-100', 'LEGACY-SKU-100 x2'],
+        ] as $format => [$keyword, $summary]) {
+            // A captured payload is immutable on PostgreSQL; capture each format once.
+            $code = 'PKL-RPT05-SKU-'.$format;
+            $label = $this->createLabel('PX-RPT05-SKU-'.$format, $code, 'PRINTED', ['sku_summary' => $summary]);
+            $this->createPrintEvent($label, 'PRINTED', $this->printerA);
+            $payload = json_decode(DB::table('label_snapshots')->where('id', $label)->value('label_payload'), true);
+            $this->assertSame($summary, $payload['sku_summary']);
+            $this->assertLabelCodes([$code], $this->rows('&keyword='.$keyword));
         }
         $this->assertLabelCodes([], $this->rows('&keyword=NONEXISTENT-SKU'));
     }
@@ -299,7 +302,7 @@ class Rpt05PackingLabelExportFilterParityTest extends TestCase
         return $id;
     }
 
-    private function createLabel(string $docNo, string $labelCode, string $status): string
+    private function createLabel(string $docNo, string $labelCode, string $status, array $payload = []): string
     {
         $documentId = (string) Str::uuid();
         DB::table('stock_documents')->insert([
@@ -324,7 +327,7 @@ class Rpt05PackingLabelExportFilterParityTest extends TestCase
             'outbound_item_match_id' => null,
             'sku_id' => null,
             'item_id' => null,
-            'label_payload' => json_encode(['label_code' => $labelCode, 'item_count' => 1, 'sku_count' => 1]),
+            'label_payload' => json_encode(['label_code' => $labelCode, 'item_count' => 1, 'sku_count' => 1, ...$payload]),
             'status' => $status,
             'applied_at' => $status === 'PRINTED' ? now() : null,
             'version' => 1,

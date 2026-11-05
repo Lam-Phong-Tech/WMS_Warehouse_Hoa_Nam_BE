@@ -31,7 +31,7 @@
 
 - [x] Verify incoming ZIP44/44 hashes, current runtime/remote `4743dfb1ab6594ed83f30802ebfc8cd52e25c88a`, missing FCM source/routes and registry/schema state.
 - [x] Merge shared DEV into the preserved FCM/ETag branch without conflict; dependency and migration files match the current runtime baseline.
-- [ ] Independently review the integrated delta and verify source retention.
+- [x] Independently review the integrated delta and verify source retention.
 - [ ] Run isolated SQLite/PostgreSQL FCM, P13/profile, timestamp regressions and route-cache tests; run locked audits, Swagger and nginx transport checks.
 - [ ] Push the integrated source fast-forward to shared DEV with hosted CI skipped, after a fresh remote drift check.
 - [ ] Stage/recheck the source-only artifact, set both flags OFF in app.env and every PHP service override, rebuild private config/route caches and recreate DEV services.
@@ -45,3 +45,5 @@
 - Runtime/source and remote both4743; delivery env true but FCM controller/config absent, capabilities404 origin/proxy. Existing read-only credential mounts and nginx1cc overlay remain present.
 - Live schema227, one binding and one PROVIDER_ACCEPTED delivery. No pending outbox rows observed. No writes performed during this preflight.
 - Current composer.lock and installed vendor stamp both `8bd13681743b850ab26cc246927e93319c74c55d02d1e42cdb8b11e4f9bee9a3`.
+- Fresh read-only reviewer completed the48-file merged delta after initial capacity errors and found no P1/P2 OFF-restore blockers. Unknown replay/lock ordering and preserved current timestamp/report source were explicitly checked. Retention pruning/owner opt-out remain available while delivery is OFF.
+- Initial fresh QA: SQLite131/2794, SQLite cached44/383 and PostgreSQL FCM/profile83/2244 passed. Extended PostgreSQL P13/report group45 cases exposed one inherited invalid fixture: it UPDATEd label_payload after capture and correctly hit LABEL_SNAPSHOT_IMMUTABLE. Fix only the test to INSERT separate array/legacy payloads at capture; no trigger, migration or runtime report change. A fresh full matrix is required before push/deploy.
