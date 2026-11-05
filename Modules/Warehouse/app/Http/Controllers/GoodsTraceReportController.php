@@ -7,12 +7,15 @@ use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Modules\Auth\Models\User;
 
 /** Read-only trace assembled from ledger and operational evidence, never from inferred balances. */
 class GoodsTraceReportController extends Controller
 {
     use ApiResponse;
+
+    private array $actorNames = [];
 
     public function index(Request $request)
     {
@@ -101,12 +104,36 @@ class GoodsTraceReportController extends Controller
             });
         }
         $movements = $m->select('m.*', 'd.doc_no', 'd.doc_type', 's.sku_code', 's.sku_name', 'w.code as warehouse_code')->get();
-        // Aggregate source-line evidence is retained as such; it is not the quantity of a serial/box.
-        $events = $movements->map(function ($r) use ($code, $kind, $id) {
-            $direct = ($kind === 'ITEM' && $r->item_id === $id) || ($kind === 'CONTAINER' && $r->container_id === $id);
-            $e = $this->event('stock:'.$r->id, $r->occurred_at, $r->created_at, $r->movement_type, $code ?: ($r->sku_code ?? null), $r->sku_code, $r->sku_name, $r->warehouse_code, $r->source_type === 'REVERSAL_DOCUMENT' ? $r->source_id : ($r->stock_document_id ?? $r->source_id), $r->doc_no, $r->source_type ?? $r->doc_type, $r->created_by);
+        // Ledger running balances are SKU/warehouse balances even when item_id is populated.
+        $events = $movements->map(function ($r) use ($kind, $id) {
+            $physical = in_array($kind, ['ITEM', 'CONTAINER'], true) || $r->item_id !== null || $r->container_id !== null;
+            $subject = $r->item_id ? 'ITEM:'.$r->item_id : ($r->container_id ? 'CONTAINER:'.$r->container_id : 'SKU:'.$r->product_id.':'.$r->warehouse_id.':'.$r->stock_status);
+            $related = collect([$subject]);
+            if ($r->stock_document_line_id) {
+                foreach (DB::table('inbound_scan_entries')->where('inbound_line_id', $r->stock_document_line_id)->get(['item_id', 'container_id']) as $scan) {
+                    if ($scan->item_id) {
+                        $related->push('ITEM:'.$scan->item_id);
+                    }
+                    if ($scan->container_id) {
+                        $related->push('CONTAINER:'.$scan->container_id);
+                    }
+                }
+                foreach (DB::table('outbound_item_matches')->where('outbound_line_id', $r->stock_document_line_id)->get(['item_id', 'container_id']) as $scan) {
+                    if ($scan->item_id) {
+                        $related->push('ITEM:'.$scan->item_id);
+                    }
+                    if ($scan->container_id) {
+                        $related->push('CONTAINER:'.$scan->container_id);
+                    }
+                }
+            }
+            if (in_array($kind, ['ITEM', 'CONTAINER'], true)) {
+                $related->push($kind.':'.$id);
+            }
+            $sourceType = $r->source_type === 'REVERSAL_DOCUMENT' ? 'REVERSAL' : $this->documentType($r->doc_type, $r->source_type);
+            $e = $this->event('stock:'.$r->id, $r->occurred_at, $r->created_at, $r->movement_type, $r->sku_code, $r->sku_code, $r->sku_name, $r->warehouse_code, $r->source_type === 'REVERSAL_DOCUMENT' ? $r->source_id : ($r->stock_document_id ?? $r->source_id), $r->doc_no, $sourceType, $r->created_by);
 
-            return array_merge($e, ['quantity' => abs((float) $r->qty_delta), 'qty_delta' => (float) $r->qty_delta, 'qty_before' => (in_array($kind, ['ITEM', 'CONTAINER'], true) && ! $direct) || $r->qty_before === null ? null : (float) $r->qty_before, 'qty_after' => (in_array($kind, ['ITEM', 'CONTAINER'], true) && ! $direct) || $r->qty_after === null ? null : (float) $r->qty_after, 'source_quantity' => abs((float) $r->qty_delta), 'entity_quantity' => in_array($kind, ['ITEM', 'CONTAINER'], true) && ! $direct ? null : abs((float) $r->qty_delta), 'status' => $r->stock_status, 'entity_key' => in_array($kind, ['ITEM', 'CONTAINER'], true) ? $kind.':'.$id : 'SKU:'.$r->product_id.':'.$r->warehouse_id.':'.$r->stock_status]);
+            return array_merge($e, ['quantity' => $physical ? null : abs((float) $r->qty_delta), 'qty_delta' => $physical ? null : (float) $r->qty_delta, 'source_qty_delta' => (float) $r->qty_delta, 'qty_before' => $physical || $r->qty_before === null ? null : (float) $r->qty_before, 'qty_after' => $physical || $r->qty_after === null ? null : (float) $r->qty_after, 'source_quantity' => abs((float) $r->qty_delta), 'entity_quantity' => $physical ? null : abs((float) $r->qty_delta), 'status' => $r->stock_status, 'entity_key' => $subject, 'related_entity_keys' => $related->unique()->values()->all()]);
         });
         $visibleItemIds = $movements->pluck('item_id')->filter()->merge(DB::table('inbound_scan_entries')->whereIn('inbound_line_id', $movements->pluck('stock_document_line_id')->filter())->pluck('item_id')->filter())->merge(DB::table('outbound_item_matches')->whereIn('outbound_line_id', $movements->pluck('stock_document_line_id')->filter())->pluck('item_id')->filter())->unique();
         $visibleContainerIds = $movements->pluck('container_id')->filter()->merge(DB::table('inbound_scan_entries')->whereIn('inbound_line_id', $movements->pluck('stock_document_line_id')->filter())->pluck('container_id')->filter())->unique();
@@ -125,9 +152,9 @@ class GoodsTraceReportController extends Controller
                     $p->whereRaw('1=0');
                 }
             }
-            foreach ($p->select('p.*', 'c.container_code', 'd.doc_no', 'w.code as warehouse_code')->get() as $r) {
+            foreach ($p->select('p.*', 'c.container_code', 'd.doc_no', 'd.doc_type', 'w.code as warehouse_code')->get() as $r) {
                 $visibleContainerIds->push($r->container_id);
-                $events->push(array_merge($this->event('putaway:'.$r->id, $r->confirmed_at, $r->created_at, 'PUTAWAY', $r->container_code, null, null, $r->warehouse_code, $r->stock_document_id, $r->doc_no, 'putaway', $r->created_by), ['location_before' => $r->from_location_hint, 'location_after' => $r->to_location_hint, 'status' => $r->status, 'entity_key' => 'CONTAINER:'.$r->container_id]));
+                $events->push(array_merge($this->event('putaway:'.$r->id, $r->confirmed_at, $r->created_at, 'PUTAWAY', $r->container_code, null, null, $r->warehouse_code, $r->stock_document_id, $r->doc_no, $this->documentType($r->doc_type, null), $r->created_by), ['location_before' => $r->from_location_hint, 'location_after' => $r->to_location_hint, 'status' => $r->status, 'entity_key' => 'CONTAINER:'.$r->container_id, 'related_entity_keys' => array_values(array_unique(array_filter(['CONTAINER:'.$r->container_id, $r->from_parent_container_id ? 'CONTAINER:'.$r->from_parent_container_id : null, $r->to_parent_container_id ? 'CONTAINER:'.$r->to_parent_container_id : null, in_array($kind, ['ITEM', 'CONTAINER'], true) ? $kind.':'.$id : null])))]));
             }
             $l = DB::table('label_print_events as l')->join('label_snapshots as s', 's.id', '=', 'l.label_snapshot_id')->leftJoin('outbound_item_matches as x', 'x.id', '=', 's.outbound_item_match_id')->leftJoin('stock_document_lines as dl', 'dl.id', '=', 'x.outbound_line_id')->join('stock_documents as d', 'd.id', '=', DB::raw('COALESCE(s.outbound_document_id, dl.stock_document_id)'))->leftJoin('sku as k', 'k.sku_id', '=', 's.sku_id')->leftJoin('warehouses as w', 'w.id', '=', 'd.src_warehouse_id')->when($scope !== null, fn ($q) => $q->whereIn('d.src_warehouse_id', $scope));
             if ($code !== '') {
@@ -143,11 +170,11 @@ class GoodsTraceReportController extends Controller
                     $l->whereRaw('1=0');
                 }
             }
-            foreach ($l->select('l.*', 's.item_id', 'k.sku_code', 'k.sku_name', 'd.id as doc_id', 'd.doc_no', 'w.code as warehouse_code')->get() as $r) {
+            foreach ($l->select('l.*', 's.item_id', 'k.sku_code', 'k.sku_name', 'd.id as doc_id', 'd.doc_no', 'd.doc_type', 'w.code as warehouse_code')->get() as $r) {
                 if ($r->item_id) {
                     $visibleItemIds->push($r->item_id);
                 }
-                $events->push(array_merge($this->event('print:'.$r->id, $r->printed_at ?? $r->created_at, $r->created_at, 'LABEL_PRINT', $code ?: $r->sku_code, $r->sku_code, $r->sku_name, $r->warehouse_code, $r->doc_id, $r->doc_no, 'label_print', $r->created_by), ['status' => $r->status, 'entity_key' => $r->item_id ? 'ITEM:'.$r->item_id : null]));
+                $events->push(array_merge($this->event('print:'.$r->id, $r->printed_at ?? $r->created_at, $r->created_at, 'LABEL_PRINT', $code ?: $r->sku_code, $r->sku_code, $r->sku_name, $r->warehouse_code, $r->doc_id, $r->doc_no, $this->documentType($r->doc_type, 'ISSUE_DOCUMENT'), $r->created_by), ['status' => $r->status, 'entity_key' => $r->item_id ? 'ITEM:'.$r->item_id : null, 'related_entity_keys' => $r->item_id ? ['ITEM:'.$r->item_id] : []]));
             }
             $w = DB::table('warranty_case as c')->leftJoin('warranty_case_warehouse_owners as o', 'o.warranty_case_id', '=', 'c.warranty_case_id')->leftJoin('warehouses as w', 'w.id', '=', 'o.warehouse_id')->leftJoin('sku as s', 's.sku_id', '=', 'c.product_id')->when($scope !== null, fn ($q) => $q->whereIn('o.warehouse_id', $scope))->whereNull('c.deleted_at');
             if ($code !== '') {
@@ -165,12 +192,12 @@ class GoodsTraceReportController extends Controller
                 if ($r->item_id) {
                     $visibleItemIds->push($r->item_id);
                 }
-                $events->push(array_merge($this->event('warranty:'.$r->warranty_case_id, $r->received_at ?? $r->created_at, $r->created_at, 'WARRANTY_INTAKE', $code ?: $r->sku_code, $r->sku_code, $r->sku_name, $r->warehouse_code, $r->warranty_case_id, $r->warranty_case_code, 'warranty', $r->created_by), ['status' => $r->status, 'entity_key' => $r->item_id ? 'ITEM:'.$r->item_id : null]));
+                $events->push(array_merge($this->event('warranty:'.$r->warranty_case_id, $r->received_at ?? $r->created_at, $r->created_at, 'WARRANTY_INTAKE', $code ?: $r->sku_code, $r->sku_code, $r->sku_name, $r->warehouse_code, $r->warranty_case_id, $r->warranty_case_code, 'WARRANTY', $r->created_by), ['status' => $r->status, 'entity_key' => $r->item_id ? 'ITEM:'.$r->item_id : null, 'related_entity_keys' => $r->item_id ? ['ITEM:'.$r->item_id] : []]));
             }
         }
         $entities = collect();
         $relations = collect();
-        // Entity tables have no warehouse ownership column. Scoped callers require explicit scoped evidence.
+        // Historical access never authorizes current location, containment or quantity. Fail closed without an explicit current warehouse owner.
         $items = DB::table('item_instances as i')->leftJoin('sku as s', 's.sku_id', '=', 'i.sku_id')->leftJoin('containers as c', 'c.container_id', '=', 'i.container_id');
         if ($code === '') {
             $items->whereIn('i.item_id', $visibleItemIds);
@@ -180,7 +207,11 @@ class GoodsTraceReportController extends Controller
             $items->whereIn('i.item_id', $itemIds);
         }
         if ($scope !== null) {
-            $items->whereIn('i.item_id', $visibleItemIds);
+            if (Schema::hasColumn('item_instances', 'warehouse_id')) {
+                $items->whereIn('i.warehouse_id', $scope);
+            } else {
+                $items->whereRaw('1=0');
+            }
         }
         foreach ($items->select('i.*', 's.sku_code', 's.sku_name', 's.unit', 'c.container_code', 'c.container_type', 'c.location_hint')->get() as $r) {
             $entities->push($this->entity('ITEM:'.$r->item_id, $r->item_code ?? $r->serial_number, 'serial', $r->sku_code, $r->sku_name, $r->unit, $r->item_status, $r->location_hint, null, $r->container_code, $r->container_type));
@@ -194,7 +225,11 @@ class GoodsTraceReportController extends Controller
             $cs->whereIn('c.container_id', $visibleContainerIds);
         }
         if ($scope !== null) {
-            $cs->whereIn('c.container_id', $visibleContainerIds);
+            if (Schema::hasColumn('containers', 'warehouse_id')) {
+                $cs->whereIn('c.warehouse_id', $scope);
+            } else {
+                $cs->whereRaw('1=0');
+            }
         }
         foreach ($cs->select('c.*', 's.sku_code', 's.sku_name', 's.unit', 'p.container_code as parent_code', 'p.container_type as parent_type')->get() as $r) {
             $members = DB::table('container_items')->where('container_id', $r->container_id)->where('is_active', true)->get();
@@ -229,7 +264,7 @@ class GoodsTraceReportController extends Controller
                 return false;
             }
             foreach (['activity_type' => 'event_type', 'source' => 'source_type', 'actor' => 'actor'] as $f => $field) {
-                if (! empty($v[$f]) && strcasecmp((string) $e[$field], $v[$f]) !== 0) {
+                if (! empty($v[$f]) && strcasecmp((string) ($f === 'actor' ? ($e['actor_id'] ?? $e[$field]) : $e[$field]), $v[$f]) !== 0) {
                     return false;
                 }
             }
@@ -237,6 +272,9 @@ class GoodsTraceReportController extends Controller
             return true;
         })->sortByDesc(fn ($e) => ($e['occurred_at'] ?? '').'|'.$e['id'])->values();
         $warnings = [];
+        if ($scope !== null && ($visibleItemIds->isNotEmpty() || $visibleContainerIds->isNotEmpty())) {
+            $warnings[] = 'CURRENT_PHYSICAL_STATE_REQUIRES_CURRENT_WAREHOUSE_OWNERSHIP';
+        }
 
         if ($events->contains(fn ($e) => $e['source_quantity'] !== null && $e['entity_quantity'] === null)) {
             $warnings[] = 'SOURCE_LINE_QUANTITIES_ARE_NOT_ENTITY_QUANTITIES';
@@ -247,7 +285,23 @@ class GoodsTraceReportController extends Controller
 
     private function event($id, $at, $recorded, $type, $code, $sku, $name, $warehouse, $sourceId, $sourceNo, $sourceType, $actor): array
     {
-        return ['id' => $id, 'occurred_at' => $at, 'recorded_at' => $recorded, 'event_type' => $type, 'event_label' => $type, 'code' => $code, 'sku_code' => $sku, 'sku_name' => $name, 'warehouse_code' => $warehouse, 'location_before' => null, 'location_after' => null, 'quantity' => null, 'qty_delta' => 0, 'qty_before' => null, 'qty_after' => null, 'source_id' => $sourceId, 'source_no' => $sourceNo, 'source_type' => $sourceType, 'actor' => $actor, 'related_documents' => $sourceId ? [['id' => $sourceId, 'code' => $sourceNo, 'type' => $sourceType]] : [], 'source_quantity' => null, 'entity_quantity' => null, 'status' => null, 'entity_key' => null];
+        $actorId = $actor;
+        if ($actorId && ! array_key_exists($actorId, $this->actorNames)) {
+            $this->actorNames[$actorId] = DB::table('app_user')->where('user_id', $actorId)->value('display_name');
+        }
+        $actor = $actorId ? ($this->actorNames[$actorId] ?? null) : null;
+
+        return ['id' => $id, 'occurred_at' => $at, 'recorded_at' => $recorded, 'event_type' => $type, 'event_label' => $type, 'code' => $code, 'sku_code' => $sku, 'sku_name' => $name, 'warehouse_code' => $warehouse, 'location_before' => null, 'location_after' => null, 'quantity' => null, 'qty_delta' => 0, 'qty_before' => null, 'qty_after' => null, 'source_id' => $sourceId, 'source_no' => $sourceNo, 'source_type' => $sourceType, 'actor' => $actor, 'actor_id' => $actorId, 'related_documents' => $sourceId ? [['id' => $sourceId, 'code' => $sourceNo, 'type' => $sourceType]] : [], 'source_quantity' => null, 'entity_quantity' => null, 'status' => null, 'entity_key' => null, 'related_entity_keys' => [], 'source_qty_delta' => null];
+    }
+
+    private function documentType(?string $docType, ?string $fallback): ?string
+    {
+        return match (strtolower($docType ?? '')) {
+            'receipt' => 'INBOUND', 'issue' => 'OUTBOUND',
+            default => match (strtoupper($fallback ?? '')) {
+                'RECEIPT_DOCUMENT' => 'INBOUND','ISSUE_DOCUMENT' => 'OUTBOUND','REVERSAL_DOCUMENT' => 'REVERSAL',default => $fallback
+            },
+        };
     }
 
     private function entity($key, $code, $type, $sku, $name, $unit, $status, $location, $quantity, $parent, $parentType): array

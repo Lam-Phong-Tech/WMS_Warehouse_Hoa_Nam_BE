@@ -81,7 +81,7 @@ class GoodsTraceReportTest extends TestCase
             DB::table('containers')->insert(['container_id' => $id, 'container_code' => $code, 'container_type' => $type, 'parent_container_id' => $parent, 'location_hint' => 'A-01', 'status' => 'ACTIVE', 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
         }
         DB::table('putaway_events')->insert(['id' => (string) Str::uuid(), 'container_id' => $box, 'warehouse_id' => $w->id, 'to_parent_container_id' => $tray, 'to_location_hint' => 'A-01', 'status' => 'CONFIRMED', 'confirmed_at' => now(), 'created_by' => $actor, 'created_at' => now()]);
-        $this->getJson('/api/v1/reports/goods-trace?code=TRAY-1&code_type=tray', $h)->assertOk()->assertJsonPath('data.events.0.qty_delta', 0)->assertJsonPath('data.entities.0.current_quantity', null);
+        $this->getJson('/api/v1/reports/goods-trace?code=TRAY-1&code_type=tray', $h)->assertOk()->assertJsonPath('data.events.0.qty_delta', 0)->assertJsonPath('data.events.0.related_entity_keys.0', 'CONTAINER:'.$box)->assertJsonPath('data.events.0.related_entity_keys.1', 'CONTAINER:'.$tray)->assertJsonPath('data.entities.0.current_quantity', null);
         $this->getJson('/api/v1/reports/goods-trace?code=BOX-1&code_type=serial', $h)->assertOk()->assertJsonPath('data.resolved', false);
         $this->getJson('/api/v1/reports/goods-trace?code=BOX-1&relation=reversal', $h)->assertOk()->assertJsonPath('data.total_count', 0)->assertJsonPath('data.complete', true);
         $this->getJson('/api/v1/reports/goods-trace?code=BOX-1&stock_only=1', $h)->assertOk()->assertJsonPath('data.total_count', 0);
@@ -105,11 +105,48 @@ class GoodsTraceReportTest extends TestCase
             DB::table('warranty_case_warehouse_owners')->insert(['warranty_case_id' => $c, 'warehouse_id' => $wh->id, 'source' => 'TEST', 'actor_id' => $actor, 'assigned_at' => now()]);
         }
         $r = $this->getJson('/api/v1/reports/goods-trace?code=EVENT-SKU', $h)->assertOk()->assertJsonPath('data.total_count', 2);
-        $this->getJson('/api/v1/reports/goods-trace?code=PX-EVENT&code_type=document', $h)->assertOk()->assertJsonPath('data.resolved', true)->assertJsonPath('data.total_count', 1);
+        $this->getJson('/api/v1/reports/goods-trace?code=PX-EVENT&code_type=document', $h)->assertOk()->assertJsonPath('data.resolved', true)->assertJsonPath('data.total_count', 1)->assertJsonPath('data.events.0.source_type', 'OUTBOUND');
         $this->getJson('/api/v1/reports/goods-trace?code='.DB::table('warranty_case')->where('product_id', $s->id)->value('warranty_case_code').'&code_type=document', $h)->assertOk()->assertJsonPath('data.resolved', true)->assertJsonPath('data.total_count', 1);
         $this->assertEqualsCanonicalizing(['LABEL_PRINT', 'WARRANTY_INTAKE'], collect($r->json('data.events'))->pluck('event_type')->all());
         $this->assertSame(0, collect($r->json('data.events'))->sum('qty_delta'));
         $this->assertStringNotContainsString('SECRET-CUSTOMER', $r->getContent());
         $this->assertStringNotContainsString('0987654321', $r->getContent());
+    }
+
+    public function test_historical_scope_does_not_authorize_live_physical_state_or_sku_running_balances(): void
+    {
+        $a = $this->ensureActiveWarehouse('SCOPE-A');
+        $b = Warehouse::create(['code' => 'SCOPE-B', 'name' => 'B', 'status' => 'INACTIVE']);
+        $h = $this->headersFor((string) $a->id);
+        $actor = User::first()->user_id;
+        $sku = Sku::create(['code' => 'PHYSICAL', 'name' => 'Physical', 'sku_type' => 'PRODUCT', 'unit' => 'cai', 'is_serial_tracked' => true, 'status' => 'ACTIVE']);
+        $box = (string) Str::uuid();
+        $parent = (string) Str::uuid();
+        $item = (string) Str::uuid();
+        foreach ([[$parent, 'PRIVATE-B-TRAY', 'TRAY', null], [$box, 'PUBLIC-BOX', 'BOX', $parent]] as [$id,$code,$type,$pid]) {
+            DB::table('containers')->insert(['container_id' => $id, 'container_code' => $code, 'container_type' => $type, 'parent_container_id' => $pid, 'location_hint' => 'PRIVATE-B-LOCATION', 'status' => 'IN_STOCK', 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        DB::table('item_instances')->insert(['item_id' => $item, 'sku_id' => $sku->id, 'serial_number' => 'SERIAL-SCOPE', 'item_code' => 'SERIAL-SCOPE', 'container_id' => $box, 'item_status' => 'IN_STOCK', 'item_condition' => 'NORMAL', 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        StockMovement::create(['movement_no' => 'SCOPE-MV', 'business_key' => 'scope:test', 'movement_type' => 'ISSUE', 'warehouse_id' => $a->id, 'product_id' => $sku->id, 'item_id' => $item, 'container_id' => $box, 'stock_status' => 'AVAILABLE', 'qty_before' => 10, 'qty_delta' => -1, 'qty_after' => 9, 'quantity' => 1, 'occurred_at' => '2026-11-01 12:00:00', 'created_at' => now(), 'created_by' => $actor]);
+        DB::table('putaway_events')->insert(['id' => (string) Str::uuid(), 'container_id' => $box, 'warehouse_id' => $b->id, 'to_parent_container_id' => $parent, 'to_location_hint' => 'PRIVATE-B-LOCATION', 'status' => 'CONFIRMED', 'confirmed_at' => now(), 'created_by' => $actor, 'created_at' => now()]);
+        $this->getJson('/api/v1/reports/goods-trace', $h)->assertOk()->assertJsonPath('data.events.0.qty_before', null)->assertJsonPath('data.events.0.qty_delta', null);
+        foreach (['SERIAL-SCOPE', 'PUBLIC-BOX'] as $code) {
+            $r = $this->getJson('/api/v1/reports/goods-trace?code='.$code, $h)->assertOk()->assertJsonPath('data.total_count', 1)->assertJsonPath('data.events.0.qty_before', null)->assertJsonPath('data.events.0.qty_after', null)->assertJsonPath('data.events.0.entity_quantity', null)->assertJsonPath('data.events.0.qty_delta', null)->assertJsonPath('data.events.0.source_qty_delta', -1)->assertJsonCount(0, 'data.entities')->assertJsonCount(0, 'data.relations');
+            $this->assertStringNotContainsString('PRIVATE-B', $r->getContent());
+        }
+    }
+
+    public function test_stock_document_writer_type_is_normalized_without_changing_document_id(): void
+    {
+        $w = $this->ensureActiveWarehouse('NORMALIZE');
+        $h = $this->headersFor();
+        $actor = User::first()->user_id;
+        $sku = Sku::create(['code' => 'NORMALIZE', 'name' => 'Normalize', 'sku_type' => 'PRODUCT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        foreach (['receipt' => 'INBOUND', 'issue' => 'OUTBOUND'] as $kind => $expected) {
+            $d = (string) Str::uuid();
+            DB::table('stock_documents')->insert(['id' => $d, 'doc_no' => 'DOC-'.$kind, 'doc_type' => $kind, 'doc_date' => now()->toDateString(), 'status' => 'POSTED', 'src_warehouse_id' => $kind === 'issue' ? $w->id : null, 'dst_warehouse_id' => $kind === 'receipt' ? $w->id : null, 'created_by' => $actor, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+            StockMovement::create(['movement_no' => 'MV-'.$kind, 'business_key' => 'normalize:'.$kind, 'movement_type' => $kind === 'issue' ? 'ISSUE' : 'RECEIPT', 'warehouse_id' => $w->id, 'product_id' => $sku->id, 'stock_status' => 'AVAILABLE', 'qty_before' => 10, 'qty_delta' => 1, 'qty_after' => 11, 'quantity' => 1, 'stock_document_id' => $d, 'source_type' => 'STOCK_DOCUMENT', 'source_id' => $d, 'occurred_at' => now(), 'created_at' => now(), 'created_by' => $actor]);
+            $this->getJson('/api/v1/reports/goods-trace?code=DOC-'.$kind.'&code_type=document', $h)->assertOk()->assertJsonPath('data.events.0.source_type', $expected)->assertJsonPath('data.events.0.source_id', $d)->assertJsonPath('data.events.0.actor', 'Trace')->assertJsonPath('data.events.0.actor_id', $actor);
+        }
     }
 }
