@@ -20,7 +20,7 @@ class Notification extends Model
 
     protected $fillable = [
         'event_key', 'title', 'body', 'severity', 'source_module',
-        'subject_type', 'subject_id', 'actor_id', 'actor_name', 'payload', 'created_at',
+        'subject_type', 'subject_id', 'actor_id', 'actor_name', 'payload', 'created_at', 'delivery_dispatch_key',
     ];
 
     protected $casts = [

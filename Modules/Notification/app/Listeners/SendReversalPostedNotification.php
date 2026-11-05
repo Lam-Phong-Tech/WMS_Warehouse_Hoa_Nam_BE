@@ -9,6 +9,8 @@ use Modules\Warehouse\Events\ReversalPosted;
 
 class SendReversalPostedNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     public bool $afterCommit = true;
 
     public function __construct(
@@ -31,6 +33,7 @@ class SendReversalPostedNotification implements ShouldQueue
             subjectId: $event->reversalId,
             payload: ['reversal_id' => $event->reversalId, 'doc_no' => $event->docNo, 'warehouse_id' => $event->warehouseId],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

@@ -9,6 +9,8 @@ use Modules\Warehouse\Events\StockShortageDetected;
 
 class SendStockShortageNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     /**
      * Không dùng $afterCommit: sự kiện này phát khi WarehouseException::insufficientStock()
      * ném lỗi làm transaction Post Issue/Post Receipt ROLLBACK — không có commit nào để chờ.
@@ -36,6 +38,7 @@ class SendStockShortageNotification implements ShouldQueue
             subjectId: $event->documentId,
             payload: ['document_id' => $event->documentId, 'warehouse_id' => $event->warehouseId, 'product_code' => $event->productCode],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

@@ -9,6 +9,8 @@ use Modules\Warehouse\Events\WarrantyCaseCreated;
 
 class SendWarrantyCaseCreatedNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     public bool $afterCommit = true;
 
     public function __construct(
@@ -33,6 +35,7 @@ class SendWarrantyCaseCreatedNotification implements ShouldQueue
             subjectId: $event->caseId,
             payload: ['case_id' => $event->caseId, 'case_code' => $event->caseCode],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

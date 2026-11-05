@@ -4,9 +4,12 @@ use Illuminate\Support\Facades\Route;
 use Modules\Notification\Http\Controllers\BroadcastAuthController;
 use Modules\Notification\Http\Controllers\NotificationController;
 use Modules\Notification\Http\Controllers\NotificationDeliveryController;
+use Modules\Notification\Http\Controllers\NotificationDeliverySelfTestController;
 
 Route::prefix('v1')->middleware('auth:api')->group(function () {
     Route::get('notification-delivery/capabilities', [NotificationDeliveryController::class, 'capabilities']);
+    Route::post('notification-delivery/test-self',[NotificationDeliverySelfTestController::class,'store']);
+    Route::get('notification-delivery/test-self/{requestKey}',[NotificationDeliverySelfTestController::class,'show']);
     Route::get('notification-delivery/installations/{installationId}', [NotificationDeliveryController::class, 'show']);
     Route::put('notification-delivery/installations/{installationId}', [NotificationDeliveryController::class, 'store'])->middleware('throttle:20,1');
     Route::delete('notification-delivery/installations/{installationId}', [NotificationDeliveryController::class, 'destroy'])->middleware('throttle:20,1');

@@ -9,6 +9,8 @@ use Modules\Notification\Services\NotificationService;
 
 class SendUserAccountChangedNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     public bool $afterCommit = true;
 
     public function __construct(
@@ -35,6 +37,7 @@ class SendUserAccountChangedNotification implements ShouldQueue
             subjectId: $event->userId,
             payload: ['user_id' => $event->userId, 'action' => $event->action],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

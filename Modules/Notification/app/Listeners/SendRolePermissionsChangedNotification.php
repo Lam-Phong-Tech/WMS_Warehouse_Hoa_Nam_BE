@@ -9,6 +9,8 @@ use Modules\Notification\Services\NotificationService;
 
 class SendRolePermissionsChangedNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     public bool $afterCommit = true;
 
     public function __construct(
@@ -35,6 +37,7 @@ class SendRolePermissionsChangedNotification implements ShouldQueue
             subjectId: $event->roleId,
             payload: ['role_id' => $event->roleId, 'role_code' => $event->roleCode],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

@@ -9,6 +9,8 @@ use Modules\Warehouse\Events\StockDocumentScanStarted;
 
 class SendStockDocumentScanStartedNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     public bool $afterCommit = true;
 
     public function __construct(
@@ -32,6 +34,7 @@ class SendStockDocumentScanStartedNotification implements ShouldQueue
             subjectId: $event->documentId,
             payload: ['document_id' => $event->documentId, 'doc_no' => $event->docNo, 'type' => $event->type, 'warehouse_id' => $event->warehouseId],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

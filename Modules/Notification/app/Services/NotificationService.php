@@ -5,6 +5,7 @@ namespace Modules\Notification\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\ProfilePreferences;
@@ -13,6 +14,9 @@ use Modules\Notification\Mail\ProfileNotificationMail;
 use Modules\Notification\Models\Notification;
 use Modules\Notification\Models\NotificationRecipient;
 use Modules\Notification\Support\EventSourceSnapshot;
+use Modules\Notification\Delivery\NotificationDeliveryPolicy;
+use Modules\Notification\Delivery\NotificationOutbox;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Throwable;
 
 class NotificationService
@@ -37,7 +41,11 @@ class NotificationService
         array $payload = [],
         ?string $actorId = null,
         ?array $sourceSnapshot = null,
+        ?string $dispatchKey = null,
+        ?array $deliveryRegistrationIds = null,
     ): ?Notification {
+        $deliveryKey=$dispatchKey!==null && Schema::hasColumn('notifications','delivery_dispatch_key')?hash('sha256',$dispatchKey):null;
+        if($deliveryKey!==null && ($existing=Notification::where('delivery_dispatch_key',$deliveryKey)->first())!==null)return $existing;
         $userIds = array_values(array_unique(array_filter($userIds)));
         if ($userIds === []) {
             return null;
@@ -69,6 +77,7 @@ class NotificationService
             ? User::query()->whereKey($actorId)->value('display_name')
             : null;
 
+        if($sourceSnapshot===null && $sourceModule==='warehouse' && $subjectType==='warranty_case')$payload=NotificationDeliveryPolicy::withWarehouse($eventKey,$subjectId,$payload);
         $sourceSnapshot ??= EventSourceSnapshot::capture($actorId,
             is_string($payload['warehouse_id'] ?? null) ? $payload['warehouse_id'] : null,
             'AT_NOTIFICATION_CREATION_NOT_BUSINESS_EVENT');
@@ -81,9 +90,11 @@ class NotificationService
         if ($sourceSnapshot !== []) {
             $actorName = $sourceSnapshot['actor_name'] ?? null;
         }
-        $notification = DB::transaction(function () use (
-            $eventKey, $title, $body, $inAppIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName, $sourceSnapshot
+        $created=true;
+        try{$notification = DB::transaction(function () use (
+            $eventKey, $title, $body, $inAppIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName, $sourceSnapshot, $deliveryKey, $deliveryRegistrationIds, &$created
         ): Notification {
+            if($deliveryKey!==null && ($existing=Notification::where('delivery_dispatch_key',$deliveryKey)->first())!==null){$created=false;return $existing;}
             $notification = Notification::create([
                 'id' => (string) Str::uuid(),
                 'event_key' => $eventKey,
@@ -97,6 +108,7 @@ class NotificationService
                 'actor_name' => $actorName,
                 'payload' => $payload,
                 'created_at' => now(),
+                ...($deliveryKey===null?[]:['delivery_dispatch_key'=>$deliveryKey]),
             ]);
 
             if ($sourceSnapshot !== []) {
@@ -112,14 +124,20 @@ class NotificationService
                 ]);
             }
 
+            app(NotificationOutbox::class)->enqueue($notification,$deliveryRegistrationIds);
+
             // Broadcast and callers use the precision/offset actually persisted by the DB.
             return $notification->refresh();
-        });
+        });}catch(UniqueConstraintViolationException $error){
+            if($deliveryKey===null || ($existing=Notification::where('delivery_dispatch_key',$deliveryKey)->first())===null)throw $error;
+            return $existing;
+        }
+        if(!$created)return $notification;
 
         // Bắn broadcast NGOÀI transaction ghi DB: nếu broadcaster lỗi (Reverb down),
         // notification vẫn đã được ghi nhận bền vững và sẽ thấy được qua GET /notifications.
         foreach ($inAppIds as $userId) {
-            event(new NotificationPushed($notification, $userId));
+            DB::afterCommit(function()use($notification,$userId):void{try{event(new NotificationPushed($notification,$userId));}catch(Throwable $error){Log::warning('Notification realtime deferred',['notification_id'=>(string)$notification->id,'exception'=>$error::class]);}});
         }
         foreach ($emailRecipients as $email) {
             // A transport/queue outage must not turn the committed notification or

@@ -12,6 +12,10 @@ use Tests\TestCase;
 class NotificationDeliveryRegistrationTest extends \Tests\Feature\Concerns\PushDeliveryTestCase
 {
     use RefreshDatabase;
+    public function test_missing_web_configuration_does_not_advertise_a_ready_web_platform():void
+    {
+        config()->set('notification_delivery.vapid_public_key',null);$data=app(\Modules\Notification\Delivery\DeliveryConfig::class)->publicPayload();$this->assertNotContains('WEB',$data['platforms']);$this->assertContains('ANDROID',$data['platforms']);
+    }
     public function test_all_registry_routes_require_authentication(): void
     {
         $id=(string)Str::uuid();

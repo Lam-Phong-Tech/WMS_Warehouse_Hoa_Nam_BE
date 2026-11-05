@@ -14,9 +14,11 @@ abstract class PushDeliveryTestCase extends TestCase
         $app = $this->createApplication();
         $driver = $app['config']->get('database.default');
         $c = $app['config']->get('database.connections.'.$driver);
-        $safe = $app['config']->get('app.env') === 'testing' && empty($c['url']) && $c['driver'] === 'sqlite' && $c['database'] === ':memory:';
+        $isolatedSqlite=$c['driver']==='sqlite'&&$c['database']===':memory:';
+        $isolatedPg=$c['driver']==='pgsql'&&($c['host']??null)==='127.0.0.1'&&(int)($c['port']??0)===55437&&($c['database']??null)==='hn_fcm_test_20261105'&&($c['username']??null)==='hn_fcm_test';
+        $safe = $app['config']->get('app.env') === 'testing' && empty($c['url']) && ($isolatedSqlite||$isolatedPg);
         $app->flush();
-        if (! $safe) throw new \LogicException('Push registry tests require isolated SQLite memory.');
+        if (! $safe) throw new \LogicException('Push tests require SQLite memory or the dedicated local FCM test cluster.');
         parent::setUp();
         $this->credentialFile = storage_path('framework/testing/push-'.Str::uuid().'.json');
         if (! is_dir(dirname($this->credentialFile))) mkdir(dirname($this->credentialFile), 0700, true);

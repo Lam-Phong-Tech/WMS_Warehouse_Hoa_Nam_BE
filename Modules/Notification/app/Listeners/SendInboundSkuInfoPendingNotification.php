@@ -9,6 +9,8 @@ use Modules\Warehouse\Events\InboundSkuInfoPending;
 
 class SendInboundSkuInfoPendingNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     public bool $afterCommit = true;
 
     public function __construct(
@@ -45,6 +47,7 @@ class SendInboundSkuInfoPendingNotification implements ShouldQueue
                 'source' => 'MINI_APP',
             ],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

@@ -9,6 +9,8 @@ use Modules\Warehouse\Events\InboundCompleted;
 
 class SendInboundCompletedNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     /** Chỉ chạy sau khi transaction Post Receipt đã commit — tránh báo nhầm khi rollback. */
     public bool $afterCommit = true;
 
@@ -32,6 +34,7 @@ class SendInboundCompletedNotification implements ShouldQueue
             subjectId: $event->documentId,
             payload: ['document_id' => $event->documentId, 'doc_no' => $event->docNo, 'warehouse_id' => $event->warehouseId],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

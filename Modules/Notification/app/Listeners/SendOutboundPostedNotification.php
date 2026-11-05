@@ -9,6 +9,8 @@ use Modules\Warehouse\Events\OutboundPosted;
 
 class SendOutboundPostedNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     public bool $afterCommit = true;
 
     public function __construct(
@@ -31,6 +33,7 @@ class SendOutboundPostedNotification implements ShouldQueue
             subjectId: $event->documentId,
             payload: ['document_id' => $event->documentId, 'doc_no' => $event->docNo, 'warehouse_id' => $event->warehouseId],
             actorId: $event->actorId,
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

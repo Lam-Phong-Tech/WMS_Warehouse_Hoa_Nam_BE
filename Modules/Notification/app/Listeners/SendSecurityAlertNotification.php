@@ -9,6 +9,8 @@ use Modules\Notification\Services\NotificationService;
 
 class SendSecurityAlertNotification implements ShouldQueue
 {
+    use \Modules\Notification\Delivery\NotificationDispatchIdentity;
+
     /**
      * Không $afterCommit: LOGIN_THROTTLED/LOGIN_DENIED không nằm trong một
      * DB::transaction nghiệp vụ nào để chờ commit — audit log ghi độc lập.
@@ -34,6 +36,7 @@ class SendSecurityAlertNotification implements ShouldQueue
             subjectType: 'user',
             subjectId: $event->userId,
             payload: ['reason_code' => $event->reasonCode, 'user_id' => $event->userId],
+            dispatchKey: $this->notificationDispatchKey(),
         );
     }
 }

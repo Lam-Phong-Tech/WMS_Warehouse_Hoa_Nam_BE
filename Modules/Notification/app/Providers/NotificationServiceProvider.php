@@ -25,6 +25,8 @@ class NotificationServiceProvider extends HttpLeanModuleServiceProvider
      */
     protected array $commands = [
         BackfillNotificationActorsCommand::class,
+        \Modules\Notification\Console\Commands\DrainNotificationDeliveries::class,
+        \Modules\Notification\Console\Commands\PruneNotificationDeliveryStateCommand::class,
     ];
 
     /**
@@ -51,8 +53,14 @@ class NotificationServiceProvider extends HttpLeanModuleServiceProvider
      *
      * @param $schedule
      */
-    // protected function configureSchedules(Schedule $schedule): void
-    // {
-    //     $schedule->command('inspire')->hourly();
-    // }
+    protected function configureSchedules(Schedule $schedule): void
+    {
+        $schedule->command('notification-delivery:drain --limit=100')->everyMinute()->withoutOverlapping()->onOneServer();
+        $schedule->command('notification-delivery:prune --limit=250')->hourly()->withoutOverlapping()->onOneServer();
+    }
+    public function register(): void
+    {
+        parent::register();
+        $this->app->bind(\Modules\Notification\Delivery\FcmAccessTokenSource::class,\Modules\Notification\Delivery\GoogleFcmAccessTokenSource::class);
+    }
 }
