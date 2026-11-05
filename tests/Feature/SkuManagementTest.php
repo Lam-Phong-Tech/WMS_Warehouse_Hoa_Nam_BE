@@ -19,6 +19,59 @@ class SkuManagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_information_status_combines_with_usage_brand_type_and_keyword(): void
+    {
+        $headers = $this->authHeaders();
+        $links = [];
+        foreach (['BRAND', 'CATEGORY', 'MODEL'] as $kind) {
+            $links[strtolower($kind).'_id'] = ProductMaster::create([
+                'master_type' => $kind, 'code' => $kind, 'name' => $kind, 'status' => 'ACTIVE',
+            ])->master_id;
+        }
+        foreach (range(0, 7) as $mask) {
+            $attributes = [];
+            foreach (array_keys($links) as $bit => $field) {
+                $attributes[$field] = ($mask & (1 << $bit)) ? $links[$field] : null;
+            }
+            foreach (['ACTIVE', 'INACTIVE'] as $status) {
+                Sku::create($attributes + [
+                    'sku_code' => "MATCH-{$mask}-{$status}", 'sku_name' => 'Matrix',
+                    'sku_type' => 'PRODUCT', 'unit' => 'cai', 'status' => $status,
+                ]);
+            }
+        }
+        Sku::create(['sku_code' => 'OTHER', 'sku_name' => 'Other', 'sku_type' => 'COMPONENT', 'status' => 'ACTIVE']);
+
+        $base = '/api/v1/products?per_page=100&keyword=MATCH&sku_type=PRODUCT';
+        $pending = $this->getJson($base.'&information_status=PENDING&status=ACTIVE', $headers)->assertOk();
+        $this->assertEqualsCanonicalizing(
+            array_map(fn ($mask) => "MATCH-{$mask}-ACTIVE", range(0, 6)),
+            array_column($pending->json('data'), 'sku_code'),
+        );
+        $complete = $this->getJson($base.'&information_status=COMPLETE', $headers)->assertOk();
+        $this->assertEqualsCanonicalizing(['MATCH-7-ACTIVE', 'MATCH-7-INACTIVE'], array_column($complete->json('data'), 'sku_code'));
+        $brandPending = $this->getJson($base.'&information_status=PENDING&status=INACTIVE&brand_id='.$links['brand_id'], $headers)->assertOk();
+        $this->assertEqualsCanonicalizing(['MATCH-1-INACTIVE', 'MATCH-3-INACTIVE', 'MATCH-5-INACTIVE'], array_column($brandPending->json('data'), 'sku_code'));
+        $this->getJson('/api/v1/products?information_status=UNKNOWN', $headers)->assertUnprocessable();
+
+        // Dashboard uses exactly the active pending subset (plus OTHER).
+        $this->getJson('/api/v1/reports/dashboard-overview', $headers)
+            ->assertOk()->assertJsonPath('data.issues.sku_pending_info', 8);
+    }
+
+    public function test_pending_information_is_filtered_before_server_pagination(): void
+    {
+        $headers = $this->authHeaders();
+        foreach (range(1, 105) as $number) {
+            Sku::create(['sku_code' => "PENDING-{$number}", 'sku_name' => 'Pending', 'sku_type' => 'PRODUCT', 'status' => 'ACTIVE']);
+        }
+        $first = $this->getJson('/api/v1/products?information_status=PENDING&per_page=100&page=1', $headers)->assertOk();
+        $second = $this->getJson('/api/v1/products?information_status=PENDING&per_page=100&page=2', $headers)->assertOk();
+        $first->assertJsonCount(100, 'data');
+        $second->assertJsonCount(5, 'data');
+        $this->assertCount(105, array_unique(array_merge(array_column($first->json('data'), 'sku_id'), array_column($second->json('data'), 'sku_id'))));
+    }
+
     private function authHeaders(): array
     {
         $role = Role::create(['role_code' => 'SUPER_ADMIN', 'role_name' => 'Admin', 'scope_type' => 'SYSTEM', 'status' => 'ACTIVE']);

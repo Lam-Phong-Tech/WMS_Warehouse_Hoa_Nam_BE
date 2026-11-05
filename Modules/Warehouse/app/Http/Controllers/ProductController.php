@@ -118,6 +118,7 @@ class ProductController extends Controller
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'information_status', in: 'query', description: 'Independent of usage status. PENDING: missing at least one of brand_id/category_id/model_id. COMPLETE: all three present. Applied before pagination.', schema: new OA\Schema(type: 'string', enum: ['PENDING', 'COMPLETE'])),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
         ],
         responses: [
@@ -128,6 +129,7 @@ class ProductController extends Controller
     )]
     public function index(Request $request)
     {
+        $request->validate(['information_status' => ['nullable', 'in:PENDING,COMPLETE']]);
         $paginator = $this->products->paginate($request->all(), (int) $request->input('per_page', 10));
 
         // Ảnh sản phẩm cho cột hình ở màn "Danh sách SKU" — MỘT truy vấn cho cả

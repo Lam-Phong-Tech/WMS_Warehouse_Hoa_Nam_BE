@@ -6,6 +6,7 @@ use App\Repositories\BaseRepository;
 use Illuminate\Database\Eloquent\Builder;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Support\SkuInformationCompleteness;
 
 class ProductRepository extends BaseRepository implements ProductRepositoryInterface
 {
@@ -30,6 +31,7 @@ class ProductRepository extends BaseRepository implements ProductRepositoryInter
         unset($filters['keyword']);
 
         $query = parent::applyFilters($query, $filters);
+        SkuInformationCompleteness::apply($query, (string) ($filters['information_status'] ?? ''));
 
         if ($keyword !== '') {
             $operator = $this->likeOperator($query);
