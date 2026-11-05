@@ -3,6 +3,7 @@
 namespace Modules\AuditLog\Repositories;
 
 use App\Repositories\BaseRepository;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\AuditLog\Repositories\Contracts\AuditLogRepositoryInterface;
@@ -47,12 +48,14 @@ class AuditLogRepository extends BaseRepository implements AuditLogRepositoryInt
         // mút thì lọc mở một phía. Dùng created_at (đã cast datetime).
         $from = $filters['date_from'] ?? null;
         if ($from !== null && $from !== '') {
-            $query->where('created_at', '>=', $from);
+            $query->where('created_at', '>=', CarbonImmutable::parse($from, 'Asia/Ho_Chi_Minh')
+                ->setTimezone(config('app.timezone', 'Asia/Ho_Chi_Minh')));
         }
 
         $to = $filters['date_to'] ?? null;
         if ($to !== null && $to !== '') {
-            $query->where('created_at', '<=', $to);
+            $query->where('created_at', '<=', CarbonImmutable::parse($to, 'Asia/Ho_Chi_Minh')
+                ->setTimezone(config('app.timezone', 'Asia/Ho_Chi_Minh')));
         }
 
         unset($filters['user_id'], $filters['q'], $filters['date_from'], $filters['date_to']);

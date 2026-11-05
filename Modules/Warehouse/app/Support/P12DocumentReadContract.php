@@ -41,12 +41,12 @@ final class P12DocumentReadContract
         $storageTimezone = config('app.timezone', 'UTC');
         if ($request->filled('date_from')) {
             $start = CarbonImmutable::parse($request->query('date_from'), $timezone)->startOfDay();
-            $query->where('created_at', '>=', $start->setTimezone($storageTimezone)->format('Y-m-d H:i:s'));
+            $query->where('created_at', '>=', $start->setTimezone($storageTimezone));
         }
         if ($request->filled('date_to')) {
             // Calendar-day exclusive upper bound, not 23:59:59 (fractional timestamps).
             $end = CarbonImmutable::parse($request->query('date_to'), $timezone)->startOfDay()->addDay();
-            $query->where('created_at', '<', $end->setTimezone($storageTimezone)->format('Y-m-d H:i:s'));
+            $query->where('created_at', '<', $end->setTimezone($storageTimezone));
         }
     }
 
