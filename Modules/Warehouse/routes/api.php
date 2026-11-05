@@ -286,7 +286,6 @@ Route::prefix('v1')->group(function (): void {
         Route::get('reports/inventory-xnt-daily', [OperationalReportController::class, 'inventoryXntDaily'])->middleware('permission:report.view');
         Route::get('reports/document-history', [OperationalReportController::class, 'documentHistory'])->middleware('permission:report.inventory_flow.view|report.outbound_flow.view|report.recipient.view|report.io_history.view');
         Route::get('reports/document-history/export-excel', [OperationalReportController::class, 'documentHistoryExport'])->middleware('permission:report.export');
-        Route::get('reports/goods-trace', [\Modules\Warehouse\Http\Controllers\GoodsTraceReportController::class, 'index'])->middleware('permission:report.traceability.view');
         Route::get('reports/movement-trace', [OperationalReportController::class, 'movementTrace'])->middleware('permission:report.inventory_flow.view|report.outbound_flow.view|report.stock_reconcile.view|report.traceability.view');
         Route::get('reports/movement-trace/export-excel', [OperationalReportController::class, 'movementTraceExport'])->middleware('permission:report.export');
         // RPT-OUT-MATCH-01 / RPT-LABEL-01: trỏ thẳng controller Aligned (giống
