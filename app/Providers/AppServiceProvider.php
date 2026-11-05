@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Support\Cache\CacheAutoInvalidator;
 use App\Support\Cache\CacheService;
+use App\Support\Database\PostgresTimestampGrammar;
 use App\Support\Database\SchemaCache;
 use App\Support\RateLimitResponse;
 use App\Swagger\Processors\MiniAppTagProcessor;
@@ -11,9 +12,12 @@ use App\Swagger\Processors\RouteSyncProcessor;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Database\Console\Seeds\SeedCommand;
+use Illuminate\Database\Events\ConnectionEstablished;
 use Illuminate\Database\Events\MigrationEnded;
 use Illuminate\Database\Events\MigrationsEnded;
 use Illuminate\Database\Events\MigrationsStarted;
+use Illuminate\Database\PostgresConnection;
 use Illuminate\Foundation\Events\DatabaseRefreshed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +35,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Applies to Eloquent and query-builder DateTime bindings, including
+        // audit/outbox, sessions and workers, on every newly resolved connection.
+        $this->app['events']->listen(ConnectionEstablished::class, static function (ConnectionEstablished $event): void {
+            if ($event->connection instanceof PostgresConnection) {
+                $event->connection->setQueryGrammar(new PostgresTimestampGrammar($event->connection));
+            }
+        });
+
         $this->app->singleton(CacheService::class, static fn () => CacheService::make());
 
         // WWHN-SEC-09: khoá kênh nhận JWT về đúng Authorization header. Dùng
@@ -231,7 +243,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         DB::prohibitDestructiveCommands();
-        \Illuminate\Database\Console\Seeds\SeedCommand::prohibit(! (bool) config('deployment_safety.allow_protected_database_seed'));
+        SeedCommand::prohibit(! (bool) config('deployment_safety.allow_protected_database_seed'));
 
         Event::listen(CommandStarting::class, static function (CommandStarting $event): void {
             if ($event->command !== 'db:seed' || (bool) config('deployment_safety.allow_protected_database_seed')) {

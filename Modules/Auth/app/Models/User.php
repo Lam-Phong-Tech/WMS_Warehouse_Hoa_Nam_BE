@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Modules\Auth\Support\AuthCache;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
@@ -70,10 +71,9 @@ class User extends Model implements AuthenticatableContract, JWTSubject
      * driver: ghi bằng ->utc() nên chuỗi bind là UTC; đọc thì parse thẳng chuỗi
      * thô với timezone UTC. Đúng trên cả PostgreSQL (chạy thật) lẫn sqlite (test).
      *
-     * Không sửa quy ước datetime chung của repo trong phạm vi này: các cột khác
-     * (last_login_at, first_login_deadline_at...) dùng để HIỂN THỊ nên lệch giờ
-     * không đổi hành vi bảo mật, còn đổi quy ước toàn cục là thay đổi rộng cần
-     * đợt riêng có dữ liệu backfill.
+     * PostgreSQL bindings now preserve offsets globally (PostgresTimestampGrammar).
+     * Keep these explicit UTC security helpers for SQLite and historical values;
+     * changing the writer does not reinterpret previously stored timestamps.
      */
     public function markPasswordChangedNow(): void
     {
@@ -93,7 +93,7 @@ class User extends Model implements AuthenticatableContract, JWTSubject
             return $raw->getTimestamp();
         }
 
-        return \Illuminate\Support\Carbon::parse((string) $raw, 'UTC')->getTimestamp();
+        return Carbon::parse((string) $raw, 'UTC')->getTimestamp();
     }
 
     /** GĐ1-REQ-011: user thuộc một phòng ban (nullable). */
