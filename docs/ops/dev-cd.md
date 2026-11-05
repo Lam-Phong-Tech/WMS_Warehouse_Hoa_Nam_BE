@@ -42,3 +42,29 @@ reviewed database/dependency release has prepared the VPS.
 The successful deploy jobs verify the public frontend manifest or backend
 health response after the receiver finishes. The previous release and backend
 configuration backup remain on the VPS for rollback inspection.
+
+
+## Reconcile an already deployed dependency release
+
+The DEV release `4b02f4feb2e5b1f486443a3ada5aca5150591ba0-fcm-disabled-20261105`
+contained an operations release that was missing from the `dev` source history.
+The repository restores its exact Composer manifest/lock (including the deliberate
+`google/auth` 1.55.3 pin and its already-serving Symfony updates), and these three
+already-applied migration files, byte for byte:
+
+- `2026_11_05_000001_create_notification_delivery_registry.php`
+- `2026_11_05_000002_create_notification_delivery_outbox.php`
+- `2026_11_05_000003_create_notification_delivery_test_receipts.php`
+
+The lock SHA-256 is
+`8bd13681743b850ab26cc246927e93319c74c55d02d1e42cdb8b11e4f9bee9a3`.
+The migration SHA-256 values, in the order above, are
+`75333eb5849fda55dc1ebbec44f8cbfdf1363c85cede8373ef2df918d212d08b`,
+`a7144811c135d68aeb977dffafaf3d7a2cc37356212ea3f2db958a23a5ffc07d`, and
+`3f49b87b1edf3e95ce0165157900bbfb0488427840a199974d37e2f544ae5a82`.
+
+Keep the migration bytes unchanged: the receiver treats deployed migration history
+as immutable. This reconciliation preserves the dependency and migration guards;
+it does not replace the serving vendor volume or run a migration/seed on DEV.
+Composer validation reports an informational exact-version constraint warning for
+the intentional Google Auth pin; the manifest and lock are valid and consistent.

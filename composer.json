@@ -9,6 +9,7 @@
         "php": "^8.3",
         "darkaonline/l5-swagger": "^11.1",
         "dompdf/dompdf": "^3.1",
+        "google/auth": "1.55.3",
         "james-heinrich/getid3": "^1.9",
         "laravel/framework": "^13.8",
         "laravel/reverb": "^1.11",
