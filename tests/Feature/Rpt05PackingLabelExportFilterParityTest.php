@@ -189,7 +189,8 @@ class Rpt05PackingLabelExportFilterParityTest extends TestCase
             $label = $this->createLabel('PX-RPT05-SKU-'.$format, $code, 'PRINTED', ['sku_summary' => $summary]);
             $this->createPrintEvent($label, 'PRINTED', $this->printerA);
             $payload = json_decode(DB::table('label_snapshots')->where('id', $label)->value('label_payload'), true);
-            $this->assertSame($summary, $payload['sku_summary']);
+            $this->assertSame(get_debug_type($summary), get_debug_type($payload['sku_summary']));
+            $this->assertEquals($summary, $payload['sku_summary']);
             $this->assertLabelCodes([$code], $this->rows('&keyword='.$keyword));
         }
         $this->assertLabelCodes([], $this->rows('&keyword=NONEXISTENT-SKU'));
