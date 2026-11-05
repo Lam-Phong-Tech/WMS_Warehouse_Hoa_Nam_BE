@@ -660,7 +660,7 @@ class StockMovementController extends Controller
      *
      * @return array{0: ?string, 1: ?string, 2: ?object, 3: string}|null
      */
-    private function resolveTraceTarget(string $codeValue): ?array
+    public function resolveTraceTarget(string $codeValue): ?array
     {
         // DEC-QR-001 / AC-QR-07: raw composite PRODUCT QR phải qua parser trước —
         // trace chạy theo normalized item_unique, không bao giờ theo raw payload.
