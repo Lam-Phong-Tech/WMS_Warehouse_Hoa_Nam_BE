@@ -1,0 +1,82 @@
+{
+  "contract": "notification-delivery-v1",
+  "revision": "notification-delivery-android-canary-v1",
+  "scope": "DEV_TEST_ANDROID_ONE_OWNER_FAMILY_INSTALLATION",
+  "global_flags": {
+    "NOTIFICATION_DELIVERY_ENABLED": false,
+    "NOTIFICATION_DELIVERY_SELF_TEST_ENABLED": false
+  },
+  "policy_file_env": "NOTIFICATION_DELIVERY_CANARY_FILE",
+  "default_policy": {"enabled": false},
+  "max_window_seconds": 1200,
+  "max_messages": 1,
+  "max_provider_attempts": 1,
+  "allowed_event": "system.notification.test",
+  "source_module": "notification",
+  "android_package": "vn.info.lptech.wmshoanam",
+  "project_id": "hoa-nam-scanner-devtest",
+  "activation_requires": [
+    "existing_authenticated_active_owner_and_stable_family",
+    "native_client_installation_uuid_and_proof",
+    "read_only_diagnostic_fingerprint",
+    "fresh_registry_version_and_ownership",
+    "operator_manifest_outside_git_mounted_read_only_in_all_php_services"
+  ],
+  "diagnostic": {
+    "method": "GET",
+    "path": "/api/v1/notification-delivery/installations/{installation_id}",
+    "headers": {
+      "X-Notification-Canary-Diagnostic": "notification-delivery-android-canary-v1",
+      "X-Notification-Installation-ID": "CLIENT_EXISTING_UUID",
+      "X-Notification-App-Package": "vn.info.lptech.wmshoanam",
+      "X-Installation-Proof": "CLIENT_PRIVATE_DO_NOT_EXPORT"
+    },
+    "works_while_off": true,
+    "mutations": false,
+    "unbound_proof_status": "UNBOUND_CLIENT_PROPOSED",
+    "bound_proof_status": "SERVER_PROOF_VERIFIED",
+    "hardware_attestation": "NOT_PROVIDED",
+    "fingerprint": "context-bound HMAC; cannot authenticate or replace raw installation proof",
+    "response_addition": "data.canary_diagnostic",
+    "version": "data.binding_version with strong ETag"
+  },
+  "capabilities": {
+    "path": "/api/v1/notification-delivery/capabilities",
+    "required_canary_headers": ["X-Notification-Installation-ID", "X-Installation-Proof", "X-Notification-App-Package"],
+    "old_clients_without_identity": "DISABLED",
+    "matched_configured_target": "enabled=true, configuration_status=CONFIGURED, platforms=[ANDROID]",
+    "addition": "data.canary",
+    "registration_or_provider_success_implied": false
+  },
+  "writes": {
+    "register": "existing PUT installation route, exact platform/proof/owner/family and expected_version; no replacement/rotation within run",
+    "test": "existing POST test-self; first client request_key only, atomic unique per-run dispatch and receipt",
+    "same_key_same_context": "receipt replay only while admitted; never another provider attempt",
+    "different_key": "409 NOTIFICATION_CANARY_TEST_ALREADY_USED",
+    "old_test_post": "409 NOTIFICATION_CANARY_OLD_REQUEST",
+    "closed_post": "404 RESOURCE_NOT_FOUND",
+    "scope_denied_registration": "403 NOTIFICATION_CANARY_SCOPE_DENIED",
+    "version_conflict": "412 NOTIFICATION_BINDING_STALE",
+    "rotation_denied": "409 NOTIFICATION_CANARY_REBIND_DENIED"
+  },
+  "transport": {
+    "queue": "only matching persisted run/receipt/owner/family/installation/binding version",
+    "claim": "PENDING and attempts=0 only; atomic lease",
+    "provider_claim": "attempts CAS 0 to 1 before OAuth and FCM; revalidate policy immediately before FCM",
+    "retryable_configuration_error_unknown": "CHECK_ONLY_NO_RESEND",
+    "old_outbox": "NO_SEND_NO_REWRITE",
+    "expired_sending_readback": "UNKNOWN without a GET mutation",
+    "close_boundary": "cannot retract an already in-flight HTTP request",
+    "fcm_hint_payload_changed": false
+  },
+  "closure": {
+    "new_admission_and_transport": "DENY",
+    "original_owner_get_receipt": "AVAILABLE_WITH_AUTH_AND_PROOF",
+    "exact_owner_opt_out": "AVAILABLE_WITH_AUTH_PROOF_AND_STRONG_IF_MATCH",
+    "bulk_cleanup": false
+  },
+  "migration_required": false,
+  "seed_required": false,
+  "acceptance_levels": ["SOURCE_TESTED", "DEPLOYED_CLOSED", "NATIVE_SCOPE_VERIFIED", "CANARY_OPEN", "PROVIDER_ACCEPTED", "RECEIVED", "DISPLAYED", "CLICKED", "READ"],
+  "no_level_implies_the_next": true
+}

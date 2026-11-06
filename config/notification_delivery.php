@@ -2,7 +2,7 @@
 
 return [
     'enabled' => filter_var(env('NOTIFICATION_DELIVERY_ENABLED', false), FILTER_VALIDATE_BOOL),
-    'tier' => env('NOTIFICATION_DELIVERY_TIER','unknown'),
+    'tier' => env('NOTIFICATION_DELIVERY_TIER', 'unknown'),
     'project_id' => env('FCM_PROJECT_ID', 'hoa-nam-scanner-devtest'),
     'credentials_file' => env('FCM_CREDENTIALS_FILE'),
     'web_config' => json_decode((string) env('FCM_WEB_CONFIG', '{}'), true) ?: [],
@@ -12,4 +12,5 @@ return [
     'binding_days' => 30,
     'message_ttl_seconds' => 3600,
     'self_test_enabled' => filter_var(env('NOTIFICATION_DELIVERY_SELF_TEST_ENABLED', false), FILTER_VALIDATE_BOOL),
+    'canary_file' => env('NOTIFICATION_DELIVERY_CANARY_FILE'),
 ];
