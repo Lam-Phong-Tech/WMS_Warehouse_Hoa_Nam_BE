@@ -124,14 +124,17 @@ class Wwhn198ReservedQtySemanticsTest extends TestCase
                     continue;
                 }
                 $relative = str_replace('\\', '/', substr($file->getPathname(), strlen(base_path()) + 1));
-                if ($relative === 'Modules/Warehouse/app/Support/P06CatalogReadModel.php') {
+                if (in_array($relative, [
+                    'Modules/Warehouse/app/Support/P06CatalogReadModel.php',
+                    'Modules/Warehouse/app/Support/P18BoxReadModel.php',
+                ], true)) {
                     // This field is a response sum, not a DB assignment. Verify
                     // the declared read model has no persistence API before exempting it.
                     $nodes = (new ParserFactory)->createForNewestSupportedVersion()->parse($source);
                     $writes = (new NodeFinder)->find($nodes, static fn ($node): bool => ($node instanceof MethodCall || $node instanceof StaticCall)
                         && $node->name instanceof Identifier
-                        && in_array(strtolower($node->name->name), ['insert', 'insertorignore', 'insertgetid', 'update', 'updateorinsert', 'upsert', 'increment', 'decrement', 'save', 'delete', 'statement', 'unprepared', 'affectingstatement'], true));
-                    $this->assertSame([], $writes, 'P06 stock projection must remain read-only.');
+                        && in_array(strtolower($node->name->name), ['insert', 'insertorignore', 'insertgetid', 'create', 'createquietly', 'firstorcreate', 'updateorcreate', 'update', 'updateorinsert', 'upsert', 'increment', 'decrement', 'save', 'savequietly', 'saveorfail', 'delete', 'statement', 'unprepared', 'affectingstatement'], true));
+                    $this->assertSame([], $writes, $relative.' must remain read-only.');
 
                     continue;
                 }
