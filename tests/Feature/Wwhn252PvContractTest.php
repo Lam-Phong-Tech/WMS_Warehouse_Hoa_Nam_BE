@@ -28,6 +28,23 @@ class Wwhn252PvContractTest extends TestCase
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
+    public function test_profile_text_limits_accept_255_and_500_and_reject_overflow_on_create_and_update(): void
+    {
+        $headers = $this->headersForPermissions(['pv.master.manage']);
+        $sku = $this->skuFixture('PV-TEXT-LIMIT', 'Profile text limits');
+        $url = '/api/v1/pv-admin/resources/product-profiles';
+        $valid = ['sku_id' => $sku->sku_id, 'display_name' => str_repeat('Đ', 255), 'description' => str_repeat('Đ', 500), 'industry_ids' => [], 'tag_ids' => []];
+        $this->postJson($url, array_replace($valid, ['description' => str_repeat('Đ', 501)]), $headers)->assertUnprocessable()->assertJsonValidationErrors('description');
+        $this->postJson($url, array_replace($valid, ['display_name' => str_repeat('Đ', 256)]), $headers)->assertUnprocessable()->assertJsonValidationErrors('display_name');
+        $created = $this->postJson($url, $valid, $headers)->assertCreated()
+            ->assertJsonPath('data.display_name', $valid['display_name'])->assertJsonPath('data.description', $valid['description']);
+        $updateUrl = $url.'/'.$created->json('data.id');
+        $updateHeaders = $headers + ['If-Match' => (string) $created->json('data.version')];
+        $this->patchJson($updateUrl, array_replace($valid, ['description' => str_repeat('Đ', 501)]), $updateHeaders)->assertUnprocessable()->assertJsonValidationErrors('description');
+        $this->patchJson($updateUrl, array_replace($valid, ['display_name' => str_repeat('Đ', 256)]), $updateHeaders)->assertUnprocessable()->assertJsonValidationErrors('display_name');
+        $this->patchJson($updateUrl, $valid, $updateHeaders)->assertOk()->assertJsonPath('data.description', $valid['description']);
+    }
+
     // ------------------------------------------------------------------
     // Public catalog
     // ------------------------------------------------------------------

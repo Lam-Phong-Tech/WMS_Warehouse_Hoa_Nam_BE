@@ -150,8 +150,8 @@ class PvAdminResourceController extends Controller
                     new OA\Property(property: 'category_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'tag_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'priority', type: 'integer', minimum: 0, maximum: 2147483647, nullable: true),
-                    new OA\Property(property: 'display_name', type: 'string', nullable: true),
-                    new OA\Property(property: 'description', type: 'string', nullable: true),
+                    new OA\Property(property: 'display_name', type: 'string', maxLength: 255, nullable: true),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 500, nullable: true),
                     new OA\Property(property: 'industry_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true),
                     new OA\Property(property: 'tag_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid'), nullable: true),
                 ]
@@ -763,6 +763,11 @@ class PvAdminResourceController extends Controller
             $errors['display_name'] = ['display_name bắt buộc và tối đa 255 ký tự.'];
         }
 
+        $description = $request->input('description');
+        if ($description !== null && (! is_string($description) || mb_strlen(trim($description)) > 500)) {
+            $errors['description'] = ['Mô tả phải là chuỗi và tối đa 500 ký tự.'];
+        }
+
         $sortOrderRaw = $request->input('sort_order', 0);
         if (! is_numeric($sortOrderRaw) || (int) $sortOrderRaw < 0 || (int) $sortOrderRaw > 2147483647) {
             $errors['sort_order'] = ['sort_order phải là số nguyên không âm, tối đa 2147483647.'];
@@ -784,8 +789,6 @@ class PvAdminResourceController extends Controller
         // không cho tạo mới ngay từ đầu.
         $this->assertAllActive(PvRelations::READ_INDUSTRY, 'industry_id', $industryIds, 'Ngành nghề');
         $this->assertAllActive(PvRelations::READ_TAG, 'tag_id', $tagIds, 'Tag');
-
-        $description = $request->input('description');
 
         return [
             'sku_id' => (string) $skuId,
