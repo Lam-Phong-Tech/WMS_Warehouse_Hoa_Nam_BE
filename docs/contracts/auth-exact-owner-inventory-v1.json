@@ -1,0 +1,47 @@
+{
+  "contract": "auth-exact-owner-inventory-v1",
+  "revision": "auth-exact-owner-inventory-r1",
+  "purpose": "Declare existing in-code owner guards, not grant permissions or activate protocols",
+  "route_target_correction": "Eight personal routes previously named AuthController but resolved P10 through the existing container binding. They now target P10ProfileController directly; effective handler and wire contracts remain unchanged.",
+  "owner_prefix": "Modules\\Auth\\Http\\Controllers\\P10ProfileController",
+  "exact_actions": {
+    "GET api/v1/auth/me/avatar": "P10ProfileController@avatar",
+    "POST api/v1/auth/me/avatar": "P10ProfileController@uploadAvatar",
+    "DELETE api/v1/auth/me/avatar": "P10ProfileController@deleteAvatar",
+    "GET api/v1/auth/preferences": "P10ProfileController@preferences",
+    "PATCH api/v1/auth/preferences": "P10ProfileController@updatePreferences",
+    "GET api/v1/auth/devices": "P10ProfileController@devices",
+    "GET api/v1/auth/device-history": "P10ProfileController@deviceHistory",
+    "DELETE api/v1/auth/devices/{id}": "P10ProfileController@revokeDevice",
+    "POST api/v1/auth/sessions/revoke-others": "P10ProfileController@revokeOtherSessions",
+    "GET api/v1/auth/security-requests/{key}": "Modules\\Auth\\Support\\P11SecurityCommands@show",
+    "POST api/v1/auth/security-requests/{key}/verify": "Modules\\Auth\\Support\\P11SecurityCommands@verify"
+  },
+  "guards": {
+    "all": "auth:api, fresh active actor, no caller-provided actor/permission override",
+    "presented_family": "P10 validates a sid-bearing token's current family; existing legacy access-only policy is unchanged",
+    "avatar": "Current actor only; immutable owner lookup. Mutation uses existing If-Match, file whitelist and profile transaction",
+    "preferences": "Current actor only; strict body/query allowlist, version/CAS and audit on write",
+    "devices": "Current live stable family; caller-owned installation/family queries; foreign device is 404; current device/family protected",
+    "history": "Current actor only, ended login families ranked before pagination; no caller identity filter",
+    "p11": "Existing explicit contract/schema/flag gate remains OFF unless separately released; actor/exact operation key scope; another active family needs existing credential/MFA proof; revoked tokens never gain access"
+  },
+  "inventory": {
+    "location": "PermissionEnforcementMap::IN_CODE_GUARDED_ROUTES",
+    "matching": "Exact method, URI, concrete class and action; method must exist and route must retain auth:api",
+    "prefix_exemption": false,
+    "SELF_SCOPED_ROUTES_expansion": false,
+    "new_roles_permissions_grants": false,
+    "new_routes_migrations": false
+  },
+  "notification_rollout": {
+    "user_decision": "Business notification delivery enabled on DEV/TEST after release; no production",
+    "delivery_enabled": true,
+    "self_test_enabled": false,
+    "canary_active": false,
+    "normal_mode_selector": "NOTIFICATION_DELIVERY_CANARY_FILE empty; closed policy and old spent budget/receipt retained",
+    "old_test_binding": "REVOKED at historical binding v1, installation v2; do not reactivate or reuse it",
+    "old_backlog_gate": "Refuse activation if PENDING/RETRYABLE/CONFIGURATION_ERROR/SENDING rows exist; never replay UNKNOWN or old TEST",
+    "owner_requirement": "Legitimate current web/Android owner registers through existing client consent/proof/version protocol; no support takeover"
+  }
+}

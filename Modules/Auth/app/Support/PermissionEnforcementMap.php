@@ -3,6 +3,7 @@
 namespace Modules\Auth\Support;
 
 use Illuminate\Support\Facades\Route;
+use Modules\Auth\Http\Controllers\P10ProfileController;
 use Modules\Notification\Http\Controllers\NotificationDeliveryController;
 use Modules\Notification\Http\Controllers\NotificationDeliverySelfTestController;
 use Modules\Warehouse\Http\Controllers\P03DraftController;
@@ -107,6 +108,23 @@ final class PermissionEnforcementMap
      * @var array<string, string>
      */
     public const IN_CODE_GUARDED_ROUTES = [
+        // P10 derives a fresh actor, validates any presented session family and
+        // rejects caller identity/authorization overrides. Device mutations also
+        // require the current live family and protect current/foreign devices.
+        // Pin concrete actions instead of relying on the AuthController binding.
+        'GET api/v1/auth/me/avatar' => P10ProfileController::class.'@avatar',
+        'POST api/v1/auth/me/avatar' => P10ProfileController::class.'@uploadAvatar',
+        'DELETE api/v1/auth/me/avatar' => P10ProfileController::class.'@deleteAvatar',
+        'GET api/v1/auth/preferences' => P10ProfileController::class.'@preferences',
+        'PATCH api/v1/auth/preferences' => P10ProfileController::class.'@updatePreferences',
+        'GET api/v1/auth/devices' => P10ProfileController::class.'@devices',
+        'GET api/v1/auth/device-history' => P10ProfileController::class.'@deviceHistory',
+        'DELETE api/v1/auth/devices/{id}' => P10ProfileController::class.'@revokeDevice',
+        'POST api/v1/auth/sessions/revoke-others' => P10ProfileController::class.'@revokeOtherSessions',
+        // P11 remains feature-gated. Exact-key reads stay actor-owned; another
+        // family requires the existing credential/MFA proof, never token revival.
+        'GET api/v1/auth/security-requests/{key}' => P11SecurityCommands::class.'@show',
+        'POST api/v1/auth/security-requests/{key}/verify' => P11SecurityCommands::class.'@verify',
         // Personal delivery uses active actor/family, installation proof and
         // exact binding version; canary adds its file-backed scope/expiry.
         // This inventory declares guards, not grants or production approval.

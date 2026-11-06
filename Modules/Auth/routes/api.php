@@ -43,15 +43,15 @@ Route::prefix('v1')->group(function (): void {
         Route::get('auth/me', [AuthController::class, 'me']);
         // Hồ sơ CHÍNH mình: email thay đổi cần mật khẩu; không nhận vai trò/quyền.
         Route::patch('auth/me', [AuthController::class, 'updateMe']);
-        Route::get('auth/me/avatar', [AuthController::class, 'avatar']);
-        Route::post('auth/me/avatar', [AuthController::class, 'uploadAvatar']);
-        Route::delete('auth/me/avatar', [AuthController::class, 'deleteAvatar']);
-        Route::get('auth/preferences', [AuthController::class, 'preferences']);
-        Route::patch('auth/preferences', [AuthController::class, 'updatePreferences']);
-        Route::get('auth/devices', [AuthController::class, 'devices']);
+        Route::get('auth/me/avatar', [P10ProfileController::class, 'avatar']);
+        Route::post('auth/me/avatar', [P10ProfileController::class, 'uploadAvatar']);
+        Route::delete('auth/me/avatar', [P10ProfileController::class, 'deleteAvatar']);
+        Route::get('auth/preferences', [P10ProfileController::class, 'preferences']);
+        Route::patch('auth/preferences', [P10ProfileController::class, 'updatePreferences']);
+        Route::get('auth/devices', [P10ProfileController::class, 'devices']);
         Route::get('auth/device-history', [P10ProfileController::class, 'deviceHistory']);
-        Route::delete('auth/devices/{id}', [AuthController::class, 'revokeDevice']);
-        Route::post('auth/sessions/revoke-others', [AuthController::class, 'revokeOtherSessions']);
+        Route::delete('auth/devices/{id}', [P10ProfileController::class, 'revokeDevice']);
+        Route::post('auth/sessions/revoke-others', [P10ProfileController::class, 'revokeOtherSessions']);
         Route::post('auth/change-password', [AuthController::class, 'changePassword'])
             ->middleware(PersistRefreshTokenCookie::class);
         Route::post('auth/switch-context', [WarehouseContextController::class, 'switchContext']);
