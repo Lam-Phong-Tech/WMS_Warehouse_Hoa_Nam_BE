@@ -61,6 +61,22 @@ class AuthSessionReplacementConcurrencyTest extends TestCase
         $this->assertNull($active->first()->fresh()->revoked_at);
     }
 
+    public function test_parallel_controlled_logins_cannot_claim_the_same_remaining_slot(): void
+    {
+        $user = $this->fixture();
+        config()->set('refresh_token.controlled_multi_session.enabled', true);
+        config()->set('app.url', 'http://localhost');
+        app(RefreshTokenService::class)->completeLogin($user, Request::create('/'), true);
+        $results = $this->race([
+            ['command' => 'LOGIN', 'user_id' => $user->user_id, 'controlled' => true],
+            ['command' => 'LOGIN', 'user_id' => $user->user_id, 'controlled' => true],
+        ], $user);
+        $this->assertCount(1, array_filter($results, fn ($result) => isset($result['id'])));
+        $this->assertCount(1, array_filter($results, fn ($result) => ($result['error_code'] ?? null) === 'AUTH_SESSION_LIMIT_REACHED'));
+        $this->assertSame(2, RefreshToken::query()->where('user_id', $user->user_id)->active()->distinct()->count('auth_session_id'));
+        $this->assertSame(0, RefreshToken::query()->where('user_id', $user->user_id)->whereNotNull('replaced_by_auth_session_id')->count());
+    }
+
     private function fixture(): User
     {
         if (DB::getDriverName() !== 'pgsql') {
