@@ -25,6 +25,36 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
     use PreparesWarrantyOwnerFixtures;
     use RefreshDatabase;
 
+    public function test_brand_codes_are_normalized_before_validation_and_persistence(): void
+    {
+        $headers = $this->adminHeaders();
+        foreach (['/api/v1/brands', '/api/v1/catalog-masters/brands'] as $index => $url) {
+            foreach (['makita_japan' => 'MAKITA_JAPAN', 'makita' => 'MAKITA', 'ma ki' => 'MA_KI', 'Maki' => 'MAKI'] as $input => $expected) {
+                $suffix = '_'.$index;
+                $created = $this->postJson($url, [
+                    'brand_code' => ' '.$input.$suffix.' ',
+                    'brand_name' => 'Makita',
+                ], $headers)->assertCreated()->assertJsonPath('data.brand_code', $expected.$suffix);
+                $this->assertDatabaseHas('brands', ['id' => $created->json('data.id'), 'brand_code' => $expected.$suffix]);
+                $this->postJson($url, [
+                    'brand_code' => strtolower($expected.$suffix),
+                    'brand_name' => 'Duplicate',
+                ], $headers)->assertUnprocessable()->assertJsonValidationErrors('brand_code');
+            }
+        }
+
+        $created = $this->postJson('/api/v1/catalog-masters/brands', [
+            'code' => ' generic_brand ', 'name' => 'Generic brand',
+        ], $headers)->assertCreated()->assertJsonPath('data.brand_code', 'GENERIC_BRAND');
+        $legacyId = $this->catalogMaster('brands', ['brand_code' => 'legacy_makita', 'brand_name' => 'Legacy']);
+        $this->postJson('/api/v1/brands', [
+            'brand_code' => 'LEGACY_MAKITA', 'brand_name' => 'Duplicate legacy',
+        ], $headers)->assertUnprocessable()->assertJsonValidationErrors('brand_code');
+        $this->patchJson('/api/v1/catalog-masters/brands/'.$legacyId, [
+            'code' => 'legacy_makita', 'name' => 'Legacy renamed',
+        ], $headers)->assertOk()->assertJsonPath('data.brand_code', 'legacy_makita');
+    }
+
     private function adminHeaders(): array
     {
         $role = Role::firstOrCreate(
