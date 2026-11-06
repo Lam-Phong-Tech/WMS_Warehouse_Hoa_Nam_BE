@@ -73,6 +73,9 @@ GET test-self/{original_key} with original owner/proof is the only reconciliatio
 No key changes, re-registration, clearing intent or compensating TEST to get PASS.
 
 The existing six-field FCM data hint is unchanged; no title/PII in transport.
+The canary TEST suppresses the writer's user-channel realtime broadcast and
+does not send email; no topic or multicast. Its persisted P13 recipient remains
+readable under the normal owner ACL, not hidden or replaced with fixture data.
 Observe provider accepted vs received/displayed/clicked/read independently.
 Do not PATCH notification read merely to create evidence.
 

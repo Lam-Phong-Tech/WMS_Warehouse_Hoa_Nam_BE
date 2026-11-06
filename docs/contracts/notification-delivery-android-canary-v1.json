@@ -60,6 +60,8 @@
     "rotation_denied": "409 NOTIFICATION_CANARY_REBIND_DENIED"
   },
   "transport": {
+    "canary_realtime_broadcast": false,
+    "canary_email": false,
     "queue": "only matching persisted run/receipt/owner/family/installation/binding version",
     "claim": "PENDING and attempts=0 only; atomic lease",
     "provider_claim": "attempts CAS 0 to 1 before OAuth and FCM; revalidate policy immediately before FCM",

@@ -7,13 +7,16 @@ use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Modules\Notification\Delivery\DeliverySender;
 use Modules\Notification\Delivery\FcmAccessTokenSource;
 use Modules\Notification\Delivery\FcmHttpSender;
 use Modules\Notification\Delivery\NotificationOutbox;
+use Modules\Notification\Events\NotificationPushed;
 use Modules\Notification\Services\NotificationService;
 use Tests\Feature\Concerns\PushDeliveryTestCase;
 
@@ -393,5 +396,20 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
         $this->assertSame('REJECTED', $sender->send('TEST-FCM-OPAQUE-DEVICE-TOKEN-A', $data)['state']);
         Http::assertSentCount(1);
         $this->assertSame(1, (int) DB::table('notification_deliveries')->value('attempts'));
+    }
+
+    public function test_canary_test_does_not_broadcast_to_other_sessions_or_send_email(): void
+    {
+        $t = $this->target();
+        $this->activate($t);
+        $reg = $this->registerTarget($t);
+        Event::fake([NotificationPushed::class]);
+        Mail::fake();
+        $this->postJson(self::BASE.'/test-self', $this->selfTestBody($reg), $this->headers($t))->assertCreated();
+        Event::assertNotDispatched(NotificationPushed::class);
+        Mail::assertNothingOutgoing();
+        $this->assertSame(1, DB::table('notification_recipients')->count());
+        $this->assertSame(1, DB::table('notification_deliveries')->count());
+        $this->assertNull(DB::table('notification_recipients')->value('read_at'));
     }
 }

@@ -71,7 +71,7 @@ final class NotificationDeliverySelfTestController extends Controller
                 ApiError::abort(429, 'NOTIFICATION_SELF_TEST_RATE_LIMIT', 'Vui lòng chờ một phút trước khi gửi thử lại.');
             }
             RateLimiter::hit($rate, 60);
-            $n = app(NotificationService::class)->notify('system.notification.test', 'TEST – Thông báo thiết bị', 'Kiểm thử FCM đến thiết bị vừa bật thông báo. Không thay đổi dữ liệu kho.', [(string) $u->user_id], sourceModule: 'notification', actorId: (string) $u->user_id, dispatchKey: $manifest === null ? 'notification-self:'.$data['request_key'] : $canary->dispatchKey($manifest), deliveryRegistrationIds: [$b->id]);
+            $n = app(NotificationService::class)->notify('system.notification.test', 'TEST – Thông báo thiết bị', 'Kiểm thử FCM đến thiết bị vừa bật thông báo. Không thay đổi dữ liệu kho.', [(string) $u->user_id], sourceModule: 'notification', actorId: (string) $u->user_id, dispatchKey: $manifest === null ? 'notification-self:'.$data['request_key'] : $canary->dispatchKey($manifest), deliveryRegistrationIds: [$b->id], broadcastInApp: $manifest === null);
             $recipient = $n === null ? null : NotificationRecipient::where('notification_id', $n->id)->where('user_id', $u->user_id)->first();
             if ($recipient === null) {
                 ApiError::abort(503, 'NOTIFICATION_SELF_TEST_SOURCE_UNAVAILABLE', 'Chưa ghi nhận được thông báo gửi thử.');
