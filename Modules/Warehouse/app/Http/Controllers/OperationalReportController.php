@@ -35,6 +35,7 @@ use Modules\Warehouse\Support\SkuInformationCompleteness;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyOverdue;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
+use Modules\Warehouse\Support\WarrantyReportTime;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -681,7 +682,7 @@ class OperationalReportController extends Controller
         // Nếu để sau, một cache hit sẽ nuốt mất 403 của warehouse_id ngoài scope.
         $scope = $this->reportWarehouseScope($request);
 
-        $key = CacheKey::of('warehouse:report:dashboard-quick', [
+        $key = CacheKey::of('warehouse:report:dashboard-quick:instant-v2', [
             'from' => $from,
             'to' => $to,
             // Scope BẮT BUỘC có trong key. Hai người dùng khác data-scope gọi cùng kỳ
@@ -719,7 +720,7 @@ class OperationalReportController extends Controller
         // warehouse_id ngoài scope (cùng lý do đã ghi ở dashboardQuick).
         $scope = $this->reportWarehouseScope($request);
 
-        $key = CacheKey::of('warehouse:report:dashboard-overview', [
+        $key = CacheKey::of('warehouse:report:dashboard-overview:instant-v2', [
             'from' => $from,
             'to' => $to,
             'scope' => $scope === null ? 'global' : CacheKey::hashFilters($scope),
@@ -878,9 +879,9 @@ class OperationalReportController extends Controller
             ->groupBy('bucket_date');
 
         $dailyWarranty = WarrantyWarehouseScope::dashboardQuery($warehouseIds)
-            ->select(DB::raw('DATE(received_at) as bucket_date'), DB::raw('COUNT(*) AS total'))
-            ->whereBetween('received_at', ["{$from} 00:00:00", "{$to} 23:59:59"])
-            ->groupBy(DB::raw('DATE(received_at)'))
+            ->select(DB::raw(WarrantyReportTime::receivedDay().' as bucket_date'), DB::raw('COUNT(*) AS total'))
+            ->where(WarrantyReportTime::range($from, $to, receivedOnly: true, alias: 'warranty_case'))
+            ->groupBy(DB::raw(WarrantyReportTime::receivedDay()))
             ->pluck('total', 'bucket_date');
 
         $daily = [];
@@ -1128,7 +1129,7 @@ class OperationalReportController extends Controller
 
         $warrantyReceived = function (string $windowFrom, string $windowTo) use ($warehouseIds): int {
             return (int) WarrantyWarehouseScope::dashboardQuery($warehouseIds)
-                ->whereBetween('received_at', [$windowFrom, $windowTo])
+                ->where(WarrantyReportTime::range($windowFrom, $windowTo, receivedOnly: true, alias: 'warranty_case'))
                 ->count();
         };
 

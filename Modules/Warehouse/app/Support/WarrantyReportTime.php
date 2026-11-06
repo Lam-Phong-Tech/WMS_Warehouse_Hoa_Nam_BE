@@ -21,13 +21,13 @@ final class WarrantyReportTime
         return CarbonImmutable::today(self::TIMEZONE);
     }
 
-    public static function range(string $from, string $to): Closure
+    public static function range(string $from, string $to, bool $receivedOnly = false, string $alias = 'wc'): Closure
     {
         $lower = CarbonImmutable::parse($from, self::TIMEZONE)->startOfDay()->utc()->format('Y-m-d H:i:s.u');
         $upper = CarbonImmutable::parse($to, self::TIMEZONE)->startOfDay()->addDay()->utc()->format('Y-m-d H:i:s.u');
 
-        return static function (Builder $query) use ($lower, $upper): void {
-            $received = self::received();
+        return static function (Builder $query) use ($lower, $upper, $receivedOnly, $alias): void {
+            $received = $receivedOnly ? self::column('received_at', $alias) : self::received();
             $query->whereRaw($received.' >= ? AND '.$received.' < ?', [$lower, $upper]);
         };
     }
@@ -48,9 +48,21 @@ final class WarrantyReportTime
         return (int) $start->diffInDays($end);
     }
 
-    private static function column(string $field): string
+    public static function receivedDay(): string
     {
-        $column = 'wc.'.$field;
+        $received = self::column('received_at', 'warranty_case');
+
+        return DB::getDriverName() === 'pgsql'
+            ? "DATE($received + INTERVAL '7 hours')"
+            : "DATE($received, '+7 hours')";
+    }
+
+    private static function column(string $field, string $alias = 'wc'): string
+    {
+        if (! in_array($alias, ['wc', 'warranty_case'], true)) {
+            self::unavailable();
+        }
+        $column = $alias.'.'.$field;
         if (DB::getDriverName() === 'sqlite') {
             DB::connection()->getPdo()->sqliteCreateFunction('hn_warranty_report_utc',
                 static fn ($value) => DocumentTimestamp::key($value, self::TIMEZONE), 1, PDO::SQLITE_DETERMINISTIC);

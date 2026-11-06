@@ -405,6 +405,10 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             $paged = $this->getJson('/api/v1/reports/warranty-defects?from_date=2026-11-07&to_date=2026-11-07&per_page=2', $headers)->assertOk();
             $this->assertCount(2, $paged->json('data.rows'));
             $this->assertSame(count($wanted), $paged->json('data.summary.total'));
+            $dashboard = $this->getJson('/api/v1/reports/dashboard-overview'.$query, $headers)->assertOk();
+            $this->assertSame(count($wanted), $dashboard->json('data.warranty_received.today'));
+            $daily = $this->getJson('/api/v1/reports/dashboard-quick'.$query, $headers)->assertOk();
+            $this->assertSame(count($wanted), collect($daily->json('data.daily'))->sum('warranty_received_count'));
             $export = $this->get('/api/v1/reports/warranty-defects/export-excel'.$query, $headers)->assertOk();
             $file = storage_path('framework/testing/warranty-range-'.Str::uuid().'.xlsx');
             file_put_contents($file, $export->streamedContent());
