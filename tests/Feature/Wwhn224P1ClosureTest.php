@@ -4,8 +4,8 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 use Mockery;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\Auth\Database\Seeders\AuthDatabaseSeeder;
@@ -173,15 +173,27 @@ class Wwhn224P1ClosureTest extends TestCase
     {
         $file = $this->xlsx(['code', 'name', 'status'], [['LOOKUP-224-001', 'SKU tra cuu hong', 'ACTIVE']]);
 
-        Schema::drop('import_reports');
-
-        $this->withHeaders($this->headers())
-            ->post('/api/v1/skus/import-excel', ['file' => $file])
-            ->assertStatus(503)
-            ->assertJsonPath('error.code', 'SKU_IMPORT_REPORT_PERSISTENCE_FAILED')
-            ->assertJsonPath('data.partial_write', false);
+        // Throw before PDO so PostgreSQL's outer test transaction stays usable.
+        // No request-wide rollback may hide an accidental SKU write.
+        $failLookup = true;
+        DB::connection()->beforeExecuting(static function (string $query) use (&$failLookup): void {
+            if ($failLookup && str_starts_with(strtolower(ltrim($query)), 'select')
+                && str_contains(strtolower($query), 'import_reports')) {
+                throw new \RuntimeException('Injected import report lookup outage');
+            }
+        });
+        try {
+            $this->withHeaders($this->headers())
+                ->post('/api/v1/skus/import-excel', ['file' => $file])
+                ->assertStatus(503)
+                ->assertJsonPath('error.code', 'SKU_IMPORT_REPORT_PERSISTENCE_FAILED')
+                ->assertJsonPath('data.partial_write', false);
+        } finally {
+            $failLookup = false;
+        }
 
         $this->assertSame(0, Sku::query()->where('sku_code', 'LOOKUP-224-001')->count());
+        $this->assertDatabaseCount('sku_import_claims', 0);
     }
 
     /** Bất biến chiều ngược lại: mọi response 200/422-dòng đều phải có report id thật. */
