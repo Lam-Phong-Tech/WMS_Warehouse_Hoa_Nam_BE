@@ -233,6 +233,16 @@ class Wwhn267ContractClosureTest extends TestCase
         }
     }
 
+    public function test_auth_session_required_has_exactly_its_declared_two_layer_statuses(): void
+    {
+        $entry = collect($this->pairingRegister()['dualStatusCodes'])->firstWhere('code', 'AUTH_SESSION_REQUIRED');
+        $this->assertNotNull($entry);
+        $this->assertSame([401, 409], $entry['statuses']);
+        $observed = array_values(array_unique($this->scanAbortCallSites()['AUTH_SESSION_REQUIRED'] ?? []));
+        sort($observed);
+        $this->assertSame([401, 409], $observed);
+    }
+
     public function test_no_undeclared_dual_status_code_appears(): void
     {
         $register = $this->pairingRegister();

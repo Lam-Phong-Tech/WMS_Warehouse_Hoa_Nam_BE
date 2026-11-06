@@ -1,0 +1,10 @@
+{
+    "scope": "ISOLATED_TEST_FIXTURE_SOURCE_CATALOG_NOT_LIVE_GRANTS",
+    "database": "sqlite::memory:",
+    "app_env": "testing",
+    "source_head": "79b4591027d1608f442866961fb3799f8dd30888",
+    "source_worktree_dirty": true,
+    "catalog_sha256": "86673cd7c86ff6d5abb23560d0e838e317819fdc63bc3fd45f22801a2feceed9",
+    "source_line_endings": "CANONICAL_GIT_LF",
+    "live_seed_grant_or_db_write": false
+}

@@ -69,17 +69,20 @@ class ExportPermissionCatalog extends Command
             ->filter(fn ($route) => str_starts_with($route->uri(), 'api/v1/'))
             ->map(function ($route) {
                 $middleware = $route->gatherMiddleware();
-                $permission = collect($middleware)
-                    ->first(fn ($item) => is_string($item) && str_starts_with($item, 'permission:'));
-
-                $expression = $permission ? substr($permission, strlen('permission:')) : null;
+                $expressions = collect($middleware)
+                    ->filter(fn ($item) => is_string($item) && str_starts_with($item, 'permission:'))
+                    ->map(fn (string $item) => substr($item, strlen('permission:')))->values();
+                $groups = $expressions->map(fn (string $item) => self::acceptedPermissionKeys($item))->all();
+                $expression = $expressions->isEmpty() ? null : $expressions->implode(' && ');
 
                 return [
                     'methods' => array_values(array_diff($route->methods(), ['HEAD'])),
                     'uri' => $route->uri(),
                     'action' => $route->getActionName(),
                     'permission' => $expression,
-                    'accepted_permissions' => self::acceptedPermissionKeys($expression),
+                    'accepted_permissions' => collect($groups)->flatten()->unique()->values()->all(),
+                    'permission_groups' => $groups,
+                    'permission_match' => $groups === [] ? 'NONE_DECLARED' : 'ALL_GROUPS_ANY_KEY',
                     'middleware' => array_values($middleware),
                 ];
             })
@@ -106,12 +109,13 @@ class ExportPermissionCatalog extends Command
         $endpointPermissionRoleMatrix = $routes->map(function (array $route) use ($roles) {
             $permission = $route['permission'];
             $accepted = $route['accepted_permissions'];
-            $roleCodes = $permission === null
+            $groups = $route['permission_groups'];
+            $roleCodes = $permission === null || in_array([], $groups, true)
                 ? []
                 : $roles
                     ->filter(fn (array $role) => $role['status'] === 'ACTIVE'
                         && ($role['role_code'] === 'SUPER_ADMIN'
-                            || array_intersect($accepted, $role['permissions']) !== []))
+                            || collect($groups)->every(fn (array $group): bool => array_intersect($group, $role['permissions']) !== [])))
                     ->pluck('role_code')
                     ->values()
                     ->all();
@@ -121,6 +125,8 @@ class ExportPermissionCatalog extends Command
                 'uri' => $route['uri'],
                 'permission' => $permission,
                 'accepted_permissions' => $accepted,
+                'permission_groups' => $groups,
+                'permission_match' => $route['permission_match'],
                 'roles' => $roleCodes,
                 'backend_enforced' => $permission !== null,
             ];
@@ -219,7 +225,9 @@ class ExportPermissionCatalog extends Command
         ];
 
         $payload = [
-            'schema_version' => '1.3.0',
+            'schema_version' => '1.4.0',
+            'authorization_scope' => 'SOURCE_DEFINITIONS_NOT_LIVE_GRANTS_OR_OWNER_SCOPE',
+            'permission_composition' => 'ALL middleware groups required; ANY key within each group. accepted_permissions is only the flattened key inventory, not an OR authorization rule.',
             'generated_at_utc' => now()->utc()->toIso8601String(),
             'approval_status' => 'PENDING_FE_BA_REVIEW',
         ];

@@ -67,7 +67,14 @@ class Wwhn309PermissionCatalogEvidenceTest extends TestCase
         $this->assertNotEmpty($aliasRoutes, 'Baseline phải còn route dùng OR-alias để test có ý nghĩa.');
 
         foreach ($aliasRoutes as $route) {
-            $expected = array_values(array_filter(array_map('trim', explode('|', $route['permission']))));
+            $expectedGroups = [];
+            foreach ($route['middleware'] as $middleware) {
+                if (is_string($middleware) && str_starts_with($middleware, 'permission:')) {
+                    $expectedGroups[] = array_values(array_filter(array_map('trim', explode('|', substr($middleware, 11)))));
+                }
+            }
+            $expected = array_values(array_unique(array_merge(...$expectedGroups)));
+            $this->assertSame($expectedGroups, $route['permission_groups']);
             $this->assertSame($expected, $route['accepted_permissions'], $route['uri']);
             $this->assertGreaterThan(1, count($route['accepted_permissions']), $route['uri']);
         }
@@ -98,8 +105,11 @@ class Wwhn309PermissionCatalogEvidenceTest extends TestCase
                 if ($definition['status'] !== 'ACTIVE') {
                     continue;
                 }
-                if ($code === 'SUPER_ADMIN'
-                    || array_intersect($row['accepted_permissions'], $definition['permissions']) !== []) {
+                $allGroups = true;
+                foreach ($row['permission_groups'] as $group) {
+                    $allGroups = $allGroups && array_intersect($group, $definition['permissions']) !== [];
+                }
+                if ($code === 'SUPER_ADMIN' || $allGroups) {
                     $expectedRoles[] = $code;
                 }
             }
@@ -107,6 +117,59 @@ class Wwhn309PermissionCatalogEvidenceTest extends TestCase
             $this->assertSame($expectedRoles, $row['roles'], $row['uri']);
             $this->assertNotSame(['SUPER_ADMIN'], $row['roles'], "Route alias {$row['uri']} chỉ còn SUPER_ADMIN — dấu hiệu matrix so khớp cả chuỗi biểu thức.");
         }
+    }
+
+    public function test_all_permission_middleware_groups_are_required_and_aliases_remain_or(): void
+    {
+        Route::get('api/v1/wwhn309-composed-probe', fn () => [])
+            ->middleware(['permission:inbound.view|outbound.view', 'permission:inbound.scan|outbound.scan']);
+        $catalog = $this->exportCatalog();
+        $targets = [
+            'api/v1/inbound-documents/{id}/checks',
+            'api/v1/outbound-documents/{id}/checks',
+            'api/v1/inbound-documents/{id}/checks/requests/{key}',
+            'api/v1/outbound-documents/{id}/checks/requests/{key}',
+            'api/v1/wwhn309-composed-probe',
+        ];
+        $seen = 0;
+        foreach ($catalog['endpoint_permission_role_matrix'] as $row) {
+            if (! in_array($row['uri'], $targets, true)) {
+                continue;
+            }
+            $seen++;
+            $this->assertSame('ALL_GROUPS_ANY_KEY', $row['permission_match'] ?? null);
+            $groups = $row['permission_groups'] ?? [];
+            $this->assertCount(2, $groups);
+            $expected = [];
+            foreach ($catalog['roles'] as $role) {
+                if ($role['status'] !== 'ACTIVE') {
+                    continue;
+                }
+                $all = true;
+                foreach ($groups as $group) {
+                    $all = $all && array_intersect($group, $role['permissions']) !== [];
+                }
+                if ($role['role_code'] === 'SUPER_ADMIN' || $all) {
+                    $expected[] = $role['role_code'];
+                }
+            }
+            $this->assertSame($expected, $row['roles'], $row['uri']);
+            foreach (['LEADERSHIP', 'VIEWER', 'WAREHOUSE_APPROVER', 'WAREHOUSE_MANAGER'] as $viewOnly) {
+                $this->assertNotContains($viewOnly, $row['roles']);
+            }
+        }
+        $this->assertSame(5, $seen);
+    }
+
+    public function test_empty_permission_group_denies_every_role_including_super_admin(): void
+    {
+        Route::get('api/v1/wwhn309-empty-probe', fn () => [])
+            ->middleware(['permission:inbound.view', 'permission:']);
+        $catalog = $this->exportCatalog();
+        $row = collect($catalog['endpoint_permission_role_matrix'])->firstWhere('uri', 'api/v1/wwhn309-empty-probe');
+        $this->assertNotNull($row);
+        $this->assertSame([['inbound.view'], []], $row['permission_groups']);
+        $this->assertSame([], $row['roles']);
     }
 
     public function test_route_permission_integrity_uses_split_keys(): void
