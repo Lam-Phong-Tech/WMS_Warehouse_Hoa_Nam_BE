@@ -82,6 +82,23 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
         }
     }
 
+    public function test_brand_name_and_description_length_limits_on_create_and_update(): void
+    {
+        $headers = $this->adminHeaders();
+        foreach (['/api/v1/brands', '/api/v1/catalog-masters/brands'] as $index => $url) {
+            $valid = ['brand_code' => 'DETAIL_'.$index, 'brand_name' => str_repeat('N', 150), 'description' => str_repeat('D', 500)];
+            $created = $this->postJson($url, $valid, $headers)->assertCreated();
+            $id = $created->json('data.id');
+            $invalid = ['brand_name' => str_repeat('N', 151), 'description' => str_repeat('D', 501)];
+            $this->postJson($url, array_replace($valid, $invalid, ['brand_code' => 'TOO_LONG_'.$index]), $headers)
+                ->assertUnprocessable()->assertJsonValidationErrors(['brand_name', 'description']);
+            $this->patchJson($url.'/'.$id, $invalid, $headers)
+                ->assertUnprocessable()->assertJsonValidationErrors(['brand_name', 'description']);
+            $this->patchJson($url.'/'.$id, $valid, $headers)->assertOk();
+            $this->assertDatabaseHas('brands', ['id' => $id, 'brand_name' => $valid['brand_name'], 'description' => $valid['description']]);
+        }
+    }
+
     private function adminHeaders(): array
     {
         $role = Role::firstOrCreate(
