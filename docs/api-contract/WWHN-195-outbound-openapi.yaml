@@ -474,10 +474,14 @@ paths:
       responses:
         '200':
           description: Paginated item/NFC projection; tab_totals precede chip filter/paging
+        '401':
+          description: Authentication/current family required
         '403':
           description: Read permission denied
         '404':
           description: Document not in owner warehouse scope
+        '422':
+          description: BUSINESS_RULE_ERROR for invalid query fields
   /api/v1/outbound-documents/{id}/items/{itemId}/nfc-history:
     get:
       operationId: outbound_item_nfc_history
@@ -501,10 +505,14 @@ paths:
       responses:
         '200':
           description: Read-only historical events across NFC chips linked to this item
+        '401':
+          description: Authentication/current family required
         '403':
           description: outbound.view required
         '404':
           description: Document/item not found in scope or unsupported document state
+        '422':
+          description: BUSINESS_RULE_ERROR for invalid query fields
   /api/v1/outbound-documents/{id}/checks:
     post:
       operationId: outbound_human_check_confirm
@@ -553,6 +561,8 @@ paths:
           description: >-
             document-human-check-v1 SUCCEEDED receipt, document_version, stock_effect=NONE and
             retry_policy=CHECK_ONLY; same identity replays unchanged
+        '401':
+          description: Authentication/current family required
         '403':
           description: Actor/right/session/warehouse/organization scope denied
         '404':
@@ -589,10 +599,14 @@ paths:
       responses:
         '200':
           description: Existing SUCCEEDED receipt or UNKNOWN with retry_policy=CHECK_ONLY; private/no-store
+        '401':
+          description: Authentication/current family required
         '403':
           description: Owner permission/warehouse/session scope denied
         '404':
           description: Document not found in owner scope
+        '409':
+          description: AUTH_SESSION_REQUIRED for missing stable owner family
         '422':
           description: Invalid warehouse_id
   /api/v1/outbound-documents:

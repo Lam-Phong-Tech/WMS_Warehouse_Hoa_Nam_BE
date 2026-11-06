@@ -185,6 +185,7 @@ export function buildPostman(spec) {
     for (const [method, op] of Object.entries(ops)) {
       if (!['get', 'post', 'put', 'patch', 'delete'].includes(method)) continue
       const mutating = method !== 'get'
+      const humanCheck = op.operationId === 'outbound_human_check_confirm'
       const header = [{ key: 'Accept', value: 'application/json' }]
       if (mutating) {
         header.push({ key: 'Content-Type', value: 'application/json' })
@@ -195,13 +196,13 @@ export function buildPostman(spec) {
         // tiền tố, không khớp tuyệt đối — nếu không header bắt buộc sẽ âm thầm thiếu.
         const has = (needle) => params.some((x) => String(x).replace(/-/g, '').toLowerCase().startsWith(needle))
         if (has('ifmatch')) {
-          header.push({ key: 'If-Match', value: '{{document_version}}' })
+          header.push({ key: 'If-Match', value: humanCheck ? '"{{document_version}}"' : '{{document_version}}' })
         }
         if (has('idempotencykey')) {
           header.push({ key: 'Idempotency-Key', value: '{{idempotency_key}}' })
         }
       }
-      items.push({
+      const item = {
         name: `${method.toUpperCase()} ${p}`,
         request: {
           method: method.toUpperCase(),
@@ -222,7 +223,21 @@ export function buildPostman(spec) {
             },
           },
         ],
-      })
+      }
+      if (humanCheck) {
+        item.request.body = {mode: 'raw', raw: JSON.stringify({warehouse_id: '{{warehouse_id}}', confirmed: true}, null, 2),
+          options: {raw: {language: 'json'}}}
+      }
+      if (op.operationId === 'outbound_human_check_reconcile') {
+        item.request.url.raw = item.request.url.raw.replace('{key}', '{{idempotency_key}}') + '?warehouse_id={{warehouse_id}}'
+        item.request.url.path = item.request.url.path.map(part => part === '{key}' ? '{{idempotency_key}}' : part)
+        item.request.url.query = [{key: 'warehouse_id', value: '{{warehouse_id}}'}]
+      }
+      if (op.operationId === 'outbound_item_nfc_history') {
+        item.request.url.raw = item.request.url.raw.replace('{itemId}', '{{item_id}}')
+        item.request.url.path = item.request.url.path.map(part => part === '{itemId}' ? '{{item_id}}' : part)
+      }
+      items.push(item)
     }
   }
 
@@ -239,6 +254,8 @@ export function buildPostman(spec) {
       { key: 'document_id', value: '' },
       { key: 'document_version', value: '1' },
       { key: 'idempotency_key', value: '' },
+      { key: 'warehouse_id', value: '' },
+      { key: 'item_id', value: '' },
     ],
     item: items,
     'x-source-contract-version': spec.info.version,
@@ -248,6 +265,12 @@ export function buildPostman(spec) {
 
 function postmanTestScript(op) {
   const allowed = Object.keys(op.responses ?? {}).filter((c) => /^\d+$/.test(c))
+  const errors = op.operationId === 'outbound_human_check_confirm'
+    ? {409: ['IDEMPOTENCY_CONFLICT', 'DOCUMENT_CHECK_VERSION_CONFLICT', 'DOCUMENT_CHECK_STATE_CONFLICT', 'AUTH_SESSION_REQUIRED'],
+       422: ['DOCUMENT_CHECK_PAYLOAD_INVALID', 'BUSINESS_RULE_ERROR'],
+       428: ['DOCUMENT_CHECK_IDENTITY_REQUIRED']}
+    : ['outbound_human_check_reconcile', 'outbound_nfc_items', 'outbound_item_nfc_history'].includes(op.operationId)
+      ? {422: ['BUSINESS_RULE_ERROR']} : ERROR_CONTRACT
   return [
     `const allowed = ${JSON.stringify(allowed)}.map(Number);`,
     'pm.test("HTTP status nằm trong hợp đồng WWHN-195", function () {',
@@ -255,7 +278,7 @@ function postmanTestScript(op) {
     '});',
     '',
     '// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.',
-    `const contract = ${JSON.stringify(ERROR_CONTRACT)};`,
+    `const contract = ${JSON.stringify(errors)};`,
     'if (pm.response.code >= 400) {',
     '  const body = pm.response.json();',
     '  const code = body.error_code || (body.error && body.error.code);',
@@ -266,7 +289,7 @@ function postmanTestScript(op) {
     '    });',
     '  }',
     '  pm.test("lỗi luôn có request_id để truy vết", function () {',
-    '    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;',
+    '    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get("X-Request-ID"))).to.be.ok;',
     '  });',
     '}',
   ]

@@ -34,6 +34,14 @@
     {
       "key": "idempotency_key",
       "value": ""
+    },
+    {
+      "key": "warehouse_id",
+      "value": ""
+    },
+    {
+      "key": "item_id",
+      "value": ""
     }
   ],
   "item": [
@@ -59,7 +67,7 @@
             "nfc-items"
           ]
         },
-        "description": "Read outbound items and active NFC assignments — sinh từ WWHN-195 v2.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 403, 404."
+        "description": "Read outbound items and active NFC assignments — sinh từ WWHN-195 v2.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 422."
       },
       "event": [
         {
@@ -67,13 +75,13 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "const allowed = [\"200\",\"403\",\"404\"].map(Number);",
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"422\"].map(Number);",
               "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
               "  pm.expect(allowed).to.include(pm.response.code);",
               "});",
               "",
               "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
-              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "const contract = {\"422\":[\"BUSINESS_RULE_ERROR\"]};",
               "if (pm.response.code >= 400) {",
               "  const body = pm.response.json();",
               "  const code = body.error_code || (body.error && body.error.code);",
@@ -84,7 +92,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -103,7 +111,7 @@
           }
         ],
         "url": {
-          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/items/{itemId}/nfc-history",
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/items/{{item_id}}/nfc-history",
           "host": [
             "{{base_url}}"
           ],
@@ -113,11 +121,11 @@
             "outbound-documents",
             "{{document_id}}",
             "items",
-            "{itemId}",
+            "{{item_id}}",
             "nfc-history"
           ]
         },
-        "description": "Read NFC assignment/revocation history for a matched outbound item — sinh từ WWHN-195 v2.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 403, 404."
+        "description": "Read NFC assignment/revocation history for a matched outbound item — sinh từ WWHN-195 v2.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 422."
       },
       "event": [
         {
@@ -125,13 +133,13 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "const allowed = [\"200\",\"403\",\"404\"].map(Number);",
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"422\"].map(Number);",
               "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
               "  pm.expect(allowed).to.include(pm.response.code);",
               "});",
               "",
               "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
-              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "const contract = {\"422\":[\"BUSINESS_RULE_ERROR\"]};",
               "if (pm.response.code >= 400) {",
               "  const body = pm.response.json();",
               "  const code = body.error_code || (body.error && body.error.code);",
@@ -142,7 +150,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -165,7 +173,7 @@
           },
           {
             "key": "If-Match",
-            "value": "{{document_version}}"
+            "value": "\"{{document_version}}\""
           },
           {
             "key": "Idempotency-Key",
@@ -185,7 +193,16 @@
             "checks"
           ]
         },
-        "description": "Persist explicit human document-check confirmation — sinh từ WWHN-195 v2.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 403, 404, 409, 422, 428."
+        "description": "Persist explicit human document-check confirmation — sinh từ WWHN-195 v2.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422, 428.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"warehouse_id\": \"{{warehouse_id}}\",\n  \"confirmed\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
       },
       "event": [
         {
@@ -193,13 +210,13 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "const allowed = [\"200\",\"403\",\"404\",\"409\",\"422\",\"428\"].map(Number);",
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"422\",\"428\"].map(Number);",
               "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
               "  pm.expect(allowed).to.include(pm.response.code);",
               "});",
               "",
               "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
-              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "const contract = {\"409\":[\"IDEMPOTENCY_CONFLICT\",\"DOCUMENT_CHECK_VERSION_CONFLICT\",\"DOCUMENT_CHECK_STATE_CONFLICT\",\"AUTH_SESSION_REQUIRED\"],\"422\":[\"DOCUMENT_CHECK_PAYLOAD_INVALID\",\"BUSINESS_RULE_ERROR\"],\"428\":[\"DOCUMENT_CHECK_IDENTITY_REQUIRED\"]};",
               "if (pm.response.code >= 400) {",
               "  const body = pm.response.json();",
               "  const code = body.error_code || (body.error && body.error.code);",
@@ -210,7 +227,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -229,7 +246,7 @@
           }
         ],
         "url": {
-          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/checks/requests/{key}",
+          "raw": "{{base_url}}/api/v1/outbound-documents/{{document_id}}/checks/requests/{{idempotency_key}}?warehouse_id={{warehouse_id}}",
           "host": [
             "{{base_url}}"
           ],
@@ -240,10 +257,16 @@
             "{{document_id}}",
             "checks",
             "requests",
-            "{key}"
+            "{{idempotency_key}}"
+          ],
+          "query": [
+            {
+              "key": "warehouse_id",
+              "value": "{{warehouse_id}}"
+            }
           ]
         },
-        "description": "Reconcile the original human-check request without replay — sinh từ WWHN-195 v2.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 403, 404, 422."
+        "description": "Reconcile the original human-check request without replay — sinh từ WWHN-195 v2.2.0 (DEC-OUT-STOCK-HTTP-001). Response hợp lệ: 200, 401, 403, 404, 409, 422."
       },
       "event": [
         {
@@ -251,13 +274,13 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "const allowed = [\"200\",\"403\",\"404\",\"422\"].map(Number);",
+              "const allowed = [\"200\",\"401\",\"403\",\"404\",\"409\",\"422\"].map(Number);",
               "pm.test(\"HTTP status nằm trong hợp đồng WWHN-195\", function () {",
               "  pm.expect(allowed).to.include(pm.response.code);",
               "});",
               "",
               "// DEC-OUT-STOCK-HTTP-001: mỗi HTTP status chỉ được mang đúng nhóm business code.",
-              "const contract = {\"409\":[\"STATE_CONFLICT\",\"IDEMPOTENCY_CONFLICT\",\"CONCURRENCY_CONFLICT\",\"DOWNSTREAM_DEPENDENCY_EXISTS\"],\"412\":[\"STALE_VERSION\"],\"422\":[\"INSUFFICIENT_STOCK\",\"INSUFFICIENT_AVAILABLE_STOCK\"],\"428\":[\"PRECONDITION_REQUIRED\"]};",
+              "const contract = {\"422\":[\"BUSINESS_RULE_ERROR\"]};",
               "if (pm.response.code >= 400) {",
               "  const body = pm.response.json();",
               "  const code = body.error_code || (body.error && body.error.code);",
@@ -268,7 +291,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -322,7 +345,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -377,7 +400,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -441,7 +464,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -505,7 +528,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -569,7 +592,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -633,7 +656,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -701,7 +724,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -765,7 +788,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -829,7 +852,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -891,7 +914,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -957,7 +980,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -1027,7 +1050,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -1089,7 +1112,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -1151,7 +1174,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -1207,7 +1230,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
@@ -1267,7 +1290,7 @@
               "    });",
               "  }",
               "  pm.test(\"lỗi luôn có request_id để truy vết\", function () {",
-              "    pm.expect(body.error && body.error.request_id ? body.error.request_id : body.request_id).to.be.ok;",
+              "    pm.expect((body.meta && body.meta.request_id) || (body.error && body.error.request_id) || body.request_id || (pm.response.headers && pm.response.headers.get(\"X-Request-ID\"))).to.be.ok;",
               "  });",
               "}"
             ]
