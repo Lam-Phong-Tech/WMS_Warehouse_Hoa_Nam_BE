@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Support\ListSortOrder;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyOverdue;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 
@@ -352,6 +353,7 @@ class CanonicalMvpController extends Controller
             new OA\Parameter(name: 'status', in: 'query', description: 'Một trạng thái, hoặc nhiều trạng thái phân tách bằng dấu phẩy — ví dụ `CHECKING,REPAIRING` cho màn xuất linh kiện.', schema: new OA\Schema(type: 'string', example: 'CHECKING,REPAIRING')),
             new OA\Parameter(name: 'identification_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['IDENTIFIED', 'TEMP_ONLY'])),
             new OA\Parameter(name: 'defect_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'overdue', in: 'query', description: '1 = chỉ hồ sơ chưa kết thúc có estimated_completion_date trước hôm nay (Asia/Ho_Chi_Minh), giống Dashboard. Không gửi, 0 hoặc rỗng = tất cả.', schema: new OA\Schema(type: 'integer', enum: [0, 1])),
             new OA\Parameter(name: 'keyword', in: 'query', description: 'Khớp mã hồ sơ / mã tạm, serial + mã vật lý của item gắn case, mã hoặc tên SKU sản phẩm, mô tả sản phẩm nhập tay (TEMP_ONLY), và customer_name/customer_phone qua blind index — chỉ khi có quyền warranty.pii.view (tên khớp trọn từ không dấu, SĐT khớp chính xác; địa chỉ không tìm được sau WWHN-SEC-06)', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
@@ -361,11 +363,13 @@ class CanonicalMvpController extends Controller
             new OA\Response(response: 200, description: 'Trang danh sách warranty_case; mỗi item kèm cờ pii_masked (§13.8)'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền warranty.view hoặc warranty.manage'),
-            new OA\Response(response: 422, description: 'sort_order lạ, hoặc bộ lọc đã gửi không dùng được trên schema hiện tại (FILTER_NOT_SUPPORTED) — KHÔNG bao giờ trả danh sách chưa lọc dưới vỏ 200'),
+            new OA\Response(response: 422, description: 'overdue không phải boolean 0/1, sort_order lạ, hoặc bộ lọc đã gửi không dùng được trên schema hiện tại (FILTER_NOT_SUPPORTED) — KHÔNG bao giờ trả danh sách chưa lọc dưới vỏ 200'),
         ]
     )]
     public function listWarrantyCases(Request $request)
     {
+        $request->validate(['overdue' => ['nullable', 'boolean']]);
+
         return $this->tablePage(
             $request,
             'warranty_case',
@@ -466,6 +470,9 @@ class CanonicalMvpController extends Controller
             // bệnh này ở vị trí phụ — người dùng đối chiếu với cột "Bệnh/lỗi"
             // trên màn sẽ thấy "lọc không ăn".
             function ($query, Request $request): void {
+                if ($request->boolean('overdue')) {
+                    WarrantyOverdue::apply($query);
+                }
                 if (! $request->filled('defect_id')) {
                     return;
                 }

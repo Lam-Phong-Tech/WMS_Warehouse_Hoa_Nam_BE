@@ -33,6 +33,7 @@ use Modules\Warehouse\Support\ReportExportFileStore;
 use Modules\Warehouse\Support\ReportExportJobRunner;
 use Modules\Warehouse\Support\SkuInformationCompleteness;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyOverdue;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -76,14 +77,6 @@ class OperationalReportController extends Controller
      * to bằng cả báo cáo tồn kho.
      */
     private const DASHBOARD_WARNING_LIMIT = 50;
-
-    /**
-     * Trạng thái kết thúc của ca bảo hành — ca đã ở một trong các trạng thái này thì
-     * không thể "quá hạn" nữa dù estimated_completion_date đã lùi về quá khứ.
-     * RETURNED và RETURNED_TO_CUSTOMER cùng nghĩa "đã trả khách": ERD dùng
-     * RETURNED_TO_CUSTOMER, một số bản ghi cũ dùng RETURNED, phải chặn cả hai.
-     */
-    private const WARRANTY_CLOSED_STATUSES = ['COMPLETED', 'RETURNED', 'RETURNED_TO_CUSTOMER', 'CLOSED', 'CANCELLED'];
 
     /**
      * WWHN-240 / BR-REV-04, BR-REV-08: correction chain là append-only và một Reversal có
@@ -730,6 +723,8 @@ class OperationalReportController extends Controller
             'from' => $from,
             'to' => $to,
             'scope' => $scope === null ? 'global' : CacheKey::hashFilters($scope),
+            // The SLA advances at Vietnam midnight even with a fixed report period.
+            'sla_date' => WarrantyOverdue::today()->toDateString(),
         ], $this->cacheService()->currentVersion('stock:version'));
 
         $data = $this->cacheService()->rememberStampede(
@@ -1097,10 +1092,7 @@ class OperationalReportController extends Controller
 
         // "Quá hạn" đọc từ cột hạn THẬT (estimated_completion_date), không phải ngưỡng
         // tuổi tự chế. Ca chưa điền hạn dự kiến thì không có gì để quá — không tính.
-        $overdueBase = fn () => WarrantyWarehouseScope::dashboardQuery($warehouseIds)
-            ->whereNotNull('estimated_completion_date')
-            ->whereDate('estimated_completion_date', '<', $today->toDateString())
-            ->whereNotIn('status', self::WARRANTY_CLOSED_STATUSES);
+        $overdueBase = fn () => WarrantyOverdue::apply(WarrantyWarehouseScope::dashboardQuery($warehouseIds));
         $overdueCount = (int) $overdueBase()->count();
 
         // WWHN-SEC-06: `customer_name` KHÔNG còn là cột của bảng — chỉ còn
@@ -1130,7 +1122,7 @@ class OperationalReportController extends Controller
                     : WarrantyPiiMasker::name((string) $row->customer_name),
                 'status' => (string) $row->status,
                 'estimated_completion_date' => (string) $row->estimated_completion_date,
-                'days_overdue' => (int) Carbon::parse($row->estimated_completion_date)->diffInDays($today),
+                'days_overdue' => (int) Carbon::parse($row->estimated_completion_date, 'Asia/Ho_Chi_Minh')->diffInDays(WarrantyOverdue::today()),
             ])
             ->all();
 
