@@ -69,7 +69,7 @@ class CurrentBaselineMasterController extends Controller
             content: new OA\JsonContent(
                 required: ['brand_code', 'brand_name'],
                 properties: [
-                    new OA\Property(property: 'brand_code', type: 'string', maxLength: 80, example: 'BR-0001'),
+                    new OA\Property(property: 'brand_code', type: 'string', maxLength: 50, example: 'BR-0001'),
                     new OA\Property(property: 'brand_name', type: 'string', maxLength: 200, example: 'Samsung'),
                     new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
@@ -255,7 +255,7 @@ class CurrentBaselineMasterController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(properties: [
-                new OA\Property(property: 'brand_code', type: 'string', maxLength: 80, example: 'BR-0001'),
+                new OA\Property(property: 'brand_code', type: 'string', maxLength: 50, example: 'BR-0001'),
                 new OA\Property(property: 'brand_name', type: 'string', maxLength: 200, example: 'Samsung'),
                 new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
@@ -554,8 +554,15 @@ class CurrentBaselineMasterController extends Controller
      */
     private function updateMaster(Request $request, string $id, string $table, string $codeColumn, string $nameColumn)
     {
+        $codeMaxLength = $table === 'brands' ? 50 : 80;
+        $submittedCode = $request->input($codeColumn);
+        // Keep legacy codes editable for name/status changes without allowing a new long code.
+        if ($table === 'brands' && is_string($submittedCode) && mb_strlen($submittedCode) > 50
+            && DB::table('brands')->where('id', $id)->where('brand_code', $submittedCode)->exists()) {
+            $codeMaxLength = 80;
+        }
         $rules = [
-            $codeColumn => ['sometimes', 'string', 'max:80', Rule::unique($table, $codeColumn)->ignore($id, 'id')],
+            $codeColumn => ['sometimes', 'string', 'max:'.$codeMaxLength, Rule::unique($table, $codeColumn)->ignore($id, 'id')],
             $nameColumn => ['sometimes', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['sometimes', 'in:ACTIVE,INACTIVE'],
@@ -669,7 +676,7 @@ class CurrentBaselineMasterController extends Controller
         }
         $validated = $request->validate([
             $code => [
-                'required', 'string', 'max:80', "unique:{$table},{$code}",
+                'required', 'string', 'max:'.($table === 'brands' ? 50 : 80), "unique:{$table},{$code}",
                 function ($attribute, $value, $fail) use ($table) {
                     if ($table === 'brands' && is_string($value) && DB::table('brands')->whereRaw('UPPER(TRIM(brand_code)) = ?', [$value])->exists()) {
                         $fail(__('validation.unique', ['attribute' => $attribute]));
