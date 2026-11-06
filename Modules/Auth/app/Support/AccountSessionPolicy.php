@@ -3,22 +3,68 @@
 namespace Modules\Auth\Support;
 
 use App\Support\ApiError;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Modules\Auth\Models\RefreshToken;
+use Modules\Auth\Models\User;
 
 /** Account-wide login replacement; no inferred device, role or warehouse exemptions. */
 final class AccountSessionPolicy
 {
     public const CONTRACT = 'auth-session-replacement-v1';
 
+    public const CONTROLLED_CONTRACT = 'auth-session-policy-v2';
+
+    public const MAX_ACTIVE_FAMILIES = 2;
+
     public static function enabled(): bool
     {
-        return (bool) config('refresh_token.single_active_session.enabled', false);
+        return self::controlledMode() || (bool) config('refresh_token.single_active_session.enabled', false);
+    }
+
+    public static function controlledMode(): bool
+    {
+        return (bool) config('refresh_token.controlled_multi_session.enabled', false);
+    }
+
+    public static function replaceExistingSessions(): bool
+    {
+        return self::enabled() && ! self::controlledMode();
+    }
+
+    /** Caller holds the same parent-user lock as refresh and revocation. */
+    public static function assertAdmissionAllowed(User $user): void
+    {
+        if (! self::controlledMode()) {
+            return;
+        }
+        self::assertReady();
+        if (config('refresh_token.controlled_multi_session.draining', false)) {
+            ApiError::abort(409, 'AUTH_SESSION_ADMISSION_DRAINING', 'Tạm dừng tạo phiên mới; các phiên đang hoạt động được giữ nguyên.');
+        }
+        $count = RefreshToken::query()->where('user_id', $user->user_id)->active()
+            ->whereNull('replaced_by_auth_session_id')->distinct()
+            ->count(DB::raw('COALESCE(auth_session_id, id)'));
+        if ($count >= self::MAX_ACTIVE_FAMILIES) {
+            ApiError::abort(409, 'AUTH_SESSION_LIMIT_REACHED', 'Tài khoản đã có tối đa 2 phiên hoạt động. Vui lòng chủ động đăng xuất một phiên trước khi đăng nhập thêm.', [], [
+                'max_active_families' => self::MAX_ACTIVE_FAMILIES,
+                'automatic_eviction' => false,
+            ]);
+        }
     }
 
     public static function assertReady(): void
     {
-        if (self::enabled() && ! Schema::hasColumn('refresh_tokens', 'replaced_by_auth_session_id')) {
+        $origin = rtrim((string) config('app.url'), '/');
+        $host = parse_url($origin, PHP_URL_HOST);
+        $scheme = parse_url($origin, PHP_URL_SCHEME);
+        $local = in_array($host, ['localhost', '127.0.0.1', '[::1]', '::1'], true) && in_array($scheme, ['http', 'https'], true);
+        if (self::controlledMode() && (! app()->environment('local', 'testing')
+            || (! $local && $origin !== 'https://khohoanamdev.lptech.info.vn'))) {
+            ApiError::abort(503, 'AUTH_SESSION_POLICY_NOT_READY', 'Chính sách đa phiên chỉ được phép trên môi trường DEV/TEST đã duyệt.');
+        }
+        if (self::enabled() && (! Schema::hasColumn('refresh_tokens', 'replaced_by_auth_session_id')
+            || ! Schema::hasColumn('refresh_tokens', 'auth_session_id'))) {
             ApiError::abort(503, 'AUTH_SESSION_POLICY_NOT_READY', 'Chính sách phiên chưa sẵn sàng. Vui lòng thử lại sau.');
         }
     }
@@ -72,6 +118,33 @@ final class AccountSessionPolicy
 
     public static function contract(): array
     {
+        if (self::controlledMode()) {
+            return [
+                'version' => self::CONTROLLED_CONTRACT,
+                'revision' => 'controlled-multi-session-r1',
+                'enabled' => true,
+                'mode' => config('refresh_token.controlled_multi_session.draining', false) ? 'CONTROLLED_MULTI_SESSION_DRAINING' : 'CONTROLLED_MULTI_SESSION',
+                'scope' => 'ACCOUNT_AUTH_SESSION_FAMILIES',
+                'count_unit' => 'ACTIVE_AUTH_SESSION_FAMILY',
+                'max_active_families' => self::MAX_ACTIVE_FAMILIES,
+                'stable_session_required' => true,
+                'automatic_eviction' => false,
+                'role_exemptions' => [],
+                'limit_error' => 'AUTH_SESSION_LIMIT_REACHED',
+                'logout_scope' => 'CURRENT_AUTH_SESSION_FAMILY',
+                'replay_scope' => 'PERSISTED_PRESENTED_TOKEN_FAMILY_ONLY',
+                'legacy_revoked_reason' => 'NOT_INFERRED',
+                'global_security_revocation_preserved' => true,
+                'legacy_access_policy' => 'RELOGIN_REQUIRED',
+                'replacement_error' => 'AUTH_SESSION_REPLACED',
+                'push_disconnect_supported' => false,
+                'server_detection_boundary' => 'NEXT_PROTECTED_REQUEST_NO_REVOCATION_CACHE',
+                'work_shift_ended' => false,
+                'business_drafts_deleted' => false,
+                'automatic_login_retry' => false,
+            ];
+        }
+
         return [
             'version' => self::CONTRACT,
             'enabled' => self::enabled(),

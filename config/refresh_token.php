@@ -23,6 +23,10 @@ return [
     'single_active_session' => [
         'enabled' => filter_var(env('AUTH_SINGLE_ACTIVE_SESSION_ENABLED', false), FILTER_VALIDATE_BOOL),
     ],
+    'controlled_multi_session' => [
+        'enabled' => filter_var(env('AUTH_CONTROLLED_MULTI_SESSION_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'draining' => filter_var(env('AUTH_CONTROLLED_MULTI_SESSION_DRAINING', false), FILTER_VALIDATE_BOOL),
+    ],
 
     // Mặc định 20160 phút = 14 ngày.
     'ttl_minutes' => (int) env('REFRESH_TOKEN_TTL_MINUTES', 20160),

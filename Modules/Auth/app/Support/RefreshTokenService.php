@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Events\AuthSessionReplaced;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
@@ -70,7 +71,10 @@ class RefreshTokenService
             $raw = $this->generateRawToken();
             $family = $authSessionId ?? (string) Str::uuid();
             $replacedExistingSession = false;
-            if ($authSessionId === null && AccountSessionPolicy::enabled()) {
+            if ($authSessionId === null) {
+                AccountSessionPolicy::assertAdmissionAllowed($fresh);
+            }
+            if ($authSessionId === null && AccountSessionPolicy::replaceExistingSessions()) {
                 AccountSessionPolicy::assertReady();
                 $replacedExistingSession = RefreshToken::query()->where('user_id', $fresh->user_id)->active()->exists();
                 // A new account login supersedes every prior credential, including
@@ -144,6 +148,17 @@ class RefreshTokenService
                 return null;
             }
             if ($record->revoked_at !== null) {
+                if (AccountSessionPolicy::controlledMode()) {
+                    $family = P10ProfilePolicy::family($record->auth_session_id, (string) $record->id);
+                    $count = P10SessionFamily::revoke((string) $record->user_id, $family);
+                    if ($count > 0) {
+                        AuditLogger::record(action: 'AUTH_REFRESH_REPLAY_CONTAINED', objectType: 'auth_session',
+                            objectId: $family, actorId: null, requestId: $request->attributes->get('request_id'),
+                            afterData: ['scope' => 'TARGET_FAMILY', 'revoked_refresh_rows' => $count], result: 'SUCCESS');
+                    }
+
+                    return null;
+                }
                 // Preserve the existing security policy for replayed refresh tokens.
                 $this->revokeAllForUser((string) $record->user_id);
 
