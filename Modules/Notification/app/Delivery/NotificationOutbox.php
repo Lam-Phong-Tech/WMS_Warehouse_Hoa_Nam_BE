@@ -137,6 +137,6 @@ final class NotificationOutbox
 
     private function due(Builder $q, string $field, string $now): Builder
     {
-        return DB::getDriverName() === 'sqlite' ? $q->whereRaw('julianday('.$field.') <= julianday(?)',[$now]) : $q->where($field,'<=',$now);
+        return DB::getDriverName() === 'sqlite' ? $q->whereRaw('julianday('.$field.') <= julianday(?)', [$now]) : $q->where($field, '<=', $now);
     }
 }

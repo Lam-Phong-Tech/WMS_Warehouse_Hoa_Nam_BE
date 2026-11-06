@@ -147,12 +147,12 @@ final class NotificationDeliverySelfTestController extends Controller
         return ['request_key' => $row->id, 'recipient_id' => $row->recipient_id, 'registration_id' => $row->registration_id, 'binding_version' => (int) $row->binding_version, 'state' => $delivery === null ? 'SOURCE_UNAVAILABLE' : $state, 'delivery_id' => $delivery?->id, 'provider_accepted_at' => $accepted === null ? null : CarbonImmutable::parse($accepted)->utc()->toIso8601String()];
     }
 
-    private function result(array $data,int $status = 200)
+    private function result(array $data, int $status = 200)
     {
-        $r = $this->respondSuccess($data,null,$status);
+        $r = $this->respondSuccess($data, null, $status);
         $p = $r->getData(true);
         $p['meta']['contract'] = DeliveryConfig::CONTRACT;
 
-        return $r->setData($p)->header('Cache-Control','no-store');
+        return $r->setData($p)->header('Cache-Control', 'no-store');
     }
 }

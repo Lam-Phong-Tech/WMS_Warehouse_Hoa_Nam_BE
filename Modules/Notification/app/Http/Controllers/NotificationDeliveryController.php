@@ -117,7 +117,7 @@ final class NotificationDeliveryController extends Controller
         $payload = $r->getData(true);
         $payload['meta']['contract'] = DeliveryConfig::CONTRACT;
         $r->setData($payload);
-        $r->headers->set('Cache-Control','no-store');
+        $r->headers->set('Cache-Control', 'no-store');
         if (isset($data['binding_version'])) {
             $r->setEtag((string) $data['binding_version']);
         }
