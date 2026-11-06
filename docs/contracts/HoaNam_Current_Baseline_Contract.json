@@ -1,5 +1,5 @@
 {
-  "schema_version": "4.2.0",
+  "schema_version": "4.2.1",
   "baseline_date": "2026-08-04",
   "technical_alignment_date": "2026-08-14",
   "governance_amendment_date": "2026-09-10",
@@ -90,9 +90,9 @@
     "post_baseline_amendments": {
       "note": "Operation có route runtime nhưng chưa từng được contract này đếm (contract đóng băng ở 81782ec, 23/08/2026). Liệt kê từng operation theo nhóm, mỗi nhóm có commit đưa vào, lý do và chủ sở hữu — không tăng số đếm trần. Commit là commit ĐẦU TIÊN mà route có mặt ở runtime, đo bằng `php artisan route:list` chụp ở 58 commit (thứ tự topo) từ 81782ec tới e5dbe0d; với commit merge, feature_commits là commit khai route ở nhánh con. Ghi bù ngày 10/09/2026; chưa có sign-off nào.",
       "baseline_frozen_at_commit": "81782ec",
-      "measured_at_commit": "10ffe3c2",
-      "recorded_at": "2026-10-17",
-      "source_amendment_note": "AMD-API-029..042 record exact existing source registrations measured on 10ffe3c2. introduced_in identifies the source registration, not a reconstructed historical runtime or deployment approval. All release/BA/QA gates remain separate. auth/switch-context already belongs to the frozen base and is not counted again.",
+      "measured_at_commit": "264a4731f5f804e3c443c4a77c1c284cc338e335",
+      "recorded_at": "2026-11-06",
+      "source_amendment_note": "AMD-API-029..042 record exact existing source registrations measured on 10ffe3c2. AMD-API-043..051 record 26 additional existing registrations measured on 264a4731; none is introduced by the Auth owner/P08 release. introduced_in identifies the source registration, not a reconstructed historical runtime or deployment approval. All release/BA/QA gates remain separate and approvals remain PENDING. auth/switch-context already belongs to the frozen base and is not counted again.",
       "groups": [
         {
           "id": "AMD-API-001",
@@ -765,6 +765,127 @@
           "owner": "BE owner + BA + QA",
           "approval": "PENDING (BA + QA live acceptance)",
           "operations": ["GET /api/v1/mini-app/documents"]
+        },
+        {
+          "id": "AMD-API-043",
+          "introduced_in": "a51cd891",
+          "introduced_at": "2026-10-24",
+          "title": "P11 gated security command receipt and step-up verification",
+          "rationale": "Existing exact-key actor/family security owner routes. Protocol activation is independent of route presence; revoked sessions are not revived and UNKNOWN remains check-only.",
+          "owner": "Auth owner + Security + BA + QA",
+          "approval": "PENDING (Security + BA + QA; not activation)",
+          "operations": [
+            "GET /api/v1/auth/security-requests/{key}",
+            "POST /api/v1/auth/security-requests/{key}/verify"
+          ]
+        },
+        {
+          "id": "AMD-API-044",
+          "introduced_in": "9f49fed9",
+          "introduced_at": "2026-10-26",
+          "title": "Persisted human document CHECK and exact request reconciliation",
+          "rationale": "Existing inbound/outbound explicit human confirmation, distinct from RECORD validation or SENT handoff. Both view and scan permissions, warehouse/owner/version guards and original command identity remain required.",
+          "owner": "Stock document owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "POST /api/v1/inbound-documents/{id}/checks",
+            "GET /api/v1/inbound-documents/{id}/checks/requests/{key}",
+            "POST /api/v1/outbound-documents/{id}/checks",
+            "GET /api/v1/outbound-documents/{id}/checks/requests/{key}"
+          ]
+        },
+        {
+          "id": "AMD-API-045",
+          "introduced_in": "6876763f",
+          "introduced_at": "2026-10-30",
+          "title": "SKU import quality issue rows and Excel read export",
+          "rationale": "Existing sku.manage-scoped read operations for persisted import report issues. No import write, catalog change or stock effect is admitted by these GETs.",
+          "owner": "Import owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/skus/import-reports/export-excel",
+            "GET /api/v1/skus/import-reports/{id}/rows"
+          ]
+        },
+        {
+          "id": "AMD-API-046",
+          "introduced_in": "8a4863c9",
+          "introduced_at": "2026-11-03",
+          "title": "Outbound NFC item and history reads",
+          "rationale": "Existing outbound.view reads with persisted item/document links and outbound warehouse scope. Not NFC prepare, confirm, release or a replacement write receipt.",
+          "owner": "Outbound/NFC owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/outbound-documents/nfc-items",
+            "GET /api/v1/outbound-documents/{id}/items/{itemId}/nfc-history"
+          ]
+        },
+        {
+          "id": "AMD-API-047",
+          "introduced_in": "8b84ec4d",
+          "introduced_at": "2026-11-04",
+          "title": "P10 self-service avatar, preferences and device ownership",
+          "rationale": "Existing personal endpoints guarded by fresh active actor/stable family and exact current or foreign device checks. Direct P10 handler declarations do not broaden permission or role scope.",
+          "owner": "Auth/profile owner + Security + BA + QA",
+          "approval": "PENDING (Security + BA + QA live acceptance)",
+          "operations": [
+            "GET /api/v1/auth/me/avatar",
+            "POST /api/v1/auth/me/avatar",
+            "DELETE /api/v1/auth/me/avatar",
+            "GET /api/v1/auth/preferences",
+            "PATCH /api/v1/auth/preferences",
+            "GET /api/v1/auth/devices",
+            "DELETE /api/v1/auth/devices/{id}",
+            "POST /api/v1/auth/sessions/revoke-others"
+          ]
+        },
+        {
+          "id": "AMD-API-048",
+          "introduced_in": "8f2b2ec3",
+          "introduced_at": "2026-11-05",
+          "title": "Self-scoped ended login device history",
+          "rationale": "Existing current actor login-family history read; it does not make ended or replaced sessions valid or expose foreign device records.",
+          "owner": "Auth/profile owner + Security + BA + QA",
+          "approval": "PENDING (Security + BA + QA live acceptance)",
+          "operations": ["GET /api/v1/auth/device-history"]
+        },
+        {
+          "id": "AMD-API-049",
+          "introduced_in": "9b8ec6fc",
+          "introduced_at": "2026-11-05",
+          "title": "DEV notification delivery capabilities and scoped installation registry",
+          "rationale": "Existing owner/family/installation proof and strong-version registry lifecycle. Source presence is not delivery activation, device consent, provider acceptance or production approval.",
+          "owner": "Notification owner + Security + DEV Ops + QA",
+          "approval": "PENDING (Security + QA; separate DEV activation and device consent)",
+          "operations": [
+            "GET /api/v1/notification-delivery/capabilities",
+            "GET /api/v1/notification-delivery/installations/{installationId}",
+            "PUT /api/v1/notification-delivery/installations/{installationId}",
+            "DELETE /api/v1/notification-delivery/installations/{installationId}"
+          ]
+        },
+        {
+          "id": "AMD-API-050",
+          "introduced_in": "065fad59",
+          "introduced_at": "2026-11-05",
+          "title": "Gated exact-key notification self-test and receipt read",
+          "rationale": "Existing explicit self-test admission and original-key receipt read. UNKNOWN cannot be replayed; listing these routes never enables self-test, canary, normal delivery or historical resend.",
+          "owner": "Notification owner + Security + DEV Ops + QA",
+          "approval": "PENDING (Security + QA; self-test activation remains separate)",
+          "operations": [
+            "POST /api/v1/notification-delivery/test-self",
+            "GET /api/v1/notification-delivery/test-self/{requestKey}"
+          ]
+        },
+        {
+          "id": "AMD-API-051",
+          "introduced_in": "dcef620d",
+          "introduced_at": "2026-11-06",
+          "title": "IAM private user avatar read",
+          "rationale": "Existing iam.user.view-guarded private image read, separate from the caller self-service avatar. No public image ACL or caller role-name bypass.",
+          "owner": "IAM owner + Security + BA + QA",
+          "approval": "PENDING (Security + BA + QA live acceptance)",
+          "operations": ["GET /api/v1/users/{id}/avatar"]
         }
       ]
     },
