@@ -77,7 +77,9 @@ class User extends Model implements AuthenticatableContract, JWTSubject
      */
     public function markPasswordChangedNow(): void
     {
-        $this->forceFill(['password_changed_at' => now()->utc()])->save();
+        // The credential boundary is an epoch second; PostgreSQL timestamptz(0)
+        // rounds fractional values up, which can reject a freshly issued JWT.
+        $this->forceFill(['password_changed_at' => now()->utc()->startOfSecond()])->save();
     }
 
     /** Mốc đổi mật khẩu quy về epoch giây, hoặc null nếu chưa từng đổi. */

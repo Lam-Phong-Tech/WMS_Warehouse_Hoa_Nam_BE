@@ -37,6 +37,8 @@ subsequent explicit choice enables business delivery on DEV/TEST only.
 - [ ] Write failing exact-owner tests and reproduce the generic eleven-route gate.
 - [ ] Route the eight P10 actions directly; add eleven exact owner declarations.
 - [ ] Run Auth/P10/P11/P08/FCM regressions on both disposable databases + route cache.
+- [ ] Verify the deterministic PostgreSQL .900000 credential-boundary regression;
+  truncate new security epochs to UTC seconds, without loosening token checks or repairing history.
 - [ ] Run default project suite, audits and independent review; record all residuals.
 - [ ] Commit and fast-forward push only after checking current remote ancestry.
 - [ ] Deploy source-only DEV release, preserving data/media/secrets/config flags;

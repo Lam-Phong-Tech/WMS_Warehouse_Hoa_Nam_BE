@@ -34,6 +34,15 @@
     "new_roles_permissions_grants": false,
     "new_routes_migrations": false
   },
+  "credential_epoch_writer": {
+    "source": "User::markPasswordChangedNow",
+    "precision": "UTC whole seconds, matching JWT iat and PostgreSQL timestamptz(0)",
+    "reason": "Do not let PostgreSQL round a fractional password-change timestamp into the future",
+    "legacy_no_sid_same_second": "Still denied by the existing credential freshness guard",
+    "existing_sid_family_revocation": "Unchanged",
+    "historical_timestamps_repaired": false,
+    "live_password_test_or_change": false
+  },
   "notification_rollout": {
     "user_decision": "Business notification delivery enabled on DEV/TEST after release; no production",
     "delivery_enabled": true,
