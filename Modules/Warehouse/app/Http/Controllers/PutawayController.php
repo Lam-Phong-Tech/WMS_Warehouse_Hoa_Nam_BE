@@ -376,6 +376,8 @@ class PutawayController extends Controller
                 afterData: ['status' => 'CANCELLED', 'version' => $expectedVersion + 1],
             );
 
+            DB::afterCommit(fn () => app(CacheService::class)->bumpVersion('stock:version'));
+
             return $updatedEvent;
         }, 3);
 

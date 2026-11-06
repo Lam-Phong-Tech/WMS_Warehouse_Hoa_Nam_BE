@@ -2,7 +2,9 @@
 
 namespace Modules\Warehouse\Providers;
 
+use App\Events\CacheNamespaceInvalidated;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+use Modules\Warehouse\Listeners\BroadcastWarehouseDataChanged;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -11,7 +13,9 @@ class EventServiceProvider extends ServiceProvider
      *
      * @var array<string, array<int, string>>
      */
-    protected $listen = [];
+    protected $listen = [
+        CacheNamespaceInvalidated::class => [BroadcastWarehouseDataChanged::class],
+    ];
 
     /**
      * Indicates if events should be discovered.

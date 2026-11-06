@@ -2,8 +2,10 @@
 
 namespace App\Support\Cache;
 
+use App\Events\CacheNamespaceInvalidated;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache as CacheFacade;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -156,9 +158,24 @@ class CacheService
         }
     }
 
+    /** Inside a transaction, return the published version and defer invalidation until commit. */
     public function bumpVersion(string $namespace): int
     {
-        return CacheVersion::bump($namespace);
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit(fn () => $this->invalidateVersion($namespace));
+
+            return CacheVersion::current($namespace);
+        }
+
+        return $this->invalidateVersion($namespace);
+    }
+
+    private function invalidateVersion(string $namespace): int
+    {
+        $version = CacheVersion::bump($namespace);
+        event(new CacheNamespaceInvalidated($namespace));
+
+        return $version;
     }
 
     public function currentVersion(string $namespace): int
