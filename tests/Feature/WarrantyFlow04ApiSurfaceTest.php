@@ -16,6 +16,7 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyReportTime;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -392,7 +393,7 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
                 $id = $this->createTempOnlyCase($headers);
                 // PG's aware source column needs an explicit offset for a legacy local fixture.
                 $stored = DB::getDriverName() === 'pgsql' && $time === '2026-11-07 23:59:59' ? $time.'+07:00' : $time;
-                DB::table('warranty_case')->where('warranty_case_id', $id)->update(['received_at' => $stored]);
+                DB::table('warranty_case')->where('warranty_case_id', $id)->update(WarrantyCasePii::encode(['received_at' => $stored]));
                 if ($included) {
                     $wanted[] = (string) DB::table('warranty_case')->where('warranty_case_id', $id)->value('warranty_case_code');
                 }

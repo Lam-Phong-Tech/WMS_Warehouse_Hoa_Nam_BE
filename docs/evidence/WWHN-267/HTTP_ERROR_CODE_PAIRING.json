@@ -120,6 +120,15 @@
   ],
   "dualStatusCodes": [
     {
+      "code": "AUTH_SESSION_REQUIRED",
+      "statuses": [401, 409],
+      "reason": "401 when the enabled authentication-family policy rejects an unstable legacy credential; 409 when an authenticated owner operation lacks the stable family required for its context.",
+      "evidence": "P10SessionFamily::resolve; StableAuthSession::requireId",
+      "disposition": "DOCUMENTED_CURRENT_BEHAVIOR_PENDING_OWNER_REVIEW",
+      "owner": "BE + FE/QA",
+      "constraint": "No third status; this documents existing layers, does not approve production or allow a new-session takeover or automatic command retry."
+    },
+    {
       "code": "WAREHOUSE_CONTEXT_REQUIRED",
       "statuses": [409, 422],
       "reason": "422 when switch-context lacks a warehouse UUID; 409 when a business read/write has no confirmed warehouse context.",

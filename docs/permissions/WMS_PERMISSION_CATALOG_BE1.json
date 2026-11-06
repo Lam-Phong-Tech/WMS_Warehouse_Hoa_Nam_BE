@@ -1,267 +1,128 @@
 {
     "schema_version": "1.3.0",
-    "generated_at_utc": "2026-10-17T09:36:12+00:00",
+    "generated_at_utc": "2026-11-06T19:33:46+00:00",
     "approval_status": "PENDING_FE_BA_REVIEW",
     "changes_since_previous": {
         "summary": {
-            "routes_added": 60,
+            "routes_added": 26,
             "routes_removed": 0,
             "route_permission_changed": 0,
-            "permissions_added": 2,
+            "permissions_added": 0,
             "permissions_removed": 0,
             "permission_status_changed": 0,
             "roles_with_permission_changes": 0
         },
-        "previous_generated_at_utc": "2026-09-10T09:36:18+00:00",
+        "previous_generated_at_utc": "2026-10-17T09:36:12+00:00",
         "previous_schema_version": "1.3.0",
         "routes_added": [
             {
-                "route": "DELETE api/v1/auth/sessions/{id}",
+                "route": "DELETE api/v1/auth/devices/{id}",
                 "permission": null
             },
             {
-                "route": "GET api/v1/auth/recovery-requests/operations/{operationId}",
+                "route": "DELETE api/v1/auth/me/avatar",
                 "permission": null
             },
             {
-                "route": "GET api/v1/auth/sessions",
+                "route": "DELETE api/v1/notification-delivery/installations/{installationId}",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/catalog/context",
+                "route": "GET api/v1/auth/device-history",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/catalog/items",
-                "permission": "sku.view"
-            },
-            {
-                "route": "GET api/v1/mini-app/catalog/items/{id}",
-                "permission": "sku.view"
-            },
-            {
-                "route": "GET api/v1/mini-app/catalog/items/{id}/timeline",
-                "permission": "sku.view"
-            },
-            {
-                "route": "GET api/v1/mini-app/catalog/skus",
-                "permission": "sku.view"
-            },
-            {
-                "route": "GET api/v1/mini-app/catalog/skus/{id}",
-                "permission": "sku.view"
-            },
-            {
-                "route": "GET api/v1/mini-app/catalog/skus/{id}/gallery",
-                "permission": "sku.view"
-            },
-            {
-                "route": "GET api/v1/mini-app/catalog/skus/{id}/stock",
-                "permission": "sku.view"
-            },
-            {
-                "route": "GET api/v1/mini-app/catalog/skus/{id}/timeline",
-                "permission": "sku.view"
-            },
-            {
-                "route": "GET api/v1/mini-app/component-issue-requests/{requestId}",
-                "permission": "warranty.component_issue"
-            },
-            {
-                "route": "GET api/v1/mini-app/dashboard/summary",
-                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage"
-            },
-            {
-                "route": "GET api/v1/mini-app/documents",
-                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage"
-            },
-            {
-                "route": "GET api/v1/mini-app/drafts",
+                "route": "GET api/v1/auth/devices",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/drafts/{id}",
+                "route": "GET api/v1/auth/me/avatar",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/drafts/{id}/requests/{requestId}",
+                "route": "GET api/v1/auth/preferences",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/history/records",
-                "permission": "history.read"
-            },
-            {
-                "route": "GET api/v1/mini-app/history/records/{recordId}",
-                "permission": "history.read"
-            },
-            {
-                "route": "GET api/v1/mini-app/history/scan-sessions/{sessionId}",
-                "permission": "history.read"
-            },
-            {
-                "route": "GET api/v1/mini-app/history/summary",
-                "permission": "history.read"
-            },
-            {
-                "route": "GET api/v1/mini-app/inbound-documents/{id}/attachments/requests/{operationKey}",
+                "route": "GET api/v1/auth/security-requests/{key}",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/inbound/context",
+                "route": "GET api/v1/inbound-documents/{id}/checks/requests/{key}",
+                "permission": "inbound.view"
+            },
+            {
+                "route": "GET api/v1/notification-delivery/capabilities",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/inbound/documents/{id}",
+                "route": "GET api/v1/notification-delivery/installations/{installationId}",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/inbound/drafts/{id}",
+                "route": "GET api/v1/notification-delivery/test-self/{requestKey}",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/inbound/drafts/{id}/requests/{requestId}",
+                "route": "GET api/v1/outbound-documents/nfc-items",
+                "permission": "outbound.view"
+            },
+            {
+                "route": "GET api/v1/outbound-documents/{id}/checks/requests/{key}",
+                "permission": "outbound.view"
+            },
+            {
+                "route": "GET api/v1/outbound-documents/{id}/items/{itemId}/nfc-history",
+                "permission": "outbound.view"
+            },
+            {
+                "route": "GET api/v1/skus/import-reports/export-excel",
+                "permission": "sku.manage"
+            },
+            {
+                "route": "GET api/v1/skus/import-reports/{id}/rows",
+                "permission": "sku.manage"
+            },
+            {
+                "route": "GET api/v1/users/{id}/avatar",
+                "permission": "iam.user.view"
+            },
+            {
+                "route": "PATCH api/v1/auth/preferences",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/inbound/drafts/{id}/scan-session",
+                "route": "POST api/v1/auth/me/avatar",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/inbound/suppliers",
+                "route": "POST api/v1/auth/security-requests/{key}/verify",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/inbound/types",
+                "route": "POST api/v1/auth/sessions/revoke-others",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/items/{itemId}/nfc/confirmation",
-                "permission": "physical_code.assign_rfid"
+                "route": "POST api/v1/inbound-documents/{id}/checks",
+                "permission": "inbound.view"
             },
             {
-                "route": "GET api/v1/mini-app/nfc-tags/{physicalCodeId}",
-                "permission": "physical_code.assign_rfid|inventory.trace"
-            },
-            {
-                "route": "GET api/v1/mini-app/nfc-tags/{physicalCodeId}/events",
-                "permission": "physical_code.assign_rfid|inventory.trace"
-            },
-            {
-                "route": "GET api/v1/mini-app/outbound-documents/{id}/attachments/requests/{operationKey}",
+                "route": "POST api/v1/notification-delivery/test-self",
                 "permission": null
             },
             {
-                "route": "GET api/v1/mini-app/outbound/context",
-                "permission": null
+                "route": "POST api/v1/outbound-documents/{id}/checks",
+                "permission": "outbound.view"
             },
             {
-                "route": "GET api/v1/mini-app/outbound/documents/{id}",
-                "permission": null
-            },
-            {
-                "route": "GET api/v1/mini-app/outbound/sources",
-                "permission": null
-            },
-            {
-                "route": "GET api/v1/mini-app/outbound/sources/{id}",
-                "permission": null
-            },
-            {
-                "route": "GET api/v1/mini-app/p03/context",
-                "permission": null
-            },
-            {
-                "route": "GET api/v1/mini-app/scan-sessions",
-                "permission": "history.read"
-            },
-            {
-                "route": "GET api/v1/mini-app/warranty-cases/{id}/attachments/requests/{operationKey}",
-                "permission": null
-            },
-            {
-                "route": "GET api/v1/mini-app/warranty-cases/{id}/component-issues",
-                "permission": "warranty.view|warranty.manage"
-            },
-            {
-                "route": "GET api/v1/mini-app/warranty-requests/{requestId}",
-                "permission": "warranty.view|warranty.manage"
-            },
-            {
-                "route": "GET api/v1/mini-app/work-shifts/current",
-                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
-            },
-            {
-                "route": "GET api/v1/mini-app/work-shifts/{shiftId}/close-check",
-                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
-            },
-            {
-                "route": "GET api/v1/mini-app/work-shifts/{shiftId}/requests/{requestId}",
-                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
-            },
-            {
-                "route": "GET api/v1/mini-app/work-shifts/{shiftId}/summary",
-                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
-            },
-            {
-                "route": "GET api/v1/notifications/{id}",
-                "permission": null
-            },
-            {
-                "route": "PATCH api/v1/auth/me",
-                "permission": null
-            },
-            {
-                "route": "POST api/v1/auth/recovery-requests",
-                "permission": null
-            },
-            {
-                "route": "POST api/v1/mini-app/drafts/{id}/cancel",
-                "permission": null
-            },
-            {
-                "route": "POST api/v1/mini-app/inbound/drafts/{id}/cancel",
-                "permission": null
-            },
-            {
-                "route": "POST api/v1/mini-app/inbound/drafts/{id}/record",
-                "permission": null
-            },
-            {
-                "route": "POST api/v1/mini-app/inbound/drafts/{id}/review",
-                "permission": null
-            },
-            {
-                "route": "POST api/v1/mini-app/inbound/drafts/{id}/validate-code",
-                "permission": null
-            },
-            {
-                "route": "POST api/v1/mini-app/items/{itemId}/nfc/release",
-                "permission": "physical_code.assign_rfid"
-            },
-            {
-                "route": "POST api/v1/mini-app/work-shifts/start",
-                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
-            },
-            {
-                "route": "POST api/v1/mini-app/work-shifts/{shiftId}/end",
-                "permission": "inbound.view|outbound.view|warranty.view|warranty.manage|sku.view|physical_code.assign_rfid"
-            },
-            {
-                "route": "PUT api/v1/mini-app/drafts/{id}",
-                "permission": null
-            },
-            {
-                "route": "PUT api/v1/mini-app/inbound/drafts/{id}",
+                "route": "PUT api/v1/notification-delivery/installations/{installationId}",
                 "permission": null
             }
         ],
         "routes_removed": [],
         "route_permission_changed": [],
-        "permissions_added": [
-            "documents.read",
-            "history.read"
-        ],
+        "permissions_added": [],
         "permissions_removed": [],
         "permission_status_changed": [],
         "roles_added": [],
@@ -275,11 +136,11 @@
         },
         "warehouse_routes": {
             "path": "Modules/Warehouse/routes/api.php",
-            "sha256": "ba89244b4be9b46f43f94aea28ba0a69f64919bc5bb52221a1a85422ced720b6"
+            "sha256": "d211f0578ac45c8a29f245124d4c8f8ac799228927502d0c90d3ff1e52a7e1ea"
         },
         "auth_routes": {
             "path": "Modules/Auth/routes/api.php",
-            "sha256": "81133dc0d9b0f49ccf78fd391b79745de5c8395af216adf40296bf0aea5f278d"
+            "sha256": "5895c5953bae8cfc02996e23415c141b70b6bd59eaae595781c8d92778838f61"
         },
         "audit_routes": {
             "path": "Modules/AuditLog/routes/api.php",
@@ -295,7 +156,7 @@
         },
         "user_permission_model": {
             "path": "Modules/Auth/app/Models/User.php",
-            "sha256": "9d68c54a317b78981cb31b7de70c835b910ad33cd3aad5863e2b27206342dcd3"
+            "sha256": "1a00c1bc6053ccaac748cd4c63dd7560ff03f48c59fc063a56cedf43be7d250e"
         }
     },
     "integrity": {
@@ -1297,6 +1158,45 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/device-history",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@deviceHistory",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/auth/devices/{id}",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@revokeDevice",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/devices",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@devices",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/auth/forgot-password",
@@ -1332,6 +1232,45 @@
                 "api",
                 "auth:api",
                 "Modules\\Auth\\Http\\Middleware\\PersistRefreshTokenCookie"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/auth/me/avatar",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@deleteAvatar",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/me/avatar",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@avatar",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/me/avatar",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@uploadAvatar",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
             ]
         },
         {
@@ -1430,6 +1369,32 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/auth/preferences",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@preferences",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/auth/preferences",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@updatePreferences",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/auth/recovery-requests/operations/{operationId}",
             "action": "App\\Http\\Controllers\\P14RecoveryController@show",
             "permission": null,
@@ -1474,6 +1439,46 @@
             "accepted_permissions": [],
             "middleware": [
                 "api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/security-requests/{key}/verify",
+            "action": "Modules\\Auth\\Support\\P11SecurityCommands@verify",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "throttle:auth-mfa-verify"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/security-requests/{key}",
+            "action": "Modules\\Auth\\Support\\P11SecurityCommands@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/sessions/revoke-others",
+            "action": "Modules\\Auth\\Http\\Controllers\\P10ProfileController@revokeOtherSessions",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
             ]
         },
         {
@@ -2347,6 +2352,40 @@
                 "auth:api",
                 "permission:inbound.scan",
                 "Modules\\Warehouse\\Http\\Middleware\\EnforceInboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/checks/requests/{key}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockDocumentCheckController@reconcile",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view",
+                "permission:inbound.scan"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/checks",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockDocumentCheckController@confirm",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:inbound.view",
+                "permission:inbound.scan"
             ]
         },
         {
@@ -4950,6 +4989,86 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/notification-delivery/capabilities",
+            "action": "Modules\\Notification\\Http\\Controllers\\NotificationDeliveryController@capabilities",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/notification-delivery/installations/{installationId}",
+            "action": "Modules\\Notification\\Http\\Controllers\\NotificationDeliveryController@destroy",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "throttle:20,1"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/notification-delivery/installations/{installationId}",
+            "action": "Modules\\Notification\\Http\\Controllers\\NotificationDeliveryController@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "PUT"
+            ],
+            "uri": "api/v1/notification-delivery/installations/{installationId}",
+            "action": "Modules\\Notification\\Http\\Controllers\\NotificationDeliveryController@store",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api",
+                "throttle:20,1"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/notification-delivery/test-self/{requestKey}",
+            "action": "Modules\\Notification\\Http\\Controllers\\NotificationDeliverySelfTestController@show",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/notification-delivery/test-self",
+            "action": "Modules\\Notification\\Http\\Controllers\\NotificationDeliverySelfTestController@store",
+            "permission": null,
+            "accepted_permissions": [],
+            "middleware": [
+                "api",
+                "auth:api"
+            ]
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/notifications/read-all",
@@ -5017,6 +5136,22 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/outbound-documents/nfc-items",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundNfcReadController@index",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.view"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/outbound-documents/{id}/attachments",
             "action": "Modules\\Warehouse\\Http\\Controllers\\DocumentAttachmentController@indexOutbound",
             "permission": "outbound.view",
@@ -5063,6 +5198,57 @@
                 "api",
                 "auth:api",
                 "permission:outbound.cancel",
+                "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/checks/requests/{key}",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockDocumentCheckController@reconcile",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.view",
+                "permission:outbound.scan"
+            ]
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/checks",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\StockDocumentCheckController@confirm",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.view",
+                "permission:outbound.scan"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/items/{itemId}/nfc-history",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\OutboundNfcReadController@history",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:outbound.view",
                 "Modules\\Warehouse\\Http\\Middleware\\EnforceOutboundWarehouseScope"
             ]
         },
@@ -7356,8 +7542,40 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/skus/import-reports/export-excel",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ImportReportController@exportExcel",
+            "permission": "sku.manage",
+            "accepted_permissions": [
+                "sku.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/skus/import-reports/{id}/error-file",
             "action": "Modules\\Warehouse\\Http\\Controllers\\ImportReportController@downloadErrorFile",
+            "permission": "sku.manage",
+            "accepted_permissions": [
+                "sku.manage"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:sku.manage"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/skus/import-reports/{id}/rows",
+            "action": "Modules\\Warehouse\\Http\\Controllers\\ImportReportController@rows",
             "permission": "sku.manage",
             "accepted_permissions": [
                 "sku.manage"
@@ -7640,6 +7858,22 @@
             "middleware": [
                 "api",
                 "throttle:120,1"
+            ]
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/users/{id}/avatar",
+            "action": "Modules\\Auth\\Http\\Controllers\\UserController@avatar",
+            "permission": "iam.user.view",
+            "accepted_permissions": [
+                "iam.user.view"
+            ],
+            "middleware": [
+                "api",
+                "auth:api",
+                "permission:iam.user.view"
             ]
         },
         {
@@ -8337,6 +8571,36 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/device-history",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/auth/devices/{id}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/devices",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/auth/forgot-password",
@@ -8360,6 +8624,36 @@
                 "POST"
             ],
             "uri": "api/v1/auth/logout",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/auth/me/avatar",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/me/avatar",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/me/avatar",
             "permission": null,
             "accepted_permissions": [],
             "roles": [],
@@ -8439,6 +8733,26 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/auth/preferences",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "PATCH"
+            ],
+            "uri": "api/v1/auth/preferences",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/auth/recovery-requests/operations/{operationId}",
             "permission": null,
             "accepted_permissions": [],
@@ -8470,6 +8784,36 @@
                 "POST"
             ],
             "uri": "api/v1/auth/reset-password",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/security-requests/{key}/verify",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/auth/security-requests/{key}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/auth/sessions/revoke-others",
             "permission": null,
             "accepted_permissions": [],
             "roles": [],
@@ -9409,6 +9753,50 @@
                 "INBOUND_ONLY_TEST",
                 "SUPER_ADMIN",
                 "WAREHOUSE_KEEPER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/checks/requests/{key}",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/inbound-documents/{id}/checks",
+            "permission": "inbound.view",
+            "accepted_permissions": [
+                "inbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "INBOUND_ONLY_TEST",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
                 "WAREHOUSE_STAFF"
             ],
             "backend_enforced": true
@@ -12190,6 +12578,66 @@
         },
         {
             "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/notification-delivery/capabilities",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "DELETE"
+            ],
+            "uri": "api/v1/notification-delivery/installations/{installationId}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/notification-delivery/installations/{installationId}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "PUT"
+            ],
+            "uri": "api/v1/notification-delivery/installations/{installationId}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/notification-delivery/test-self/{requestKey}",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/notification-delivery/test-self",
+            "permission": null,
+            "accepted_permissions": [],
+            "roles": [],
+            "backend_enforced": false
+        },
+        {
+            "methods": [
                 "POST"
             ],
             "uri": "api/v1/notifications/read-all",
@@ -12237,6 +12685,27 @@
             "accepted_permissions": [],
             "roles": [],
             "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents/nfc-items",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
         },
         {
             "methods": [
@@ -12292,6 +12761,69 @@
                 "SUPER_ADMIN",
                 "WAREHOUSE_APPROVER",
                 "WAREHOUSE_KEEPER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/checks/requests/{key}",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "POST"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/checks",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
+                "WAREHOUSE_STAFF"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/outbound-documents/{id}/items/{itemId}/nfc-history",
+            "permission": "outbound.view",
+            "accepted_permissions": [
+                "outbound.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "LEADERSHIP",
+                "SUPER_ADMIN",
+                "VIEWER",
+                "WAREHOUSE_APPROVER",
+                "WAREHOUSE_KEEPER",
+                "WAREHOUSE_MANAGER",
                 "WAREHOUSE_STAFF"
             ],
             "backend_enforced": true
@@ -14844,7 +15376,39 @@
             "methods": [
                 "GET"
             ],
+            "uri": "api/v1/skus/import-reports/export-excel",
+            "permission": "sku.manage",
+            "accepted_permissions": [
+                "sku.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
             "uri": "api/v1/skus/import-reports/{id}/error-file",
+            "permission": "sku.manage",
+            "accepted_permissions": [
+                "sku.manage"
+            ],
+            "roles": [
+                "ADMIN",
+                "SKU_MANAGER",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/skus/import-reports/{id}/rows",
             "permission": "sku.manage",
             "accepted_permissions": [
                 "sku.manage"
@@ -15177,6 +15741,21 @@
             "accepted_permissions": [],
             "roles": [],
             "backend_enforced": false
+        },
+        {
+            "methods": [
+                "GET"
+            ],
+            "uri": "api/v1/users/{id}/avatar",
+            "permission": "iam.user.view",
+            "accepted_permissions": [
+                "iam.user.view"
+            ],
+            "roles": [
+                "ADMIN",
+                "SUPER_ADMIN"
+            ],
+            "backend_enforced": true
         },
         {
             "methods": [

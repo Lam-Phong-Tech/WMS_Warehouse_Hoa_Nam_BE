@@ -131,7 +131,8 @@ class Wwhn266IfMatchContractTruthTest extends TestCase
             // ApiResponse mà mọi action đều kéo vào.
             $bucket = 'optional';
             foreach ($bodies as $body) {
-                if (preg_match("/header\(\s*'If-Match'/", $body) === 1 && str_contains($body, 'PRECONDITION_REQUIRED')) {
+                if (preg_match("/header\(\s*'If-Match'/", $body) === 1
+                    && (str_contains($body, 'PRECONDITION_REQUIRED') || str_contains($body, 'DOCUMENT_CHECK_IDENTITY_REQUIRED'))) {
                     $bucket = 'required';
                     break;
                 }
@@ -166,6 +167,17 @@ class Wwhn266IfMatchContractTruthTest extends TestCase
         }
 
         return null;
+    }
+
+    public function test_human_check_owner_identity_is_a_required_strong_version_gate(): void
+    {
+        $docs = $this->openApi();
+        $buckets = $this->classifyRoutes();
+        foreach (['inbound', 'outbound'] as $source) {
+            $key = 'post /api/v1/'.$source.'-documents/{id}/checks';
+            $this->assertContains($key, $buckets['required']);
+            $this->assertTrue($this->declaredIfMatch($docs, $key));
+        }
     }
 
     public function test_every_operation_that_hard_requires_if_match_declares_it_required(): void
