@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Support\ApiError;
+use App\Support\Cache\CacheService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -126,6 +127,8 @@ class CurrentBaselinePutawayTaskController extends Controller
                 afterData: (array) $event,
             );
 
+            DB::afterCommit(fn () => app(CacheService::class)->bumpVersion('stock:version'));
+
             return $event;
         }, 3);
 
@@ -231,5 +234,4 @@ class CurrentBaselinePutawayTaskController extends Controller
             'movement_created' => false,
         ];
     }
-
 }

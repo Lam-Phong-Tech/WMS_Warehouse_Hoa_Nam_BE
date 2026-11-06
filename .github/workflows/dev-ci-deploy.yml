@@ -81,7 +81,8 @@ jobs:
             tests/Feature/PostReceiptConcurrencyBehaviorTest.php \
             tests/Feature/PostIssueConcurrencyBehaviorTest.php \
             tests/Feature/InventoryReconciliationFilterTest.php \
-            tests/Feature/WarrantyOverdueFilterTest.php
+            tests/Feature/WarrantyOverdueFilterTest.php \
+            tests/Feature/WarehouseDataRealtimeTest.php
       - name: Package the exact tested source
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         shell: bash
