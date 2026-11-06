@@ -664,8 +664,18 @@ class CurrentBaselineMasterController extends Controller
 
     private function storeSimpleMaster(Request $request, string $table, string $code, string $name)
     {
+        if ($table === 'brands') {
+            $this->normalizeBrandCode($request);
+        }
         $validated = $request->validate([
-            $code => ['required', 'string', 'max:80', "unique:{$table},{$code}"],
+            $code => [
+                'required', 'string', 'max:80', "unique:{$table},{$code}",
+                function ($attribute, $value, $fail) use ($table) {
+                    if ($table === 'brands' && is_string($value) && DB::table('brands')->whereRaw('UPPER(TRIM(brand_code)) = ?', [$value])->exists()) {
+                        $fail(__('validation.unique', ['attribute' => $attribute]));
+                    }
+                },
+            ],
             $name => ['required', 'string', 'max:200'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['nullable', 'in:ACTIVE,INACTIVE'],
@@ -673,6 +683,16 @@ class CurrentBaselineMasterController extends Controller
         ]);
 
         return $this->insert($table, $validated);
+    }
+
+    private function normalizeBrandCode(Request $request): void
+    {
+        $code = $request->input('brand_code');
+        if (is_string($code)) {
+            $request->merge([
+                'brand_code' => preg_replace('/\s+/u', '_', mb_strtoupper(trim($code), 'UTF-8')),
+            ]);
+        }
     }
 
     private function insert(string $table, array $data)
