@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Support\DocumentTimestamp;
 use App\Support\Security\BlindIndex;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -567,7 +568,7 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
      */
     public function test_turnaround_days_stays_a_whole_number_when_receive_and_return_straddle_a_second(): void
     {
-        $now = Carbon::parse('2026-09-10 10:00:00');
+        $now = Carbon::parse('2026-09-10T10:00:00+07:00');
         $this->travelTo($now);
 
         $headers = $this->authHeaders('SUPER_ADMIN_W4T');
@@ -607,7 +608,7 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
         // Hồ sơ tiếp nhận từ hôm trước: ghi thẳng mốc tiếp nhận (qua encode như mọi lệnh ghi
         // warranty_case) thay vì tua đồng hồ qua ngày, để token JWT không hết hạn giữa chừng.
         DB::table('warranty_case')->where('warranty_case_id', $caseId)
-            ->update(WarrantyCasePii::encode(['received_at' => '2026-09-09 10:00:00']));
+            ->update(WarrantyCasePii::encode(['received_at' => '2026-09-09T10:00:00+07:00']));
 
         // Trả khách lúc 10/09 10:00:01: một ngày và đúng MỘT giây sau lúc tiếp nhận.
         $this->travelTo($now->copy()->addSecond());
@@ -620,8 +621,8 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
         $row = collect($this->getJson('/api/v1/reports/warranty-defects', $headers)->assertOk()->json('data.rows'))
             ->firstWhere('warranty_case_id', $caseId);
         $this->assertNotNull($row);
-        $this->assertSame('2026-09-09 10:00:00', substr((string) $row['received_at'], 0, 19));
-        $this->assertSame('2026-09-10 10:00:01', substr((string) $row['returned_at'], 0, 19));
+        $this->assertSame('2026-09-09T03:00:00.000000Z', DocumentTimestamp::utc($row['received_at']));
+        $this->assertSame('2026-09-10T03:00:01.000000Z', DocumentTimestamp::utc($row['returned_at']));
         $this->assertSame(1, $row['turnaround_days']);
 
         // File export (AlignedWarrantyReportController) phải ra CÙNG số ngày cho CÙNG hồ sơ.

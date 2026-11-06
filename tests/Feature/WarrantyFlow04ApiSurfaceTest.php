@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +16,9 @@ use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\ItemInstance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\Warehouse;
+use Modules\Warehouse\Support\WarrantyReportTime;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Feature\Concerns\OpensWarrantyCaseForComponentIssue;
 use Tests\TestCase;
 
@@ -324,6 +328,7 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
 
     public function test_warranty_report_masks_pii_and_traces_component_issues(): void
     {
+        $this->travelTo(Carbon::parse('2026-11-07T15:00:00+07:00'));
         $headers = $this->authHeaders();
         $caseId = $this->createTempOnlyCase($headers);
 
@@ -364,6 +369,75 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             $auditBefore + 1,
             DB::table('audit_logs')->where('action', 'WARRANTY_REPORT_EXPORTED')->count(),
         );
+    }
+
+    #[DataProvider('reportTimezones')]
+    public function test_warranty_report_and_excel_share_vietnam_day_bounds_for_mixed_source_times(string $timezone): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-07T15:00:00+07:00'));
+        config()->set('app.timezone', $timezone);
+        $oldZone = date_default_timezone_get();
+        date_default_timezone_set($timezone);
+        try {
+            $headers = $this->authHeaders();
+            $wanted = [];
+            foreach ([
+                ['2026-11-06T17:00:00Z', true],
+                ['2026-11-07T00:00:00+07:00', true],
+                ['2026-11-07 23:59:59', true],
+                ['2026-11-07T16:59:59Z', true],
+                ['2026-11-08T00:00:00+07:00', false],
+                ['2026-11-06T16:59:59Z', false],
+            ] as [$time, $included]) {
+                $id = $this->createTempOnlyCase($headers);
+                // PG's aware source column needs an explicit offset for a legacy local fixture.
+                $stored = DB::getDriverName() === 'pgsql' && $time === '2026-11-07 23:59:59' ? $time.'+07:00' : $time;
+                DB::table('warranty_case')->where('warranty_case_id', $id)->update(['received_at' => $stored]);
+                if ($included) {
+                    $wanted[] = (string) DB::table('warranty_case')->where('warranty_case_id', $id)->value('warranty_case_code');
+                }
+            }
+            $before = DB::table('warranty_case')->orderBy('warranty_case_id')->get()->toArray();
+            $query = '?from_date=2026-11-07&to_date=2026-11-07&per_page=100';
+            $report = $this->getJson('/api/v1/reports/warranty-defects'.$query, $headers)->assertOk();
+            $this->assertEqualsCanonicalizing($wanted, array_column($report->json('data.rows'), 'case_no'));
+            $this->assertSame(count($wanted), $report->json('data.summary.total'));
+            $paged = $this->getJson('/api/v1/reports/warranty-defects?from_date=2026-11-07&to_date=2026-11-07&per_page=2', $headers)->assertOk();
+            $this->assertCount(2, $paged->json('data.rows'));
+            $this->assertSame(count($wanted), $paged->json('data.summary.total'));
+            $export = $this->get('/api/v1/reports/warranty-defects/export-excel'.$query, $headers)->assertOk();
+            $file = storage_path('framework/testing/warranty-range-'.Str::uuid().'.xlsx');
+            file_put_contents($file, $export->streamedContent());
+            try {
+                $rows = IOFactory::load($file)->getActiveSheet()->toArray(null, false, false, false);
+                $this->assertEqualsCanonicalizing($wanted, array_column(array_slice($rows, 1), 0));
+            } finally {
+                @unlink($file);
+            }
+            $this->assertEquals($before, DB::table('warranty_case')->orderBy('warranty_case_id')->get()->toArray());
+        } finally {
+            date_default_timezone_set($oldZone);
+        }
+    }
+
+    public static function reportTimezones(): array
+    {
+        return [['Asia/Ho_Chi_Minh'], ['UTC']];
+    }
+
+    public function test_warranty_report_range_preserves_last_microsecond_and_created_fallback(): void
+    {
+        $values = [
+            ['2026-11-07T16:59:59.999999Z', '2026-11-08T00:00:00+07:00', true],
+            ['2026-11-07T17:00:00.000000Z', '2026-11-07T10:00:00+07:00', false],
+            [null, '2026-11-06T17:00:00.000001Z', true],
+            [null, null, false],
+        ];
+        $cast = DB::getDriverName() === 'pgsql' ? 'CAST(? AS timestamptz)' : '?';
+        foreach ($values as [$received, $created, $expected]) {
+            $query = DB::query()->fromRaw("(SELECT {$cast} AS received_at, {$cast} AS created_at) AS wc", [$received, $created]);
+            $this->assertSame($expected, $query->where(WarrantyReportTime::range('2026-11-07', '2026-11-07'))->exists());
+        }
     }
 
     public function test_warranty_events_follow_erd_taxonomy_and_responses_carry_etag(): void

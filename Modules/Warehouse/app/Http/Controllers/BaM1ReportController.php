@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Modules\Warehouse\Http\Controllers\Concerns\CachesReportPayload;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyReportTime;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 
@@ -254,7 +255,7 @@ class BaM1ReportController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->cachedReportPayload(
-                'warehouse:report:warranty-defects',
+                'warehouse:report:warranty-defects:instant-v2',
                 // Phân trang nằm TRONG SQL -> page/per_page BẮT BUỘC ở trong key,
                 // nếu không trang 3 sẽ nhận lại payload của trang 1.
                 $this->reportFiltersWithPaging($request),
@@ -287,8 +288,8 @@ class BaM1ReportController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
-        $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
-        $to = (string) ($validated['to_date'] ?? now()->toDateString());
+        $from = (string) ($validated['from_date'] ?? WarrantyReportTime::today()->subDays(30)->toDateString());
+        $to = (string) ($validated['to_date'] ?? WarrantyReportTime::today()->toDateString());
         $page = (int) ($validated['page'] ?? 1);
         $perPage = (int) ($validated['per_page'] ?? 10);
         $filterDefects = array_values(array_unique(array_filter(array_merge(
@@ -298,7 +299,7 @@ class BaM1ReportController extends Controller
 
         $query = WarrantyWarehouseScope::query($request, 'wc')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
-            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+            ->where(WarrantyReportTime::range($from, $to));
         if (! empty($validated['status'])) {
             $query->where('wc.status', $validated['status']);
         }
@@ -323,7 +324,7 @@ class BaM1ReportController extends Controller
         }
 
         $total = (clone $query)->count();
-        $cases = $query->orderByDesc(DB::raw('COALESCE(wc.received_at, wc.created_at)'))
+        $cases = $query->orderByDesc(DB::raw(WarrantyReportTime::received()))
             ->forPage($page, $perPage)
             ->get(array_merge([
                 'wc.warranty_case_id', 'wc.warranty_case_code', 'wc.identification_status', 'wc.status',
@@ -379,7 +380,7 @@ class BaM1ReportController extends Controller
             $closedAt = $case->returned_at ?? $case->completed_at;
             // Carbon 3: diffInDays() trả float (1 giây = 1/86400 ngày). Ép về số ngày tròn
             // để turnaround_days luôn là int và khớp file export (AlignedWarrantyReportController).
-            $turnaround = $closedAt ? (int) Carbon::parse($receivedAt)->diffInDays(Carbon::parse((string) $closedAt)) : null;
+            $turnaround = WarrantyReportTime::turnaround($receivedAt, $closedAt);
             $model = $case->identification_status === 'TEMP_ONLY' && $case->sku_code === null
                 ? ($case->manual_product_description ?: 'UNKNOWN_MODEL')
                 : ($case->sku_code ?? 'UNKNOWN_MODEL');
@@ -420,7 +421,7 @@ class BaM1ReportController extends Controller
         // đã khai đúng hành vi mong đợi từ trước; chỉ phần cài đặt chưa theo kịp.
         $summaryBase = WarrantyWarehouseScope::query($request, 'wc')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
-            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+            ->where(WarrantyReportTime::range($from, $to));
 
         if (! empty($validated['status'])) {
             $summaryBase->where('wc.status', $validated['status']);
@@ -457,7 +458,7 @@ class BaM1ReportController extends Controller
             ->whereIn('wc.warranty_case_id', WarrantyWarehouseScope::query($request)->select('warranty_case.warranty_case_id'))
             ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
-            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+            ->where(WarrantyReportTime::range($from, $to));
         if (! empty($validated['status'])) {
             $byDefectQuery->where('wc.status', $validated['status']);
         }
@@ -541,7 +542,7 @@ class BaM1ReportController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->cachedReportPayload(
-                'warehouse:report:warranty-defect-sku-breakdown',
+                'warehouse:report:warranty-defect-sku-breakdown:instant-v2',
                 // Phân trang nằm TRONG SQL -> page/per_page BẮT BUỘC ở trong key,
                 // nếu không trang 3 sẽ nhận lại payload của trang 1.
                 $this->reportFiltersWithPaging($request),
@@ -572,8 +573,8 @@ class BaM1ReportController extends Controller
             'defect_ids' => ['nullable', 'array', 'max:500'],
             'defect_ids.*' => ['uuid', 'distinct'],
         ]);
-        $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
-        $to = (string) ($validated['to_date'] ?? now()->toDateString());
+        $from = (string) ($validated['from_date'] ?? WarrantyReportTime::today()->subDays(30)->toDateString());
+        $to = (string) ($validated['to_date'] ?? WarrantyReportTime::today()->toDateString());
         // GĐ1-REQ-022: bộ lọc đa chọn; scalar sku_id/defect_id giữ làm alias tương thích.
         $filterSkus = array_values(array_unique(array_filter(array_merge(
             (array) ($validated['sku_ids'] ?? []),
@@ -589,7 +590,7 @@ class BaM1ReportController extends Controller
             ->whereIn('wc.warranty_case_id', WarrantyWarehouseScope::query($request)->select('warranty_case.warranty_case_id'))
             ->join('defect_catalogs as dc', 'dc.defect_id', '=', 'wcd.defect_id')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
-            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+            ->where(WarrantyReportTime::range($from, $to));
         if ($filterSkus !== []) {
             $query->whereIn('wc.product_id', $filterSkus);
         }
@@ -622,7 +623,7 @@ class BaM1ReportController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->cachedReportPayload(
-                'warehouse:report:warranty-component-usage',
+                'warehouse:report:warranty-component-usage:instant-v2',
                 // Phân trang nằm TRONG SQL -> page/per_page BẮT BUỘC ở trong key,
                 // nếu không trang 3 sẽ nhận lại payload của trang 1.
                 $this->reportFiltersWithPaging($request),
@@ -650,8 +651,8 @@ class BaM1ReportController extends Controller
             'defect_ids' => ['nullable', 'array', 'max:500'],
             'defect_ids.*' => ['uuid', 'distinct'],
         ]);
-        $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
-        $to = (string) ($validated['to_date'] ?? now()->toDateString());
+        $from = (string) ($validated['from_date'] ?? WarrantyReportTime::today()->subDays(30)->toDateString());
+        $to = (string) ($validated['to_date'] ?? WarrantyReportTime::today()->toDateString());
         $filterDefects = array_values(array_unique(array_filter(array_merge(
             (array) ($validated['defect_ids'] ?? []),
             ! empty($validated['defect_id']) ? [(string) $validated['defect_id']] : []
@@ -663,7 +664,7 @@ class BaM1ReportController extends Controller
             ->join('warranty_case as wc', 'wc.warranty_case_id', '=', 'cid.warranty_case_id')
             ->whereIn('wc.warranty_case_id', WarrantyWarehouseScope::query($request)->select('warranty_case.warranty_case_id'))
             ->where('cid.status', 'POSTED')
-            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+            ->where(WarrantyReportTime::range($from, $to));
         if ($filterDefects !== []) {
             $query->whereExists(function ($sub) use ($filterDefects): void {
                 $sub->selectRaw('1')

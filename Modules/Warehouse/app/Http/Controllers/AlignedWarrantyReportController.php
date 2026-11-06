@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Support\WarrantyCasePii;
+use Modules\Warehouse\Support\WarrantyReportTime;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -188,7 +189,7 @@ class AlignedWarrantyReportController extends Controller
 
         // Carbon 3: diffInDays() trả float. Ép tường minh về số ngày tròn, cùng cách tính
         // với màn danh sách (BaM1ReportController), thay vì để PHP tự cắt phần lẻ ở return.
-        return (int) Carbon::parse($receivedAt)->diffInDays(Carbon::parse((string) $closedAt));
+        return WarrantyReportTime::turnaround($receivedAt, $closedAt);
     }
 
     /**
@@ -214,7 +215,7 @@ class AlignedWarrantyReportController extends Controller
         // client gửi `?include_pii=1` sẽ ghi đè cờ do server tính — tức là dùng chung entry
         // giữa bản mask và bản PII thô. array_merge cho giá trị server tính luôn thắng.
         return $this->cachedReadPayload(
-            'warehouse:report:warranty-defects:warranty-owner-v1',
+            'warehouse:report:warranty-defects:warranty-owner-v1:instant-v2',
             array_merge($filters, ['include_pii' => $includePii, 'warranty_owner_context' => WarrantyWarehouseScope::cacheContext($request)]),
             fn (): array => $this->buildUncached($request, $includePii),
             'report',
@@ -236,15 +237,15 @@ class AlignedWarrantyReportController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
-        $from = (string) ($validated['from_date'] ?? now()->subDays(30)->toDateString());
-        $to = (string) ($validated['to_date'] ?? now()->toDateString());
+        $from = (string) ($validated['from_date'] ?? WarrantyReportTime::today()->subDays(30)->toDateString());
+        $to = (string) ($validated['to_date'] ?? WarrantyReportTime::today()->toDateString());
 
         $query = WarrantyWarehouseScope::query($request, 'wc')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
             ->leftJoin('defect_catalogs as d', 'd.defect_id', '=', 'wc.defect_id')
             // §13.10 "event timestamps Asia/Ho_Chi_Minh" + cột "received": kỳ báo cáo
             // phải chạy theo ngày tiếp nhận thực tế, không phải created_at của bản ghi.
-            ->whereBetween(DB::raw('COALESCE(wc.received_at, wc.created_at)'), ["{$from} 00:00:00", "{$to} 23:59:59"]);
+            ->where(WarrantyReportTime::range($from, $to));
         foreach (['status', 'defect_id', 'identification_status'] as $filter) {
             if (! empty($validated[$filter])) {
                 $query->where("wc.{$filter}", $validated[$filter]);
@@ -264,7 +265,7 @@ class AlignedWarrantyReportController extends Controller
         // vấn, TRƯỚC lớp mask §13.8 bên dưới. Giữ nguyên tên cột plaintext trong
         // SELECT vẫn chạy tới Phase 6 rồi vỡ ở production với "column does not
         // exist" — nên chuyển một lần ở đây thay vì chờ.
-        $cases = $query->orderByDesc(DB::raw('COALESCE(wc.received_at, wc.created_at)'))->get(array_merge([
+        $cases = $query->orderByDesc(DB::raw(WarrantyReportTime::received()))->get(array_merge([
             'wc.warranty_case_id', 'wc.warranty_case_code', 'wc.identification_status', 'wc.status',
             'wc.created_at', 'wc.updated_at', 'wc.temporary_item_code',
             'wc.purchase_date', 'wc.received_at',
