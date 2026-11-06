@@ -31,6 +31,8 @@ class InventoryBalanceController extends Controller
     /** ERD bảng 29: stock_status CHECK AVAILABLE/NON_SELLABLE/DEFECTIVE/QUARANTINE. */
     private const STOCK_STATUSES = ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'];
 
+    private const RECONCILIATION_STATUSES = ['MATCH', 'MISMATCH'];
+
     #[OA\Get(
         path: '/api/v1/inventory',
         operationId: 'inventory_balance_list',
@@ -43,6 +45,7 @@ class InventoryBalanceController extends Controller
             new OA\Parameter(name: 'product_id', in: 'query', description: 'Alias của sku_id', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'sku_type', in: 'query', schema: new OA\Schema(type: 'string', enum: ['PRODUCT', 'COMPONENT'])),
             new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: self::STOCK_STATUSES)),
+            new OA\Parameter(name: 'reconciliation_status', in: 'query', description: 'Bỏ trống để lấy tất cả kết quả đối soát', schema: new OA\Schema(type: 'string', enum: self::RECONCILIATION_STATUSES)),
             new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
@@ -61,6 +64,7 @@ class InventoryBalanceController extends Controller
             'product_id' => ['nullable', 'uuid'],
             'sku_type' => ['nullable', 'in:PRODUCT,COMPONENT'],
             'stock_status' => ['nullable', 'in:'.implode(',', self::STOCK_STATUSES)],
+            'reconciliation_status' => ['nullable', 'string', 'in:'.implode(',', self::RECONCILIATION_STATUSES)],
             'keyword' => ['nullable', 'string', 'max:200'],
         ]);
 
@@ -74,6 +78,7 @@ class InventoryBalanceController extends Controller
             'sku_id' => $skuId,
             'sku_type' => $request->input('sku_type'),
             'stock_status' => $request->input('stock_status'),
+            'reconciliation_status' => $request->input('reconciliation_status'),
             'keyword' => $keyword,
         ];
 
@@ -161,6 +166,25 @@ class InventoryBalanceController extends Controller
                 $q->whereRaw('LOWER(CAST(sku.sku_code AS TEXT)) LIKE ?', [$like])
                     ->orWhereRaw('LOWER(CAST(sku.sku_name AS TEXT)) LIKE ?', [$like]);
             });
+        }
+
+        if ($request->filled('reconciliation_status')) {
+            // Keep the signed ledger dimensions identical to the displayed
+            // reconciliation, and filter before paginate() counts/slices rows.
+            // The correlated aggregate uses the warehouse/product index and is
+            // only added for filtered requests; page enrichment stays unchanged.
+            $ledgerTotal = DB::table('stock_movements as reconciliation_ledger')
+                ->whereColumn('reconciliation_ledger.warehouse_id', 'inventory_balances.warehouse_id')
+                ->whereColumn('reconciliation_ledger.product_id', 'inventory_balances.product_id')
+                ->whereRaw("COALESCE(reconciliation_ledger.stock_status, 'AVAILABLE') = COALESCE(inventory_balances.stock_status, 'AVAILABLE')")
+                ->selectRaw('SUM(reconciliation_ledger.qty_delta)');
+
+            // bcsub(..., 3) truncates variance: magnitudes below 0.001 match.
+            $operator = $request->input('reconciliation_status') === 'MATCH' ? '<' : '>=';
+            $query->whereRaw(
+                'ABS(inventory_balances.on_hand_qty - COALESCE(('.$ledgerTotal->toSql().'), 0)) '.$operator.' 0.001',
+                $ledgerTotal->getBindings()
+            );
         }
 
         /** @var LengthAwarePaginator $balances */
