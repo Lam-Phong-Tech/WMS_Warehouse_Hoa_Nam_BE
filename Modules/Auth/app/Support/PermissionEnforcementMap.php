@@ -3,6 +3,8 @@
 namespace Modules\Auth\Support;
 
 use Illuminate\Support\Facades\Route;
+use Modules\Notification\Http\Controllers\NotificationDeliveryController;
+use Modules\Notification\Http\Controllers\NotificationDeliverySelfTestController;
 use Modules\Warehouse\Http\Controllers\P03DraftController;
 use Modules\Warehouse\Http\Controllers\P04InboundController;
 use Modules\Warehouse\Http\Controllers\P05OutboundController;
@@ -105,6 +107,15 @@ final class PermissionEnforcementMap
      * @var array<string, string>
      */
     public const IN_CODE_GUARDED_ROUTES = [
+        // Personal delivery uses active actor/family, installation proof and
+        // exact binding version; canary adds its file-backed scope/expiry.
+        // This inventory declares guards, not grants or production approval.
+        'GET api/v1/notification-delivery/capabilities' => NotificationDeliveryController::class.'@capabilities',
+        'GET api/v1/notification-delivery/installations/{installationId}' => NotificationDeliveryController::class.'@show',
+        'PUT api/v1/notification-delivery/installations/{installationId}' => NotificationDeliveryController::class.'@store',
+        'DELETE api/v1/notification-delivery/installations/{installationId}' => NotificationDeliveryController::class.'@destroy',
+        'POST api/v1/notification-delivery/test-self' => NotificationDeliverySelfTestController::class.'@store',
+        'GET api/v1/notification-delivery/test-self/{requestKey}' => NotificationDeliverySelfTestController::class.'@show',
         // Context returns only this actor's session and effective capabilities;
         // it does not grant permission to read any business record.
         'GET api/v1/mini-app/p03/context' => P03DraftController::class.'@context',
