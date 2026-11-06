@@ -55,6 +55,33 @@ class Flow01SystemAndCatalogAlignmentTest extends TestCase
         ], $headers)->assertOk()->assertJsonPath('data.brand_code', 'legacy_makita');
     }
 
+    public function test_brand_codes_allow_50_characters_and_reject_51_on_create_and_update(): void
+    {
+        $headers = $this->adminHeaders();
+        foreach (['/api/v1/brands', '/api/v1/catalog-masters/brands'] as $index => $url) {
+            $code = str_repeat('A', 49).$index;
+            $created = $this->postJson($url, [
+                'brand_code' => $code, 'brand_name' => 'Boundary brand',
+            ], $headers)->assertCreated();
+            $id = $created->json('data.id');
+            $this->postJson($url, [
+                'brand_code' => $code.'B', 'brand_name' => 'Too long',
+            ], $headers)->assertUnprocessable()->assertJsonValidationErrors('brand_code');
+            $this->patchJson($url.'/'.$id, [
+                'brand_code' => $code.'B',
+            ], $headers)->assertUnprocessable()->assertJsonValidationErrors('brand_code');
+            $this->patchJson($url.'/'.$id, [
+                'brand_code' => str_repeat('B', 49).$index,
+            ], $headers)->assertOk();
+            $this->assertDatabaseHas('brands', ['id' => $id, 'brand_code' => str_repeat('B', 49).$index]);
+            $legacyCode = str_repeat('L', 50).$index;
+            $legacyId = $this->catalogMaster('brands', ['brand_code' => $legacyCode, 'brand_name' => 'Legacy long code']);
+            $this->patchJson($url.'/'.$legacyId, [
+                'brand_code' => $legacyCode, 'brand_name' => 'Legacy renamed',
+            ], $headers)->assertOk()->assertJsonPath('data.brand_code', $legacyCode);
+        }
+    }
+
     private function adminHeaders(): array
     {
         $role = Role::firstOrCreate(
