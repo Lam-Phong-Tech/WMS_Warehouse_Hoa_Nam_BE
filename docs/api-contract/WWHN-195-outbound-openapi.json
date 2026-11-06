@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "WWHN-195 — Outbound Document API (HN-OUT-001)",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Contract của luồng xuất kho, **sinh lại từ bảng route canonical** sau register R2 (DEV195-P1-05R2). Nguồn sự thật: `Modules/Warehouse/routes/api.php` + `Flow06AlignmentServiceProvider`, đối chiếu SRS/FRD v1.12 §5.2/§6/§8.1 + Annex C và ERD `HoaNam_ERD_Moi_Nhat.md`.\nBa lệch của bản 1.x đã đóng:\n1. **Ghost operation** — bản cũ khai `POST /outbound-documents` và\n   `PATCH /outbound-documents/{id}`. §8.1/Annex C: \"Confirm creates exactly one\n   outbound DRAFT; no direct POST /outbound-documents create operation\".\n   Hai operation này không có route runtime; đã gỡ khỏi contract lẫn khỏi\n   annotation Swagger inline trong `OutboundDocumentController`.\n2. **code_value maxLength 200 vs runtime 150** — nguyên nhân gốc: route `/scan`\n   khai trong routes/api.php trỏ `CurrentBaselineStockFlowController` (max 150)\n   nhưng bị `Flow06AlignmentServiceProvider` override sang\n   `AlignedOutboundFlowController` (max 200) lúc boot, nên bảng route và handler\n   chạy thật là hai thứ khác nhau. Đã trỏ route thẳng handler canonical và chốt\n   maxLength = 150 ở cả contract lẫn runtime.\n3. **Packing Label state cũ** — bản cũ khai `label_status` enum\n   `[PENDING_PRINT, PRINTED, PRINT_FAILED]` và mô tả \"scan tạo label + in ngay\".\n   SRS §6 chốt vòng đời `DRAFT → PREVIEWED → READY_TO_PRINT → PRINTED`\n   (`PRINT_FAILED` khi in lỗi), đúng 01 Packing Label cho mỗi phiếu xuất, tạo khi\n   full match, và mọi thao tác nhãn đều stock-neutral.\nBổ sung theo DEV195-P1-01R2: `scan_source` khai báo tường minh chế độ quét (CAMERA/MANUAL/HARDWARE, đúng CHECK của ERD bảng 25 `scan_events.scan_source`). Không gửi thì server suy luận và đánh dấu `scan_source_origin=INFERRED`. Mode không bị khoá theo phiếu: mỗi lần scan là một scan event độc lập, đổi qua lại camera/nhập tay trong cùng phiếu là hợp lệ (AC-SRS-005 + NFR-SRS-021 yêu cầu camera-denied rơi về nhập tay ngay giữa luồng). Cả hai mode dùng chung permission `outbound.scan`, chung state guard DRAFT/SCANNING, chung validation.",
     "x-source-of-truth": {
       "routes": "Modules/Warehouse/routes/api.php",
@@ -532,6 +532,255 @@
     }
   ],
   "paths": {
+    "/api/v1/outbound-documents/nfc-items": {
+      "get": {
+        "operationId": "outbound_nfc_items",
+        "summary": "Read outbound items and active NFC assignments",
+        "description": "Requires outbound.view and warehouse scope. Without document_id, only POSTED documents; with document_id, matched DRAFT/SCANNING/POSTED items. Read-only, no stock effect.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "keyword",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "nfc_status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ALL",
+                "ASSIGNED",
+                "UNASSIGNED"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated item/NFC projection; tab_totals precede chip filter/paging"
+          },
+          "403": {
+            "description": "Read permission denied"
+          },
+          "404": {
+            "description": "Document not in owner warehouse scope"
+          }
+        }
+      }
+    },
+    "/api/v1/outbound-documents/{id}/items/{itemId}/nfc-history": {
+      "get": {
+        "operationId": "outbound_item_nfc_history",
+        "summary": "Read NFC assignment/revocation history for a matched outbound item",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "$ref": "#/components/parameters/ItemId"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read-only historical events across NFC chips linked to this item"
+          },
+          "403": {
+            "description": "outbound.view required"
+          },
+          "404": {
+            "description": "Document/item not found in scope or unsupported document state"
+          }
+        }
+      }
+    },
+    "/api/v1/outbound-documents/{id}/checks": {
+      "post": {
+        "operationId": "outbound_human_check_confirm",
+        "summary": "Persist explicit human document-check confirmation",
+        "description": "Existing owner command; not RECORD validation, SENT or Post. Requires outbound.view + outbound.scan, active actor/stable family and confirmed active warehouse. DRAFT/SCANNING only. Retry keeps original key/body/version/context; stock_effect=NONE.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "description": "Quoted strong document version",
+            "schema": {
+              "type": "string",
+              "pattern": "^\"[1-9][0-9]{0,8}\"$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "warehouse_id",
+                  "confirmed"
+                ],
+                "properties": {
+                  "warehouse_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "confirmed": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "document-human-check-v1 SUCCEEDED receipt, document_version, stock_effect=NONE and retry_policy=CHECK_ONLY; same identity replays unchanged"
+          },
+          "403": {
+            "description": "Actor/right/session/warehouse/organization scope denied"
+          },
+          "404": {
+            "description": "Document not found in owner scope"
+          },
+          "409": {
+            "description": "IDEMPOTENCY_CONFLICT, DOCUMENT_CHECK_VERSION_CONFLICT or DOCUMENT_CHECK_STATE_CONFLICT"
+          },
+          "422": {
+            "description": "Invalid fields or DOCUMENT_CHECK_PAYLOAD_INVALID"
+          },
+          "428": {
+            "description": "DOCUMENT_CHECK_IDENTITY_REQUIRED"
+          }
+        }
+      }
+    },
+    "/api/v1/outbound-documents/{id}/checks/requests/{key}": {
+      "get": {
+        "operationId": "outbound_human_check_reconcile",
+        "summary": "Reconcile the original human-check request without replay",
+        "description": "Same actor/stable family/confirmed warehouse and original document/key. UNKNOWN remains CHECK_ONLY; not permission to retry, change key or fabricate an event.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DocumentId"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Existing SUCCEEDED receipt or UNKNOWN with retry_policy=CHECK_ONLY; private/no-store"
+          },
+          "403": {
+            "description": "Owner permission/warehouse/session scope denied"
+          },
+          "404": {
+            "description": "Document not found in owner scope"
+          },
+          "422": {
+            "description": "Invalid warehouse_id"
+          }
+        }
+      }
+    },
     "/api/v1/outbound-documents": {
       "get": {
         "operationId": "listOutboundDocuments",
@@ -1663,7 +1912,12 @@
     "ticket": "WWHN-198",
     "finding": "DEV198-P1-06"
   },
-  "x-document-version": "2.1.0",
+  "x-runtime-surface-followup": {
+    "date": "2026-11-07",
+    "scope": "Document four existing NFC and human-check owner routes; no new runtime route, guard or business behavior",
+    "approval_changed": false
+  },
+  "x-document-version": "2.2.0",
   "x-contract-status": "LOCKED_CANDIDATE",
   "x-approval-status": "PENDING_BA_SIGN_OFF",
   "x-tickets": [

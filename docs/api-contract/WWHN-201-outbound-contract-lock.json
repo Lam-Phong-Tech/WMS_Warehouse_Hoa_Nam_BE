@@ -2,7 +2,7 @@
   "ticket": "WWHN-201",
   "finding": "DEV201-P1-04R",
   "decision": "DEC-OUT-STOCK-HTTP-001",
-  "contract_version": "2.1.0",
+  "contract_version": "2.2.0",
   "contract_status": "LOCKED_CANDIDATE",
   "approval_status": "PENDING_BA_SIGN_OFF",
   "error_contract": {
@@ -25,10 +25,14 @@
   },
   "operations": [
     "GET /api/v1/outbound-documents",
+    "GET /api/v1/outbound-documents/nfc-items",
     "GET /api/v1/outbound-documents/{id}",
     "GET /api/v1/outbound-documents/{id}/attachments",
+    "GET /api/v1/outbound-documents/{id}/checks/requests/{key}",
+    "GET /api/v1/outbound-documents/{id}/items/{itemId}/nfc-history",
     "POST /api/v1/outbound-documents/{id}/attachments",
     "POST /api/v1/outbound-documents/{id}/cancel",
+    "POST /api/v1/outbound-documents/{id}/checks",
     "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/preview",
     "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/print",
     "POST /api/v1/outbound-documents/{id}/packing-labels/{labelId}/ready",
@@ -43,8 +47,8 @@
   ],
   "removed_from_previous_version": [],
   "artifacts": {
-    "docs/api-contract/WWHN-195-outbound-openapi.json": "e5f5ab91bde583edf9666ea8b6ef2ae1a3c4ed4a06f4a0c2a7a212e83fdcb22b",
-    "docs/api-contract/WWHN-195-outbound-openapi.yaml": "97c60c87eda7c60b91eb709b9ed85fea403272ea64cd63661f6433a0e1c77a4d",
-    "docs/postman/WWHN-195-outbound.postman_collection.json": "195b5fd1d6545455191c9e4a2d50ec1a6e2f7717d573f31b5a367c2af85b3cbc"
+    "docs/api-contract/WWHN-195-outbound-openapi.json": "ddfa542cda46ec8f92df920943666e7fa993e3ae132cf178cdc29ea3fbe1a55e",
+    "docs/api-contract/WWHN-195-outbound-openapi.yaml": "b575b01578e58d2612a56c24e4f86a60ab6efb8f8496db98bc323de127ae2091",
+    "docs/postman/WWHN-195-outbound.postman_collection.json": "9a53548db2bbc592c703562d6a4e3d5a78d670eaba2dc745aec0e8cd26354918"
   }
 }
