@@ -335,6 +335,21 @@ class ControlledMultiSessionTest extends TestCase
         $this->assertSame(1, RefreshToken::query()->where('auth_session_id', $b['family'])->active()->count());
     }
 
+    public function test_access_only_quota_slots_expire_with_their_usable_access_credentials(): void
+    {
+        [$user, $password] = $this->fixture();
+        auth('api')->factory()->setTTL(1);
+        $tokens = app(RefreshTokenService::class);
+        $a = $tokens->completeLogin($user, request(), false);
+        $b = $tokens->completeLogin($user, request(), false);
+        $this->assertNull($a['session']);
+        $this->assertNull($b['session']);
+        $this->travel(2)->minutes();
+        $this->assertSame(0, RefreshToken::query()->where('user_id', $user->user_id)->active()->count(), 'Expired access-only clients must not strand both quota slots.');
+        $this->resetAuth();
+        $this->browserLogin($user->email, $password)->assertOk();
+    }
+
     private function fixture(): array
     {
         $password = bin2hex(random_bytes(24));

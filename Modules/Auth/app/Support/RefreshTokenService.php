@@ -4,6 +4,7 @@ namespace Modules\Auth\Support;
 
 use App\Support\ApiError;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -13,6 +14,7 @@ use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
 use Throwable;
 use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Token;
 
 /** Rotation, password changes and family revocation serialize on the parent user. */
 class RefreshTokenService
@@ -28,6 +30,16 @@ class RefreshTokenService
                 ? $this->issueSession($user, $request)
                 : null;
             $accessToken = $this->accessTokenFor($user, $session['id'] ?? null);
+            if (! $issueRefresh && AccountSessionPolicy::controlledMode() && $session !== null) {
+                $expires = JWTAuth::manager()->decode(new Token($accessToken))->get('exp');
+                if (! is_int($expires)) {
+                    ApiError::abort(503, 'AUTH_SESSION_POLICY_NOT_READY', 'Phiên chỉ dùng access token cần thời hạn xác thực hữu hạn.');
+                }
+                $record = RefreshToken::query()->whereKey($session['id'])->firstOrFail();
+                if ($record->expires_at->getTimestamp() > $expires) {
+                    $record->forceFill(['expires_at' => Carbon::createFromTimestamp($expires, (string) config('app.timezone', 'UTC'))])->save();
+                }
+            }
             $user->forceFill(['last_login_at' => now()])->save();
 
             return [

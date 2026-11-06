@@ -25,7 +25,7 @@
   "identity": {
     "jwt_sid": "EXISTING_REFRESH_ROW_UUID_NOT_REDEFINED",
     "stable_family": "EXISTING_AUTH_SESSION_ID_WITH_EXACT_LEGACY_ROW_FALLBACK",
-    "access_only": "PERSISTED_FAMILY_REQUIRED",
+    "access_only": "PERSISTED_FAMILY_REQUIRED; reservation expires no later than the issued signed JWT exp, never stranded for refresh TTL",
     "sidless": "401 AUTH_SESSION_REQUIRED",
     "refresh_rotation": "SAME_FAMILY_NO_ADDITIONAL_SLOT"
   },
