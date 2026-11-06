@@ -70,8 +70,8 @@ class CurrentBaselineMasterController extends Controller
                 required: ['brand_code', 'brand_name'],
                 properties: [
                     new OA\Property(property: 'brand_code', type: 'string', maxLength: 50, example: 'BR-0001'),
-                    new OA\Property(property: 'brand_name', type: 'string', maxLength: 200, example: 'Samsung'),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
+                    new OA\Property(property: 'brand_name', type: 'string', maxLength: 150, example: 'Samsung'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: 500, nullable: true, example: 'Thương hiệu điện tử Samsung'),
                     new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], nullable: true, example: 'ACTIVE'),
                     new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
                 ]
@@ -256,8 +256,8 @@ class CurrentBaselineMasterController extends Controller
             required: true,
             content: new OA\JsonContent(properties: [
                 new OA\Property(property: 'brand_code', type: 'string', maxLength: 50, example: 'BR-0001'),
-                new OA\Property(property: 'brand_name', type: 'string', maxLength: 200, example: 'Samsung'),
-                new OA\Property(property: 'description', type: 'string', maxLength: 2000, nullable: true, example: 'Thương hiệu điện tử Samsung'),
+                new OA\Property(property: 'brand_name', type: 'string', maxLength: 150, example: 'Samsung'),
+                new OA\Property(property: 'description', type: 'string', maxLength: 500, nullable: true, example: 'Thương hiệu điện tử Samsung'),
                 new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], example: 'ACTIVE'),
                 new OA\Property(property: 'sort_order', type: 'integer', minimum: 0, maximum: InputLimits::SORT_ORDER_MAX, nullable: true, example: 1),
             ])
@@ -563,8 +563,8 @@ class CurrentBaselineMasterController extends Controller
         }
         $rules = [
             $codeColumn => ['sometimes', 'string', 'max:'.$codeMaxLength, Rule::unique($table, $codeColumn)->ignore($id, 'id')],
-            $nameColumn => ['sometimes', 'string', 'max:200'],
-            'description' => ['nullable', 'string', 'max:2000'],
+            $nameColumn => ['sometimes', 'string', 'max:'.($table === 'brands' ? 150 : 200)],
+            'description' => ['nullable', 'string', 'max:'.($table === 'brands' ? 500 : 2000)],
             'status' => ['sometimes', 'in:ACTIVE,INACTIVE'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ];
@@ -683,8 +683,8 @@ class CurrentBaselineMasterController extends Controller
                     }
                 },
             ],
-            $name => ['required', 'string', 'max:200'],
-            'description' => ['nullable', 'string', 'max:2000'],
+            $name => ['required', 'string', 'max:'.($table === 'brands' ? 150 : 200)],
+            'description' => ['nullable', 'string', 'max:'.($table === 'brands' ? 500 : 2000)],
             'status' => ['nullable', 'in:ACTIVE,INACTIVE'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:'.InputLimits::SORT_ORDER_MAX],
         ]);
