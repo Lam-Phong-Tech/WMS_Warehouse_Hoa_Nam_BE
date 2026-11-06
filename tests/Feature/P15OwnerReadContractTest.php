@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Support\IdempotencyStore;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -14,6 +15,7 @@ use Illuminate\Testing\TestResponse;
 use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Http\Controllers\P04InboundController;
 use Modules\Warehouse\Models\Sku;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
@@ -114,8 +116,7 @@ class P15OwnerReadContractTest extends TestCase
         [$values, $body] = $this->saveInbound($token, (string) $warehouse->id);
         $this->putJson('/api/v1/mini-app/inbound/drafts/'.$values['draft_id'], $body,
             $this->headers($token) + ['Idempotency-Key' => (string) Str::uuid(), 'If-Match' => '"1"'])->assertOk();
-        // The P03 projection used by reconcile intentionally omits actor_id.
-        // Check persisted ownership and another actor's denial instead of inventing a JSON field.
+        // P04 native includes the persisted owner; generic P03/P05 projection omits it.
         $this->assertDatabaseHas('mini_app_drafts', ['document_id' => $values['draft_id'], 'actor_id' => (string) $actor->user_id, 'auth_session_id' => $session]);
         $this->assertDatabaseHas('mini_app_draft_receipts', ['request_id' => $values['operation_key'], 'actor_id' => (string) $actor->user_id, 'auth_session_id' => $session]);
         $before = $this->domainSnapshot();
@@ -125,7 +126,7 @@ class P15OwnerReadContractTest extends TestCase
                 ->assertJsonPath('data.receipt.request_id', $values['operation_key'])
                 ->assertJsonPath('data.receipt.command', 'SAVE')->assertJsonPath('data.receipt.version', 1)
                 ->assertJsonPath('data.document.version', 2)->assertJsonPath('data.state', 'DRAFT')
-                ->assertJsonMissingPath('data.document.actor_id')
+                ->assertJsonPath('data.document.actor_id', (string) $actor->user_id)
                 ->assertJsonPath('data.document.auth_session_id', $session)->assertJsonPath('data.cancel_allowed', false);
         }
         $this->readOwner('P04_RECONCILE', [...$values, 'command' => 'RECORD'], $token)
@@ -146,6 +147,75 @@ class P15OwnerReadContractTest extends TestCase
         $this->assertSame($before, $this->domainSnapshot());
     }
 
+    public function test_p04_owner_projection_cannot_substitute_a_different_viewer_for_the_persisted_actor(): void
+    {
+        [, $token, $warehouse] = $this->actorSession();
+        [$values] = $this->saveInbound($token, (string) $warehouse->id);
+        $draft = $this->readOwner('P04_CURRENT_DRAFT', $values, $token)->assertOk()->json('data.document');
+        [$other] = $this->actorSession();
+        $request = Request::create('/isolated-owner-projection');
+        $request->setUserResolver(fn () => $other);
+        $method = new \ReflectionMethod(P04InboundController::class, 'decorateDraft');
+        try {
+            $method->invoke(app(P04InboundController::class), $request, $draft);
+            $this->fail('Foreign viewer must not become the projected draft actor.');
+        } catch (HttpResponseException $error) {
+            $this->assertSame(404, $error->getResponse()->getStatusCode());
+        }
+    }
+
+    public function test_p04_owner_projection_requires_the_persisted_family_and_scan_identity(): void
+    {
+        [$actor, $token, $warehouse] = $this->actorSession();
+        [$values] = $this->saveInbound($token, (string) $warehouse->id);
+        $original = $this->readOwner('P04_CURRENT_DRAFT', $values, $token)->assertOk()->json('data.document');
+        $request = Request::create('/isolated-owner-projection');
+        $request->setUserResolver(fn () => $actor);
+        $method = new \ReflectionMethod(P04InboundController::class, 'decorateDraft');
+        foreach (['auth_session_id', 'scan_session_id', 'warehouse_id', 'document_id'] as $field) {
+            $draft = $original;
+            $draft[$field] = (string) Str::uuid();
+            try {
+                $method->invoke(app(P04InboundController::class), $request, $draft);
+                $this->fail('Projection must verify persisted '.$field.'.');
+            } catch (HttpResponseException $error) {
+                $this->assertSame(404, $error->getResponse()->getStatusCode());
+            }
+        }
+    }
+
+    public function test_p04_latest_save_can_authorize_cancel_but_does_not_rewrite_stored_transport_response(): void
+    {
+        [$actor, $token, $warehouse] = $this->actorSession();
+        [$values] = $this->saveInbound($token, (string) $warehouse->id);
+        $stored = DB::table('mini_app_draft_receipts')->where('request_id', $values['operation_key'])->value('response_body');
+        $before = $this->domainSnapshot();
+        $response = $this->readOwner('P04_RECONCILE', $values, $token)->assertOk()
+            ->assertJsonPath('data.document.actor_id', (string) $actor->user_id)
+            ->assertJsonPath('data.receipt.version', 1)->assertJsonPath('data.document.version', 1)
+            ->assertJsonPath('data.cancel_allowed', true);
+        $this->assertSame(json_decode($stored, true, 512, JSON_THROW_ON_ERROR), $response->json('data.response'));
+        $this->assertArrayNotHasKey('actor_id', $response->json('data.response.data.document'));
+        $this->assertSame($before, $this->domainSnapshot());
+    }
+
+    public function test_controlled_parallel_family_never_inherits_another_family_p04_receipt_or_actor_projection(): void
+    {
+        config()->set('refresh_token.controlled_multi_session.enabled', true);
+        config()->set('app.url', 'http://localhost');
+        [$actor, $a, $warehouse, , $familyA] = $this->actorSession();
+        [$values] = $this->saveInbound($a, (string) $warehouse->id);
+        [$b, , $familyB] = $this->loginSession($actor, $warehouse);
+        $this->assertNotSame($familyA, $familyB);
+        $before = $this->domainSnapshot();
+        $this->readOwner('P04_RECONCILE', $values, $b)->assertOk()->assertJsonPath('data.outcome', 'UNKNOWN')
+            ->assertJsonPath('data.receipt', null)->assertJsonPath('data.document', null)->assertJsonPath('data.cancel_allowed', false);
+        $this->readOwner('P04_CURRENT_DRAFT', $values, $b)->assertNotFound();
+        $this->readOwner('P04_RECONCILE', $values, $a)->assertOk()->assertJsonPath('data.document.actor_id', (string) $actor->user_id)
+            ->assertJsonPath('data.document.auth_session_id', $familyA);
+        $this->assertSame($before, $this->domainSnapshot());
+    }
+
     public function test_p03_outbound_read_transport_preserves_the_original_operation_key(): void
     {
         [, $token, $warehouse] = $this->actorSession();
@@ -161,7 +231,8 @@ class P15OwnerReadContractTest extends TestCase
         $this->getJson($this->readUrl('P05_RECONCILE', $values), $this->headers($token, $trace))->assertOk()
             ->assertJsonPath('meta.contract', 'mini-app-p03-v1')->assertJsonPath('meta.request_id', $trace)
             ->assertJsonPath('data.outcome', 'SUCCEEDED')->assertJsonPath('data.operation', 'OUTBOUND')
-            ->assertJsonPath('data.receipt.request_id', $values['operation_key'])->assertJsonPath('data.receipt.command', 'SAVE');
+            ->assertJsonPath('data.receipt.request_id', $values['operation_key'])->assertJsonPath('data.receipt.command', 'SAVE')
+            ->assertJsonMissingPath('data.document.actor_id');
         $this->readOwner('P05_RECONCILE', [...$values, 'operation_key' => $trace], $token)
             ->assertOk()->assertJsonPath('data.outcome', 'UNKNOWN')->assertJsonPath('data.receipt', null);
         $this->assertSame($before, $this->domainSnapshot());

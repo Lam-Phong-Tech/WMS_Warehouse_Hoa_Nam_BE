@@ -612,7 +612,20 @@ final class P04InboundController extends Controller
 
     private function decorateDraft(Request $request, array $draft): array
     {
-        $draft['actor_id'] = (string) $request->user()->user_id;
+        $actor = $request->user();
+        if (! $actor instanceof User) {
+            ApiError::abort(401, 'UNAUTHENTICATED', 'Cần đăng nhập.');
+        }
+        $family = app(StableAuthSession::class)->requireId($actor);
+        $owner = ($draft['auth_session_id'] ?? null) !== $family ? null
+            : DB::table(MiniAppDraftService::TABLE)->where('document_id', $draft['document_id'])
+                ->where('actor_id', $actor->user_id)->where('auth_session_id', $family)
+                ->where('warehouse_id', $draft['warehouse_id'])->where('scan_session_id', $draft['scan_session_id'])
+                ->where('operation', 'INBOUND')->value('actor_id');
+        if ($owner === null) {
+            ApiError::abort(404, 'DRAFT_NOT_FOUND', 'Không tìm thấy bản nháp trong phạm vi owner hiện tại.');
+        }
+        $draft['actor_id'] = (string) $owner;
         $draft['document_no'] = $draft['business_document_id'] === null ? app(InboundDocumentNumber::class)->forDraft($draft['document_id'])
             : DB::table('stock_documents')->where('id', $draft['business_document_id'])->value('doc_no');
         $draft['numbering_status'] = $draft['document_no'] === null ? 'AWAITING_SAVE' : 'ASSIGNED';

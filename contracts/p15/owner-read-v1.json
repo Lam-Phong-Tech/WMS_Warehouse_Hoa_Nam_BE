@@ -1,5 +1,6 @@
 {
   "contract": "p15-owner-read-v1",
+  "revision": "p15-owner-read-r2-persisted-p04-actor",
   "date": "2026-10-09",
   "source_revision": "47636e0a3fc688be07071e2d2af5508b226e8805",
   "status": "PENDING_OWNER_CONTRACT_AND_LIVE_TEST",
@@ -24,6 +25,9 @@
     "P07_CURRENT_TAG": {"owner": "P07", "mode": "CONFIRM", "path": "/api/v1/mini-app/nfc-tags/{physicalCodeId}", "path_vars": {"physicalCodeId": "physical_code_id"}, "query": ["warehouse_id"], "identity_vars": ["physical_code_id", "warehouse_id"], "kind": "current_mapping", "meta_contract": "mini-app-p07-v1"}
   },
   "operation_identity": {
+    "P04_current_actor": "Current P04 native document.actor_id is the persisted draft owner after exact actor/family/warehouse/scan/document identity verification. Do not remove this established P04 field or substitute a viewer for the owner. Generic P03/P05 document projection does not promise actor_id.",
+    "stored_response": "data.response is the unchanged persisted transport response, not a reconstructed current P04 envelope. Do not backfill actor metadata or current version into an original response/receipt.",
+    "cancel_allowed": "Only the current owned DRAFT with its confirmed latest SAVE receipt, matching version/last_request_id and current cancel permission can return true. An old/missing/wrong-command receipt cannot authorize cancellation; the write endpoint repeats all guards.",
     "P04_P03": "requestId in the URL is the original command Idempotency-Key UUID, not the current HTTP trace. Compare request_id, draft document_id, scan_session_id, warehouse_id, operation and command in both data and receipt. Compare receipt.version with the original successful command, not automatically with the current document version.",
     "P05_SOURCE_LINKED": "Require caller evidence for the source-linked mode and the original source_document_id. A generic OUTBOUND draft alone does not prove P05 linkage. After RECORD, compare the owner's business_document_id with the original selected source; never create a replacement on mismatch.",
     "P07": "Send the exact original PATCH Idempotency-Key. Compare nested confirmation actor_id, auth_session_id, warehouse_id, item_id and physical_code_id with the caller's known identity; compare hardware_uid in the original response when known. The current GET trace is not the original PATCH trace, and P07 does not echo the key as a receipt request ID.",
