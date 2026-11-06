@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -45,7 +46,7 @@ class ReportFlow06IntegrationTest extends TestCase
         parent::setUp();
         // General report fixtures use one deterministic business day; boundary
         // and offset behavior is exercised separately by WarrantyFlow04.
-        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-07T15:00:00+07:00'));
+        $this->travelTo(Carbon::parse('2026-11-07T15:00:00+07:00'));
         [$this->user, $this->token] = $this->createSuperAdmin();
         $this->warehouse = $this->ensureActiveWarehouse('KHO-RPT', 'Kho test report');
         // ERD bảng 16: skus.sku_type NOT NULL (PRODUCT/COMPONENT), không có default.
@@ -599,12 +600,14 @@ class ReportFlow06IntegrationTest extends TestCase
 
     public function test_warranty_component_usage_returns_totals_per_sku(): void
     {
+        $componentA = Sku::create(['code' => 'CP-RPT-A', 'name' => 'Component A', 'sku_type' => 'COMPONENT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
+        $componentB = Sku::create(['code' => 'CP-RPT-B', 'name' => 'Component B', 'sku_type' => 'COMPONENT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
         $caseId = $this->createWarrantyCase('WC-COMP-001', 'COMPLETED');
-        $this->createComponentIssue($caseId, $this->productA, 2);
-        $this->createComponentIssue($caseId, $this->productA, 1);
-        $this->createComponentIssue($caseId, $this->productB, 3);
+        $this->createComponentIssue($caseId, $componentA, 2);
+        $this->createComponentIssue($caseId, $componentA, 1);
+        $this->createComponentIssue($caseId, $componentB, 3);
         // Chưa POSTED thì không được tính.
-        $this->createComponentIssue($caseId, $this->productB, 99, 'DRAFT');
+        $this->createComponentIssue($caseId, $componentB, 99, 'DRAFT');
 
         $today = now()->toDateString();
         $from = now()->subDays(1)->toDateString();
@@ -612,8 +615,8 @@ class ReportFlow06IntegrationTest extends TestCase
         $response->assertOk();
         $rows = collect($response->json('data.rows'))->keyBy('sku_code');
 
-        $this->assertEquals(3, $rows['SP-RPT-A']['total_issued_qty']);
-        $this->assertEquals(3, $rows['SP-RPT-B']['total_issued_qty']);
+        $this->assertEquals(3, $rows['CP-RPT-A']['total_issued_qty']);
+        $this->assertEquals(3, $rows['CP-RPT-B']['total_issued_qty']);
     }
 
     // ── 9. Reconciliation Evidence ──────────────────────────

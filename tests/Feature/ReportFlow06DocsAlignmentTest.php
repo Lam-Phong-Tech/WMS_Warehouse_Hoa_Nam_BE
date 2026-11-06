@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -41,7 +42,7 @@ class ReportFlow06DocsAlignmentTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-07T15:00:00+07:00'));
+        $this->travelTo(Carbon::parse('2026-11-07T15:00:00+07:00'));
         [$this->user, $this->token] = $this->createSuperAdmin();
         $this->warehouse = $this->ensureActiveWarehouse('KHO-DOC', 'Kho test docs');
         $this->product = Sku::create([
