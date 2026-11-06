@@ -133,7 +133,9 @@ class RefreshTokenService
             return null;
         }
 
-        return DB::transaction(function () use ($owner, $hash, $request): ?array {
+        $replayAudit = null;
+        $result = DB::transaction(function () use ($owner, $hash, $request, &$replayAudit): ?array {
+            $replayAudit = null;
             // Same lock order as profile/password/logout/revoke: user, then token.
             $user = User::query()->whereKey($owner)->lockForUpdate()->first();
             $record = RefreshToken::query()->where('token_hash', $hash)->lockForUpdate()->first();
@@ -152,9 +154,7 @@ class RefreshTokenService
                     $family = P10ProfilePolicy::family($record->auth_session_id, (string) $record->id);
                     $count = P10SessionFamily::revoke((string) $record->user_id, $family);
                     if ($count > 0) {
-                        AuditLogger::record(action: 'AUTH_REFRESH_REPLAY_CONTAINED', objectType: 'auth_session',
-                            objectId: $family, actorId: null, requestId: $request->attributes->get('request_id'),
-                            afterData: ['scope' => 'TARGET_FAMILY', 'revoked_refresh_rows' => $count], result: 'SUCCESS');
+                        $replayAudit = ['family' => $family, 'count' => $count];
                     }
 
                     return null;
@@ -174,6 +174,15 @@ class RefreshTokenService
 
             return ['user' => $user, 'raw' => $session['raw'], 'id' => $session['id']];
         }, 3);
+
+        // Audit failure must not roll back an already committed security quarantine.
+        if ($replayAudit !== null) {
+            AuditLogger::record(action: 'AUTH_REFRESH_REPLAY_CONTAINED', objectType: 'auth_session',
+                objectId: $replayAudit['family'], actorId: null, requestId: $request->attributes->get('request_id'),
+                afterData: ['scope' => 'TARGET_FAMILY', 'revoked_refresh_rows' => $replayAudit['count']], result: 'SUCCESS');
+        }
+
+        return $result;
     }
 
     public function revoke(string $rawToken): void

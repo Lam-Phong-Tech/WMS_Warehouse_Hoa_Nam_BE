@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Mockery;
+use Modules\AuditLog\Models\AuditLog;
+use Modules\AuditLog\Models\AuditOutbox;
 use Modules\Auth\Events\AuthSessionReplaced;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\Role;
@@ -311,6 +313,26 @@ class ControlledMultiSessionTest extends TestCase
             'new_password' => $new, 'new_password_confirmation' => $new], $this->headers($a['access']))->assertOk();
         $this->assertSame(0, RefreshToken::query()->where('user_id', $user->user_id)->active()->count());
         $this->getJson('/api/v1/auth/me', $this->headers($b['access']))->assertUnauthorized();
+    }
+
+    public function test_audit_failure_cannot_roll_back_replay_quarantine_or_harm_other_family(): void
+    {
+        [$user, $password] = $this->fixture();
+        $a = $this->login($user, $password);
+        $this->resetAuth();
+        $this->browserRefresh($a['refresh'])->assertOk();
+        $b = $this->login($user, $password);
+        AuditLog::creating(fn () => throw new RuntimeException('Isolated audit failure'));
+        AuditOutbox::creating(fn () => throw new RuntimeException('Isolated audit outbox failure'));
+        $this->resetAuth();
+        try {
+            app(RefreshTokenService::class)->rotate($a['refresh'], request());
+            $this->fail('Expected isolated audit failure.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('audit', $error->getMessage());
+        }
+        $this->assertSame(0, RefreshToken::query()->where('auth_session_id', $a['family'])->active()->count(), 'Quarantine must remain committed even when audit/outbox fails.');
+        $this->assertSame(1, RefreshToken::query()->where('auth_session_id', $b['family'])->active()->count());
     }
 
     private function fixture(): array

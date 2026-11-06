@@ -1,0 +1,81 @@
+{
+  "contract": "auth-session-policy-v2",
+  "revision": "controlled-multi-session-r1",
+  "scope": "DEV_TEST_ONLY",
+  "activation": {
+    "enabled_env": "AUTH_CONTROLLED_MULTI_SESSION_ENABLED",
+    "draining_env": "AUTH_CONTROLLED_MULTI_SESSION_DRAINING",
+    "default": false,
+    "legacy_single_switch_unchanged": true,
+    "environment": ["local", "testing"],
+    "allowed_origin": "https://khohoanamdev.lptech.info.vn or configured localhost HTTP/HTTPS",
+    "invalid_environment_or_origin": "503 AUTH_SESSION_POLICY_NOT_READY"
+  },
+  "limits": {
+    "max_active_families": 2,
+    "count_unit": "DISTINCT_LIVE_AUTH_SESSION_FAMILY",
+    "atomicity": "PARENT_USER_ROW_LOCK_SHARED_WITH_ROTATION_AND_REVOCATION",
+    "caller_override": false,
+    "device_headers_are_verified_physical_identity": false,
+    "role_exemptions": [],
+    "automatic_eviction": false,
+    "new_admission_at_limit": "409 AUTH_SESSION_LIMIT_REACHED_AFTER_COMPLETE_AUTHENTICATION",
+    "draining": "409 AUTH_SESSION_ADMISSION_DRAINING; existing families and refresh remain valid"
+  },
+  "identity": {
+    "jwt_sid": "EXISTING_REFRESH_ROW_UUID_NOT_REDEFINED",
+    "stable_family": "EXISTING_AUTH_SESSION_ID_WITH_EXACT_LEGACY_ROW_FALLBACK",
+    "access_only": "PERSISTED_FAMILY_REQUIRED",
+    "sidless": "401 AUTH_SESSION_REQUIRED",
+    "refresh_rotation": "SAME_FAMILY_NO_ADDITIONAL_SLOT"
+  },
+  "revocation": {
+    "logout": "EXISTING_P10_OWNER_CURRENT_FAMILY_ONLY_WITH_PRESENTED_TOKEN_VALIDATION",
+    "foreign_refresh_on_logout": "409 AUTH_SESSION_TOKEN_MISMATCH_NO_MUTATION",
+    "replaced_token": "401 AUTH_SESSION_REPLACED_TERMINAL_NEVER_REVIVED",
+    "revoked_token_replay": "REJECT_AND_QUARANTINE_ONLY_EXACT_PERSISTED_FAMILY",
+    "unknown_or_expired_token": "REJECT_WITHOUT_REVOKING_OTHER_FAMILIES",
+    "historical_revocation_reason": "NOT_INFERRED_OR_BACKFILLED",
+    "audit": "AUTH_REFRESH_REPLAY_CONTAINED; no attacker actor identity asserted; commit quarantine before audit so audit failure cannot restore the family",
+    "global_password_reset_change_lock_revoke_all": "PRESERVED_ACCOUNT_WIDE",
+    "legacy_mode": "EXISTING_V1_REPLAY_AND_REPLACEMENT_UNCHANGED"
+  },
+  "business_ownership": {
+    "warehouse_context": "PER_EXISTING_STABLE_FAMILY",
+    "shift_draft_command_receipt_owner": "UNCHANGED_NO_TAKEOVER",
+    "unknown": "ORIGINAL_CONTEXT_KEY_BODY_VERSION_CHECK_ONLY",
+    "login_or_logout_ends_shift": false,
+    "login_or_logout_deletes_drafts": false,
+    "mfa_policy_changed": false,
+    "p11_recovery_enabled": false
+  },
+  "compatibility": {
+    "unchanged_routes": true,
+    "legacy_policy_contract": "auth-session-replacement-v1",
+    "controlled_policy_contract": "auth-session-policy-v2",
+    "existing_app_unknown_policy": "IGNORED_METADATA_NOT_LOGIN_REJECTION; pre-command policy recognition must be updated to include v2",
+    "app_required_changes": [
+      "Recognize v2 stable-family policy in auth decoder, foreground and pre-command checks",
+      "Handle quota and draining409 without automatic login retry or eviction",
+      "Do not clear another family on auth response, logout or token refresh failure",
+      "Keep request owner/journal and warehouse context generation fences"
+    ],
+    "physical_device_limit_claimed": false,
+    "automatic_login_retry": false,
+    "durable_security_receipt_added": false
+  },
+  "release": {
+    "migration": false,
+    "seed_repair_restore": false,
+    "production_activation": false,
+    "hosted_ci_required_by_this_manual_dev_request": false,
+    "independent_code_review": "REQUIRED_BEFORE_DEPLOY",
+    "test_status": "SEE_EXACT_SHA_RELEASE_EVIDENCE_NOT_THIS_SOURCE_FILE",
+    "app_live_acceptance": "SEPARATE_FROM_SOURCE_CONFIG_READINESS"
+  },
+  "separate_open_items": [
+    "Public WSS404 and independent warehouse stream contract",
+    "Android retained original TEST intent transition and real business push receipt/display",
+    "TC15 P08 v2 remains excluded from this release"
+  ]
+}
