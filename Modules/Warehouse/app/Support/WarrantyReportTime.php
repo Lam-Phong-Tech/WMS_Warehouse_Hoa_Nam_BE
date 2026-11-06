@@ -54,7 +54,7 @@ final class WarrantyReportTime
 
         return DB::getDriverName() === 'pgsql'
             ? "DATE($received + INTERVAL '7 hours')"
-            : "DATE($received, '+7 hours')";
+            : "DATE(SUBSTR($received, 1, 19), '+7 hours')";
     }
 
     private static function column(string $field, string $alias = 'wc'): string

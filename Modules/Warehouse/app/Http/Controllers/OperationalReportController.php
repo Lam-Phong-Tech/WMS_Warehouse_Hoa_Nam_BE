@@ -1127,6 +1127,7 @@ class OperationalReportController extends Controller
             ])
             ->all();
 
+        $warrantyToday = WarrantyReportTime::today();
         $warrantyReceived = function (string $windowFrom, string $windowTo) use ($warehouseIds): int {
             return (int) WarrantyWarehouseScope::dashboardQuery($warehouseIds)
                 ->where(WarrantyReportTime::range($windowFrom, $windowTo, receivedOnly: true, alias: 'warranty_case'))
@@ -1172,14 +1173,14 @@ class OperationalReportController extends Controller
                 'issue_month' => $split($monthTotals, 'issue_product', 'issue_component'),
             ],
             'warranty_received' => [
-                'today' => $warrantyReceived($today->toDateString().' 00:00:00', $today->toDateString().' 23:59:59'),
+                'today' => $warrantyReceived($warrantyToday->toDateString(), $warrantyToday->toDateString()),
                 'week' => $warrantyReceived(
-                    $today->copy()->startOfWeek()->toDateString().' 00:00:00',
-                    $today->copy()->endOfWeek()->toDateString().' 23:59:59'
+                    $warrantyToday->startOfWeek()->toDateString(),
+                    $warrantyToday->endOfWeek()->toDateString()
                 ),
                 'month' => $warrantyReceived(
-                    $today->copy()->startOfMonth()->toDateString().' 00:00:00',
-                    $today->copy()->endOfMonth()->toDateString().' 23:59:59'
+                    $warrantyToday->startOfMonth()->toDateString(),
+                    $warrantyToday->endOfMonth()->toDateString()
                 ),
             ],
             'top_sku' => [

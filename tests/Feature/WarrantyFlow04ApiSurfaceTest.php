@@ -374,7 +374,7 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
     #[DataProvider('reportTimezones')]
     public function test_warranty_report_and_excel_share_vietnam_day_bounds_for_mixed_source_times(string $timezone): void
     {
-        $this->travelTo(Carbon::parse('2026-11-07T15:00:00+07:00'));
+        $this->travelTo(Carbon::parse('2026-11-07T00:30:00+07:00'));
         config()->set('app.timezone', $timezone);
         $oldZone = date_default_timezone_get();
         date_default_timezone_set($timezone);
@@ -442,6 +442,9 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
             $query = DB::query()->fromRaw("(SELECT {$cast} AS received_at, {$cast} AS created_at) AS wc", [$received, $created]);
             $this->assertSame($expected, $query->where(WarrantyReportTime::range('2026-11-07', '2026-11-07'))->exists());
         }
+        $bucket = DB::query()->fromRaw("(SELECT {$cast} AS received_at) AS warranty_case", ['2026-11-07T16:59:59.999999Z'])
+            ->value(DB::raw(WarrantyReportTime::receivedDay()));
+        $this->assertSame('2026-11-07', $bucket);
     }
 
     public function test_warranty_events_follow_erd_taxonomy_and_responses_carry_etag(): void

@@ -43,6 +43,9 @@ class ReportFlow06IntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // General report fixtures use one deterministic business day; boundary
+        // and offset behavior is exercised separately by WarrantyFlow04.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-11-07T15:00:00+07:00'));
         [$this->user, $this->token] = $this->createSuperAdmin();
         $this->warehouse = $this->ensureActiveWarehouse('KHO-RPT', 'Kho test report');
         // ERD bảng 16: skus.sku_type NOT NULL (PRODUCT/COMPONENT), không có default.
@@ -1263,9 +1266,9 @@ class ReportFlow06IntegrationTest extends TestCase
             'warehouse_id' => $this->warehouse->id,
             'warranty_case_id' => $warrantyCaseId,
             'document_date' => now()->toDateString(),
-            'status' => $status,
-            'posted_at' => $status === 'POSTED' ? now() : null,
-            'posted_by' => $status === 'POSTED' ? $this->user->user_id : null,
+            'status' => 'DRAFT',
+            'posted_at' => null,
+            'posted_by' => null,
             'created_by' => $this->user->user_id,
             'created_at' => now(),
             'updated_at' => now(),
@@ -1280,5 +1283,11 @@ class ReportFlow06IntegrationTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        if ($status === 'POSTED') {
+            // Keep PostgreSQL's full-post trigger active: lines precede posting.
+            DB::table('component_issue_documents')->where('id', $docId)->update([
+                'status' => 'POSTED', 'posted_at' => now(), 'posted_by' => $this->user->user_id,
+            ]);
+        }
     }
 }
