@@ -101,7 +101,7 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
             ->assertCreated()->assertHeader('ETag', '"1"')->json('data.registration_id');
     }
 
-    private function test_body(string $registration, ?string $key = null): array
+    private function selfTestBody(string $registration, ?string $key = null): array
     {
         return ['registration_id' => $registration, 'binding_version' => 1, 'request_key' => $key ?? (string) Str::uuid()];
     }
@@ -216,11 +216,11 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
         $t = $this->target();
         $this->activate($t);
         $reg = $this->registerTarget($t);
-        $body = $this->testBody($reg);
+        $body = $this->selfTestBody($reg);
         $first = $this->postJson(self::BASE.'/test-self', $body, $this->headers($t))->assertCreated()->assertJsonPath('data.state', 'PENDING');
         $this->postJson(self::BASE.'/test-self', $body, $this->headers($t))->assertOk()->assertJsonPath('data.recipient_id', $first->json('data.recipient_id'));
         $this->travel(2)->minutes();
-        $this->postJson(self::BASE.'/test-self', $this->testBody($reg), $this->headers($t))->assertStatus(409);
+        $this->postJson(self::BASE.'/test-self', $this->selfTestBody($reg), $this->headers($t))->assertStatus(409);
         $this->assertSame(1, DB::table('notification_delivery_test_receipts')->count());
         $this->assertSame(1, DB::table('notification_deliveries')->count());
         $this->assertSame(0, DB::table('stock_movements')->count());
@@ -239,7 +239,7 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
         $this->activate($t);
         $reg = $this->registerTarget($t);
         app(NotificationService::class)->notify('user.account_changed', 'NOT IN SCOPE', 'NOT IN SCOPE', [(string) $t['user']->user_id], dispatchKey: 'business-not-in-scope');
-        $this->postJson(self::BASE.'/test-self', $this->testBody($reg), $this->headers($t))->assertCreated();
+        $this->postJson(self::BASE.'/test-self', $this->selfTestBody($reg), $this->headers($t))->assertCreated();
         $sender = $this->sender();
         $this->assertSame(1, app(NotificationOutbox::class)->drain($sender));
         $this->assertSame([$reg], array_column($sender->seen, 'registration_id'));
@@ -253,7 +253,7 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
         $t = $this->target();
         $this->activate($t);
         $reg = $this->registerTarget($t);
-        $body = $this->testBody($reg);
+        $body = $this->selfTestBody($reg);
         $this->postJson(self::BASE.'/test-self', $body, $this->headers($t))->assertCreated();
         $sender = $this->sender('UNKNOWN');
         $this->assertSame(1, app(NotificationOutbox::class)->drain($sender));
@@ -270,7 +270,7 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
         $t = $this->target();
         $this->activate($t);
         $reg = $this->registerTarget($t);
-        $body = $this->testBody($reg);
+        $body = $this->selfTestBody($reg);
         $this->postJson(self::BASE.'/test-self', $body, $this->headers($t))->assertCreated();
         file_put_contents($this->manifestFile, '{"enabled":false}');
         $sender = $this->sender();
@@ -308,7 +308,7 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
         $t = $this->target();
         $this->activate($t);
         $reg = $this->registerTarget($t);
-        $this->postJson(self::BASE.'/test-self', $this->testBody($reg), $this->headers($t))->assertCreated();
+        $this->postJson(self::BASE.'/test-self', $this->selfTestBody($reg), $this->headers($t))->assertCreated();
         $file = $this->manifestFile;
         $tokens = new class($file) implements FcmAccessTokenSource
         {
@@ -357,7 +357,7 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
         $t = $this->target();
         $this->activate($t);
         $reg = $this->registerTarget($t);
-        $body = $this->testBody($reg);
+        $body = $this->selfTestBody($reg);
         $this->postJson(self::BASE.'/test-self', $body, $this->headers($t))->assertCreated();
         DB::table('notification_deliveries')->update(['state' => 'SENDING', 'attempts' => 1,
             'lease_token' => (string) Str::uuid(), 'lease_expires_at' => now()->utc()->subMinute()->toIso8601String()]);
@@ -374,7 +374,7 @@ class NotificationAndroidCanaryTest extends PushDeliveryTestCase
         $t = $this->target();
         $this->activate($t);
         $reg = $this->registerTarget($t);
-        $this->postJson(self::BASE.'/test-self', $this->testBody($reg), $this->headers($t))->assertCreated();
+        $this->postJson(self::BASE.'/test-self', $this->selfTestBody($reg), $this->headers($t))->assertCreated();
         Http::fake(['https://fcm.googleapis.com/*' => Http::response(['name' => 'projects/hoa-nam-scanner-devtest/messages/test-only'], 200)]);
         $tokens = new class implements FcmAccessTokenSource
         {
