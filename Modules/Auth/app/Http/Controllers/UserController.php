@@ -20,6 +20,7 @@ use Modules\Auth\Http\Requests\UpdateUserRequest;
 use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
 use Modules\Auth\Support\AuthCache;
 use Modules\Auth\Support\PermissionDelegation;
+use Modules\Auth\Support\ProfileAvatar;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\UserBusinessProfile;
 use OpenApi\Attributes as OA;
@@ -58,9 +59,15 @@ class UserController extends Controller
     )]
     public function index(Request $request)
     {
-        return $this->respondPaginated(
-            $this->users->paginate($request->all(), (int) $request->input('per_page', 10))
-        );
+        $page = $this->users->paginate($request->all(), (int) $request->input('per_page', 10));
+        // Load only metadata for this page, never the image bytes or one query per user.
+        $avatars = DB::table('user_profile_avatars')->whereIn('user_id', $page->getCollection()->pluck('user_id'))
+            ->get(['user_id', 'mime_type', 'size', 'updated_at'])->keyBy('user_id');
+        foreach ($page->getCollection() as $user) {
+            $user->setAttribute('avatar', ProfileAvatar::describe($avatars->get($user->user_id), '/api/v1/users/'.$user->user_id.'/avatar'));
+        }
+
+        return $this->respondPaginated($page);
     }
 
     #[OA\Post(
@@ -150,8 +157,27 @@ class UserController extends Controller
         $user = $this->users->find($id);
 
         return $user ? $this->respondSuccess([...$user->toArray(),
-            'business_profile' => UserBusinessProfile::read($id)])
+            'business_profile' => UserBusinessProfile::read($id),
+            'avatar' => ProfileAvatar::metadata($id, '/api/v1/users/'.$id.'/avatar')])
             : $this->respondNotFound('Không tìm thấy người dùng.');
+    }
+
+    #[OA\Get(
+        path: '/api/v1/users/{id}/avatar',
+        operationId: 'user_avatar',
+        summary: 'Ảnh đại diện người dùng (quyền iam.user.view)',
+        security: [['bearerAuth' => []]],
+        tags: ['02. Users'],
+        parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid'))],
+        responses: [new OA\Response(response: 200, description: 'Ảnh đại diện'), new OA\Response(response: 403, description: 'Không có quyền'), new OA\Response(response: 404, description: 'Không có ảnh')]
+    )]
+    public function avatar(string $id)
+    {
+        if ($this->users->find($id) === null) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy người dùng.');
+        }
+
+        return ProfileAvatar::response($id);
     }
 
     #[OA\Patch(

@@ -3,18 +3,36 @@
 namespace Modules\Auth\Support;
 
 use App\Support\ApiError;
+use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 final class ProfileAvatar
 {
-    public static function metadata(string $user): ?array
+    public static function metadata(string $user, string $url = '/api/v1/auth/me/avatar'): ?array
     {
         $row = DB::table('user_profile_avatars')->where('user_id', $user)->first(['mime_type', 'size', 'updated_at']);
 
+        return self::describe($row, $url);
+    }
+
+    public static function describe(?object $row, string $url): ?array
+    {
         return $row === null ? null : ['mime_type' => $row->mime_type, 'size' => (int) $row->size,
-            'updated_at' => Carbon::parse($row->updated_at, 'UTC')->toIso8601String(), 'url' => '/api/v1/auth/me/avatar'];
+            'updated_at' => Carbon::parse($row->updated_at, 'UTC')->toIso8601String(), 'url' => $url];
+    }
+
+    public static function response(string $user): Response
+    {
+        $row = DB::table('user_profile_avatars')->where('user_id', $user)->first();
+        if ($row === null) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Chưa có ảnh đại diện.');
+        }
+
+        return response(base64_decode($row->image_base64, true))->header('Content-Type', $row->mime_type)
+            ->header('Content-Length', (string) $row->size)->header('Cache-Control', 'private, no-store, no-transform')
+            ->header('X-Content-Type-Options', 'nosniff')->header('Content-Disposition', 'inline; filename="avatar"');
     }
 
     /** Decode and re-encode supported raster images to strip EXIF and trailing content. */

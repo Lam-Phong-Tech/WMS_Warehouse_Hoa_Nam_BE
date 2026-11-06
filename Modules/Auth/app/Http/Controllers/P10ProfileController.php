@@ -156,14 +156,8 @@ final class P10ProfileController extends AuthController
     {
         $this->noQuery($request);
         $user = $this->actor($request);
-        $row = DB::table('user_profile_avatars')->where('user_id', $user->user_id)->first();
-        if ($row === null) {
-            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Chưa có ảnh đại diện.');
-        }
 
-        return response(base64_decode($row->image_base64, true))->header('Content-Type', $row->mime_type)
-            ->header('Content-Length', (string) $row->size)->header('Cache-Control', 'private, no-store, no-transform')
-            ->header('X-Content-Type-Options', 'nosniff')->header('Content-Disposition', 'inline; filename="avatar"');
+        return ProfileAvatar::response($user->user_id);
     }
 
     public function preferences(Request $request): JsonResponse

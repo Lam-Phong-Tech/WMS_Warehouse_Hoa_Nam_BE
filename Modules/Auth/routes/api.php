@@ -76,6 +76,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('users', [UserController::class, 'index'])->middleware('permission:iam.user.view');
         Route::post('users', [UserController::class, 'store'])->middleware('permission:iam.user.manage');
         Route::get('users/{id}', [UserController::class, 'show'])->middleware('permission:iam.user.view');
+        Route::get('users/{id}/avatar', [UserController::class, 'avatar'])->middleware('permission:iam.user.view');
         // SCR-IAM-03: sửa tài khoản đang giữ SUPER_ADMIN (đặt lại mật khẩu, khoá
         // tài khoản) là đường leo thang trực tiếp — chỉ super admin khác mới được.
         Route::patch('users/{id}', [UserController::class, 'update'])

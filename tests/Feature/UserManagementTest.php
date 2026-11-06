@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
@@ -13,6 +14,33 @@ use Tests\TestCredentials;
 class UserManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_user_avatar_metadata_and_private_image_are_available_to_user_viewers(): void
+    {
+        $headers = $this->authHeaders();
+        $target = User::create(['username' => 'photo-owner', 'display_name' => 'Photo owner', 'password_hash' => Hash::make('secret123'), 'status' => 'ACTIVE', 'version' => 1]);
+        $bytes = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP1sAAAAASUVORK5CYII=');
+        DB::table('user_profile_avatars')->insert(['user_id' => $target->user_id, 'mime_type' => 'image/png', 'size' => strlen($bytes), 'image_base64' => base64_encode($bytes), 'updated_at' => now('UTC')]);
+        $url = '/api/v1/users/'.$target->user_id.'/avatar';
+        $this->getJson('/api/v1/users?keyword=photo-owner', $headers)->assertOk()
+            ->assertJsonPath('data.0.avatar.url', $url)->assertJsonPath('data.0.avatar.mime_type', 'image/png')
+            ->assertJsonMissingPath('data.0.avatar.image_base64');
+        $this->getJson('/api/v1/users/'.$target->user_id, $headers)->assertOk()->assertJsonPath('data.avatar.url', $url);
+        $this->get($url, $headers)->assertOk()->assertHeader('Content-Type', 'image/png')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')->assertContent($bytes);
+        $this->assertStringContainsString('private', $this->get($url, $headers)->headers->get('Cache-Control'));
+        $this->get('/api/v1/users/'.Str::uuid().'/avatar', $headers)->assertNotFound();
+        DB::table('user_profile_avatars')->where('user_id', $target->user_id)->delete();
+        $this->get($url, $headers)->assertNotFound();
+        $this->getJson('/api/v1/users?keyword=photo-owner', $headers)->assertOk()->assertJsonPath('data.0.avatar', null);
+        app('auth')->forgetGuards();
+        $this->app['tymon.jwt']->unsetToken();
+        $this->app['tymon.jwt.auth']->unsetToken();
+        $this->flushHeaders();
+        $this->get($url)->assertUnauthorized();
+        $token = auth('api')->login($target);
+        $this->get($url, ['Authorization' => 'Bearer '.$token])->assertForbidden();
+    }
 
     private function authHeaders(): array
     {
