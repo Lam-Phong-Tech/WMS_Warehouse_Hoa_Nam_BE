@@ -19,6 +19,7 @@ $command = json_decode(stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ER
 config()->set('refresh_token.controlled_multi_session.enabled', ($command['controlled'] ?? false) === true);
 if (($command['controlled'] ?? false) === true) {
     config()->set('app.url', 'http://localhost');
+    config()->set('refresh_token.controlled_multi_session.max_active_families', $command['maximum'] ?? 2);
 }
 $request = Request::create('/isolated-session-race');
 $tokens = app(RefreshTokenService::class);

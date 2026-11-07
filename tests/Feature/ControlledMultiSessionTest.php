@@ -34,6 +34,7 @@ class ControlledMultiSessionTest extends TestCase
         parent::setUp();
         config()->set('refresh_token.single_active_session.enabled', true);
         config()->set('refresh_token.controlled_multi_session.enabled', true);
+        config()->set('refresh_token.controlled_multi_session.max_active_families', 2);
         config()->set('app.url', 'http://localhost');
     }
 
@@ -54,6 +55,125 @@ class ControlledMultiSessionTest extends TestCase
             ->assertJsonPath('error_code', 'AUTH_SESSION_LIMIT_REACHED');
         $this->assertEquals($before, RefreshToken::query()->where('user_id', $user->user_id)->get()->toArray());
         Event::assertNotDispatched(AuthSessionReplaced::class);
+    }
+
+    public function test_explicit_zero_limit_allows_six_live_families_without_replacement(): void
+    {
+        config()->set('refresh_token.controlled_multi_session.max_active_families', '0');
+        Event::fake([AuthSessionReplaced::class]);
+        [$user, $password] = $this->fixture();
+        $sessions = [];
+        for ($i = 0; $i < 6; $i++) {
+            $sessions[] = $this->login($user, $password);
+        }
+        $this->assertCount(6, array_unique(array_column($sessions, 'family')));
+        foreach ($sessions as $session) {
+            $this->getJson('/api/v1/auth/me', $this->headers($session['access']))->assertOk()
+                ->assertJsonPath('data.account_session_policy.version', 'auth-session-policy-v2')
+                ->assertJsonPath('data.account_session_policy.revision', 'controlled-multi-session-r2')
+                ->assertJsonPath('data.account_session_policy.admission_limit', 'UNLIMITED')
+                ->assertJsonPath('data.account_session_policy.max_active_families', null)
+                ->assertJsonPath('data.account_session_policy.limit_error', null)
+                ->assertJsonPath('data.account_session_policy.stable_session_required', true)
+                ->assertJsonPath('data.account_session_policy.automatic_eviction', false);
+        }
+        $this->assertSame(6, RefreshToken::query()->where('user_id', $user->user_id)->active()->distinct()->count('auth_session_id'));
+        $this->assertSame(0, RefreshToken::query()->where('user_id', $user->user_id)->whereNotNull('replaced_by_auth_session_id')->count());
+        Event::assertNotDispatched(AuthSessionReplaced::class);
+    }
+
+    public function test_unlimited_replay_and_logout_only_revoke_their_own_families(): void
+    {
+        config()->set('refresh_token.controlled_multi_session.max_active_families', 0);
+        [$user, $password] = $this->fixture();
+        $a = $this->login($user, $password);
+        $this->resetAuth();
+        $rotated = $this->browserRefresh($a['refresh'])->assertOk();
+        $others = [];
+        for ($i = 0; $i < 4; $i++) {
+            $others[] = $this->login($user, $password);
+        }
+        $this->resetAuth();
+        $this->browserRefresh($a['refresh'])->assertUnauthorized();
+        $this->getJson('/api/v1/auth/me', $this->headers((string) $rotated->json('data.access_token')))->assertUnauthorized();
+        $this->assertDatabaseHas('audit_log', ['action' => 'AUTH_REFRESH_REPLAY_CONTAINED', 'object_id' => $a['family']]);
+        $this->withCredentials()->withUnencryptedCookie((string) config('refresh_token.cookie.name'), $others[0]['refresh'])
+            ->postJson('/api/v1/auth/logout', [], $this->headers($others[0]['access']) + ['Origin' => $this->browserOrigin()])->assertOk();
+        $this->getJson('/api/v1/auth/me', $this->headers($others[0]['access']))->assertUnauthorized();
+        foreach (array_slice($others, 1) as $session) {
+            $this->getJson('/api/v1/auth/me', $this->headers($session['access']))->assertOk();
+        }
+        $this->resetAuth();
+        $this->browserRefresh(bin2hex(random_bytes(32)))->assertUnauthorized();
+        $this->getJson('/api/v1/auth/me', $this->headers($others[3]['access']))->assertOk();
+        $this->assertSame(3, RefreshToken::query()->where('user_id', $user->user_id)->active()->distinct()->count('auth_session_id'));
+    }
+
+    public function test_unlimited_password_change_revokes_all_five_families(): void
+    {
+        config()->set('refresh_token.controlled_multi_session.max_active_families', 0);
+        [$user, $password] = $this->fixture();
+        $sessions = [];
+        for ($i = 0; $i < 5; $i++) {
+            $sessions[] = $this->login($user, $password);
+        }
+        $new = 'Aa1!'.bin2hex(random_bytes(20));
+        $this->postJson('/api/v1/auth/change-password', ['current_password' => $password,
+            'new_password' => $new, 'new_password_confirmation' => $new], $this->headers($sessions[0]['access']))->assertOk();
+        $this->assertSame(0, RefreshToken::query()->where('user_id', $user->user_id)->active()->count());
+        foreach ($sessions as $session) {
+            $this->getJson('/api/v1/auth/me', $this->headers($session['access']))->assertUnauthorized();
+        }
+    }
+
+    public function test_unlimited_admission_still_obeys_draining_and_origin_guard(): void
+    {
+        config()->set('refresh_token.controlled_multi_session.max_active_families', 0);
+        [$user, $password] = $this->fixture();
+        $a = $this->login($user, $password);
+        config()->set('refresh_token.controlled_multi_session.draining', true);
+        $this->resetAuth();
+        $this->browserLogin($user->email, $password)->assertStatus(409)->assertJsonPath('error_code', 'AUTH_SESSION_ADMISSION_DRAINING');
+        $this->getJson('/api/v1/auth/me', $this->headers($a['access']))->assertOk();
+        $this->resetAuth();
+        $this->browserRefresh($a['refresh'])->assertOk();
+        config()->set('refresh_token.controlled_multi_session.draining', false);
+        config()->set('app.url', 'https://production.example.test');
+        $before = RefreshToken::query()->where('user_id', $user->user_id)->get()->toArray();
+        $this->resetAuth();
+        $this->browserLogin($user->email, $password)->assertStatus(503)->assertJsonPath('error_code', 'AUTH_SESSION_POLICY_NOT_READY');
+        $this->assertEquals($before, RefreshToken::query()->where('user_id', $user->user_id)->get()->toArray());
+    }
+
+    public function test_invalid_limit_fails_closed_before_creating_or_revoking_a_family(): void
+    {
+        [$user, $password] = $this->fixture();
+        $a = $this->login($user, $password);
+        foreach ([-1, 'unlimited', '', null, false, 1.5, '2x', '999999999999999999999999999999999999'] as $invalid) {
+            config()->set('refresh_token.controlled_multi_session.max_active_families', $invalid);
+            $before = RefreshToken::query()->where('user_id', $user->user_id)->get()->toArray();
+            $this->resetAuth();
+            $this->browserLogin($user->email, $password)->assertStatus(503)->assertJsonPath('error_code', 'AUTH_SESSION_POLICY_NOT_READY');
+            $this->assertEquals($before, RefreshToken::query()->where('user_id', $user->user_id)->get()->toArray());
+        }
+        config()->set('refresh_token.controlled_multi_session.max_active_families', 0);
+        $this->getJson('/api/v1/auth/me', $this->headers($a['access']))->assertOk();
+    }
+
+    public function test_positive_configured_limit_keeps_atomic_admission_without_eviction(): void
+    {
+        config()->set('refresh_token.controlled_multi_session.max_active_families', '3');
+        [$user, $password] = $this->fixture();
+        for ($i = 0; $i < 3; $i++) {
+            $this->login($user, $password);
+        }
+        $before = RefreshToken::query()->where('user_id', $user->user_id)->get()->toArray();
+        $this->resetAuth();
+        $this->browserLogin($user->email, $password)->assertStatus(409)
+            ->assertJsonPath('error_code', 'AUTH_SESSION_LIMIT_REACHED');
+        $this->assertEquals($before, RefreshToken::query()->where('user_id', $user->user_id)->get()->toArray());
+        $this->assertSame(3, AccountSessionPolicy::contract()['max_active_families']);
+        $this->assertSame('LIMITED', AccountSessionPolicy::contract()['admission_limit']);
     }
 
     public function test_rotation_keeps_one_slot_and_old_access_while_family_is_live(): void

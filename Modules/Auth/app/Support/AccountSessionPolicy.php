@@ -42,15 +42,31 @@ final class AccountSessionPolicy
         if (config('refresh_token.controlled_multi_session.draining', false)) {
             ApiError::abort(409, 'AUTH_SESSION_ADMISSION_DRAINING', 'Tạm dừng tạo phiên mới; các phiên đang hoạt động được giữ nguyên.');
         }
+        $maximum = self::maxActiveFamilies();
+        if ($maximum === null) {
+            return;
+        }
         $count = RefreshToken::query()->where('user_id', $user->user_id)->active()
             ->whereNull('replaced_by_auth_session_id')->distinct()
             ->count(DB::raw('COALESCE(auth_session_id, id)'));
-        if ($count >= self::MAX_ACTIVE_FAMILIES) {
-            ApiError::abort(409, 'AUTH_SESSION_LIMIT_REACHED', 'Tài khoản đã có tối đa 2 phiên hoạt động. Vui lòng chủ động đăng xuất một phiên trước khi đăng nhập thêm.', [], [
-                'max_active_families' => self::MAX_ACTIVE_FAMILIES,
+        if ($count >= $maximum) {
+            ApiError::abort(409, 'AUTH_SESSION_LIMIT_REACHED', 'Tài khoản đã đạt giới hạn phiên hoạt động. Vui lòng chủ động đăng xuất một phiên trước khi đăng nhập thêm.', [], [
+                'max_active_families' => $maximum,
                 'automatic_eviction' => false,
             ]);
         }
+    }
+
+    public static function maxActiveFamilies(): ?int
+    {
+        $value = config('refresh_token.controlled_multi_session.max_active_families', self::MAX_ACTIVE_FAMILIES);
+        if ((! is_int($value) && ! is_string($value))
+            || preg_match('/\A(?:0|[1-9][0-9]*)\z/', (string) $value) !== 1
+            || ($maximum = filter_var($value, FILTER_VALIDATE_INT)) === false) {
+            ApiError::abort(503, 'AUTH_SESSION_POLICY_NOT_READY', 'Cấu hình giới hạn phiên không hợp lệ.');
+        }
+
+        return $maximum === 0 ? null : $maximum;
     }
 
     public static function assertReady(): void
@@ -62,6 +78,9 @@ final class AccountSessionPolicy
         if (self::controlledMode() && (! app()->environment('local', 'testing')
             || (! $local && $origin !== 'https://khohoanamdev.lptech.info.vn'))) {
             ApiError::abort(503, 'AUTH_SESSION_POLICY_NOT_READY', 'Chính sách đa phiên chỉ được phép trên môi trường DEV/TEST đã duyệt.');
+        }
+        if (self::controlledMode()) {
+            self::maxActiveFamilies();
         }
         if (self::enabled() && (! Schema::hasColumn('refresh_tokens', 'replaced_by_auth_session_id')
             || ! Schema::hasColumn('refresh_tokens', 'auth_session_id'))) {
@@ -119,18 +138,21 @@ final class AccountSessionPolicy
     public static function contract(): array
     {
         if (self::controlledMode()) {
+            $maximum = self::maxActiveFamilies();
+
             return [
                 'version' => self::CONTROLLED_CONTRACT,
-                'revision' => 'controlled-multi-session-r1',
+                'revision' => 'controlled-multi-session-r2',
                 'enabled' => true,
                 'mode' => config('refresh_token.controlled_multi_session.draining', false) ? 'CONTROLLED_MULTI_SESSION_DRAINING' : 'CONTROLLED_MULTI_SESSION',
                 'scope' => 'ACCOUNT_AUTH_SESSION_FAMILIES',
                 'count_unit' => 'ACTIVE_AUTH_SESSION_FAMILY',
-                'max_active_families' => self::MAX_ACTIVE_FAMILIES,
+                'admission_limit' => $maximum === null ? 'UNLIMITED' : 'LIMITED',
+                'max_active_families' => $maximum,
                 'stable_session_required' => true,
                 'automatic_eviction' => false,
                 'role_exemptions' => [],
-                'limit_error' => 'AUTH_SESSION_LIMIT_REACHED',
+                'limit_error' => $maximum === null ? null : 'AUTH_SESSION_LIMIT_REACHED',
                 'logout_scope' => 'CURRENT_AUTH_SESSION_FAMILY',
                 'replay_scope' => 'PERSISTED_PRESENTED_TOKEN_FAMILY_ONLY',
                 'legacy_revoked_reason' => 'NOT_INFERRED',

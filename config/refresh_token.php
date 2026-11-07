@@ -26,6 +26,7 @@ return [
     'controlled_multi_session' => [
         'enabled' => filter_var(env('AUTH_CONTROLLED_MULTI_SESSION_ENABLED', false), FILTER_VALIDATE_BOOL),
         'draining' => filter_var(env('AUTH_CONTROLLED_MULTI_SESSION_DRAINING', false), FILTER_VALIDATE_BOOL),
+        'max_active_families' => env('AUTH_CONTROLLED_MULTI_SESSION_MAX_ACTIVE_FAMILIES', 2),
     ],
 
     // Mặc định 20160 phút = 14 ngày.

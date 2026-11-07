@@ -77,6 +77,25 @@ class AuthSessionReplacementConcurrencyTest extends TestCase
         $this->assertSame(0, RefreshToken::query()->where('user_id', $user->user_id)->whereNotNull('replaced_by_auth_session_id')->count());
     }
 
+    public function test_parallel_unlimited_logins_keep_every_existing_family(): void
+    {
+        $user = $this->fixture();
+        config()->set('refresh_token.controlled_multi_session.enabled', true);
+        config()->set('refresh_token.controlled_multi_session.max_active_families', 0);
+        config()->set('app.url', 'http://localhost');
+        for ($i = 0; $i < 3; $i++) {
+            app(RefreshTokenService::class)->completeLogin($user, Request::create('/'), true);
+        }
+        $results = $this->race([
+            ['command' => 'LOGIN', 'user_id' => $user->user_id, 'controlled' => true, 'maximum' => 0],
+            ['command' => 'LOGIN', 'user_id' => $user->user_id, 'controlled' => true, 'maximum' => 0],
+        ], $user);
+        $this->assertCount(2, array_filter($results, fn ($result) => isset($result['id'])));
+        $this->assertNotSame($results[0]['id'], $results[1]['id']);
+        $this->assertSame(5, RefreshToken::query()->where('user_id', $user->user_id)->active()->distinct()->count('auth_session_id'));
+        $this->assertSame(0, RefreshToken::query()->where('user_id', $user->user_id)->whereNotNull('replaced_by_auth_session_id')->count());
+    }
+
     private function fixture(): User
     {
         if (DB::getDriverName() !== 'pgsql') {

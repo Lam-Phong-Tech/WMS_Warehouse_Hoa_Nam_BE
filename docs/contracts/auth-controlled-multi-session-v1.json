@@ -1,10 +1,11 @@
 {
   "contract": "auth-session-policy-v2",
-  "revision": "controlled-multi-session-r1",
+  "revision": "controlled-multi-session-r2",
   "scope": "DEV_TEST_ONLY",
   "activation": {
     "enabled_env": "AUTH_CONTROLLED_MULTI_SESSION_ENABLED",
     "draining_env": "AUTH_CONTROLLED_MULTI_SESSION_DRAINING",
+    "maximum_env": "AUTH_CONTROLLED_MULTI_SESSION_MAX_ACTIVE_FAMILIES",
     "default": false,
     "legacy_single_switch_unchanged": true,
     "environment": ["local", "testing"],
@@ -12,14 +13,19 @@
     "invalid_environment_or_origin": "503 AUTH_SESSION_POLICY_NOT_READY"
   },
   "limits": {
-    "max_active_families": 2,
+    "default_max_active_families": 2,
+    "maximum_configuration": "SERVER_ONLY_CANONICAL_NONNEGATIVE_INTEGER; ZERO_MEANS_UNLIMITED; INVALID_FAILS_503",
+    "approved_dev_setting": 0,
+    "unlimited_wire": {"admission_limit": "UNLIMITED", "max_active_families": null, "limit_error": null},
+    "bounded_wire": {"admission_limit": "LIMITED", "max_active_families": "POSITIVE_CONFIGURED_INTEGER", "limit_error": "AUTH_SESSION_LIMIT_REACHED"},
+    "zero_does_not_disable_family_replay_or_revocation_security": true,
     "count_unit": "DISTINCT_LIVE_AUTH_SESSION_FAMILY",
     "atomicity": "PARENT_USER_ROW_LOCK_SHARED_WITH_ROTATION_AND_REVOCATION",
     "caller_override": false,
     "device_headers_are_verified_physical_identity": false,
     "role_exemptions": [],
     "automatic_eviction": false,
-    "new_admission_at_limit": "409 AUTH_SESSION_LIMIT_REACHED_AFTER_COMPLETE_AUTHENTICATION",
+    "new_admission_at_limit": "BOUNDED_MODE_ONLY: 409 AUTH_SESSION_LIMIT_REACHED_AFTER_COMPLETE_AUTHENTICATION",
     "draining": "409 AUTH_SESSION_ADMISSION_DRAINING; existing families and refresh remain valid"
   },
   "identity": {
@@ -56,6 +62,7 @@
     "existing_app_unknown_policy": "IGNORED_METADATA_NOT_LOGIN_REJECTION; pre-command policy recognition must be updated to include v2",
     "app_required_changes": [
       "Recognize v2 stable-family policy in auth decoder, foreground and pre-command checks",
+      "Revision r2 keeps the v2 envelope for compatibility; UNLIMITED and null maximum mean no admission cap, never zero allowed sessions",
       "Handle quota and draining409 without automatic login retry or eviction",
       "Do not clear another family on auth response, logout or token refresh failure",
       "Keep request owner/journal and warehouse context generation fences"
