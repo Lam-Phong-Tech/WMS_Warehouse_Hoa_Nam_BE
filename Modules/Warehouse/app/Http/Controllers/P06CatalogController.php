@@ -14,6 +14,7 @@ use Modules\Auth\Models\User;
 use Modules\Auth\Support\StableAuthSession;
 use Modules\Auth\Support\WarehouseContext;
 use Modules\Warehouse\Support\P06CatalogReadModel;
+use Modules\Warehouse\Support\P06ComponentIssueLinks;
 use Modules\Warehouse\Support\P06ReadSnapshot;
 use Modules\Warehouse\Support\PvRelations;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
@@ -228,6 +229,9 @@ final class P06CatalogController extends Controller
             $scope = $this->scope($request, $input['warehouse_id']);
             $row = $this->requireCard($scope, $id, $item);
             $result = $this->readModel->timeline($scope['actor'], $scope['warehouse_id'], $row->sku_id, $item ? $id : null, $input);
+            if (P06ComponentIssueLinks::requested($request)) {
+                $result = app(P06ComponentIssueLinks::class)->enrich($request, $scope['actor'], $scope['warehouse_id'], $row->sku_id, $item ? $id : null, $result);
+            }
 
             return $this->respond($result['data'], $snapshot, $result['meta'] + ['warehouse_id' => $scope['warehouse_id']]);
         });
@@ -450,6 +454,7 @@ final class P06CatalogController extends Controller
     private function input(Request $request, array $extra, bool $warehouse = true): array
     {
         $this->metadataRevision();
+        P06ComponentIssueLinks::requested($request);
         if ($request->getContent() !== '') {
             ApiError::abort(422, 'P06_QUERY_ONLY', 'P06 GET chỉ nhận query, không nhận body.');
         }
@@ -480,7 +485,8 @@ final class P06CatalogController extends Controller
     {
         return response()->json(['success' => true, 'data' => $data, 'meta' => ['contract' => self::CONTRACT,
             'card_metadata_revision' => $this->metadataRevision(), 'snapshot' => $snapshot] + $meta])
-            ->header('Cache-Control', 'private, no-store')->setVary(self::METADATA_REVISION_HEADER, false);
+            ->header('Cache-Control', 'private, no-store')
+            ->header('Vary', self::METADATA_REVISION_HEADER.', '.P06ComponentIssueLinks::HEADER);
     }
 
     private function metadataRevision(): string

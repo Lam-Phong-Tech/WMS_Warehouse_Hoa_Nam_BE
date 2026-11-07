@@ -27,6 +27,31 @@ class P18ComponentLocationReadTest extends TestCase
 
     private const CONTRACT = 'p18-component-location-read-v1';
 
+    public function test_box_and_item_preserve_trusted_read_correlation_and_observation_timestamp(): void
+    {
+        $f = $this->fixture();
+        $itemId = $this->member($f);
+        $this->freezeTime();
+        $before = $this->domain();
+        foreach ([null, $itemId] as $id) {
+            $requestId = (string) Str::uuid();
+            $response = $this->get($this->url($f, $id), $this->headers($f) + ['X-Request-ID' => $requestId])
+                ->assertOk()->assertHeader('X-Request-ID', $requestId)
+                ->assertHeader('X-Content-Type-Options', 'nosniff')
+                ->assertJsonPath('meta.request_id', $requestId)
+                ->assertJsonPath('meta.revision', 'p18-component-location-read-r1')
+                ->assertJsonPath('meta.read_fields.owner_contract', self::CONTRACT);
+            $timestamp = $response->json('meta.timestamp');
+            $this->assertIsString($timestamp);
+            $this->assertSame(now()->getTimestamp(), (new \DateTimeImmutable($timestamp))->getTimestamp());
+            $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+            $this->assertStringContainsString('private', $response->headers->get('Cache-Control'));
+            $this->assertStringContainsString('Authorization', $response->headers->get('Vary'));
+            $this->assertNoNull($response->json());
+        }
+        $this->assertSame($before, $this->domain());
+    }
+
     public function test_box_returns_only_confirmed_current_putaway_location_and_never_writes(): void
     {
         $f = $this->fixture();

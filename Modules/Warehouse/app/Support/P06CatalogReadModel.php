@@ -3,6 +3,7 @@
 namespace Modules\Warehouse\Support;
 
 use App\Support\ApiError;
+use App\Support\DocumentTimestamp;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -108,10 +109,19 @@ final class P06CatalogReadModel
             $sources[$name] = ! $allowed ? 'FORBIDDEN' : ($source === 'ALL' || $source === $name ? 'INCLUDED' : 'NOT_REQUESTED');
         }
         if ($sources['LEDGER'] === 'INCLUDED') {
+            $ledgerTime = 'COALESCE(m.occurred_at,m.created_at)';
+            $ledgerTimeBindings = [];
+            if (DB::connection()->getDriverName() === 'pgsql') {
+                // These source columns store naive wall-clock values. Resolve
+                // their storage timezone before UNION with aware warranty times;
+                // otherwise PostgreSQL attaches its session timezone implicitly.
+                $ledgerTime .= ' AT TIME ZONE ?';
+                $ledgerTimeBindings[] = DocumentTimestamp::legacyTimezone();
+            }
             $queries[] = DB::table('stock_movements as m')->leftJoin('stock_documents as d', 'd.id', '=', 'm.stock_document_id')
                 ->where('m.warehouse_id', $warehouse)->where('m.product_id', $skuId)
                 ->when($itemId !== null, fn (Builder $q): Builder => $q->where('m.item_id', $itemId))
-                ->selectRaw("'LEDGER' AS source, m.id AS source_event_id, COALESCE(m.occurred_at,m.created_at) AS event_time, m.movement_type AS event_type, m.qty_delta AS signed_quantity, m.item_id, m.stock_document_id AS linked_id, d.doc_type AS linked_type, d.doc_no AS linked_no, d.status AS linked_status, CAST(NULL AS VARCHAR(40)) AS from_status, CAST(NULL AS VARCHAR(40)) AS to_status");
+                ->selectRaw("'LEDGER' AS source, m.id AS source_event_id, {$ledgerTime} AS event_time, m.movement_type AS event_type, m.qty_delta AS signed_quantity, m.item_id, m.stock_document_id AS linked_id, d.doc_type AS linked_type, d.doc_no AS linked_no, d.status AS linked_status, CAST(NULL AS VARCHAR(40)) AS from_status, CAST(NULL AS VARCHAR(40)) AS to_status", $ledgerTimeBindings);
         }
         if ($sources['WARRANTY'] === 'INCLUDED') {
             // warranty_event persists event_at, not created_at. Preserve an unknown

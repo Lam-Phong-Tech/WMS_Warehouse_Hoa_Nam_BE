@@ -6,6 +6,7 @@ use OpenApi\Attributes as OA;
 
 #[OA\Components(parameters: [
     new OA\Parameter(parameter: 'P06CardRevision', name: 'X-P06-Card-Metadata-Revision', in: 'header', description: 'Opt in to PV descriptions with r2; absent/r1 preserves the legacy null description. Unknown revision returns 422.', schema: new OA\Schema(type: 'string', enum: ['p06-card-master-r1', 'p06-card-master-r2'], default: 'p06-card-master-r1')),
+    new OA\Parameter(parameter: 'P06TimelineLinkContract', name: 'X-P06-Timeline-Link-Contract', in: 'header', description: 'Timeline GETs only: opt in to exact persisted component CID/case/warehouse links targeting P20. Absent header keeps v1 rows unchanged; requires the component owner permissions; never an outbound document or operation receipt.', schema: new OA\Schema(type: 'string', enum: ['p06-component-issue-link-v1'])),
     new OA\Parameter(parameter: 'P06Warehouse', name: 'warehouse_id', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
     new OA\Parameter(parameter: 'P06Identity', name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
     new OA\Parameter(parameter: 'P06Page', name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, default: 1)),
@@ -86,11 +87,11 @@ use OpenApi\Attributes as OA;
     parameters: [new OA\Parameter(ref: '#/components/parameters/P06CardRevision'), new OA\Parameter(ref: '#/components/parameters/P06Warehouse'), new OA\Parameter(ref: '#/components/parameters/P06Identity')],
     responses: [new OA\Response(response: 200, description: 'Existing gallery IDs/access/URL/null/expiry semantics; no metadata-driven image fallback')])]
 #[OA\Get(path: '/api/v1/mini-app/catalog/skus/{id}/timeline', operationId: 'p06CatalogSkuTimeline', summary: 'P06 SKU ledger/warranty timeline', security: [['bearerAuth' => []]], tags: ['05. Product'],
-    parameters: [new OA\Parameter(ref: '#/components/parameters/P06CardRevision'), new OA\Parameter(ref: '#/components/parameters/P06Warehouse'), new OA\Parameter(ref: '#/components/parameters/P06Identity'), new OA\Parameter(ref: '#/components/parameters/P06Page'), new OA\Parameter(ref: '#/components/parameters/P06PerPage'),
+    parameters: [new OA\Parameter(ref: '#/components/parameters/P06TimelineLinkContract'), new OA\Parameter(ref: '#/components/parameters/P06CardRevision'), new OA\Parameter(ref: '#/components/parameters/P06Warehouse'), new OA\Parameter(ref: '#/components/parameters/P06Identity'), new OA\Parameter(ref: '#/components/parameters/P06Page'), new OA\Parameter(ref: '#/components/parameters/P06PerPage'),
         new OA\Parameter(name: 'source', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ALL', 'LEDGER', 'WARRANTY']))],
     responses: [new OA\Response(response: 200, description: 'Existing explicit-source permissions and signed/null quantities; no date/type filter or cursor added'), new OA\Response(response: 403, description: 'Requested source not permitted')])]
 #[OA\Get(path: '/api/v1/mini-app/catalog/items/{id}/timeline', operationId: 'p06CatalogItemTimeline', summary: 'P06 exact ITEM ledger/warranty timeline', security: [['bearerAuth' => []]], tags: ['05. Product'],
-    parameters: [new OA\Parameter(ref: '#/components/parameters/P06CardRevision'), new OA\Parameter(ref: '#/components/parameters/P06Warehouse'), new OA\Parameter(ref: '#/components/parameters/P06Identity'), new OA\Parameter(ref: '#/components/parameters/P06Page'), new OA\Parameter(ref: '#/components/parameters/P06PerPage'),
+    parameters: [new OA\Parameter(ref: '#/components/parameters/P06TimelineLinkContract'), new OA\Parameter(ref: '#/components/parameters/P06CardRevision'), new OA\Parameter(ref: '#/components/parameters/P06Warehouse'), new OA\Parameter(ref: '#/components/parameters/P06Identity'), new OA\Parameter(ref: '#/components/parameters/P06Page'), new OA\Parameter(ref: '#/components/parameters/P06PerPage'),
         new OA\Parameter(name: 'source', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ALL', 'LEDGER', 'WARRANTY']))],
     responses: [new OA\Response(response: 200, description: 'Existing ITEM history and source permissions; no current lookup used to enrich historical events'), new OA\Response(response: 404, description: 'No scoped ITEM')])]
 final class P06CatalogOpenApi {}

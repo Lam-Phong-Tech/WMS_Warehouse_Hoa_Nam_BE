@@ -29,6 +29,10 @@ final class P18ComponentLocationRead
 
     public function read(Request $request, string $kind, string $id): JsonResponse
     {
+        $requestId = $request->attributes->get('request_id');
+        if (! is_string($requestId) || $requestId === '') {
+            ApiError::abort(503, 'P18_LOCATION_REQUEST_ID_UNAVAILABLE', 'Chưa có định danh đối chiếu của lượt đọc.');
+        }
         if ($request->header(self::HEADER) !== self::CONTRACT) {
             ApiError::abort(409, 'P18_LOCATION_CONTRACT_UNSUPPORTED', 'Cần đúng contract đọc vị trí linh kiện.');
         }
@@ -45,7 +49,7 @@ final class P18ComponentLocationRead
         $warehouse = strtolower($input['warehouse_id']);
         $observedScope = null;
         try {
-            $response = P06ReadSnapshot::run(function (array $snapshot) use ($request, $kind, $id, $warehouse, &$observedScope): JsonResponse {
+            $response = P06ReadSnapshot::run(function (array $snapshot) use ($request, $kind, $id, $warehouse, $requestId, &$observedScope): JsonResponse {
                 $scope = $this->scope($request, $kind, $warehouse);
                 $observedScope = $scope;
                 $identity = $this->identity($kind, strtolower($id), $scope);
@@ -86,6 +90,7 @@ final class P18ComponentLocationRead
                 }
 
                 return response()->json(['success' => true, 'data' => $data, 'meta' => [
+                    'request_id' => $requestId, 'timestamp' => now()->toIso8601String(),
                     'contract' => self::CONTRACT, 'revision' => self::REVISION, 'snapshot' => $snapshot,
                     'timestamp_contract' => DocumentTimestamp::CONTRACT,
                     'capability' => ['supported' => true, 'model' => 'CONFIRMED_BOX_PUTAWAY', 'direct_item_placement_supported' => false, 'write_operations' => []],

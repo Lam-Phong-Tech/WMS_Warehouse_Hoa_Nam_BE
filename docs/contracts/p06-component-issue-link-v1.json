@@ -1,0 +1,59 @@
+{
+  "contract": "p06-component-issue-link-v1",
+  "owner_contract": "mini-app-p06-v1",
+  "request": {
+    "method": "GET",
+    "header": "X-P06-Timeline-Link-Contract",
+    "value": "p06-component-issue-link-v1",
+    "paths": ["/api/v1/mini-app/catalog/skus/{id}/timeline", "/api/v1/mini-app/catalog/items/{id}/timeline"],
+    "query": "Existing P06 query and actor/session/selected-warehouse rules unchanged."
+  },
+  "compatibility": {
+    "default": "No header preserves original v1 event/document/meta shapes; explicit-read-fields-v1 alone does not enable this extension.",
+    "old_backend": "New FE accepts a missing timeline_link_contract marker as legacy, keeps existing events and creates no component link.",
+    "claimed": "The exact marker and component_issue_links capability are required together. Claimed malformed values or cross-scope identities fail parsing.",
+    "document": "Existing document remains unchanged; a COMPONENT_ISSUE_DOCUMENT never becomes a receipt/issue stock document.",
+    "explicit_fields": "The independent explicit-read-fields-v1 middleware may omit nullable values with sibling status reasons. It does not negotiate or grant component links. The current P06 FE adapter uses the nullable owner representation only."
+  },
+  "metadata": {
+    "timeline_link_contract": "p06-component-issue-link-v1",
+    "component_issue_links": {"supported": true, "read_permitted": "boolean", "target_owner": "P20", "owner_revalidation_required": true}
+  },
+  "event_extension": {
+    "component_issue_link_status": ["AVAILABLE", "FORBIDDEN", "NOT_ESTABLISHED", "NOT_APPLICABLE"],
+    "component_issue_link": {
+      "nullable": true,
+      "when_available": {
+        "kind": "COMPONENT_ISSUE_DOCUMENT", "id": "Exact source CID UUID", "warranty_case_id": "Exact persisted CID case UUID",
+        "warehouse_id": "Confirmed selected warehouse UUID", "number": "Exact component_issue_no or null",
+        "number_status": ["RECORDED", "NOT_RECORDED"], "current_status": "POSTED", "can_open": true,
+        "identity_source": "PERSISTED_STOCK_MOVEMENT_SOURCE"
+      }
+    },
+    "statuses": {
+      "AVAILABLE": "Authorized exact movement/document/line/SKU/warehouse/case ownership match, currently POSTED.",
+      "FORBIDDEN": "Component event remains readable under inventory.trace but component owner rights are absent. Link is null; no CID, case ID, number or private metadata supplied.",
+      "NOT_ESTABLISHED": "An authorized component event lacks a complete valid exact posted owner link. Missing, malformed-source and wrong-scope references are not distinguished.",
+      "NOT_APPLICABLE": "Not a LEDGER COMPONENT_ISSUE event. Link is null."
+    }
+  },
+  "identity_validation": [
+    "Page movement ID, movement_type=COMPONENT_ISSUE, qty_delta<0, source_type=COMPONENT_ISSUE_DOCUMENT",
+    "source_id=component_issue_documents.id and source_line_id=component_issue_lines.id",
+    "Line parent equals CID and line.sku_id equals movement.sku_id/product_id and requested SKU",
+    "Movement and CID warehouse equal the confirmed active warehouse; requested ITEM equals movement.item_id when applicable",
+    "stock_document_id is null; CID status=POSTED",
+    "Exact CID warranty_case_id passes P09 persisted case warehouse ownership and tenancy filters"
+  ],
+  "authorization": {
+    "p06": "Existing sku.view, inventory.trace and ITEM permissions remain required.",
+    "component_owner": "(warranty.view OR warranty.manage) AND documents.read AND warranty.component_issue, using existing P09 owner scope.",
+    "tenancy": "P09WarrantyScope applies trusted actor/warehouse dimensions to movement, CID, line, case and persisted case owner sources; unresolved tenancy is an error.",
+    "navigation": "FE checks current actor/session/warehouse at click, then opens P20 with exact caseId and CID. P20 revalidates current ACL, warehouse, case, document and POSTED status."
+  },
+  "query_policy": "One page-batched link query inside the existing P06ReadSnapshot, after unchanged paging/count/sort. No N+1, external calls, writes, new routes or migrations.",
+  "errors": {"unsupported_header": "422 P06_TIMELINE_LINK_CONTRACT_UNSUPPORTED", "wrong_p06_route": "422 P06_TIMELINE_LINK_ROUTE_UNSUPPORTED", "schema": "503 P06_COMPONENT_LINK_SOURCE_UNAVAILABLE", "invalid_identity": "503 P06_COMPONENT_LINK_IDENTITY_INVALID", "owner": "Existing owner auth/session/warehouse/tenancy errors propagate; database errors do not become empty success."},
+  "cache": {"policy": "private,no-store", "vary_contains": ["Authorization", "Origin", "X-P06-Card-Metadata-Revision", "X-P06-Timeline-Link-Contract"]},
+  "forbidden_fallbacks": ["SKU/name/number matching", "Outbound fallback", "Current location inference", "Historical action/time inference", "Other warehouse/session data", "Creating or repeating a stock write"],
+  "business_writes": [], "new_routes": [], "new_migrations": [], "backfill": false, "live_verified": false
+}
