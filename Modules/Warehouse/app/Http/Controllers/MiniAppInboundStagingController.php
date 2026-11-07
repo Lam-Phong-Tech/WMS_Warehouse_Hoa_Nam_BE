@@ -61,6 +61,7 @@ class MiniAppInboundStagingController extends Controller
 
     private const RECORD_FIELDS = [
         'name',
+        'source_reference',
         // Alias của dst_warehouse_id: bước resolve-code nhận `warehouse_id` nên
         // Mini App gửi lại đúng field đó ở bước record. Xem normalizeWarehouseAlias().
         'warehouse_id',
@@ -248,7 +249,8 @@ class MiniAppInboundStagingController extends Controller
         $this->normalizeWarehouseAlias($request);
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:200'],
+            'name' => ['sometimes', 'nullable', 'string', 'max:200'],
+            'source_reference' => ['sometimes', 'nullable', 'string', 'max:200'],
             'warehouse_id' => ['nullable', 'uuid'],
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
             'expected_total_qty' => ['nullable', 'integer', 'min:1', 'max:'.self::MAX_BATCH_ITEMS],
@@ -288,6 +290,8 @@ class MiniAppInboundStagingController extends Controller
                     $documentId = (string) Str::uuid();
                     $docNo = $reservedNumber ?? app(InboundDocumentNumber::class)->next();
                     $now = now();
+                    // App title and external document number are independent fields.
+                    $externalReference = trim((string) ($validated['source_reference'] ?? ''));
 
                     DB::table('stock_documents')->insert([
                         'id' => $documentId,
@@ -297,7 +301,7 @@ class MiniAppInboundStagingController extends Controller
                         'status' => 'DRAFT',
                         'src_warehouse_id' => null,
                         'dst_warehouse_id' => (string) $validated['dst_warehouse_id'],
-                        'source_name' => trim((string) $validated['name']),
+                        'source_name' => $externalReference === '' ? null : $externalReference,
                         'outbound_request_id' => null,
                         'agency_id' => null,
                         'recipient_name' => null,
@@ -449,7 +453,8 @@ class MiniAppInboundStagingController extends Controller
                     return [
                         'document_id' => $documentId,
                         'doc_no' => $docNo,
-                        'name' => trim((string) $validated['name']),
+                        'name' => trim((string) ($validated['name'] ?? '')),
+                        'source_reference' => $externalReference === '' ? null : $externalReference,
                         'doc_date' => $validated['doc_date'] ?? $now->toDateString(),
                         'dst_warehouse_id' => (string) $validated['dst_warehouse_id'],
                         'status' => 'SCANNING',

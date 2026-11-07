@@ -131,6 +131,7 @@ final class P04InboundController extends Controller
             'inbound_category' => ['sometimes', 'nullable', Rule::in(['PRODUCT', 'COMPONENT', 'OTHER'])],
             'supplier_id' => ['sometimes', 'nullable', 'uuid'],
             'name' => ['sometimes', 'nullable', 'string', 'max:200'],
+            'source_reference' => ['sometimes', 'nullable', 'string', 'max:200'],
             'note' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'doc_date' => array_merge(['sometimes', 'nullable'], InputLimits::pastDate()),
             'items' => ['present', 'array', 'list', 'max:1000'],
@@ -150,7 +151,7 @@ final class P04InboundController extends Controller
             }
             $form = [
                 'p04_contract' => self::CONTRACT,
-                'metadata' => array_intersect_key($input, array_flip(['inbound_type', 'inbound_category', 'supplier_id', 'name', 'note', 'doc_date'])),
+                'metadata' => array_intersect_key($input, array_flip(['inbound_type', 'inbound_category', 'supplier_id', 'name', 'source_reference', 'note', 'doc_date'])),
                 'item_options' => $options,
             ];
             $response = $this->drafts->save($this->subrequest($request, 'PUT', '/api/v1/mini-app/drafts/'.$id, [
@@ -277,7 +278,7 @@ final class P04InboundController extends Controller
                 if ($items === [] || $errors !== []) {
                     ApiError::abort(422, 'P04_REVALIDATION_FAILED', 'Kiểm tra lại các mã và số lượng trước khi ghi nhận.', ['items' => $errors]);
                 }
-                $payload = array_intersect_key($metadata, array_flip(['name', 'note', 'doc_date']));
+                $payload = array_intersect_key($metadata, array_flip(['name', 'source_reference', 'note', 'doc_date']));
                 $payload['warehouse_id'] = $scope['warehouse_id'];
                 $payload['items'] = $items;
                 $command = $this->subrequest($handoff, 'POST', '/api/v1/mini-app/inbound/record', $payload);
@@ -474,7 +475,8 @@ final class P04InboundController extends Controller
         return Validator::make($metadata, [
             'inbound_type' => ['required', Rule::in([StockDocument::TYPE_RECEIPT])],
             'inbound_category' => ['sometimes', 'nullable', Rule::in(['PRODUCT', 'COMPONENT', 'OTHER'])],
-            'name' => ['required', 'string', 'max:200'],
+            'name' => ['sometimes', 'nullable', 'string', 'max:200'],
+            'source_reference' => ['sometimes', 'nullable', 'string', 'max:200'],
             'supplier_id' => ['sometimes', 'nullable', 'uuid'],
             'note' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'doc_date' => array_merge(['sometimes', 'nullable'], InputLimits::pastDate()),

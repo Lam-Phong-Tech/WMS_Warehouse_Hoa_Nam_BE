@@ -430,6 +430,9 @@ class StockDocumentService
 
     private function genCode(string $type): string
     {
+        if ($type === StockDocument::TYPE_RECEIPT) {
+            return app(InboundDocumentNumber::class)->next();
+        }
         if ($type === StockDocument::TYPE_ISSUE) {
             return app(OutboundDocumentNumber::class)->next();
         }

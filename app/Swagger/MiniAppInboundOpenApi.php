@@ -57,9 +57,10 @@ final class MiniAppInboundOpenApi
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['name', 'items'],
+                required: ['items'],
                 properties: [
-                    new OA\Property(property: 'name', type: 'string', maxLength: 200, example: 'Nhập hàng sáng 23/08'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: 200, nullable: true, description: 'Tên phiếu tùy chọn; không dùng làm mã chứng từ bên ngoài.', example: 'Nhập hàng sáng 23/08'),
+                    new OA\Property(property: 'source_reference', type: 'string', maxLength: 200, nullable: true, description: 'Mã chứng từ bên ngoài, nhập riêng nếu có. Bỏ trống lưu null; không tự gán từ name hoặc doc_no.', example: 'GH-035'),
                     new OA\Property(property: 'dst_warehouse_id', type: 'string', format: 'uuid', description: 'Kho nhận. Bắt buộc trừ khi gửi alias warehouse_id.'),
                     new OA\Property(property: 'warehouse_id', type: 'string', format: 'uuid', nullable: true, description: 'Alias của dst_warehouse_id (đúng tên field của bước resolve-code). Gửi cả hai mà khác nhau -> 422 WAREHOUSE_ID_CONFLICT.'),
                     new OA\Property(property: 'expected_total_qty', type: 'integer', minimum: 1, maximum: 1000, nullable: true, description: 'Chỉ để tương thích client cũ; backend nhận đúng số đã quét thực tế.', example: 2),

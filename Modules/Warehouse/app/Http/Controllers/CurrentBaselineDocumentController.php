@@ -283,7 +283,9 @@ class CurrentBaselineDocumentController extends Controller
             $this->assertLineSkus($type, $lines);
 
             $documentId = (string) Str::uuid();
-            $docNo = $validated['doc_no'] ?? (($type === 'receipt' ? 'PN-' : 'PX-').now()->format('YmdHis').'-'.Str::upper(Str::random(4)));
+            $docNo = $validated['doc_no'] ?? ($type === 'receipt'
+                ? app(InboundDocumentNumber::class)->next()
+                : 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)));
             if ($type === 'receipt' && isset($validated['doc_no'])) {
                 app(InboundDocumentNumber::class)->guardExplicit($docNo);
             }

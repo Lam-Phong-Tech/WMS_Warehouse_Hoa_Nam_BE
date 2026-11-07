@@ -28,6 +28,65 @@ class P04InboundContractTest extends TestCase
 
     private const PERMISSIONS = ['inbound.view', 'inbound.create', 'inbound.scan', 'inbound.cancel'];
 
+    public function test_internal_receipt_creation_does_not_reuse_an_app_reservation(): void
+    {
+        [$actor, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse);
+        $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()->json('data.document.document_no');
+        $receipt = app(StockDocumentService::class)->create('receipt', ['dst_warehouse_id' => (string) $warehouse->id, 'lines' => []], (string) $actor->user_id);
+        $this->assertNotSame($number, $receipt->doc_no);
+        $this->assertSame('PN-'.now('Asia/Ho_Chi_Minh')->format('Ymd').'-0002', $receipt->doc_no);
+    }
+
+    public function test_web_and_app_share_daily_receipt_numbers_and_preserve_replay(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $prefix = 'PN-'.now('Asia/Ho_Chi_Minh')->format('Ymd').'-';
+        $key = (string) Str::uuid();
+        $payload = ['dst_warehouse_id' => (string) $warehouse->id];
+        $first = $this->postJson('/api/v1/inbound-documents', $payload, $this->headers($token, null, $key))->assertCreated();
+        $first->assertJsonPath('data.doc_no', $prefix.'0001')->assertJsonPath('data.source_reference', null);
+        $this->postJson('/api/v1/inbound-documents', $payload, $this->headers($token, null, $key))->assertCreated()
+            ->assertJsonPath('data.id', $first->json('data.id'))->assertJsonPath('data.doc_no', $prefix.'0001');
+        [$id, $body] = $this->save($token, $warehouse);
+        $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()
+            ->assertJsonPath('data.document.document_no', $prefix.'0002');
+        $this->postJson('/api/v1/inbound-documents', $payload + ['source_reference' => 'GH-035'], $this->headers($token, null, (string) Str::uuid()))
+            ->assertCreated()->assertJsonPath('data.doc_no', $prefix.'0003')->assertJsonPath('data.source_reference', 'GH-035');
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_app_external_reference_is_optional_and_independent_of_legacy_title(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        foreach ([[], ['name' => null], ['name' => ''], ['name' => 'PN-20261107-0003']] as $metadata) {
+            $id = (string) Str::uuid();
+            $body = $this->body($warehouse);
+            $body['items'][0]['raw_code'] .= '-'.Str::uuid();
+            unset($body['name']);
+            $body = array_replace($body, $metadata);
+            $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 0, (string) Str::uuid()))->assertCreated();
+            $key = (string) Str::uuid();
+            $result = $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body) + ['client_request_id' => $key], $this->headers($token, 1, $key))->assertCreated();
+            $this->assertDatabaseHas('stock_documents', ['id' => $result->json('data.document_id'), 'source_name' => null]);
+        }
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_app_preserves_explicit_external_reference_through_save_record_and_replay(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        [$id, $body] = $this->save($token, $warehouse, ['name' => '', 'source_reference' => '  GH-035  ']);
+        $key = (string) Str::uuid();
+        $payload = $this->identity($body) + ['client_request_id' => $key];
+        $result = $this->postJson(self::BASE.'/drafts/'.$id.'/record', $payload, $this->headers($token, 1, $key))->assertCreated();
+        $documentId = $result->json('data.document_id');
+        $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'source_name' => 'GH-035']);
+        $this->postJson(self::BASE.'/drafts/'.$id.'/record', $payload, $this->headers($token, 1, $key))->assertCreated()
+            ->assertJsonPath('data.document_id', $documentId)->assertHeader('Idempotent-Replay', 'true');
+        $this->assertDatabaseCount('stock_documents', 1);
+    }
+
     public function test_all_p04_routes_require_authentication(): void
     {
         $id = (string) Str::uuid();

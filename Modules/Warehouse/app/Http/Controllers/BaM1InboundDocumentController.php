@@ -244,7 +244,7 @@ class BaM1InboundDocumentController extends Controller
             DB::table('stock_documents')->insert([
                 'id' => $id,
                 'doc_type' => 'receipt',
-                'doc_no' => $validated['doc_no'] ?? ('PN-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4))),
+                'doc_no' => $validated['doc_no'] ?? app(InboundDocumentNumber::class)->next(),
                 'doc_date' => $validated['doc_date'] ?? now()->toDateString(),
                 'status' => 'DRAFT',
                 'src_warehouse_id' => null,
