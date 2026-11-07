@@ -6,6 +6,7 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -537,6 +538,33 @@ class P04InboundContractTest extends TestCase
         $this->assertDatabaseCount('mini_app_draft_receipts', 1);
         $this->assertDatabaseHas('mini_app_drafts', ['document_id' => $id, 'status' => 'DRAFT', 'version' => 1]);
         $this->assertStockNeutral();
+    }
+
+    public function test_supplier_api_edit_preserves_recorded_receipt_snapshot(): void
+    {
+        [$actor, $token, , $warehouse] = $this->actor();
+        $permission = Permission::firstOrCreate(['permission_key' => 'catalog.manage'], [
+            'permission_name' => 'catalog.manage', 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE',
+        ]);
+        DB::table('role_permission')->insert(['role_permission_id' => (string) Str::uuid(),
+            'role_id' => $actor->roles()->first()->role_id, 'permission_id' => $permission->permission_id,
+            'created_at' => now(), 'updated_at' => now()]);
+        Cache::flush();
+        $supplier = $this->supplierRow($warehouse, 'Original supplier');
+        DB::table('inbound_suppliers')->where('id', $supplier)->update(['code' => 'NCC-001']);
+        [$id, $body] = $this->save($token, $warehouse, ['supplier_id' => $supplier]);
+        $key = (string) Str::uuid();
+        $recorded = $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, $key))->assertCreated();
+        $documentId = $recorded->json('data.document_id');
+        $snapshot = (array) DB::table('mini_app_inbound_record_metadata')->where('document_id', $documentId)->first();
+        $document = (array) DB::table('stock_documents')->where('id', $documentId)->first();
+
+        $this->patchJson(self::BASE.'/suppliers/'.$supplier, ['name' => 'Renamed supplier', 'status' => 'INACTIVE'], $this->headers($token, 1))
+            ->assertOk()->assertJsonPath('data.code', 'NCC-001')->assertJsonPath('data.version', 2);
+
+        $this->assertSame('Original supplier', $snapshot['supplier_name']);
+        $this->assertSame($snapshot, (array) DB::table('mini_app_inbound_record_metadata')->where('document_id', $documentId)->first());
+        $this->assertSame($document, (array) DB::table('stock_documents')->where('id', $documentId)->first());
     }
 
     private function actor(?Warehouse $warehouse = null, bool $confirm = true): array

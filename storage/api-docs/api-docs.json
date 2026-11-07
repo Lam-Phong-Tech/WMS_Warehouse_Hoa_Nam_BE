@@ -59928,6 +59928,571 @@
                     }
                 ]
             }
+        },
+        "/api/v1/mini-app/inbound/suppliers": {
+            "get": {
+                "tags": [
+                    "22. Mini App"
+                ],
+                "summary": "Read the global inbound supplier directory with stable business codes",
+                "description": "Requires the existing authenticated stable session and inbound read permission. Additive supplier-business-code-v1 fields preserve UUID, raw name and historical snapshots. This GET never writes or allocates a code.",
+                "operationId": "p04_supplier_directory",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "description": "Literal case-insensitive code OR name search.",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 200
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "default": "ACTIVE",
+                            "enum": [
+                                "ACTIVE",
+                                "INACTIVE"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1,
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Global directory, SQL paged by name then UUID.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/P04SupplierDirectoryRow"
+                                            }
+                                        },
+                                        "meta": {
+                                            "properties": {
+                                                "contract": {
+                                                    "type": "string",
+                                                    "example": "mini-app-p04-v1"
+                                                },
+                                                "supplier_code_contract": {
+                                                    "type": "string",
+                                                    "example": "supplier-business-code-v1"
+                                                },
+                                                "scope": {
+                                                    "type": "string",
+                                                    "example": "GLOBAL"
+                                                },
+                                                "source": {
+                                                    "type": "string",
+                                                    "example": "inbound_suppliers"
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "maximum": 100,
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated, expired or replaced session.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "P04_OPERATION_DENIED or inactive account; no supplier data.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Authenticated owner lacks the required stable session identity.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Query/status/pagination validation failed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "22. Mini App"
+                ],
+                "summary": "Create a supplier with an automatically allocated NCC code",
+                "description": "Active stable session and catalog.manage required. Uses the canonical active KHO-TONG-HN warehouse server-side. NCC numbering is global, includes inactive rows and expands beyond NCC-999. Codes and UUIDs cannot be supplied by clients. Not idempotent: a repeated POST creates another supplier.",
+                "operationId": "p04_supplier_create",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Honda",
+                                        "maxLength": 200,
+                                        "minLength": 1
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "default": "ACTIVE",
+                                        "enum": [
+                                            "ACTIVE",
+                                            "INACTIVE"
+                                        ]
+                                    }
+                                },
+                                "type": "object",
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Supplier created. ETag contains version 1.",
+                        "headers": {
+                            "ETag": {
+                                "schema": {
+                                    "type": "string",
+                                    "example": "\"1\""
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SupplierWriteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated or expired stable session.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Inactive account or missing catalog.manage.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable session required, canonical warehouse unavailable, unsupported database driver or exhausted NCC namespace.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "413": {
+                        "description": "JSON body exceeds 16 KiB.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Invalid name/status, unknown or immutable fields, or query parameters supplied.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "Thành công",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiSuccessEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Không tìm thấy tài nguyên hoặc nằm ngoài phạm vi dữ liệu",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "Điều kiện If-Match không đạt",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "Thiếu điều kiện If-Match bắt buộc",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/v1/mini-app/inbound/suppliers/{id}": {
+            "patch": {
+                "tags": [
+                    "22. Mini App"
+                ],
+                "summary": "Edit supplier name/status while preserving UUID, code and receipt history",
+                "description": "Active stable session and catalog.manage required. Send at least one of name/status. If-Match must contain the current positive integer version, quoted or unquoted; weak tags, wildcards and lists are rejected. Successful edits increment version. Query parameters and fields other than name/status are rejected.",
+                "operationId": "p04_supplier_update",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "If-Match",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "\"1\""
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "minProperties": 1,
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Honda Viet Nam",
+                                        "maxLength": 200,
+                                        "minLength": 1
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "ACTIVE",
+                                            "INACTIVE"
+                                        ]
+                                    }
+                                },
+                                "type": "object",
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Updated supplier. ETag contains the new version.",
+                        "headers": {
+                            "ETag": {
+                                "schema": {
+                                    "type": "string",
+                                    "example": "\"2\""
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SupplierWriteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated or expired stable session.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Inactive account or missing catalog.manage.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "SUPPLIER_NOT_FOUND, including malformed UUID.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable session required or supplier version exhausted.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "412": {
+                        "description": "STALE_VERSION; reload the supplier before retrying.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "413": {
+                        "description": "JSON body exceeds 16 KiB.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Invalid version, invalid/empty payload or unknown/immutable fields.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "428": {
+                        "description": "PRECONDITION_REQUIRED; If-Match missing.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Yêu cầu không đúng định dạng",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Lỗi hệ thống ngoài dự kiến; giao dịch đã được rollback",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -61153,6 +61718,109 @@
                     },
                     "net_effect": {
                         "$ref": "#/components/schemas/ReversalNetEffect"
+                    }
+                },
+                "type": "object"
+            },
+            "SupplierWriteResponse": {
+                "required": [
+                    "success",
+                    "data",
+                    "meta"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/P04SupplierDirectoryRow"
+                    },
+                    "meta": {
+                        "properties": {
+                            "contract": {
+                                "type": "string",
+                                "example": "mini-app-p04-v1"
+                            },
+                            "supplier_code_contract": {
+                                "type": "string",
+                                "example": "supplier-business-code-v1"
+                            },
+                            "scope": {
+                                "type": "string",
+                                "example": "GLOBAL"
+                            },
+                            "source": {
+                                "type": "string",
+                                "example": "inbound_suppliers"
+                            },
+                            "request_id": {
+                                "type": "string"
+                            },
+                            "timestamp": {
+                                "type": "string",
+                                "format": "date-time"
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
+            "P04SupplierDirectoryRow": {
+                "required": [
+                    "id",
+                    "code",
+                    "name",
+                    "display_name",
+                    "code_status",
+                    "status",
+                    "version",
+                    "updated_at"
+                ],
+                "properties": {
+                    "id": {
+                        "description": "Unchanged supplier UUID used as supplier_id in existing SAVE/RECORD commands.",
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "code": {
+                        "description": "Persisted unique business code. Null means not assigned; GET never allocates one.",
+                        "type": "string",
+                        "example": "NCC-001",
+                        "nullable": true
+                    },
+                    "name": {
+                        "description": "Unmodified raw supplier name, not the display label.",
+                        "type": "string"
+                    },
+                    "display_name": {
+                        "description": "Current directory label; not a historical document snapshot.",
+                        "type": "string",
+                        "example": "NCC-001 - Honda"
+                    },
+                    "code_status": {
+                        "type": "string",
+                        "enum": [
+                            "ASSIGNED",
+                            "NOT_ASSIGNED"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "ACTIVE",
+                            "INACTIVE"
+                        ]
+                    },
+                    "version": {
+                        "description": "Existing supplier version is preserved during code initialization.",
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "updated_at": {
+                        "description": "Existing directory timestamp, not code-allocation time.",
+                        "type": "string"
                     }
                 },
                 "type": "object"

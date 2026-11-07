@@ -10,7 +10,7 @@
     "initial_order": "name ASC, id ASC",
     "allocated_code_renumbering": false,
     "get_allocates_codes": false,
-    "future_supplier_creation": "Separate owner workflow; missing code is NOT_ASSIGNED, never synthesized by GET or client"
+    "future_supplier_creation": "POST /api/v1/mini-app/inbound/suppliers allocates the next NCC code transactionally; missing legacy code is NOT_ASSIGNED, never synthesized by GET or client"
   },
   "additive_response_fields": {
     "code": "string|null",

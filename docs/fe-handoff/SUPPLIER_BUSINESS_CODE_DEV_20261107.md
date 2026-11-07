@@ -30,6 +30,43 @@ plain name as display_name. GET never writes or invents a code.
 
 ## App Wiring
 
+### Supplier creation and editing
+
+Both mutations require an active authenticated stable session and `catalog.manage`.
+Use JSON bodies with no query parameters. Names are trimmed, nonblank and at most
+200 characters. Unknown fields (including code, id, warehouse_id, version) are rejected.
+
+`POST /api/v1/mini-app/inbound/suppliers`
+
+```json
+{"name":"Honda","status":"ACTIVE"}
+```
+
+Status is optional and defaults to ACTIVE. Returns 201 and `ETag: "1"`.
+The `data` object has the same fields as one directory row. Codes are allocated
+server-side from the greatest existing numeric NCC suffix, including inactive rows:
+NCC-001, NCC-002, ..., NCC-999, NCC-1000. PostgreSQL allocation is serialized with a
+transaction-scoped advisory lock. This POST is not idempotent: do not automatically
+repeat it after an ambiguous network response; reconcile against the directory first.
+
+`PATCH /api/v1/mini-app/inbound/suppliers/{supplier UUID}` with `If-Match: "1"`
+
+```json
+{"name":"Honda Viet Nam","status":"INACTIVE"}
+```
+
+Send at least one of name/status. Returns 200, the updated row and `ETag: "2"`.
+The UUID, code, creation time and historical receipt snapshots remain unchanged.
+Use the returned version on subsequent edits. Missing If-Match returns 428;
+stale version returns 412 (reload before editing again); invalid payload/version
+returns 422; absent supplier returns 404. Missing authentication returns 401,
+missing permission/inactive actor returns 403, missing stable-session identity or
+unavailable canonical warehouse returns 409. Allowed statuses: ACTIVE and INACTIVE.
+
+No new DB columns are needed: apply the existing
+`2026_11_07_235900_add_inbound_supplier_codes.php` migration if still pending.
+These source changes alone do not establish deployment or migration status.
+
 Extend `P04Supplier` with the additive fields. Use `display_name` in the supplier
 picker and keep `name` as the unmodified raw supplier name. The current App source
 reads `s.name`; adding server fields alone does not prove the current UI displays codes.

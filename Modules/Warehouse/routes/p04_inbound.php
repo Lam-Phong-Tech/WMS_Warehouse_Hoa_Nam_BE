@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Warehouse\Http\Controllers\P04InboundController;
+use Modules\Warehouse\Http\Controllers\SupplierWriteController;
 use Modules\Warehouse\Http\Middleware\P03JsonEnvelope;
 
 // No camera, NFC, Post Receipt or stock mutation route belongs to this adapter.
@@ -9,6 +10,8 @@ Route::prefix('v1/mini-app/inbound')->middleware(['auth:api', P03JsonEnvelope::c
     Route::get('context', [P04InboundController::class, 'context'])->name('context');
     Route::get('types', [P04InboundController::class, 'types'])->name('types');
     Route::get('suppliers', [P04InboundController::class, 'suppliers'])->name('suppliers');
+    Route::post('suppliers', [SupplierWriteController::class, 'store'])->middleware('permission:catalog.manage')->name('suppliers.store');
+    Route::patch('suppliers/{id}', [SupplierWriteController::class, 'update'])->middleware('permission:catalog.manage')->name('suppliers.update');
     Route::put('drafts/{id}', [P04InboundController::class, 'save'])->name('drafts.save');
     Route::get('drafts/{id}', [P04InboundController::class, 'show'])->name('drafts.show');
     Route::get('drafts/{id}/scan-session', [P04InboundController::class, 'scanSession'])->name('drafts.session');
