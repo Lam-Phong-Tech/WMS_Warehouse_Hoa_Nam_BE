@@ -62,7 +62,8 @@ final class P04InboundController extends Controller
             ['id' => 'COMPONENT', 'label' => 'Nhập linh kiện'],
             ['id' => 'OTHER', 'label' => 'Khác'],
         ];
-        $data['supplier_directory'] = ['scope' => 'GLOBAL', 'source' => 'inbound_suppliers', 'required' => false];
+        $data['supplier_directory'] = ['scope' => 'GLOBAL', 'source' => 'inbound_suppliers', 'required' => false,
+            'code_contract' => 'supplier-business-code-v1', 'display_field' => 'display_name', 'identity_field' => 'id'];
 
         return $this->response($data);
     }
@@ -107,18 +108,29 @@ final class P04InboundController extends Controller
             $term = trim((string) ($input['q'] ?? ''));
             if ($term !== '') {
                 $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($term)).'%';
-                $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern]);
+                $query->where(function ($query) use ($pattern): void {
+                    $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])
+                        ->orWhereRaw("LOWER(code) LIKE ? ESCAPE '!'", [$pattern]);
+                });
             }
             $total = (clone $query)->count();
             $page = (int) ($input['page'] ?? 1);
             $perPage = (int) ($input['per_page'] ?? 20);
             $rows = $query->orderBy('name')->orderBy('id')->forPage($page, $perPage)
-                ->get(['id', 'name', 'status', 'version', 'updated_at']);
+                ->get(['id', 'code', 'name', 'status', 'version', 'updated_at'])
+                ->map(function ($supplier): object {
+                    $assigned = is_string($supplier->code) && $supplier->code !== '';
+                    $supplier->display_name = $assigned ? $supplier->code.' - '.$supplier->name : $supplier->name;
+                    $supplier->code_status = $assigned ? 'ASSIGNED' : 'NOT_ASSIGNED';
+
+                    return $supplier;
+                });
 
             return $this->response($rows, 200, [
                 'page' => $page, 'per_page' => $perPage, 'total' => $total,
                 'last_page' => max(1, (int) ceil($total / $perPage)),
                 'scope' => 'GLOBAL', 'source' => 'inbound_suppliers',
+                'supplier_code_contract' => 'supplier-business-code-v1',
             ]);
         });
     }

@@ -1,0 +1,43 @@
+{
+  "contract": "supplier-business-code-v1",
+  "revision": "supplier-business-code-r1",
+  "scope": "CURRENT_GLOBAL_SUPPLIER_DIRECTORY",
+  "endpoint": "GET /api/v1/mini-app/inbound/suppliers",
+  "parent_contract_unchanged": "mini-app-p04-v1",
+  "identity": {
+    "id": "Existing immutable supplier UUID; continues as supplier_id in SAVE/RECORD",
+    "code": "Persisted nullable unique business identifier, initialized as NCC-001 and increasing for existing rows",
+    "initial_order": "name ASC, id ASC",
+    "allocated_code_renumbering": false,
+    "get_allocates_codes": false,
+    "future_supplier_creation": "Separate owner workflow; missing code is NOT_ASSIGNED, never synthesized by GET or client"
+  },
+  "additive_response_fields": {
+    "code": "string|null",
+    "display_name": "code + ' - ' + raw name if assigned, otherwise raw name",
+    "code_status": "ASSIGNED|NOT_ASSIGNED"
+  },
+  "preserved": ["id", "name", "status", "version", "created_at", "updated_at", "ACL", "GLOBAL scope", "status filtering", "name/id sort", "SQL pagination", "historical supplier snapshots"],
+  "search": "q matches code OR name case-insensitively; percent, underscore and escape markers stay literal; status filter applies to both branches",
+  "app": {
+    "picker_display": "Use display_name; retain name separately as raw supplier name",
+    "write_identity": "Unchanged supplier_id UUID and supplier_version only",
+    "new_read_fields_are_write_payload_fields": false,
+    "current_code_is_a_historical_record_snapshot": false,
+    "legacy_compatibility_suppliers_endpoint_changed": false
+  },
+  "migration": {
+    "path": "database/migrations/2026_11_07_235900_add_inbound_supplier_codes.php",
+    "new_column": "inbound_suppliers.code nullable VARCHAR(32)",
+    "unique_index": "inbound_suppliers_code_unique",
+    "data_write_allowlist": "Initialize only missing code; no other supplier field or table may change except the normal migration repository entry",
+    "code_only_rollback_preserves_additive_schema": true,
+    "down_rejects_removal_when_assigned_codes_exist": true,
+    "seed_or_reset_required": false
+  },
+  "release": {
+    "dev_test_only": true,
+    "production_activation": false,
+    "source_and_live_acceptance": "See exact candidate release evidence; this contract does not claim CI, migration or UI PASS"
+  }
+}
