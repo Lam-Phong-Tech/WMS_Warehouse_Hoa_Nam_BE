@@ -63,7 +63,7 @@ class StockDocument extends Model
 
     protected $fillable = [
         'doc_type', 'doc_no', 'doc_date', 'status', 'src_warehouse_id', 'dst_warehouse_id',
-        'note', 'create_idempotency_key',
+        'supplier_id', 'note', 'create_idempotency_key',
         'submitted_by', 'submitted_at', 'approved_by', 'approved_at',
         'posted_by', 'posted_at', 'closed_by', 'closed_at',
         'reversed_by', 'reversed_at', 'reverse_reason',
