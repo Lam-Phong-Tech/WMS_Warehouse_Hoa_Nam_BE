@@ -47,6 +47,16 @@ class InboundSupplierFieldTest extends TestCase
             'id' => $created->json('data.id'),
             'supplier_id' => $supplier,
         ]);
+        $audit = DB::table('audit_log')
+            ->where('object_type', 'stock_document')
+            ->where('object_id', $created->json('data.id'))
+            ->where('action', 'INBOUND_CREATE_SCAN_DRIVEN')
+            ->first();
+        $this->assertNotNull($audit);
+        $this->assertSame(
+            $supplier,
+            json_decode((string) $audit->after_data, true)['supplier_id'] ?? null,
+        );
     }
 
     public function test_create_without_supplier_remains_backward_compatible(): void
@@ -103,6 +113,15 @@ class InboundSupplierFieldTest extends TestCase
         $this->assertSame($second, $updated->json('data.supplier_id'));
         $this->assertSame(2, $updated->json('data.version'));
         $this->assertDatabaseHas('stock_documents', ['id' => $id, 'supplier_id' => $second]);
+
+        $audit = DB::table('audit_log')
+            ->where('object_type', 'stock_document')
+            ->where('object_id', $id)
+            ->where('action', 'INBOUND_HEADER_UPDATE_SCAN_DRIVEN')
+            ->first();
+        $this->assertNotNull($audit);
+        $this->assertSame($first, json_decode((string) $audit->before_data, true)['supplier_id'] ?? null);
+        $this->assertSame($second, json_decode((string) $audit->after_data, true)['supplier_id'] ?? null);
     }
 
     public function test_detail_returns_selected_supplier(): void

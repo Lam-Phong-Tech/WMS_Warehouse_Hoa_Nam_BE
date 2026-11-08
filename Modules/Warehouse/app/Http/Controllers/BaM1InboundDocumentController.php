@@ -75,8 +75,8 @@ class BaM1InboundDocumentController extends Controller
             new OA\Response(response: 201, description: 'Tạo đầu phiếu nhập thành công (status=DRAFT, chưa có dòng SKU)'),
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền inbound.create'),
-            new OA\Response(response: 409, description: 'Xung đột Idempotency-Key'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ, kho không ACTIVE, hoặc gửi lines không rỗng (INBOUND_SCAN_DRIVEN)'),
+            new OA\Response(response: 409, description: 'Xung đột Idempotency-Key hoặc nhà cung cấp đã ngừng sử dụng (SUPPLIER_INACTIVE)'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ, kho không ACTIVE, nhà cung cấp không tồn tại (SUPPLIER_NOT_AVAILABLE), hoặc gửi lines không rỗng (INBOUND_SCAN_DRIVEN)'),
         ]
     )]
     public function store(Request $request)
@@ -156,9 +156,9 @@ class BaM1InboundDocumentController extends Controller
             new OA\Response(response: 401, description: 'Chưa xác thực'),
             new OA\Response(response: 403, description: 'Không có quyền inbound.update'),
             new OA\Response(response: 404, description: 'Không tìm thấy phiếu nhập'),
-            new OA\Response(response: 409, description: 'Phiếu không ở trạng thái DRAFT/SCANNING'),
+            new OA\Response(response: 409, description: 'Phiếu không ở trạng thái DRAFT/SCANNING hoặc nhà cung cấp đã ngừng sử dụng (SUPPLIER_INACTIVE)'),
             new OA\Response(response: 412, description: 'STALE_VERSION — phiếu đã bị thay đổi, cần tải lại'),
-            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ, hoặc gửi lines không rỗng (INBOUND_SCAN_DRIVEN)'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ, nhà cung cấp không tồn tại (SUPPLIER_NOT_AVAILABLE), hoặc gửi lines không rỗng (INBOUND_SCAN_DRIVEN)'),
             new OA\Response(response: 428, description: 'Thiếu header If-Match hợp lệ'),
         ]
     )]
@@ -274,6 +274,7 @@ class BaM1InboundDocumentController extends Controller
                 afterData: [
                     'status' => 'DRAFT',
                     'dst_warehouse_id' => $validated['dst_warehouse_id'],
+                    'supplier_id' => $validated['supplier_id'] ?? null,
                     'inbound_quantity_source' => 'ACTUAL_SCAN',
                     'manual_expected_lines' => false,
                 ],
