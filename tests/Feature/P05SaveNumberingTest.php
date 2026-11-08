@@ -161,16 +161,96 @@ class P05SaveNumberingTest extends TestCase
         $this->assertNeutral();
     }
 
-    public function test_role_name_alone_never_grants_numbering_and_wrong_owner_is_not_resumed(): void
+    public function test_display_role_name_never_grants_numbering_and_wrong_owner_is_not_resumed(): void
     {
         $f = $this->actor();
         [$id, $body] = $this->save($f);
         $other = $this->actor($f['warehouse']);
         $this->getJson($this->detailUrl($f, $id, $body), $this->headers($other))->assertNotFound();
-        $other['role']->update(['role_code' => 'SUPER_ADMIN']);
+        $other['role']->update(['role_name' => 'SUPER_ADMIN']);
         DB::table('role_permission')->where('role_id', $other['role']->role_id)->delete();
         $other['user']->increment('version');
         $this->putJson(self::BASE.'/'.Str::uuid(), $this->body($other), $this->headers($other, 0, (string) Str::uuid()))->assertForbidden();
+        $this->assertDatabaseCount('outbound_draft_numbers', 1);
+        $this->assertNeutral();
+    }
+
+    public function test_canonical_active_super_admin_can_save_and_receive_a_number_without_extra_grants(): void
+    {
+        $f = $this->actor();
+        $f['role']->update(['role_code' => 'SUPER_ADMIN']);
+        DB::table('role_permission')->where('role_id', $f['role']->role_id)->delete();
+        $f['user']->increment('version');
+        $this->getJson('/api/v1/mini-app/outbound/context', $this->headers($f))->assertOk()
+            ->assertJsonPath('data.permissions.save', true)
+            ->assertJsonPath('data.numbering.allowed', true)
+            ->assertJsonPath('data.numbering.revision', 'p05-save-numbering-r1')
+            ->assertJsonPath('data.numbering.authorization_policy_revision', 'p05-numbering-authorization-r2')
+            ->assertJsonPath('data.numbering.authorization_policy', 'CANONICAL_SUPER_ADMIN_OR_ACTIVE_SCOPED_GRANTS');
+        [$id, $body, $key, $number] = $this->save($f);
+        $this->assertMatchesRegularExpression('/^PX-[0-9]{8}-[0-9]{4,}$/D', (string) $number);
+        $this->putJson(self::BASE.'/'.$id, $body, $this->headers($f, 0, $key))->assertCreated()
+            ->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.document.document_no', $number);
+        $this->getJson($this->detailUrl($f, $id, $body), $this->headers($f))->assertOk()->assertJsonPath('data.document_no', $number);
+        $this->getJson($this->receiptUrl($f, $id, $body, $key), $this->headers($f))->assertOk()
+            ->assertJsonPath('data.response.data.document.document_no', $number);
+        $this->assertDatabaseCount('outbound_draft_numbers', 1);
+        $this->assertNeutral();
+    }
+
+    public function test_scan_only_is_not_permission_to_create_a_manual_numbered_draft(): void
+    {
+        $f = $this->actor();
+        DB::table('role_permission')->where('role_id', $f['role']->role_id)
+            ->where('permission_id', Permission::where('permission_key', 'outbound.request.manual_create')->value('permission_id'))->delete();
+        $f['user']->increment('version');
+        $this->getJson('/api/v1/mini-app/outbound/context', $this->headers($f))->assertOk()
+            ->assertJsonPath('data.permissions.save', false)->assertJsonPath('data.numbering.allowed', false);
+        $this->putJson(self::BASE.'/'.Str::uuid(), $this->body($f), $this->headers($f, 0, (string) Str::uuid()))->assertForbidden();
+        $this->assertDatabaseCount('outbound_draft_numbers', 0);
+        $this->assertNeutral();
+    }
+
+    public function test_expired_canonical_super_admin_assignment_does_not_grant_numbering(): void
+    {
+        $f = $this->actor();
+        $f['role']->update(['role_code' => 'SUPER_ADMIN']);
+        DB::table('role_permission')->where('role_id', $f['role']->role_id)->delete();
+        DB::table('user_role')->where('user_id', $f['user']->user_id)->where('role_id', $f['role']->role_id)
+            ->update(['effective_to' => now()->subMinute()]);
+        $f['user']->increment('version');
+        $this->getJson('/api/v1/mini-app/outbound/context', $this->headers($f))->assertOk()
+            ->assertJsonPath('data.permissions.save', false)->assertJsonPath('data.numbering.allowed', false);
+        $this->putJson(self::BASE.'/'.Str::uuid(), $this->body($f), $this->headers($f, 0, (string) Str::uuid()))->assertForbidden();
+        $this->assertDatabaseCount('outbound_draft_numbers', 0);
+        $this->assertNeutral();
+    }
+
+    public function test_read_only_outbound_access_never_grants_create_or_allocates_a_number(): void
+    {
+        $f = $this->actor();
+        DB::table('role_permission')->where('role_id', $f['role']->role_id)
+            ->whereIn('permission_id', Permission::whereIn('permission_key', ['outbound.scan', 'outbound.request.manual_create'])->pluck('permission_id'))->delete();
+        $f['user']->increment('version');
+        $this->getJson('/api/v1/mini-app/outbound/context', $this->headers($f))->assertOk()
+            ->assertJsonPath('data.permissions.read', true)->assertJsonPath('data.permissions.save', false)
+            ->assertJsonPath('data.numbering.allowed', false);
+        $this->putJson(self::BASE.'/'.Str::uuid(), $this->body($f), $this->headers($f, 0, (string) Str::uuid()))->assertForbidden();
+        $this->assertDatabaseCount('outbound_draft_numbers', 0);
+        $this->assertNeutral();
+    }
+
+    public function test_revoked_canonical_super_admin_authority_does_not_replay_a_numbered_save(): void
+    {
+        $f = $this->actor();
+        $f['role']->update(['role_code' => 'SUPER_ADMIN']);
+        DB::table('role_permission')->where('role_id', $f['role']->role_id)->delete();
+        $f['user']->increment('version');
+        [$id, $body, $key] = $this->save($f);
+        $f['role']->update(['status' => 'INACTIVE']);
+        $f['user']->increment('version');
+        $this->putJson(self::BASE.'/'.$id, $body, $this->headers($f, 0, $key))->assertForbidden();
+        $this->putJson(self::BASE.'/'.$id, $body, $this->headers($f, 0, $key, false))->assertForbidden();
         $this->assertDatabaseCount('outbound_draft_numbers', 1);
         $this->assertNeutral();
     }
@@ -318,7 +398,7 @@ class P05SaveNumberingTest extends TestCase
     {
         $f = $this->actor();
         [$id, $body, $key] = $this->save($f);
-        $f['role']->update(['role_code' => 'SUPER_ADMIN']);
+        $f['role']->update(['role_name' => 'SUPER_ADMIN']);
         DB::table('role_permission')->where('role_id', $f['role']->role_id)->delete();
         $f['user']->increment('version');
         $this->putJson(self::BASE.'/'.$id, $body, $this->headers($f, 0, $key, false))->assertForbidden();

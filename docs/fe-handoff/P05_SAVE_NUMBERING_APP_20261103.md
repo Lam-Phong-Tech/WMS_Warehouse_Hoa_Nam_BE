@@ -2,6 +2,9 @@
 
 Contract: `p05-save-numbering-v1`, revision `p05-save-numbering-r1`.
 The immutable JSON contract is `docs/contracts/p05-save-numbering-v1.json`.
+Authorization clarification 08/11/2026: `p05-save-numbering-authorization-r2.json`
+and `P05_PX_AUTHORIZATION_PARITY_20261108.md` supersede old explicit-only wording.
+Wire revision remains r1; an additive authorization_policy_revision identifies r2.
 This is manual-create mode only; source-linked Web mode is unchanged.
 
 ## App Wiring
@@ -61,9 +64,10 @@ Partial form is allowed. Existing P03 shape/size/security limits still apply.
   PX for that path or switch a numbered manual draft into source-linked mode.
 - Header-free legacy contracts stay supported for old unnumbered objects.
   A known numbered object cannot bypass grant checks by dropping the header.
-- Actual active outbound.scan plus manual_create/import grants are needed for
-  new numbering/RECORD; outbound.view for reads; outbound.cancel for cancel.
-  Role/Admin display labels do not replace grants. No grant is added by deploy.
+- Canonical ACTIVE SUPER_ADMIN authority is recognized exactly as by P03. Other
+  accounts need actual active outbound.scan plus manual_create/import for new
+  numbering/RECORD; outbound.view for reads; outbound.cancel for cancel. Role
+  display labels do not replace authority. No grant is added by deploy.
 - Address remains TEXT. UI snapshot dataset strings are not BE-validated
   province/ward codes and are never auto-migrated into historical records.
 

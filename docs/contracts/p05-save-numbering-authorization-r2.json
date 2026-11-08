@@ -1,0 +1,23 @@
+{
+  "contract": "p05-save-numbering-v1",
+  "wire_revision": "p05-save-numbering-r1",
+  "authorization_policy": "CANONICAL_SUPER_ADMIN_OR_ACTIVE_SCOPED_GRANTS",
+  "authorization_policy_revision": "p05-numbering-authorization-r2",
+  "supersedes_authorization_section_of": "docs/contracts/p05-save-numbering-v1.json",
+  "user_decision": "Accounts authorized to create outbound drafts must be able to receive their PX on explicit SAVE; no IAM grant changes",
+  "canonical_authority": "ACTIVE account with an effective server-side SUPER_ADMIN role_code assignment, as already recognized by the P03 owner. Role display_name, arbitrary ADMIN roles, expired/inactive assignments and client claims do not qualify.",
+  "ordinary_roles": {
+    "save_record": "ACTIVE outbound.scan AND (outbound.request.manual_create OR outbound.import) with role scope matching the confirmed warehouse or genuine global grant; direct active grants unchanged",
+    "read": "ACTIVE outbound.view",
+    "cancel": "ACTIVE outbound.cancel"
+  },
+  "unchanged_guards": ["authenticated stable family", "ACTIVE account", "confirmed warehouse and ACL", "original draft/scan identity", "optimistic version", "original idempotency key/body", "P14 request/shift identity", "revocation checks before replay", "source linkage", "stock availability and RECORD field matrix"],
+  "never_grants_create": ["opening the screen", "outbound.view alone", "outbound.scan alone", "role display label"],
+  "number_allocation": "Only successful explicit authorized SAVE; no allocation on GET, old receipt replay or unknown-result reconciliation",
+  "stock_effect": "NONE",
+  "iam_grant_updates": false,
+  "post_permission_changes": false,
+  "migration_or_seed_required": false,
+  "app": "Existing r1 wire parser remains compatible. Honor data.permissions.save plus numbering capability; do not manufacture PX or create a replacement draft/key after UNKNOWN. Preserve source-linked document number.",
+  "release": "Source/test evidence is not live authenticated SAVE or App UAT PASS. DEV/TEST only; production unchanged."
+}

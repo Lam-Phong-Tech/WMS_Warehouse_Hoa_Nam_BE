@@ -17,10 +17,20 @@ final class P05NumberedDraft
 
     public const REVISION = 'p05-save-numbering-r1';
 
+    public const AUTHORIZATION_POLICY_REVISION = 'p05-numbering-authorization-r2';
+
     public function __construct(private readonly MiniAppDraftService $drafts, private readonly OutboundDocumentNumber $numbers) {}
 
     public static function allowed(User $actor, string $warehouse, string $action): bool
     {
+        if ($actor->status !== 'ACTIVE') {
+            return false;
+        }
+        // P03 already recognizes the canonical ACTIVE SUPER_ADMIN assignment.
+        // Number reservation must not contradict that same draft-owner authority.
+        if ($actor->isSuperAdmin()) {
+            return true;
+        }
         $roles = $actor->activeRoles()->where(fn ($q) => $q->whereNull('user_role.scope_ref')->orWhere('user_role.scope_ref', '')->orWhere('user_role.scope_ref', $warehouse))
             ->with(['permissions' => fn ($q) => $q->where('permission.status', 'ACTIVE')])->get();
         $rights = $roles->pluck('permissions')->flatten()->merge($actor->grantedPermissions()->where('permission.status', 'ACTIVE')->get())
@@ -38,13 +48,15 @@ final class P05NumberedDraft
     {
         $actor = $request->user() instanceof User ? User::whereKey($request->user()->user_id)->first() : null;
         if ($actor === null || ! self::allowed($actor, $warehouse, $action)) {
-            ApiError::abort(403, 'P05_NUMBERING_DENIED', 'Không có grant thực cho thao tác PX của kho này.');
+            ApiError::abort(403, 'P05_NUMBERING_DENIED', 'Không có quyền thực hiện thao tác PX của kho này.');
         }
     }
 
     public function capability(Request $request, ?string $warehouse): array
     {
         return ['contract' => self::CONTRACT, 'revision' => self::REVISION, 'mode' => 'MANUAL_CREATE_ONLY',
+            'authorization_policy' => 'CANONICAL_SUPER_ADMIN_OR_ACTIVE_SCOPED_GRANTS',
+            'authorization_policy_revision' => self::AUTHORIZATION_POLICY_REVISION,
             'schema_ready' => $this->numbers->ready(),
             'allowed' => $warehouse !== null && $this->numbers->ready() && self::allowed($request->user(), $warehouse, 'save'),
             'save' => ['method' => 'PUT', 'path' => '/api/v1/mini-app/drafts/{draft_id}', 'operation' => 'OUTBOUND',

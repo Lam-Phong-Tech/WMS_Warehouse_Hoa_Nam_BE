@@ -1,6 +1,7 @@
 {
   "contract":"p05-save-numbering-v1",
   "revision":"p05-save-numbering-r1",
+  "current_authorization_policy_contract":"docs/contracts/p05-save-numbering-authorization-r2.json",
   "context_owner":"mini-app-p05-v1",
   "draft_owner":"mini-app-p03-v1",
   "scope":"P05 manual create on DEV/TEST; production activation remains OFF",
@@ -57,10 +58,12 @@
     "precondition":"Sending the numbering header without original P03 draft identity is rejected. A draft not explicitly numbered cannot be recorded under the new opt-in contract."
   },
   "authorization":{
-    "save_record":"Actual ACTIVE outbound.scan AND (outbound.request.manual_create OR outbound.import) grants scoped to the confirmed warehouse.",
-    "read":"Actual ACTIVE outbound.view grant.",
-    "cancel":"Actual ACTIVE outbound.cancel grant, plus confirmed latest SAVE receipt/version.",
-    "grant_source":"Effective ACTIVE roles scoped to the warehouse (or genuine unscoped role grants), ACTIVE permissions and direct ACTIVE user grants. Admin/SUPER_ADMIN names alone are not a bypass for this capability.",
+    "policy_revision":"p05-numbering-authorization-r2",
+    "canonical_authority":"Existing effective ACTIVE SUPER_ADMIN assignment as recognized by P03; not an arbitrary role display label. See the current authorization-policy contract.",
+    "save_record":"For ordinary roles: actual ACTIVE outbound.scan AND (outbound.request.manual_create OR outbound.import) grants scoped to the confirmed warehouse.",
+    "read":"Canonical authority or actual ACTIVE outbound.view grant.",
+    "cancel":"Canonical authority or actual ACTIVE outbound.cancel grant, plus confirmed latest SAVE receipt/version.",
+    "grant_source":"Effective ACTIVE roles scoped to the warehouse (or genuine unscoped role grants), ACTIVE permissions and direct ACTIVE user grants; canonical SUPER_ADMIN policy is shared with the existing P03 owner. Role display labels alone never grant access.",
     "scope":"Existing P03 active account, stable authenticated family, confirmed warehouse context and warehouse ACL remain required.",
     "revocation":"Existing numbered objects recheck actual grants even when a caller drops the opt-in header; no ownership takeover or new login to bypass the original context."
   },
