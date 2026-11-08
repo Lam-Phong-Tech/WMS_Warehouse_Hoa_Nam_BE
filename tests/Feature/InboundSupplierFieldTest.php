@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
 
@@ -28,5 +29,96 @@ class InboundSupplierFieldTest extends TestCase
         $this->assertNull(
             DB::table('stock_documents')->where('id', $created->json('data.id'))->value('supplier_id'),
         );
+    }
+
+    public function test_create_persists_supplier_id_and_returns_it(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $supplier = $this->supplier();
+
+        $created = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'supplier_id' => $supplier,
+        ], $headers)->assertCreated();
+
+        $this->assertSame($supplier, $created->json('data.supplier_id'));
+        $this->assertDatabaseHas('stock_documents', [
+            'id' => $created->json('data.id'),
+            'supplier_id' => $supplier,
+        ]);
+    }
+
+    public function test_create_without_supplier_remains_backward_compatible(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+
+        $created = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+        ], $headers)->assertCreated();
+
+        $this->assertNull($created->json('data.supplier_id'));
+    }
+
+    public function test_create_rejects_unknown_supplier(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+
+        $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'supplier_id' => (string) Str::uuid(),
+        ], $headers)->assertStatus(422)->assertJsonPath('error.code', 'SUPPLIER_NOT_AVAILABLE');
+    }
+
+    public function test_create_rejects_inactive_supplier(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $supplier = $this->supplier('INACTIVE');
+
+        $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'supplier_id' => $supplier,
+        ], $headers)->assertStatus(409)->assertJsonPath('error.code', 'SUPPLIER_INACTIVE');
+    }
+
+    public function test_update_changes_supplier_and_increments_version(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $first = $this->supplier('ACTIVE', 'NCC-001');
+        $second = $this->supplier('ACTIVE', 'NCC-002');
+        $created = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'supplier_id' => $first,
+        ], $headers)->assertCreated();
+        $id = $created->json('data.id');
+
+        $updated = $this->patchJson('/api/v1/inbound-documents/'.$id, [
+            'supplier_id' => $second,
+        ], $headers + ['If-Match' => '"1"'])->assertOk();
+
+        $this->assertSame($second, $updated->json('data.supplier_id'));
+        $this->assertSame(2, $updated->json('data.version'));
+        $this->assertDatabaseHas('stock_documents', ['id' => $id, 'supplier_id' => $second]);
+    }
+
+    private function supplier(string $status = 'ACTIVE', string $code = 'NCC-001'): string
+    {
+        $id = (string) Str::uuid();
+        DB::table('inbound_suppliers')->insert([
+            'id' => $id,
+            'warehouse_id' => $this->warehouseFixture()->id,
+            'code' => $code,
+            'name' => 'Honda Việt Nam',
+            'status' => $status,
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $id;
     }
 }

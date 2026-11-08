@@ -63,6 +63,7 @@ class BaM1InboundDocumentController extends Controller
                     new OA\Property(property: 'doc_no', type: 'string', maxLength: 80, nullable: true, description: 'Tự sinh nếu bỏ trống'),
                     new OA\Property(property: 'doc_date', type: 'string', format: 'date', nullable: true),
                     new OA\Property(property: 'dst_warehouse_id', type: 'string', format: 'uuid'),
+                    new OA\Property(property: 'supplier_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'source_name', type: 'string', maxLength: 200, nullable: true),
                     new OA\Property(property: 'source_reference', type: 'string', maxLength: 200, nullable: true),
                     new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
@@ -85,6 +86,7 @@ class BaM1InboundDocumentController extends Controller
             'doc_no' => ['nullable', 'string', 'max:80', 'unique:stock_documents,doc_no'],
             'doc_date' => array_merge(['nullable'], InputLimits::pastDate()),
             'dst_warehouse_id' => ['required', 'uuid', 'exists:warehouses,id'],
+            'supplier_id' => ['nullable', 'uuid'],
             'source_name' => ['nullable', 'string', 'max:200'],
             'source_reference' => ['nullable', 'string', 'max:200'],
             'note' => ['nullable', 'string', 'max:1000'],
@@ -94,6 +96,7 @@ class BaM1InboundDocumentController extends Controller
         ]);
 
         $this->assertActiveWarehouse((string) $validated['dst_warehouse_id']);
+        $this->assertActiveSupplier($validated['supplier_id'] ?? null);
         $actorId = $this->actorId();
         $key = trim((string) $request->header('Idempotency-Key'));
         $execute = function () use ($validated, $actorId): array {
@@ -140,6 +143,7 @@ class BaM1InboundDocumentController extends Controller
                 properties: [
                     new OA\Property(property: 'doc_no', type: 'string', maxLength: 80),
                     new OA\Property(property: 'doc_date', type: 'string', format: 'date'),
+                    new OA\Property(property: 'supplier_id', type: 'string', format: 'uuid', nullable: true),
                     new OA\Property(property: 'source_name', type: 'string', maxLength: 200, nullable: true),
                     new OA\Property(property: 'source_reference', type: 'string', maxLength: 200, nullable: true),
                     new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
@@ -164,11 +168,13 @@ class BaM1InboundDocumentController extends Controller
         $validated = $request->validate([
             'doc_no' => ['sometimes', 'string', 'max:80', Rule::unique('stock_documents', 'doc_no')->ignore($id, 'id')],
             'doc_date' => array_merge(['sometimes'], InputLimits::pastDate()),
+            'supplier_id' => ['nullable', 'uuid'],
             'source_name' => ['nullable', 'string', 'max:200'],
             'source_reference' => ['nullable', 'string', 'max:200'],
             'note' => ['nullable', 'string', 'max:1000'],
             'lines' => ['sometimes', 'array', 'max:0'],
         ]);
+        $this->assertActiveSupplier($validated['supplier_id'] ?? null);
         $expectedVersion = $this->expectedVersion($request);
         $actorId = $this->actorId();
 
@@ -197,7 +203,7 @@ class BaM1InboundDocumentController extends Controller
             }
 
             $updates = [];
-            foreach (['doc_no', 'doc_date', 'note'] as $field) {
+            foreach (['doc_no', 'doc_date', 'supplier_id', 'note'] as $field) {
                 if (array_key_exists($field, $validated)) {
                     $updates[$field] = $validated[$field];
                 }
@@ -249,6 +255,7 @@ class BaM1InboundDocumentController extends Controller
                 'status' => 'DRAFT',
                 'src_warehouse_id' => null,
                 'dst_warehouse_id' => $validated['dst_warehouse_id'],
+                'supplier_id' => $validated['supplier_id'] ?? null,
                 'source_name' => $source,
                 'note' => $validated['note'] ?? null,
                 'version' => 1,
@@ -297,6 +304,7 @@ class BaM1InboundDocumentController extends Controller
             'doc_date' => $row->doc_date,
             'status' => (string) $row->status,
             'dst_warehouse_id' => (string) $row->dst_warehouse_id,
+            'supplier_id' => $row->supplier_id ?? null,
             'source_name' => $row->source_name,
             'source_reference' => $row->source_name,
             'note' => $row->note,
@@ -328,6 +336,21 @@ class BaM1InboundDocumentController extends Controller
             ->exists();
         if (! $active) {
             ApiError::abort(422, 'WAREHOUSE_NOT_ACTIVE', 'Kho nhận không tồn tại hoặc không hoạt động.');
+        }
+    }
+
+    private function assertActiveSupplier(?string $supplierId): void
+    {
+        if ($supplierId === null || $supplierId === '') {
+            return;
+        }
+
+        $supplier = DB::table('inbound_suppliers')->where('id', strtolower($supplierId))->first();
+        if ($supplier === null) {
+            ApiError::abort(422, 'SUPPLIER_NOT_AVAILABLE', 'Nhà cung cấp không tồn tại trong danh mục chung.');
+        }
+        if ($supplier->status !== 'ACTIVE') {
+            ApiError::abort(409, 'SUPPLIER_INACTIVE', 'Nhà cung cấp đã ngừng sử dụng; chọn lại trước khi lưu.');
         }
     }
 
