@@ -20,14 +20,14 @@ class SendWarrantyStatusChangedNotification implements ShouldQueue
 
     public function handle(WarrantyStatusChanged $event): void
     {
-        // Case bảo hành không gắn theo warehouse tồn kho — audience là toàn bộ
+        // Ca bảo hành không gắn theo warehouse tồn kho — audience là toàn bộ
         // người có quyền xem bảo hành, không lọc theo warehouseScopeIds().
         $userIds = $this->audience->byPermission('warranty.view', null, [$event->actorId]);
 
         $this->notifications->notify(
             eventKey: 'warranty.status_changed',
-            title: 'Case bảo hành đổi trạng thái',
-            body: "Case bảo hành chuyển từ {$event->fromStatus} sang {$event->toStatus}.",
+            title: 'Ca bảo hành đổi trạng thái',
+            body: "Ca bảo hành chuyển từ {$event->fromStatus} sang {$event->toStatus}.",
             userIds: $userIds,
             severity: $event->toStatus === 'CANCELLED' ? 'warning' : 'info',
             sourceModule: 'warehouse',

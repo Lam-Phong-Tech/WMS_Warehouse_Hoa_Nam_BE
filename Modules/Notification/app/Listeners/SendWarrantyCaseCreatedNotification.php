@@ -20,14 +20,14 @@ class SendWarrantyCaseCreatedNotification implements ShouldQueue
 
     public function handle(WarrantyCaseCreated $event): void
     {
-        // Case bảo hành không gắn theo warehouse tồn kho — cùng cách audience của
+        // Ca bảo hành không gắn theo warehouse tồn kho — cùng cách audience của
         // SendWarrantyStatusChangedNotification.
         $userIds = $this->audience->byPermission('warranty.view', null, [$event->actorId]);
 
         $this->notifications->notify(
             eventKey: 'warranty.case_created',
-            title: 'Đã tiếp nhận case bảo hành mới',
-            body: "Case bảo hành {$event->caseCode} vừa được tiếp nhận.",
+            title: 'Đã tiếp nhận ca bảo hành mới',
+            body: "Ca bảo hành {$event->caseCode} vừa được tiếp nhận.",
             userIds: $userIds,
             severity: 'info',
             sourceModule: 'warehouse',

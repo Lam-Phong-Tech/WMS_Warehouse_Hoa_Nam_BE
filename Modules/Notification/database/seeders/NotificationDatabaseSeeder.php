@@ -95,8 +95,8 @@ class NotificationDatabaseSeeder extends Seeder
         if ($warrantyCase !== null && ! DB::table('notifications')->where('event_key', 'warranty.status_changed')->where('subject_id', $warrantyCase->warranty_case_id)->exists()) {
             $service->notify(
                 eventKey: 'warranty.status_changed',
-                title: 'Case bảo hành đổi trạng thái',
-                body: 'Case bảo hành chuyển từ RECEIVED sang CHECKING.',
+                title: 'Ca bảo hành đổi trạng thái',
+                body: 'Ca bảo hành chuyển từ RECEIVED sang CHECKING.',
                 userIds: array_values(array_filter([$adminId, $keeperId])),
                 severity: 'info',
                 sourceModule: 'warehouse',
