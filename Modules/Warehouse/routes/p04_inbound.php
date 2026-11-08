@@ -10,8 +10,8 @@ Route::prefix('v1/mini-app/inbound')->middleware(['auth:api', P03JsonEnvelope::c
     Route::get('context', [P04InboundController::class, 'context'])->name('context');
     Route::get('types', [P04InboundController::class, 'types'])->name('types');
     Route::get('suppliers', [P04InboundController::class, 'suppliers'])->name('suppliers');
-    Route::post('suppliers', [SupplierWriteController::class, 'store'])->middleware('permission:catalog.manage')->name('suppliers.store');
-    Route::patch('suppliers/{id}', [SupplierWriteController::class, 'update'])->middleware('permission:catalog.manage')->name('suppliers.update');
+    Route::post('suppliers', [SupplierWriteController::class, 'store'])->middleware('permission:supplier.create')->name('suppliers.store');
+    Route::patch('suppliers/{id}', [SupplierWriteController::class, 'update'])->middleware('permission:supplier.update')->name('suppliers.update');
     Route::put('drafts/{id}', [P04InboundController::class, 'save'])->name('drafts.save');
     Route::get('drafts/{id}', [P04InboundController::class, 'show'])->name('drafts.show');
     Route::get('drafts/{id}/scan-session', [P04InboundController::class, 'scanSession'])->name('drafts.session');

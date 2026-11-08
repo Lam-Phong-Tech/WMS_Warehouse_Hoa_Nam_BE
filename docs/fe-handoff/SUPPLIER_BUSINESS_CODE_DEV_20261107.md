@@ -7,7 +7,8 @@ Release/migration status and the exact SHA must be read from the accompanying re
 
 `GET /api/v1/mini-app/inbound/suppliers?status=ACTIVE&page=1&per_page=20&q=NCC-001`
 
-The existing authentication, stable family and inbound read permission remain mandatory.
+Authentication and stable family remain mandatory. Read accepts supplier.view or
+inbound.view to preserve the existing inbound supplier picker.
 Global directory scope, sort/paging and existing `mini-app-p04-v1` envelope stay unchanged.
 `meta.supplier_code_contract` is `supplier-business-code-v1`.
 
@@ -32,7 +33,10 @@ plain name as display_name. GET never writes or invents a code.
 
 ### Supplier creation and editing
 
-Both mutations require an active authenticated stable session and `catalog.manage`.
+Both mutations require an active authenticated stable session. POST requires
+`supplier.create`; PATCH requires `supplier.update`. The supplier page requires
+`supplier.view`. Grant view together with create/update to enable the corresponding
+screen actions. These permissions are independently assignable in IAM.
 Use JSON bodies with no query parameters. Names are trimmed, nonblank and at most
 200 characters. Unknown fields (including code, id, warehouse_id, version) are rejected.
 

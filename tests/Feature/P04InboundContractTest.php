@@ -543,8 +543,8 @@ class P04InboundContractTest extends TestCase
     public function test_supplier_api_edit_preserves_recorded_receipt_snapshot(): void
     {
         [$actor, $token, , $warehouse] = $this->actor();
-        $permission = Permission::firstOrCreate(['permission_key' => 'catalog.manage'], [
-            'permission_name' => 'catalog.manage', 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE',
+        $permission = Permission::firstOrCreate(['permission_key' => 'supplier.update'], [
+            'permission_name' => 'supplier.update', 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE',
         ]);
         DB::table('role_permission')->insert(['role_permission_id' => (string) Str::uuid(),
             'role_id' => $actor->roles()->first()->role_id, 'permission_id' => $permission->permission_id,

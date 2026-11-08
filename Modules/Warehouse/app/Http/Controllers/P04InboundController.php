@@ -101,7 +101,7 @@ final class P04InboundController extends Controller
                 ApiError::abort(403, 'ACCESS_DENIED', 'Tài khoản không còn hoạt động.');
             }
             app(StableAuthSession::class)->requireId($actor);
-            if (! $this->drafts->permissions($actor)['INBOUND']['read']) {
+            if (! $actor->hasPermission('supplier.view') && ! $this->drafts->permissions($actor)['INBOUND']['read']) {
                 ApiError::abort(403, 'P04_OPERATION_DENIED', 'Không có quyền tra cứu nhà cung cấp.');
             }
             $query = DB::table('inbound_suppliers')->where('status', $input['status'] ?? 'ACTIVE');

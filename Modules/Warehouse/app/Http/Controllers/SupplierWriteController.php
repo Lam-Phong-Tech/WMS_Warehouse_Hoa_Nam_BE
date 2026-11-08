@@ -19,7 +19,7 @@ final class SupplierWriteController extends Controller
     public function store(Request $request): JsonResponse
     {
         return DB::transaction(function () use ($request): JsonResponse {
-            $this->authorizeWriter($request);
+            $this->authorizeWriter($request, 'supplier.create');
             $input = $this->input($request, false);
             // Every API allocator uses this transaction lock before reading codes.
             // The existing unique index also protects against out-of-band writers.
@@ -47,7 +47,7 @@ final class SupplierWriteController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         return DB::transaction(function () use ($request, $id): JsonResponse {
-            $this->authorizeWriter($request);
+            $this->authorizeWriter($request, 'supplier.update');
             if (! Str::isUuid($id)) {
                 ApiError::abort(404, 'SUPPLIER_NOT_FOUND', 'Không tìm thấy nhà cung cấp.');
             }
@@ -83,10 +83,10 @@ final class SupplierWriteController extends Controller
         }, 3);
     }
 
-    private function authorizeWriter(Request $request): void
+    private function authorizeWriter(Request $request, string $permission): void
     {
         $actor = User::whereKey($request->user()->user_id)->lockForUpdate()->first();
-        if ($actor === null || $actor->status !== 'ACTIVE' || ! $actor->hasPermission('catalog.manage')) {
+        if ($actor === null || $actor->status !== 'ACTIVE' || ! $actor->hasPermission($permission)) {
             ApiError::abort(403, 'ACCESS_DENIED', 'Không có quyền quản lý nhà cung cấp.');
         }
         app(StableAuthSession::class)->requireId($actor);

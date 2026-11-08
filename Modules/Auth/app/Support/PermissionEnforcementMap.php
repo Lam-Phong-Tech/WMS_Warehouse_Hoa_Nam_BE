@@ -43,6 +43,7 @@ final class PermissionEnforcementMap
      * @var array<string, string>
      */
     public const ENFORCED_IN_CODE = [
+        'supplier.view' => 'P04InboundController::suppliers checks supplier.view OR inbound.view after active actor and stable-session validation.',
         'warranty.pii.view' => 'Bỏ mask PII bảo hành (CurrentBaselineWarrantyController, OperationalReportController, StockMovementController, CanonicalMvpController)',
         'warranty.pii.export' => 'Cho phép xuất báo cáo bảo hành kèm PII (AlignedWarrantyReportController, OperationalReportController::assertPiiExportAllowed)',
         'audit_log.view_all' => 'Bỏ giới hạn audit log theo module của actor (AuditLogController::allowedModulesFor)',
@@ -149,7 +150,7 @@ final class PermissionEnforcementMap
         'POST api/v1/mini-app/drafts/{id}/cancel' => P03DraftController::class.'@cancel',
         // P04 scope uses INBOUND read/save/cancel rights (including the AND/OR
         // rules in MiniAppDraftService), active canonical warehouse and session.
-        // Suppliers is a global directory but still requires INBOUND read.
+        // Supplier lookup accepts supplier.view or legacy INBOUND read.
         'GET api/v1/mini-app/inbound/types' => P04InboundController::class.'@types',
         'GET api/v1/mini-app/inbound/suppliers' => P04InboundController::class.'@suppliers',
         'PUT api/v1/mini-app/inbound/drafts/{id}' => P04InboundController::class.'@save',

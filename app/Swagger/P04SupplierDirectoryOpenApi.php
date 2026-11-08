@@ -22,7 +22,7 @@ use OpenApi\Attributes as OA;
     path: '/api/v1/mini-app/inbound/suppliers',
     operationId: 'p04_supplier_directory',
     summary: 'Read the global inbound supplier directory with stable business codes',
-    description: 'Requires the existing authenticated stable session and inbound read permission. Additive supplier-business-code-v1 fields preserve UUID, raw name and historical snapshots. This GET never writes or allocates a code.',
+    description: 'Requires an authenticated stable session and supplier.view OR inbound.view (legacy inbound lookup). Additive supplier-business-code-v1 fields preserve UUID, raw name and historical snapshots. This GET never writes or allocates a code.',
     security: [['bearerAuth' => []]],
     tags: ['22. Mini App'],
     parameters: [

@@ -1,0 +1,22 @@
+{
+  "contract": "supplier-permissions-v1",
+  "permissions": {
+    "supplier.view": "Xem danh sách nhà cung cấp (NCC)",
+    "supplier.create": "Thêm nhà cung cấp (NCC)",
+    "supplier.update": "Sửa nhà cung cấp (NCC)"
+  },
+  "api": {
+    "GET /api/v1/mini-app/inbound/suppliers": { "any": ["supplier.view", "inbound.view"], "reason": "Preserve existing inbound picker access" },
+    "POST /api/v1/mini-app/inbound/suppliers": { "all": ["supplier.create"] },
+    "PATCH /api/v1/mini-app/inbound/suppliers/{id}": { "all": ["supplier.update"] }
+  },
+  "frontend_page": "supplier.view",
+  "delegation": "Existing IAM role and individual grant endpoints; unchanged anti-self-escalation, delegation scope and reason requirements",
+  "migration": "database/migrations/2026_11_08_000100_register_supplier_permissions.php",
+  "upgrade_mapping": {
+    "inbound.view": ["supplier.view"],
+    "catalog.manage": ["supplier.view", "supplier.create", "supplier.update"]
+  },
+  "data_safety": "Add only missing permission definitions and equivalent role/direct grants. Preserve existing definitions, unrelated grants and grant provenance. Reentry does not restore later revocations. No schema changes or automatic down revocation.",
+  "deployment": "Source only; run the data migration before activating the new API/frontend gates"
+}

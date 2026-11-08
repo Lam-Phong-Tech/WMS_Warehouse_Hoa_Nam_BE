@@ -59935,7 +59935,7 @@
                     "22. Mini App"
                 ],
                 "summary": "Read the global inbound supplier directory with stable business codes",
-                "description": "Requires the existing authenticated stable session and inbound read permission. Additive supplier-business-code-v1 fields preserve UUID, raw name and historical snapshots. This GET never writes or allocates a code.",
+                "description": "Requires the existing authenticated stable session and supplier.view OR inbound.view (legacy inbound lookup). Additive supplier-business-code-v1 fields preserve UUID, raw name and historical snapshots. This GET never writes or allocates a code.",
                 "operationId": "p04_supplier_directory",
                 "parameters": [
                     {
@@ -60142,7 +60142,7 @@
                     "22. Mini App"
                 ],
                 "summary": "Create a supplier with an automatically allocated NCC code",
-                "description": "Active stable session and catalog.manage required. Uses the canonical active KHO-TONG-HN warehouse server-side. NCC numbering is global, includes inactive rows and expands beyond NCC-999. Codes and UUIDs cannot be supplied by clients. Not idempotent: a repeated POST creates another supplier.",
+                "description": "Active stable session and supplier.create required. Uses the canonical active KHO-TONG-HN warehouse server-side. NCC numbering is global, includes inactive rows and expands beyond NCC-999. Codes and UUIDs cannot be supplied by clients. Not idempotent: a repeated POST creates another supplier.",
                 "operationId": "p04_supplier_create",
                 "parameters": [],
                 "requestBody": {
@@ -60205,7 +60205,7 @@
                         }
                     },
                     "403": {
-                        "description": "Inactive account or missing catalog.manage.",
+                        "description": "Inactive account or missing supplier.create.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -60318,7 +60318,7 @@
                     "22. Mini App"
                 ],
                 "summary": "Edit supplier name/status while preserving UUID, code and receipt history",
-                "description": "Active stable session and catalog.manage required. Send at least one of name/status. If-Match must contain the current positive integer version, quoted or unquoted; weak tags, wildcards and lists are rejected. Successful edits increment version. Query parameters and fields other than name/status are rejected.",
+                "description": "Active stable session and supplier.update required. Send at least one of name/status. If-Match must contain the current positive integer version, quoted or unquoted; weak tags, wildcards and lists are rejected. Successful edits increment version. Query parameters and fields other than name/status are rejected.",
                 "operationId": "p04_supplier_update",
                 "parameters": [
                     {
@@ -60397,7 +60397,7 @@
                         }
                     },
                     "403": {
-                        "description": "Inactive account or missing catalog.manage.",
+                        "description": "Inactive account or missing supplier.update.",
                         "content": {
                             "application/json": {
                                 "schema": {

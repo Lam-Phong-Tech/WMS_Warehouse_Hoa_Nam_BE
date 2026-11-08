@@ -107,7 +107,7 @@ class SupplierWriteApiTest extends TestCase
         }
     }
 
-    public function test_mutations_require_authentication_and_catalog_manage(): void
+    public function test_mutations_require_authentication_and_supplier_action_grants(): void
     {
         $this->postJson(self::URL, ['name' => 'A'])->assertUnauthorized();
         $this->patchJson(self::URL.'/'.Str::uuid(), ['name' => 'A'])->assertUnauthorized();
@@ -163,7 +163,27 @@ class SupplierWriteApiTest extends TestCase
         return $row['id'];
     }
 
-    private function actor(bool $canManage = true): array
+    public function test_supplier_create_and_update_are_separate_grants(): void
+    {
+        $headers = $this->actor(false, ['supplier.create']);
+        $created = $this->postJson(self::URL, ['name' => 'Creator only'], $headers)->assertCreated();
+        $this->patchJson(self::URL.'/'.$created->json('data.id'), ['name' => 'Forbidden'], $headers + ['If-Match' => '"1"'])->assertForbidden();
+        $headers = $this->actor(false, ['supplier.update']);
+        $this->postJson(self::URL, ['name' => 'Forbidden'], $headers)->assertForbidden();
+        $this->patchJson(self::URL.'/'.$created->json('data.id'), ['name' => 'Updater only'], $headers + ['If-Match' => '"1"'])
+            ->assertOk()->assertJsonPath('data.name', 'Updater only');
+    }
+
+    public function test_supplier_view_reads_without_inbound_view_and_catalog_manage_no_longer_bypasses_supplier_writes(): void
+    {
+        $headers = $this->actor(false, ['supplier.view']);
+        $this->getJson(self::URL, $headers)->assertOk();
+        $this->postJson(self::URL, ['name' => 'Denied'], $headers)->assertForbidden();
+        $headers = $this->actor(false, ['catalog.manage']);
+        $this->postJson(self::URL, ['name' => 'Denied'], $headers)->assertForbidden();
+    }
+
+    private function actor(bool $canManage = true, ?array $keys = null): array
     {
         $warehouse = $this->ensureActiveWarehouse('KHO-TONG-HN');
         $suffix = substr((string) Str::uuid(), 0, 8);
@@ -171,7 +191,7 @@ class SupplierWriteApiTest extends TestCase
             'email' => 'writer_'.$suffix.'@example.test', 'password_hash' => Hash::make('secret123'), 'status' => 'ACTIVE', 'version' => 1]);
         $role = Role::create(['role_code' => 'SUPPLIER_WRITE_'.$suffix, 'role_name' => 'Supplier writer', 'scope_type' => 'WAREHOUSE', 'status' => 'ACTIVE']);
         $user->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid(), 'scope_ref' => (string) $warehouse->id]);
-        foreach ($canManage ? ['inbound.view', 'catalog.manage'] : ['inbound.view'] as $key) {
+        foreach ($keys ?? ($canManage ? ['supplier.view', 'supplier.create', 'supplier.update'] : ['inbound.view']) as $key) {
             $permission = Permission::firstOrCreate(['permission_key' => $key], ['permission_name' => $key, 'scope_type' => 'FUNCTION', 'status' => 'ACTIVE']);
             DB::table('role_permission')->insert(['role_permission_id' => (string) Str::uuid(), 'role_id' => $role->role_id,
                 'permission_id' => $permission->permission_id, 'created_at' => now(), 'updated_at' => now()]);

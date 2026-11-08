@@ -30,6 +30,9 @@ class AuthDatabaseSeeder extends Seeder
         ['warehouse.manage', 'Quản lý kho'],
         ['catalog.view', 'Xem danh mục gốc chuẩn hóa'],
         ['catalog.manage', 'Quản lý danh mục gốc chuẩn hóa'],
+        ['supplier.view', 'Xem danh sách nhà cung cấp (NCC)'],
+        ['supplier.create', 'Thêm nhà cung cấp (NCC)'],
+        ['supplier.update', 'Sửa nhà cung cấp (NCC)'],
         ['sku.view', 'Xem SKU/sản phẩm'],
         ['sku.manage', 'Quản lý SKU/sản phẩm'],
         ['agency.view', 'Xem đại lý'],
@@ -543,7 +546,15 @@ class AuthDatabaseSeeder extends Seeder
             );
 
             $pivotData = [];
-            foreach ($def['permissions'] as $key) {
+            // Match the one-time upgrade mapping without changing unrelated roles.
+            $permissionKeys = $def['permissions'];
+            if (in_array('inbound.view', $permissionKeys, true)) {
+                $permissionKeys[] = 'supplier.view';
+            }
+            if (in_array('catalog.manage', $permissionKeys, true)) {
+                array_push($permissionKeys, 'supplier.view', 'supplier.create', 'supplier.update');
+            }
+            foreach (array_unique($permissionKeys) as $key) {
                 $pivotData[$permissionsByKey[$key]->permission_id] = ['role_permission_id' => (string) Str::uuid()];
             }
             $role->permissions()->sync($pivotData);
