@@ -105,6 +105,40 @@ class InboundSupplierFieldTest extends TestCase
         $this->assertDatabaseHas('stock_documents', ['id' => $id, 'supplier_id' => $second]);
     }
 
+    public function test_detail_returns_selected_supplier(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $supplier = $this->supplier('ACTIVE', 'NCC-001');
+        $created = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'supplier_id' => $supplier,
+        ], $headers)->assertCreated();
+        $id = $created->json('data.id');
+
+        $this->getJson('/api/v1/inbound-documents/'.$id, $headers)
+            ->assertOk()
+            ->assertJsonPath('data.supplier.id', $supplier)
+            ->assertJsonPath('data.supplier.code', 'NCC-001')
+            ->assertJsonPath('data.supplier.name', 'Honda Việt Nam')
+            ->assertJsonPath('data.supplier.display_name', 'NCC-001 - Honda Việt Nam')
+            ->assertJsonPath('data.supplier.status', 'ACTIVE')
+            ->assertJsonPath('data.supplier.version', 1);
+    }
+
+    public function test_detail_returns_null_supplier_when_not_selected(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $created = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+        ], $headers)->assertCreated();
+
+        $this->getJson('/api/v1/inbound-documents/'.$created->json('data.id'), $headers)
+            ->assertOk()
+            ->assertJsonPath('data.supplier', null);
+    }
+
     private function supplier(string $status = 'ACTIVE', string $code = 'NCC-001'): string
     {
         $id = (string) Str::uuid();

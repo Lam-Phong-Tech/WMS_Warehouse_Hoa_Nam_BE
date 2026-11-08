@@ -4,6 +4,7 @@ namespace Modules\Warehouse\Http\Controllers\Concerns;
 
 use App\Support\ApiError;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\StockDocumentService;
 use Modules\Warehouse\Support\ListSortOrder;
@@ -225,6 +226,20 @@ trait InteractsWithStockDocuments
 
         if ($this->docType() === StockDocument::TYPE_RECEIPT) {
             $this->attachCreatorName($doc);
+
+            $supplier = null;
+            if ($doc->supplier_id !== null && $doc->supplier_id !== '') {
+                $supplier = DB::table('inbound_suppliers')
+                    ->where('id', strtolower((string) $doc->supplier_id))
+                    ->first(['id', 'code', 'name', 'status', 'version']);
+                if ($supplier !== null) {
+                    $assigned = is_string($supplier->code) && $supplier->code !== '';
+                    $supplier->display_name = $assigned
+                        ? $supplier->code.' - '.$supplier->name
+                        : $supplier->name;
+                }
+            }
+            $doc->setAttribute('supplier', $supplier);
         }
 
         return $this->respondSuccess($doc);
