@@ -8,6 +8,10 @@ The adapter now recognizes that existing canonical authority. Ordinary users
 still need actual ACTIVE scoped outbound.scan plus manual_create/import; read
 or scan alone never permits manual creation. No grants or Post permissions change.
 All ownership, warehouse, version, session, shift and idempotency guards remain.
+P05 context now intersects its read/save/cancel/record flags with this same
+current-warehouse policy; another warehouse's create grant cannot advertise
+creation here. Honor numbering.allowed=false rather than falling back to a
+broader permissions flag. Merely opening P05 is not create authorization.
 
 Wire contract/revision remain p05-save-numbering-v1 / p05-save-numbering-r1 so
 the existing App parser continues to work. Additive capability fields:

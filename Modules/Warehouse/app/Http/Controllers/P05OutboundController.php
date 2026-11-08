@@ -31,9 +31,14 @@ final class P05OutboundController extends Controller
         $actor = $request->user();
         $data = app(MiniAppDraftService::class)->context($request)->getData(true)['data'];
         $rights = $data['permissions']['OUTBOUND'];
+        $warehouse = $data['active_warehouse_id'] ?? null;
+        foreach (['read', 'save', 'cancel'] as $action) {
+            $rights[$action] = $rights[$action] && $warehouse !== null
+                && P05NumberedDraft::allowed($actor, $warehouse, $action);
+        }
         $data['actor_id'] = (string) $actor->user_id;
         $data['permissions'] = $rights + ['record' => $rights['save'] && $rights['read']];
-        $data['numbering'] = app(P05NumberedDraft::class)->capability($request, $data['active_warehouse_id'] ?? null);
+        $data['numbering'] = app(P05NumberedDraft::class)->capability($request, $warehouse);
         $data['document_number_assignment'] = $data['numbering']['schema_ready'] ? 'WITH_DRAFT_SAVE' : 'UNAVAILABLE';
         $data['selector'] = [
             'method' => 'GET', 'path' => '/api/v1/mini-app/outbound/sources',

@@ -226,6 +226,23 @@ class P05SaveNumberingTest extends TestCase
         $this->assertNeutral();
     }
 
+    public function test_create_grants_from_another_warehouse_do_not_advertise_current_warehouse_creation(): void
+    {
+        $f = $this->actor();
+        DB::table('user_role')->where('user_id', $f['user']->user_id)->where('role_id', $f['role']->role_id)
+            ->update(['scope_ref' => (string) Str::uuid()]);
+        $observer = Role::create(['role_code' => 'P05OBSERVER_'.Str::random(8), 'role_name' => 'TEST current warehouse reader', 'scope_type' => 'WAREHOUSE', 'status' => 'ACTIVE']);
+        $f['user']->roles()->attach($observer->role_id, ['user_role_id' => (string) Str::uuid(), 'scope_ref' => $f['warehouse']->id]);
+        $observer->permissions()->attach(Permission::where('permission_key', 'outbound.view')->value('permission_id'), ['role_permission_id' => (string) Str::uuid()]);
+        $f['user']->increment('version');
+        $this->getJson('/api/v1/mini-app/outbound/context', $this->headers($f))->assertOk()
+            ->assertJsonPath('data.permissions.read', true)->assertJsonPath('data.permissions.save', false)
+            ->assertJsonPath('data.permissions.record', false)->assertJsonPath('data.numbering.allowed', false);
+        $this->putJson(self::BASE.'/'.Str::uuid(), $this->body($f), $this->headers($f, 0, (string) Str::uuid()))->assertForbidden();
+        $this->assertDatabaseCount('outbound_draft_numbers', 0);
+        $this->assertNeutral();
+    }
+
     public function test_read_only_outbound_access_never_grants_create_or_allocates_a_number(): void
     {
         $f = $this->actor();

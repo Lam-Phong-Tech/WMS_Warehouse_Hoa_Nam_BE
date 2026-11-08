@@ -18,6 +18,7 @@
   "iam_grant_updates": false,
   "post_permission_changes": false,
   "migration_or_seed_required": false,
-  "app": "Existing r1 wire parser remains compatible. Honor data.permissions.save plus numbering capability; do not manufacture PX or create a replacement draft/key after UNKNOWN. Preserve source-linked document number.",
+  "context": "P05 permissions read/save/cancel/record intersect the existing P03 rights with the same current-warehouse authorization used by the numbered owner; a grant belonging only to another warehouse never advertises current-warehouse creation.",
+  "app": "Existing r1 wire parser remains compatible. Honor data.permissions.save plus numbering.allowed and schema_ready; screen visibility alone is never create permission. Do not override numbering.allowed=false by falling back to a more general permission flag. Do not manufacture PX or create a replacement draft/key after UNKNOWN. Preserve source-linked document number.",
   "release": "Source/test evidence is not live authenticated SAVE or App UAT PASS. DEV/TEST only; production unchanged."
 }
