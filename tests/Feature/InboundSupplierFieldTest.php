@@ -158,6 +158,32 @@ class InboundSupplierFieldTest extends TestCase
             ->assertJsonPath('data.supplier', null);
     }
 
+    public function test_list_returns_supplier_per_row(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $supplier = $this->supplier('ACTIVE', 'NCC-001');
+        $withSupplier = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'supplier_id' => $supplier,
+        ], $headers)->assertCreated()->json('data.id');
+        $withoutSupplier = $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+        ], $headers)->assertCreated()->json('data.id');
+
+        $rows = collect(
+            $this->getJson('/api/v1/inbound-documents?per_page=50', $headers)
+                ->assertOk()
+                ->json('data'),
+        )->keyBy('id');
+
+        $this->assertSame($supplier, $rows[$withSupplier]['supplier']['id']);
+        $this->assertSame('NCC-001', $rows[$withSupplier]['supplier']['code']);
+        $this->assertSame('Honda Việt Nam', $rows[$withSupplier]['supplier']['name']);
+        $this->assertSame('NCC-001 - Honda Việt Nam', $rows[$withSupplier]['supplier']['display_name']);
+        $this->assertNull($rows[$withoutSupplier]['supplier']);
+    }
+
     private function supplier(string $status = 'ACTIVE', string $code = 'NCC-001'): string
     {
         $id = (string) Str::uuid();

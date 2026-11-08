@@ -3,7 +3,9 @@
 namespace Modules\Warehouse\Http\Controllers\Concerns;
 
 use App\Support\ApiError;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\StockDocumentService;
@@ -87,6 +89,7 @@ trait InteractsWithStockDocuments
         $this->decoratePendingProductInfo($page->getCollection());
         if ($this->docType() === StockDocument::TYPE_RECEIPT) {
             $page->getCollection()->each(fn (StockDocument $document) => $this->attachCreatorName($document));
+            $this->attachSuppliers($page->getCollection());
         }
 
         return $this->respondPaginated($page);
@@ -116,7 +119,7 @@ trait InteractsWithStockDocuments
      * HOẶC tên trùng mã, hoặc ĐVT rỗng — chỉ xét phiếu còn mở (DRAFT/SCANNING),
      * vì phiếu đã POSTED thì SKU đổi tên về sau không còn liên quan.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<StockDocument>  $query
+     * @param  Builder<StockDocument>  $query
      */
     private function applyPendingProductInfoFilter($query, bool $pending): void
     {
@@ -150,7 +153,7 @@ trait InteractsWithStockDocuments
      * trang hiện tại bằng ĐÚNG một truy vấn — để danh sách phiếu nhập trên web
      * hiện được chip "Chờ bổ sung thông tin" mà không phải mở từng phiếu.
      *
-     * @param  \Illuminate\Support\Collection<int,StockDocument>  $documents
+     * @param  Collection<int,StockDocument>  $documents
      */
     private function decoratePendingProductInfo($documents): void
     {
@@ -175,6 +178,49 @@ trait InteractsWithStockDocuments
     {
         $document->setAttribute('created_by_name', $document->createdBy?->display_name);
         $document->unsetRelation('createdBy');
+    }
+
+    /**
+     * Gắn `supplier` (id/code/name/display_name) cho từng phiếu nhập bằng MỘT
+     * truy vấn cho cả trang — danh sách IN-01 hiện tên NCC ngay trên dòng mà
+     * không phải mở từng phiếu. Cùng hình dạng với `supplier` ở API chi tiết.
+     *
+     * @param  Collection<int,StockDocument>  $documents
+     */
+    private function attachSuppliers($documents): void
+    {
+        if ($this->docType() !== StockDocument::TYPE_RECEIPT || $documents->isEmpty()) {
+            return;
+        }
+
+        $ids = $documents
+            ->map(fn (StockDocument $document): string => strtolower(trim((string) $document->supplier_id)))
+            ->filter(fn (string $id): bool => $id !== '')
+            ->unique()
+            ->values();
+
+        $suppliers = $ids->isEmpty()
+            ? collect()
+            : DB::table('inbound_suppliers')
+                ->whereIn('id', $ids->all())
+                ->get(['id', 'code', 'name', 'status', 'version'])
+                ->mapWithKeys(function (object $supplier): array {
+                    $supplier->display_name = $this->supplierDisplayName($supplier);
+
+                    return [strtolower((string) $supplier->id) => $supplier];
+                });
+
+        $documents->each(function (StockDocument $document) use ($suppliers): void {
+            $id = strtolower(trim((string) $document->supplier_id));
+            $document->setAttribute('supplier', $id === '' ? null : $suppliers->get($id));
+        });
+    }
+
+    private function supplierDisplayName(object $supplier): string
+    {
+        $assigned = is_string($supplier->code) && $supplier->code !== '';
+
+        return $assigned ? $supplier->code.' - '.$supplier->name : (string) $supplier->name;
     }
 
     public function show(string $id)
@@ -226,20 +272,7 @@ trait InteractsWithStockDocuments
 
         if ($this->docType() === StockDocument::TYPE_RECEIPT) {
             $this->attachCreatorName($doc);
-
-            $supplier = null;
-            if ($doc->supplier_id !== null && $doc->supplier_id !== '') {
-                $supplier = DB::table('inbound_suppliers')
-                    ->where('id', strtolower((string) $doc->supplier_id))
-                    ->first(['id', 'code', 'name', 'status', 'version']);
-                if ($supplier !== null) {
-                    $assigned = is_string($supplier->code) && $supplier->code !== '';
-                    $supplier->display_name = $assigned
-                        ? $supplier->code.' - '.$supplier->name
-                        : $supplier->name;
-                }
-            }
-            $doc->setAttribute('supplier', $supplier);
+            $this->attachSuppliers(collect([$doc]));
         }
 
         return $this->respondSuccess($doc);
