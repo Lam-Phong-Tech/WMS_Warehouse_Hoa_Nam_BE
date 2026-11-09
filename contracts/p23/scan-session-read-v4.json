@@ -1,0 +1,59 @@
+{
+  "contract": "mini-app-p23-read-v4",
+  "revision": "p23-session-evidence-r1",
+  "activation": {"header": "X-Scan-Session-Contract", "value": "mini-app-p23-read-v4", "default_without_header": "mini-app-p23-read-v3", "unsupported_header": "422 P23_CONTRACT_UNSUPPORTED", "explicit_null_omission_header": "422 P23_REPRESENTATION_CONFLICT"},
+  "routes": {
+    "list": {"method": "GET", "path": "/api/v1/mini-app/scan-sessions", "meta_contract": "mini-app-p23-read-v4", "rows": "data[]"},
+    "detail": {"method": "GET", "path": "/api/v1/mini-app/history/scan-sessions/{sessionId}", "meta_contract": "mini-app-p08-v1", "meta_p23_contract": "mini-app-p23-read-v4", "owner": "data.p23", "events": "data.p23.events", "legacy_events": "data.events remains the redacted P08 representation"}
+  },
+  "scope": {"required": ["authenticated stable family", "ACTIVE account", "history.read", "inventory.view", "confirmed current warehouse_id UUID", "warehouse ACL", "matching tenant/org dimensions when source contains them"], "read_only": true, "new_routes": false, "migration_or_seed": false},
+  "paging": {"list": "Existing page/per_page OR cursor; deterministic created_at DESC,batch UUID DESC,null time last", "detail": "Existing limit/cursor; event time DESC,immutable activityId DESC; canonical scan_events precedence", "representation_scope": "Cursor bound to v3/v4, actor,family,warehouse,tenant,permissions and filters; never reusable across representation or scope", "consistency": "Single-response repeatable-read snapshot; keyset upper bound is NOT a cross-request frozen snapshot", "verification_event_limit": 20000, "over_limit": "503 P23_VERIFICATION_LIMIT; never partial totals disguised as complete", "summary": "Full retained session as of response/cursor upper bound, independent of visible event page/filter"},
+  "batch": {
+    "sessionId": "Persisted scan_batch_id UUID, never auth_session_id",
+    "batchNo": "Persisted batch_no only; null/NOT_RECORDED when column/value absent; never generate from UUID/date/list index",
+    "createdAt": "Source created_at, never reused as startedAt or endedAt",
+    "startedAt": "Persisted started_at only",
+    "endedAt": "Persisted ended_at only",
+    "status": "Persisted batch status only; not inferred from latest result or document status",
+    "actor": "Persisted batch.created_by; role=BATCH_CREATOR_NOT_EVENT_ACTOR; no current-directory name fallback",
+    "scanners": "Distinct verified persisted event actors; null if absent; partial source explicitly marked",
+    "warehouse": "Persisted batch warehouse_id rechecked against current scope. code/name from authorized current warehouses directory and explicitly NOT historical snapshots",
+    "fieldSources": "Per-field status/source object: RECORDED,NOT_RECORDED,PARTIAL_SOURCE,REDACTED_PERMISSION,SOURCE_UNAVAILABLE or more specific declared reason",
+    "primaryDocument": "Unique verified business document, preferred over its related warranty case; otherwise null with explicit reason",
+    "relatedDocuments": "Only verified owner relations; [] plus explicit status when none can be established; not proof that all business relationships are absent"
+  },
+  "events": {
+    "identity": ["eventId", "activityId=SCAN:<eventId>", "sessionId", "sourceTable"],
+    "occurredAt": "Original event created_at under history-timestamps-v1, RFC3339 UTC preserving source precision; no device/GET-time substitution",
+    "status": "Exact persisted result_status; RESOLVED stays RESOLVED_NOT_ACCEPTED",
+    "displayCode": "Requires inventory.trace plus approved strict identifier/composite grammar and persisted code_type or HN1 marker; arbitrary raw strings, URLs, PII/secret-like content remain null/redacted even with permission",
+    "rawCode": null,
+    "raw_code_policy": "NOT_EXPOSED_USE_AUTHORIZED_DISPLAY_CODE",
+    "codeType": "Persisted event code_type QR/BARCODE/RFID/NFC only; not scan_source, current physical-code type or guessed classification",
+    "quantity": "Positive integral persisted event quantity or exact verified owner scan item quantity; no default1 or box/container current quantity",
+    "actor": "Persisted event.actor_id; or successful SCAN audit whose entity_id AND after_data.scan_batch_id match; or exact owner scan selected_by/scanned_by/matched_by. Never batch creator fallback",
+    "actor_displayName": "Persisted event actor_display_name only, additionally requires iam.user.view. Missing historical snapshot stays null; no current person/role lookup",
+    "reason_serial_sku": "Not opened by this revision; null, no current lookup fallback",
+    "relatedDocument": "Verified owner relation only; each target is exact relative GET path with same warehouse query and owner reauthorization"
+  },
+  "summary": {
+    "metric_shape": {"value": "nonnegative integer|null", "status": "source status", "unit": "UNIQUE_CODE|ATTEMPT|COMPONENT_UNIT", "source": "declared evidence basis"},
+    "verifiedValidCodes": "Distinct persisted raw-code identities (internal digest not returned) or physical-code UUID when raw missing; exact ACCEPTED or VALID with verified owner relation. Unverifiable identity/relation -> null, never unknown0. RESOLVED excluded",
+    "explicitRejectedAttempts": "Count exact REJECTED only; not OTHER/ERROR/INVALID inferred grouping",
+    "duplicateAttempts": "Count exact DUPLICATE attempts, never included in distinct valid codes",
+    "issuedComponentQuantity": "Sum distinct posted component_issue_items evidence belonging to session events; document POSTED + posted_at + item POSTED + full-line scanned/required/item quantities equal negative owner ledger for matching doc/line/SKU/warehouse. Writer ledger is per line, not per BOX; only session-owned item quantity attributed",
+    "unposted_or_missing_quantity": "null with NOT_POSTED,NOT_ESTABLISHED,LEDGER_EVIDENCE_MISMATCH,SOURCE_UNAVAILABLE,REDACTED_PERMISSION or PARTIAL_SOURCE",
+    "partial_sources": "Unknown complete metric values remain null; existing availableTotal/coverage distinguish readable subset",
+    "counts": "Legacy P23 counts retained separately and NOT relabeled as valid-code or posting totals"
+  },
+  "relations": {
+    "stock": "Batch source_type/source_id AND exact inbound_scan_entries/outbound_item_matches.scan_event_id AND matching event resolved target AND line FK -> stock_document_lines -> same directional warehouse,nondeleted document; documents.read + inbound/outbound.view",
+    "component": "Batch COMPONENT_ISSUE_DOCUMENT/source_id AND component_issue_items.scan_event_id,target identity,line/document FK AND same warehouse + persisted warranty_case_warehouse_owners; documents.read + warranty.view/manage + warranty.component_issue",
+    "warranty": "Only from the verified component document's warranty_case_id and verified owner table, never a source_id guess",
+    "returned_fields": ["kind", "id", "number", "status", "version", "warehouseId", "statusSource=CURRENT_OWNER_DOCUMENT", "relationStatus=VERIFIED_OWNER_RELATION", "readTarget.method=GET", "readTarget.path", "readTarget.query.warehouse_id", "fieldSources"],
+    "source_id_alone": "NOT_ESTABLISHED; no URL or synthetic business number",
+    "permission_or_source_failure": "Explicit REDACTED_PERMISSION or SOURCE_UNAVAILABLE, not empty-success semantics"
+  },
+  "live_legacy_limits": ["Current DEV batch tables do not persist batch_no,started_at,ended_at,status", "Legacy event source does not persist event actor,name,quantity,code type", "No historical actor-name snapshots in observed current scan schemas", "No approved batch version/retention policy"],
+  "release": {"DEV_TEST_only": true, "production_activation": false, "TC_UAT_41": "OPEN_UNTIL_AUTHENTICATED_WEB_AND_APK_SAME_DATA_AND_REFERENCE_VISUAL_ACCEPTANCE", "TC_UAT_40": "NOT_IN_SCOPE", "fixtures": "Complete optional-column example only in disposable test DB; no invented or backfilled DEV history"}
+}
