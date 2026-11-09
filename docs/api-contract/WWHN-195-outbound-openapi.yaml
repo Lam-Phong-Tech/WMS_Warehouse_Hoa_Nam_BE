@@ -664,8 +664,8 @@ paths:
         - Outbound Document
       summary: Chi tiết phiếu xuất
       description: >-
-        Handler OutboundDocumentController::show. Không có `patch`/`put` — header phiếu được chốt
-        tại bước Confirm toa (REQ-SRS-014).
+        Handler OutboundDocumentController::show. Header phiếu được chốt tại bước Confirm toa
+        (REQ-SRS-014). Phiếu DRAFT được sửa header qua `patch` bên dưới (AMD-API-052).
       x-permission: outbound.view
       x-data-scope: EnforceOutboundWarehouseScope
       parameters:
@@ -683,6 +683,88 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: stock_out_update
+      tags:
+        - Outbound Document
+      summary: Sửa thông tin đầu phiếu xuất nháp (chỉ DRAFT)
+      description: >-
+        Handler CurrentBaselineDocumentController::updateOutbound. Chỉ DRAFT; dòng SKU vẫn
+        chốt từ toa nguồn (gửi `lines` → 422 SOURCE_REQUEST_IMMUTABLE) và header toa nguồn
+        được cập nhật đồng bộ. Bắt buộc If-Match.
+      x-permission: outbound.request.manual_create|outbound.import
+      x-data-scope: EnforceOutboundWarehouseScope
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                recipient_name:
+                  type: string
+                  maxLength: 200
+                recipient_address:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+                recipient_contact_phone:
+                  type: string
+                  maxLength: 50
+                  nullable: true
+                  example: '0901234567'
+                agency_id:
+                  type: string
+                  format: uuid
+                  nullable: true
+                request_date:
+                  type: string
+                  format: date
+                  example: '2026-11-01'
+                note:
+                  type: string
+                  maxLength: 1000
+                  nullable: true
+      responses:
+        '200':
+          description: Đã cập nhật thông tin phiếu xuất nháp; ETag trả version mới.
+          headers:
+            ETag:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: STATE_CONFLICT / DRAFT_EXPIRED / SCANNED_DOCUMENT_IMMUTABLE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '412':
+          description: STALE_VERSION — If-Match không khớp
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Dữ liệu không hợp lệ hoặc có lines
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '428':
+          description: Thiếu If-Match
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/v1/outbound-documents/{id}/cancel:
     post:
       operationId: cancelOutboundDocument

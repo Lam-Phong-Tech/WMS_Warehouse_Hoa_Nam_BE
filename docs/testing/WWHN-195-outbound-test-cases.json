@@ -396,17 +396,19 @@
       "id": "W195-SRC-002",
       "priority": "P0",
       "area": "source-of-truth",
-      "scenario": "PATCH /api/v1/outbound-documents/{id} không có route runtime",
-      "expected_http": 404,
+      "scenario": "PATCH /api/v1/outbound-documents/{id} chỉ sửa header phiếu xuất DRAFT",
+      "expected_http": 200,
       "expected": [
-        "route table không đăng ký PATCH/PUT /outbound-documents/{id}",
-        "không còn annotation operationId stock_out_update",
-        "FE không còn hàm updateOutboundDocument gọi PATCH"
+        "route PATCH tồn tại, handler CurrentBaselineDocumentController@updateOutbound",
+        "permission outbound.request.manual_create|outbound.import + EnforceOutboundWarehouseScope",
+        "chỉ DRAFT; gửi lines → 422 SOURCE_REQUEST_IMMUTABLE",
+        "If-Match bắt buộc (428/412); header toa nguồn được cập nhật đồng bộ",
+        "annotation operationId stock_out_update có mặt"
       ],
       "traces": [
         "SRS §8.1",
         "REQ-SRS-014",
-        "DEV195-P1-05R2"
+        "AMD-API-052"
       ]
     },
     {
