@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\OutboundDocumentNumber;
 use Modules\Warehouse\Support\Concerns\ResolvesActor;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use OpenApi\Attributes as OA;
@@ -451,7 +452,7 @@ class CurrentBaselineImportController extends CurrentBaselineOperationsControlle
                         }
 
                         $documentId = (string) Str::uuid();
-                        $outboundDocNo = 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6));
+                        $outboundDocNo = app(OutboundDocumentNumber::class)->next();
                         DB::table('stock_documents')->insert([
                             'id' => $documentId,
                             'doc_type' => 'issue',

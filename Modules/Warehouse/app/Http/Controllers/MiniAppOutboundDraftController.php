@@ -251,7 +251,7 @@ class MiniAppOutboundDraftController extends Controller
         }
 
         $documentId = (string) Str::uuid();
-        $docNo = $reservedNumber ?? 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(6));
+        $docNo = $reservedNumber ?? app(OutboundDocumentNumber::class)->next();
         $documentCreatedAt = now();
         $documentInsert = [
             'id' => $documentId,

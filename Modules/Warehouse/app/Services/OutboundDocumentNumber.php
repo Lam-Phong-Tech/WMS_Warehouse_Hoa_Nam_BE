@@ -67,6 +67,10 @@ final class OutboundDocumentNumber
     /** The enclosing business transaction retains the date lock until commit. */
     public function next(): string
     {
+        if (! $this->ready()) {
+            ApiError::abort(503, 'P05_NUMBERING_SCHEMA_UNAVAILABLE', 'Nguồn giữ số PX chưa sẵn sàng.');
+        }
+
         return DB::transaction(function (): string {
             $day = now('Asia/Ho_Chi_Minh');
             $prefix = 'PX-'.$day->format('Ymd').'-';
