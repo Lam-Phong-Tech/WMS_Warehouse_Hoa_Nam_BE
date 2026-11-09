@@ -17,6 +17,7 @@ use Modules\Warehouse\Events\WarrantyCaseCreated;
 use Modules\Warehouse\Events\WarrantyStatusChanged;
 use Modules\Warehouse\Services\ProductIdentityResolver;
 use Modules\Warehouse\Services\ProductQrPayloadParser;
+use Modules\Warehouse\Services\WarrantyCaseNumber;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\P09WarrantyHandover;
 use Modules\Warehouse\Support\WarrantyCasePii;
@@ -188,7 +189,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
             $caseCode = trim((string) ($validated['warranty_case_code'] ?? $validated['case_no'] ?? ''));
             if ($caseCode === '') {
-                $caseCode = 'WC-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4));
+                $caseCode = app(WarrantyCaseNumber::class)->next();
             }
             if (DB::table('warranty_case')->where('warranty_case_code', $caseCode)->exists()) {
                 ApiError::abort(422, 'WARRANTY_CASE_CODE_EXISTS', 'Mã phiếu bảo hành đã tồn tại.');

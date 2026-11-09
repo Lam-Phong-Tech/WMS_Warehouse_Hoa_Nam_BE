@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\WarrantyCaseNumber;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 use Modules\Warehouse\Support\MasterSelectionGuard;
 use Modules\Warehouse\Support\WarrantyCasePii;
@@ -329,7 +330,7 @@ class CurrentBaselineOperationsController extends Controller
             // WWHN-SEC-06: xem Modules/Warehouse/app/Support/WarrantyCasePii.php.
             DB::table('warranty_case')->insert(WarrantyCasePii::encode([
                 'warranty_case_id' => $caseId,
-                'warranty_case_code' => $validated['warranty_case_code'] ?? ('WC-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4))),
+                'warranty_case_code' => $validated['warranty_case_code'] ?? app(WarrantyCaseNumber::class)->next(),
                 'item_id' => $item?->item_id,
                 'inventory_serial_id' => null,
                 'product_id' => $item?->sku_id,

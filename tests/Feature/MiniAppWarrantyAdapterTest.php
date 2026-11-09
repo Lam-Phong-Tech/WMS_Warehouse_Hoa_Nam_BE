@@ -79,6 +79,8 @@ class MiniAppWarrantyAdapterTest extends TestCase
             ->assertJsonPath('data.receipt.status', 'RECEIVED')
             ->assertJsonPath('data.receipt.stock_effect', 'NONE');
         $caseId = (string) $create->json('data.warranty_case_id');
+        $caseCode = (string) DB::table('warranty_case')->where('warranty_case_id', $caseId)->value('warranty_case_code');
+        $this->assertMatchesRegularExpression('/^WC-[0-9]{8}-[0-9]{4,}$/D', $caseCode);
 
         $this->getJson("/api/v1/mini-app/warranty-cases/{$caseId}", $headers)
             ->assertOk()

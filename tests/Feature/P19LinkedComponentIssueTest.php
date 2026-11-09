@@ -59,6 +59,10 @@ class P19LinkedComponentIssueTest extends TestCase
             ->assertJsonPath('data.p19_result.lines.0.required_qty', 3)->assertJsonPath('data.p19_result.lines.0.scanned_qty', 3)
             ->assertJsonPath('data.p19_result.movements.0.qty_delta', -3)->assertJsonPath('meta.p03_draft.receipt.command', 'RECORD');
         $id = $first->json('data.component_issue_document_id');
+        $this->assertMatchesRegularExpression(
+            '/^CID-[0-9]{8}-[0-9]{4,}$/D',
+            (string) DB::table('component_issue_documents')->where('id', $id)->value('component_issue_no'),
+        );
         $this->assertSame($id, $first->json('data.p19_result.business_document_id'));
         $this->assertNotNull($first->json('data.p19_result.posted_at'));
         $retry = $this->postJson(self::RECORD, $this->body($f), $this->recordHeaders($f, $draft, $key))->assertCreated()->assertHeader('Idempotent-Replay', 'true');
