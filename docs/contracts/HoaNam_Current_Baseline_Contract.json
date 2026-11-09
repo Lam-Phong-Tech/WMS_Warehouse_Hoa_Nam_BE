@@ -11,7 +11,7 @@
   "api": {
     "prefix": "/api/v1",
     "operation_count": 174,
-    "operation_count_note": "Công thức đếm (10/09/2026): operation_count + annex_c_alignment + erd_alignment + post_baseline_amendments; label-snapshots/{id}/apply (+1 Flow 06 cũ) đã gỡ ở GĐ1 nên nằm trong retired_operations và phải vắng mặt. 174 = 176 - 2. SRS v1.12 §8.1 (Outbound request / Excel intake) chốt 'Confirm creates exactly one outbound DRAFT; no direct POST /outbound-documents create operation' và Annex C không khai createOutboundDocument/updateOutboundDocument, nên POST /api/v1/outbound-documents và PATCH /api/v1/outbound-documents/{id} đã được gỡ khỏi API surface (DR_HN_20260817_OUTBOUND_FLOW03_ALIGNMENT).",
+    "operation_count_note": "Công thức đếm (10/09/2026): operation_count + annex_c_alignment + erd_alignment + post_baseline_amendments; label-snapshots/{id}/apply (+1 Flow 06 cũ) đã gỡ ở GĐ1 nên nằm trong retired_operations và phải vắng mặt. 174 = 176 - 2. SRS v1.12 §8.1 (Outbound request / Excel intake) chốt 'Confirm creates exactly one outbound DRAFT; no direct POST /outbound-documents create operation', nên POST /api/v1/outbound-documents vẫn vắng mặt. PATCH /api/v1/outbound-documents/{id} được mở lại có kiểm soát cho phiếu DRAFT (AMD-API-052, 09/11/2026); dòng SKU vẫn bất biến.",
     "http_error_statuses": [400, 401, 403, 404, 409, 412, 422, 428, 500],
     "forbidden_path_fragments": ["stocktake", "adjustment", "variance", "recount", "cycle-count", "physical-count", "transfer-orders", "stock-requests", "inventory-reservations", "inventory-snapshots", "safe-stock", "close-remainder"],
     "forbidden_path_fragments_note": "DISP-STK-236 (WWHN-236): truoc day chi chan manh stocktake, nen mot route sua ton dat ten khac - vi du POST /api/v1/inventory/apply-adjustment - van lot qua toan bo gate. REQ-SRS-037 cam moi action sua ton truc tiep chu khong rieng action mang chu stocktake, nen bo sung adjustment va variance. Fragment adjustment la substring bao trum ca apply-adjustment lan adjustments. Correction path duy nhat la Reversal append-only (BR-REV-01/02). DISP-STK-233 (WWHN-233) bo sung tiep recount / cycle-count / physical-count: nhanh WWHN-59/233 mang AC count-recount-partial-stale, va mot route dem lai ton kho khong nhat thiet chua chu stocktake hay adjustment. Khong dung fragment count tran vi no qua rong.",
@@ -886,6 +886,16 @@
           "owner": "IAM owner + Security + BA + QA",
           "approval": "PENDING (Security + BA + QA live acceptance)",
           "operations": ["GET /api/v1/users/{id}/avatar"]
+        },
+        {
+          "id": "AMD-API-052",
+          "introduced_in": "735b7f85",
+          "introduced_at": "2026-11-09",
+          "title": "Draft outbound header edit",
+          "rationale": "User-requested parity with the inbound draft form: edit recipient/address/phone/agency/request date/note while the outbound document is DRAFT. Lines remain immutable (SOURCE_REQUEST_IMMUTABLE); attachments keep their existing endpoints.",
+          "owner": "Outbound owner + BA + QA",
+          "approval": "PENDING (BA + QA live acceptance)",
+          "operations": ["PATCH /api/v1/outbound-documents/{id}"]
         }
       ]
     },

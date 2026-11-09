@@ -138,9 +138,10 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/inbound-documents/{id}/post-receipt' => 'CurrentBaselineStockFlowController@postReceipt',
             'POST api/v1/inbound-documents/{id}/reverse' => 'CurrentBaselineStockFlowController@reverseInbound',
             // §8.1: "Confirm creates exactly one outbound DRAFT; no direct POST
-            // /outbound-documents create operation" — 2 route tạo/sửa phiếu xuất trực
-            // tiếp đã được gỡ khỏi API surface (xem test_removed_outbound_write_routes).
+            // /outbound-documents create operation" — POST tạo trực tiếp vẫn bị cấm.
+            // PATCH header phiếu DRAFT được mở có kiểm soát (AMD-API-052).
             'POST api/v1/outbound-documents/{id}/cancel' => 'CurrentBaselineDocumentController@cancelOutbound',
+            'PATCH api/v1/outbound-documents/{id}' => 'CurrentBaselineDocumentController@updateOutbound',
             'POST api/v1/outbound-documents/{id}/scan' => 'AlignedOutboundFlowController@outboundScan',
             'POST api/v1/outbound-documents/{id}/post-issue' => 'BaM1OutboundFlowController@postIssue',
             'POST api/v1/outbound-documents/{id}/reverse' => 'CurrentBaselineStockFlowController@reverseOutbound',
@@ -180,13 +181,18 @@ class DocumentationBaselineContractTest extends TestCase
 
     /**
      * SRS §8.1 (Outbound request / Excel intake): "Confirm creates exactly one outbound
-     * DRAFT; no direct POST /outbound-documents create operation." Annex C không khai
-     * createOutboundDocument/updateOutboundDocument → 2 route này phải vắng mặt.
+     * DRAFT; no direct POST /outbound-documents create operation." PATCH header phiếu
+     * DRAFT được mở lại có kiểm soát (AMD-API-052); POST create vẫn phải vắng mặt.
      */
-    public function test_removed_outbound_write_routes_are_absent_from_api_surface(): void
+    public function test_direct_outbound_create_is_absent_and_draft_update_is_present(): void
     {
         $this->assertNull($this->findRoute('POST', 'api/v1/outbound-documents'));
-        $this->assertNull($this->findRoute('PATCH', 'api/v1/outbound-documents/{id}'));
+        $patch = $this->findRoute('PATCH', 'api/v1/outbound-documents/{id}');
+        $this->assertNotNull($patch, 'PATCH /api/v1/outbound-documents/{id} must exist for DRAFT header edits.');
+        $this->assertStringEndsWith(
+            'CurrentBaselineDocumentController@updateOutbound',
+            $patch->getActionName()
+        );
     }
 
     public function test_canonical_route_permissions_cover_core_mutations(): void
@@ -201,6 +207,7 @@ class DocumentationBaselineContractTest extends TestCase
             'POST api/v1/inbound-documents/{id}/post-receipt' => 'permission:inbound.post',
             'POST api/v1/outbound-documents/{id}/scan' => 'permission:outbound.scan',
             'POST api/v1/outbound-documents/{id}/post-issue' => 'permission:outbound.post',
+            'PATCH api/v1/outbound-documents/{id}' => 'permission:outbound.request.manual_create|outbound.import',
             'POST api/v1/inbound-documents/{id}/reverse' => 'permission:inventory.reversal.post',
             'POST api/v1/outbound-documents/{id}/reverse' => 'permission:inventory.reversal.post',
             // Annex C importOutboundRequestExcel: outbound.request.import (giữ

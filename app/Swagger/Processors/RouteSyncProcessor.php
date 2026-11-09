@@ -151,6 +151,7 @@ class RouteSyncProcessor
         'post api/v1/putaway/tasks/{id}/confirm' => 'Xác nhận xếp BOX vào TRAY',
         'post api/v1/putaway/tasks/{id}/cancel' => 'Huỷ tác vụ xếp BOX vào TRAY',
         'get api/v1/putaway/history' => 'Lịch sử xếp BOX vào TRAY',
+        'patch api/v1/outbound-documents/{id}' => 'Sửa thông tin phiếu xuất nháp',
         'post api/v1/outbound-documents/{id}/scan' => 'Quét hàng cho phiếu xuất',
         'post api/v1/outbound-documents/{id}/unmatch' => 'Gỡ item đã match khỏi phiếu xuất',
         'post api/v1/outbound-documents/{id}/post-issue' => 'Ghi nhận xuất kho cho phiếu xuất',

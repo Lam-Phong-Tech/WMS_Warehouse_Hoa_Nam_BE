@@ -137,10 +137,9 @@ class CurrentBaselineDocumentController extends Controller
     }
 
     // §8.1 (Outbound request / Excel intake): "Confirm creates exactly one outbound
-    // DRAFT; no direct POST /outbound-documents create operation." Annex C cũng không
-    // khai createOutboundDocument/updateOutboundDocument, nên storeOutbound/updateOutbound
-    // đã được gỡ khỏi surface — phiếu xuất chỉ sinh từ POST
-    // /outbound-request-imports/{id}/confirm và sửa nội dung toa phải làm ở bước Confirm.
+    // DRAFT; no direct POST /outbound-documents create operation." Phiếu xuất chỉ
+    // sinh từ POST /outbound-request-imports/{id}/confirm. Riêng phiếu DRAFT được
+    // sửa header qua updateOutbound bên dưới; dòng SKU vẫn bất biến.
 
     public function updateInbound(Request $request, string $id)
     {
@@ -162,6 +161,142 @@ class CurrentBaselineDocumentController extends Controller
         ]);
 
         return $this->updateDocument($request, $id, 'receipt', $validated);
+    }
+
+    #[OA\Patch(
+        path: '/api/v1/outbound-documents/{id}',
+        operationId: 'stock_out_update',
+        summary: 'Sửa thông tin đầu phiếu xuất nháp (chỉ DRAFT)',
+        description: 'Chỉ sửa header người nhận/địa chỉ/SĐT/đại lý/ngày yêu cầu/ghi chú của phiếu xuất DRAFT. Dòng SKU vẫn chốt từ toa nguồn; gửi lines → 422 SOURCE_REQUEST_IMMUTABLE. Bắt buộc If-Match.',
+        security: [['bearerAuth' => []]],
+        tags: ['10. Stock Out (Outbound)'],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string', example: '"1"')),
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'recipient_name', type: 'string', maxLength: 200),
+                new OA\Property(property: 'recipient_address', type: 'string', maxLength: 1000, nullable: true),
+                new OA\Property(property: 'recipient_contact_phone', type: 'string', maxLength: 50, nullable: true, example: '0901234567'),
+                new OA\Property(property: 'agency_id', type: 'string', format: 'uuid', nullable: true),
+                new OA\Property(property: 'request_date', type: 'string', format: 'date', example: '2026-11-01'),
+                new OA\Property(property: 'note', type: 'string', maxLength: 1000, nullable: true),
+            ])
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Đã cập nhật thông tin phiếu xuất nháp; ETag trả version mới.'),
+            new OA\Response(response: 401, description: 'Chưa xác thực'),
+            new OA\Response(response: 403, description: 'Không có quyền outbound.request.manual_create/outbound.import hoặc ngoài warehouse scope'),
+            new OA\Response(response: 404, description: 'Không tìm thấy phiếu xuất'),
+            new OA\Response(response: 409, description: 'STATE_CONFLICT — chỉ DRAFT; DRAFT_EXPIRED; SCANNED_DOCUMENT_IMMUTABLE'),
+            new OA\Response(response: 412, description: 'STALE_VERSION — If-Match không khớp'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc có lines'),
+            new OA\Response(response: 428, description: 'Thiếu If-Match'),
+        ]
+    )]
+    public function updateOutbound(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'recipient_name' => ['sometimes', 'required', 'string', 'max:200'],
+            'recipient_address' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'recipient_contact_phone' => ['sometimes', 'nullable', 'string', 'max:50', 'regex:/^0\d{9}$/'],
+            'agency_id' => ['sometimes', 'nullable', 'uuid', 'exists:agencies,agency_id'],
+            'request_date' => ['sometimes', 'date_format:Y-m-d', 'after_or_equal:'.InputLimits::DATE_MIN, 'before_or_equal:'.InputLimits::pastDateMax()],
+            'note' => ['sometimes', 'nullable', 'string', 'max:1000'],
+        ]);
+
+        if ($request->has('lines')) {
+            ApiError::abort(
+                422,
+                'SOURCE_REQUEST_IMMUTABLE',
+                'Dòng SKU của phiếu xuất sinh từ toa không được sửa; hãy huỷ phiếu và tạo lại nếu cần đổi hàng.'
+            );
+        }
+
+        $expectedVersion = $this->expectedVersion($request);
+        $payload = DB::transaction(function () use ($id, $validated, $expectedVersion): array {
+            $document = $this->lockDocument($id, 'issue');
+            $this->assertVersion($document, $expectedVersion);
+            if ((string) $document->status !== 'DRAFT') {
+                ApiError::abort(409, 'STATE_CONFLICT', 'Chỉ phiếu xuất ở trạng thái DRAFT mới được sửa thông tin.');
+            }
+            $this->assertDraftNotExpired($document);
+            if ($this->hasScanEvidence($id, 'issue')) {
+                ApiError::abort(409, 'SCANNED_DOCUMENT_IMMUTABLE', 'Phiếu đã có scan evidence; hãy Cancel và tạo lại để không xóa lịch sử scan.');
+            }
+            if (array_key_exists('agency_id', $validated)) {
+                // Giữ được đại lý đã gán dù đại lý đó đã ngừng hoạt động.
+                MasterSelectionGuard::assertAgencySelectable($validated['agency_id'], $document->agency_id);
+            }
+
+            $updates = collect($validated)->only([
+                'recipient_name',
+                'recipient_address',
+                'recipient_contact_phone',
+                'agency_id',
+                'note',
+            ])->all();
+            if (array_key_exists('recipient_contact_phone', $updates) && $updates['recipient_contact_phone'] === '') {
+                $updates['recipient_contact_phone'] = null;
+            }
+            $updates['version'] = $expectedVersion + 1;
+            $updates['updated_by'] = $this->actorId();
+            $updates['updated_at'] = now();
+            DB::table('stock_documents')->where('id', $id)->update($updates);
+
+            if ($document->outbound_request_id !== null) {
+                $requestUpdates = [];
+                if (array_key_exists('recipient_name', $updates)) {
+                    $requestUpdates['recipient_name'] = $updates['recipient_name'];
+                    $requestUpdates['customer_name'] = $updates['recipient_name'];
+                }
+                if (array_key_exists('recipient_address', $updates)) {
+                    $address = (string) ($updates['recipient_address'] ?? '');
+                    $requestUpdates['recipient_address'] = $address;
+                    $requestUpdates['customer_address'] = $address;
+                }
+                if (array_key_exists('recipient_contact_phone', $updates)) {
+                    $requestUpdates['customer_phone'] = $updates['recipient_contact_phone'];
+                }
+                if (array_key_exists('agency_id', $updates)) {
+                    $requestUpdates['agency_id'] = $updates['agency_id'];
+                }
+                if (array_key_exists('request_date', $validated)) {
+                    $requestUpdates['request_date'] = $validated['request_date'];
+                }
+                if ($requestUpdates !== []) {
+                    $requestUpdates['version'] = DB::raw('version + 1');
+                    $requestUpdates['updated_by'] = $this->actorId();
+                    $requestUpdates['updated_at'] = now();
+                    DB::table('outbound_requests')
+                        ->where('id', $document->outbound_request_id)
+                        ->update($requestUpdates);
+                }
+            }
+
+            AuditLogger::record(
+                action: 'UPDATE_STOCK_DOCUMENT',
+                objectType: 'stock_document',
+                objectId: $id,
+                actorId: $this->actorId(),
+                requestId: request()?->attributes->get('request_id'),
+                beforeData: ['version' => $expectedVersion, 'status' => $document->status],
+                afterData: [
+                    'version' => $expectedVersion + 1,
+                    'status' => $document->status,
+                    'line_update_mode' => 'NONE',
+                ],
+            );
+
+            return $this->documentPayload($id);
+        }, 3);
+
+        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+
+        return $this->respondSuccess($payload, 'Cập nhật thông tin phiếu xuất kho thành công.')
+            ->header('ETag', '"'.((int) ($payload['version'] ?? 0)).'"');
     }
 
     #[OA\Post(

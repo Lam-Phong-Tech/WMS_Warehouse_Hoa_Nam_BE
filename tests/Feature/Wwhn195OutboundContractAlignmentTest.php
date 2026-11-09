@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundDocumentController;
 use Modules\Warehouse\Http\Controllers\AlignedOutboundFlowController;
 use Modules\Warehouse\Http\Controllers\BaM1OutboundFlowController;
+use Modules\Warehouse\Http\Controllers\CurrentBaselineDocumentController;
 use Symfony\Component\Yaml\Yaml;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -43,6 +44,9 @@ class Wwhn195OutboundContractAlignmentTest extends TestCase
     private const CANONICAL_SURFACE = [
         'api/v1/outbound-documents' => [
             'GET' => AlignedOutboundDocumentController::class.'@index',
+        ],
+        'api/v1/outbound-documents/{id}' => [
+            'PATCH' => CurrentBaselineDocumentController::class.'@updateOutbound',
         ],
         'api/v1/outbound-documents/{id}/scan' => [
             'POST' => AlignedOutboundFlowController::class.'@outboundScan',
@@ -79,19 +83,26 @@ class Wwhn195OutboundContractAlignmentTest extends TestCase
         }
     }
 
-    public function test_ghost_create_and_update_operations_do_not_exist_at_runtime(): void
+    public function test_direct_create_is_absent_and_draft_update_is_registered(): void
     {
-        // SRS v1.12 §8.1/Annex C: "Confirm creates exactly one outbound DRAFT;
-        // no direct POST /outbound-documents create operation."
-        foreach ([['POST', 'api/v1/outbound-documents'], ['PATCH', 'api/v1/outbound-documents/{id}'], ['PUT', 'api/v1/outbound-documents/{id}']] as [$method, $uri]) {
+        // SRS v1.12 §8.1: "Confirm creates exactly one outbound DRAFT; no direct
+        // POST /outbound-documents create operation." Phiếu DRAFT được sửa header
+        // qua PATCH có kiểm soát (AMD-API-052); không có PUT thay thế.
+        foreach ([['POST', 'api/v1/outbound-documents'], ['PUT', 'api/v1/outbound-documents/{id}']] as [$method, $uri]) {
             $found = collect(Route::getRoutes()->getRoutes())
                 ->first(fn ($route) => in_array($method, $route->methods(), true) && $route->uri() === $uri);
             $this->assertNull($found, "Ghost operation {$method} {$uri} không được tồn tại (§8.1).");
         }
 
+        $patch = collect(Route::getRoutes()->getRoutes())
+            ->first(fn ($route) => in_array('PATCH', $route->methods(), true) && $route->uri() === 'api/v1/outbound-documents/{id}');
+        $this->assertNotNull($patch, 'PATCH /outbound-documents/{id} phải tồn tại cho phiếu DRAFT.');
+        $this->assertSame(CurrentBaselineDocumentController::class.'@updateOutbound', $patch->getActionName());
+
         $source = (string) file_get_contents(base_path('Modules/Warehouse/app/Http/Controllers/OutboundDocumentController.php'));
         $this->assertStringNotContainsString("operationId: 'stock_out_create'", $source);
-        $this->assertStringNotContainsString("operationId: 'stock_out_update'", $source);
+        $updateSource = (string) file_get_contents(base_path('Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php'));
+        $this->assertStringContainsString("operationId: 'stock_out_update'", $updateSource);
     }
 
     public function test_published_contract_declares_exactly_the_runtime_outbound_surface(): void

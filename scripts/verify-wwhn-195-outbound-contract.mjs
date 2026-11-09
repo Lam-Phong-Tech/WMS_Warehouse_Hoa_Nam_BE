@@ -9,9 +9,9 @@
  *
  * Kiểm 6 bất biến mà review R2 đã bắt lỗi:
  *
- *  V1  Không còn ghost operation: routes/api.php + ServiceProvider không đăng ký
- *      POST /outbound-documents hay PATCH/PUT /outbound-documents/{id}; annotation
- *      Swagger inline cũng không còn stock_out_create / stock_out_update.
+ *  V1  POST /outbound-documents vẫn không được đăng ký (direct create bị cấm); PATCH
+ *      /outbound-documents/{id} tồn tại có kiểm soát cho phiếu DRAFT (AMD-API-052),
+ *      không có PUT; annotation stock_out_create vắng mặt và stock_out_update có mặt.
  *  V2  Mỗi route outbound chỉ được đăng ký MỘT nơi. Đây là gốc của cả ba lệch R2:
  *      routes/api.php khai một handler rồi ServiceProvider override sang handler khác.
  *  V3  Contract khai đúng bằng tập route runtime (đối chiếu qua `php artisan route:list`
@@ -40,6 +40,7 @@ const PROVIDER = 'Modules/Warehouse/app/Providers/Flow06AlignmentServiceProvider
 const FLOW = 'Modules/Warehouse/app/Http/Controllers/AlignedOutboundFlowController.php';
 const LEGACY_FLOW = 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineStockFlowController.php';
 const DOC_CONTROLLER = 'Modules/Warehouse/app/Http/Controllers/OutboundDocumentController.php';
+const UPDATE_CONTROLLER = 'Modules/Warehouse/app/Http/Controllers/CurrentBaselineDocumentController.php';
 const FE_SERVICE = 'src/modules/outbound/services/mvpOutboundService.ts';
 const FE_MODAL = 'src/modules/outbound/components/AlignedOutboundDetailModal.tsx';
 
@@ -143,28 +144,33 @@ function runtimeOperations() {
   }
 }
 
-check('V1', 'Ghost operation POST/PATCH /outbound-documents đã bị gỡ', () => {
+check('V1', 'Direct create bị cấm; PATCH header phiếu DRAFT có kiểm soát', () => {
   const routes = read(ROUTES);
   const provider = read(PROVIDER);
   const controller = read(DOC_CONTROLLER);
+  const updateController = read(UPDATE_CONTROLLER);
 
   assert(
     !/Route::post\(\s*'outbound-documents'/.test(routes + provider),
     'Vẫn còn đăng ký POST /outbound-documents (§8.1 cấm direct create).',
   );
   assert(
-    !/Route::(patch|put)\(\s*'outbound-documents\/\{id\}'/.test(routes + provider),
-    'Vẫn còn đăng ký PATCH/PUT /outbound-documents/{id}.',
+    /Route::patch\(\s*'outbound-documents\/\{id\}',\s*\[CurrentBaselineDocumentController::class,\s*'updateOutbound'\]/.test(routes + provider),
+    'Thiếu Route::patch outbound-documents/{id} → updateOutbound.',
+  );
+  assert(
+    !/Route::put\(\s*'outbound-documents\/\{id\}'/.test(routes + provider),
+    'Không được đăng ký PUT /outbound-documents/{id}.',
   );
   assert(
     !controller.includes("operationId: 'stock_out_create'"),
     'Annotation Swagger vẫn khai stock_out_create.',
   );
   assert(
-    !controller.includes("operationId: 'stock_out_update'"),
-    'Annotation Swagger vẫn khai stock_out_update.',
+    updateController.includes("operationId: 'stock_out_update'"),
+    'Annotation Swagger thiếu stock_out_update.',
   );
-  return 'route + annotation đều sạch';
+  return 'direct create sạch; PATCH DRAFT có annotation + handler';
 });
 
 check('V2', 'Mỗi route outbound chỉ đăng ký một nơi (không override kép)', () => {

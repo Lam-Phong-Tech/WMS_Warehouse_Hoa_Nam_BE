@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Services\ComponentContainerSubledgerService;
+use Modules\Warehouse\Services\ComponentIssueNumber;
 use Modules\Warehouse\Services\CurrentBaselineStockService;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
 
@@ -58,7 +59,7 @@ class CurrentBaselineComponentIssueController extends Controller
             $documentId = (string) Str::uuid();
             DB::table('component_issue_documents')->insert([
                 'id' => $documentId,
-                'component_issue_no' => $validated['component_issue_no'] ?? ('CID-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4))),
+                'component_issue_no' => $validated['component_issue_no'] ?? app(ComponentIssueNumber::class)->next(),
                 'warehouse_id' => $validated['warehouse_id'],
                 'warranty_case_id' => $validated['warranty_case_id'],
                 'document_date' => $validated['document_date'],
