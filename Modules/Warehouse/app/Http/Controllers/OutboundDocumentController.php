@@ -63,10 +63,8 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 404, description: 'Không tìm thấy chứng từ'),
     ]
 )]
-// GHOST OPERATION ĐÃ GỠ (DEV195-P1-05R2): `PATCH /api/v1/outbound-documents/{id}`
-// (operationId stock_out_update). Không có route runtime; header phiếu xuất được
-// chốt tại bước Confirm toa (recipient/địa chỉ/SĐT resolve trước Confirm theo
-// REQ-SRS-014), sau đó phiếu chỉ đi tiếp scan → label → post-issue → cancel.
+// Phiếu xuất được chốt header tại bước Confirm toa; riêng phiếu DRAFT có thể
+// sửa header qua PATCH /api/v1/outbound-documents/{id} (updateOutbound).
 #[OA\Post(
     path: '/api/v1/outbound-documents/{id}/cancel',
     operationId: 'stock_out_cancel',
@@ -412,6 +410,18 @@ class OutboundDocumentController extends Controller
         }
 
         $payload = $doc->toArray();
+        // Phiếu xuất chỉ lưu outbound_request_id; form sửa cần mã toa, ngày yêu
+        // cầu và nhãn đại lý đọc được thay vì UUID.
+        $request = $doc->outbound_request_id === null ? null : DB::table('outbound_requests')
+            ->where('id', $doc->outbound_request_id)
+            ->first(['request_no', 'request_date']);
+        $payload['request_no'] = $request->request_no ?? null;
+        $payload['request_date'] = $request->request_date ?? null;
+        $agency = $doc->agency_id === null ? null : DB::table('agencies')
+            ->where('agency_id', $doc->agency_id)
+            ->first(['agency_code', 'agency_name']);
+        $payload['agency_code'] = $agency->agency_code ?? null;
+        $payload['agency_name'] = $agency->agency_name ?? null;
         $payload['lines'] = $this->enrichLinesWithSku($payload['lines'] ?? []);
         $payload['item_matches'] = $this->outboundItemMatches($id);
 

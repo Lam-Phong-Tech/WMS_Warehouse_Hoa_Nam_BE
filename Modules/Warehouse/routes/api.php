@@ -184,6 +184,11 @@ Route::prefix('v1')->group(function (): void {
             ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
         Route::get('outbound-documents/{id}', [OutboundDocumentController::class, 'show'])
             ->middleware(['permission:outbound.view', EnforceOutboundWarehouseScope::class]);
+        // Sửa thông tin đầu phiếu xuất khi còn DRAFT (người nhận/địa chỉ/SĐT/
+        // đại lý/ngày yêu cầu/ghi chú). Dòng SKU vẫn chốt từ toa nguồn; quyền
+        // tải chứng từ vẫn là outbound.scan|outbound.post.
+        Route::patch('outbound-documents/{id}', [CurrentBaselineDocumentController::class, 'updateOutbound'])
+            ->middleware(['permission:outbound.request.manual_create|outbound.import', EnforceOutboundWarehouseScope::class]);
         Route::post('outbound-documents/{id}/cancel', [CurrentBaselineDocumentController::class, 'cancelOutbound'])
             ->middleware(['permission:outbound.cancel', EnforceOutboundWarehouseScope::class]);
         Route::post('outbound-documents/{id}/scan', [AlignedOutboundFlowController::class, 'outboundScan'])
