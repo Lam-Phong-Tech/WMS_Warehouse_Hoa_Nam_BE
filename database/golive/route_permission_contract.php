@@ -235,6 +235,7 @@ return [
     'PATCH api/v1/mini-app/warranty-cases/{id}' => 'permission:warranty.manage',
     'PATCH api/v1/mini-app/warranty-component-issues/{id}/lines/{lineId}' => 'permission:warranty.component_issue',
     'PATCH api/v1/notifications/{id}/read' => 'SELF_SERVICE',
+    'PATCH api/v1/outbound-documents/{id}' => 'permission:outbound.request.manual_create|outbound.import',
     'PATCH api/v1/package-variants/{id}' => 'permission:catalog.manage',
     'PATCH api/v1/physical-codes/{id}' => 'permission:physical_code.assign_rfid',
     'PATCH api/v1/power-sources/{id}' => 'permission:catalog.manage',

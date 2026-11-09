@@ -30,6 +30,7 @@
     "GET /api/v1/outbound-documents/{id}/attachments",
     "GET /api/v1/outbound-documents/{id}/checks/requests/{key}",
     "GET /api/v1/outbound-documents/{id}/items/{itemId}/nfc-history",
+    "PATCH /api/v1/outbound-documents/{id}",
     "POST /api/v1/outbound-documents/{id}/attachments",
     "POST /api/v1/outbound-documents/{id}/cancel",
     "POST /api/v1/outbound-documents/{id}/checks",
@@ -47,8 +48,8 @@
   ],
   "removed_from_previous_version": [],
   "artifacts": {
-    "docs/api-contract/WWHN-195-outbound-openapi.json": "89ed8729ef28690b120221103ff345beeb45ca9563b05b5670f65e966c223e70",
-    "docs/api-contract/WWHN-195-outbound-openapi.yaml": "d6a7a68e0aff401875219be003d71d9b41f0d93f656920e80e36245bddf66c72",
-    "docs/postman/WWHN-195-outbound.postman_collection.json": "d9a49d8e6541bd431be7289571cbcc80e106475c1d76dceb76d6f8522984aed0"
+    "docs/api-contract/WWHN-195-outbound-openapi.json": "f9563ed985284eaa876987bb8d7fb86e6ade6d48378c06b2a1483f107d5e4fe8",
+    "docs/api-contract/WWHN-195-outbound-openapi.yaml": "a6510a44b59069ea88d7a35db18efcd9ea590c7fc91b85a0b0a29ff58041e975",
+    "docs/postman/WWHN-195-outbound.postman_collection.json": "e2599de3eb211c42d47c5774d4466be602f5a34a03cf7d60c96e6d30991a91e6"
   }
 }

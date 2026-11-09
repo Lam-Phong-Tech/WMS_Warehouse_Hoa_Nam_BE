@@ -665,7 +665,7 @@ paths:
       summary: Chi tiết phiếu xuất
       description: >-
         Handler OutboundDocumentController::show. Header phiếu được chốt tại bước Confirm toa
-        (REQ-SRS-014). Phiếu DRAFT được sửa header qua `patch` bên dưới (AMD-API-052).
+        (REQ-SRS-014); phiếu DRAFT được sửa header qua PATCH bên dưới (AMD-API-052).
       x-permission: outbound.view
       x-data-scope: EnforceOutboundWarehouseScope
       parameters:
@@ -689,9 +689,9 @@ paths:
         - Outbound Document
       summary: Sửa thông tin đầu phiếu xuất nháp (chỉ DRAFT)
       description: >-
-        Handler CurrentBaselineDocumentController::updateOutbound. Chỉ DRAFT; dòng SKU vẫn
-        chốt từ toa nguồn (gửi `lines` → 422 SOURCE_REQUEST_IMMUTABLE) và header toa nguồn
-        được cập nhật đồng bộ. Bắt buộc If-Match.
+        Handler CurrentBaselineDocumentController::updateOutbound. Chỉ DRAFT; dòng SKU vẫn chốt từ
+        toa nguồn (gửi `lines` → 422 SOURCE_REQUEST_IMMUTABLE) và header toa nguồn được cập nhật
+        đồng bộ. Bắt buộc If-Match.
       x-permission: outbound.request.manual_create|outbound.import
       x-data-scope: EnforceOutboundWarehouseScope
       parameters:
