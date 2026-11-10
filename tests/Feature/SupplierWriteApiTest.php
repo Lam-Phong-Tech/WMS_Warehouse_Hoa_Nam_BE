@@ -153,6 +153,43 @@ class SupplierWriteApiTest extends TestCase
         $this->assertDatabaseHas('inbound_suppliers', ['id' => $id, 'version' => 1, 'name' => 'Original']);
     }
 
+    public function test_description_is_optional_trimmed_limited_and_searchable(): void
+    {
+        $headers = $this->actor();
+        $created = $this->postJson(self::URL, [
+            'name' => 'Có mô tả', 'description' => '  Nhà cung cấp linh kiện  ',
+        ], $headers)->assertCreated()
+            ->assertJsonPath('data.description', 'Nhà cung cấp linh kiện');
+
+        $this->postJson(self::URL, ['name' => 'Không mô tả'], $headers)->assertCreated()
+            ->assertJsonPath('data.description', null);
+        $this->postJson(self::URL, ['name' => 'Mô tả trống', 'description' => '   '], $headers)
+            ->assertCreated()->assertJsonPath('data.description', null);
+        $this->postJson(self::URL, ['name' => 'Mô tả dài', 'description' => str_repeat('a', 501)], $headers)
+            ->assertUnprocessable()->assertJsonValidationErrors('description');
+        $this->postJson(self::URL, ['name' => 'Mô tả sai kiểu', 'description' => ['nested']], $headers)
+            ->assertUnprocessable()->assertJsonValidationErrors('description');
+        $this->postJson(self::URL, ['name' => 'Mô tả tối đa', 'description' => str_repeat('a', 500)], $headers)
+            ->assertCreated()->assertJsonPath('data.description', str_repeat('a', 500));
+
+        $this->getJson(self::URL.'?q=linh kiện', $headers)->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $created->json('data.id'))
+            ->assertJsonPath('data.0.description', 'Nhà cung cấp linh kiện');
+    }
+
+    public function test_update_can_change_only_description_and_clear_it(): void
+    {
+        $headers = $this->actor();
+        $id = $this->supplier();
+        $this->patchJson(self::URL.'/'.$id, ['description' => '  Mô tả mới  '], $headers + ['If-Match' => '"1"'])
+            ->assertOk()->assertJsonPath('data.description', 'Mô tả mới')->assertJsonPath('data.version', 2);
+        $this->patchJson(self::URL.'/'.$id, ['description' => null], $headers + ['If-Match' => '"2"'])
+            ->assertOk()->assertJsonPath('data.description', null)->assertJsonPath('data.version', 3);
+        $this->patchJson(self::URL.'/'.$id, ['description' => str_repeat('a', 501)], $headers + ['If-Match' => '"3"'])
+            ->assertUnprocessable()->assertJsonValidationErrors('description');
+    }
+
     private function supplier(array $overrides = []): string
     {
         $row = array_replace(['id' => (string) Str::uuid(), 'warehouse_id' => DB::table('warehouses')->where('code', 'KHO-TONG-HN')->value('id'),

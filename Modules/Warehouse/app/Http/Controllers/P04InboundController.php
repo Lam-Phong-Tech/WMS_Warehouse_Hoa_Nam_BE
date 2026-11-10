@@ -110,14 +110,15 @@ final class P04InboundController extends Controller
                 $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], mb_strtolower($term)).'%';
                 $query->where(function ($query) use ($pattern): void {
                     $query->whereRaw("LOWER(name) LIKE ? ESCAPE '!'", [$pattern])
-                        ->orWhereRaw("LOWER(code) LIKE ? ESCAPE '!'", [$pattern]);
+                        ->orWhereRaw("LOWER(code) LIKE ? ESCAPE '!'", [$pattern])
+                        ->orWhereRaw("LOWER(description) LIKE ? ESCAPE '!'", [$pattern]);
                 });
             }
             $total = (clone $query)->count();
             $page = (int) ($input['page'] ?? 1);
             $perPage = (int) ($input['per_page'] ?? 20);
             $rows = $query->orderBy('name')->orderBy('id')->forPage($page, $perPage)
-                ->get(['id', 'code', 'name', 'status', 'version', 'updated_at'])
+                ->get(['id', 'code', 'name', 'description', 'status', 'version', 'updated_at'])
                 ->map(function ($supplier): object {
                     $assigned = is_string($supplier->code) && $supplier->code !== '';
                     $supplier->display_name = $assigned ? $supplier->code.' - '.$supplier->name : $supplier->name;

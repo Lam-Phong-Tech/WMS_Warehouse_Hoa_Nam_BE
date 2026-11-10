@@ -6,11 +6,12 @@ use OpenApi\Attributes as OA;
 
 #[OA\Schema(
     schema: 'P04SupplierDirectoryRow',
-    required: ['id', 'code', 'name', 'display_name', 'code_status', 'status', 'version', 'updated_at'],
+    required: ['id', 'code', 'name', 'description', 'display_name', 'code_status', 'status', 'version', 'updated_at'],
     properties: [
         new OA\Property(property: 'id', type: 'string', format: 'uuid', description: 'Unchanged supplier UUID used as supplier_id in existing SAVE/RECORD commands.'),
         new OA\Property(property: 'code', type: 'string', nullable: true, example: 'NCC-001', description: 'Persisted unique business code. Null means not assigned; GET never allocates one.'),
         new OA\Property(property: 'name', type: 'string', description: 'Unmodified raw supplier name, not the display label.'),
+        new OA\Property(property: 'description', type: 'string', nullable: true, maxLength: 500, description: 'Optional free-text supplier description, trimmed; null when blank or unset.'),
         new OA\Property(property: 'display_name', type: 'string', example: 'NCC-001 - Honda', description: 'Current directory label; not a historical document snapshot.'),
         new OA\Property(property: 'code_status', type: 'string', enum: ['ASSIGNED', 'NOT_ASSIGNED']),
         new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
@@ -26,7 +27,7 @@ use OpenApi\Attributes as OA;
     security: [['bearerAuth' => []]],
     tags: ['22. Mini App'],
     parameters: [
-        new OA\Parameter(name: 'q', in: 'query', schema: new OA\Schema(type: 'string', maxLength: 200), description: 'Literal case-insensitive code OR name search.'),
+        new OA\Parameter(name: 'q', in: 'query', schema: new OA\Schema(type: 'string', maxLength: 200), description: 'Literal case-insensitive code, name or description search.'),
         new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE')),
         new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, default: 1)),
         new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 20)),

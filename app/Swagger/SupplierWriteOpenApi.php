@@ -15,6 +15,7 @@ use OpenApi\Attributes as OA;
         type: 'object', required: ['name'], additionalProperties: false,
         properties: [
             new OA\Property(property: 'name', type: 'string', minLength: 1, maxLength: 200, example: 'Honda'),
+            new OA\Property(property: 'description', type: 'string', maxLength: 500, nullable: true, description: 'Optional free-text description; trimmed, blank becomes null.'),
             new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE'),
         ]
     )),
@@ -26,14 +27,14 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 403, description: 'Inactive account or missing supplier.create.'),
         new OA\Response(response: 409, description: 'Stable session required, canonical warehouse unavailable, unsupported database driver or exhausted NCC namespace.'),
         new OA\Response(response: 413, description: 'JSON body exceeds 16 KiB.'),
-        new OA\Response(response: 422, description: 'Invalid name/status, unknown or immutable fields, or query parameters supplied.'),
+        new OA\Response(response: 422, description: 'Invalid name/description/status, unknown or immutable fields, or query parameters supplied.'),
     ]
 )]
 #[OA\Patch(
     path: '/api/v1/mini-app/inbound/suppliers/{id}',
     operationId: 'p04_supplier_update',
-    summary: 'Edit supplier name/status while preserving UUID, code and receipt history',
-    description: 'Active stable session and supplier.update required. Send at least one of name/status. If-Match must contain the current positive integer version, quoted or unquoted; weak tags, wildcards and lists are rejected. Successful edits increment version. Query parameters and fields other than name/status are rejected.',
+    summary: 'Edit supplier name/description/status while preserving UUID, code and receipt history',
+    description: 'Active stable session and supplier.update required. Send at least one of name/description/status. If-Match must contain the current positive integer version, quoted or unquoted; weak tags, wildcards and lists are rejected. Successful edits increment version. Query parameters and fields other than name/description/status are rejected.',
     security: [['bearerAuth' => []]],
     tags: ['22. Mini App'],
     parameters: [
@@ -44,6 +45,7 @@ use OpenApi\Attributes as OA;
         type: 'object', minProperties: 1, additionalProperties: false,
         properties: [
             new OA\Property(property: 'name', type: 'string', minLength: 1, maxLength: 200, example: 'Honda Viet Nam'),
+            new OA\Property(property: 'description', type: 'string', maxLength: 500, nullable: true, description: 'Optional free-text description; trimmed, blank becomes null. Send null to clear.'),
             new OA\Property(property: 'status', type: 'string', enum: ['ACTIVE', 'INACTIVE']),
         ]
     )),
@@ -57,7 +59,7 @@ use OpenApi\Attributes as OA;
         new OA\Response(response: 409, description: 'Stable session required or supplier version exhausted.'),
         new OA\Response(response: 412, description: 'STALE_VERSION; reload the supplier before retrying.'),
         new OA\Response(response: 413, description: 'JSON body exceeds 16 KiB.'),
-        new OA\Response(response: 422, description: 'Invalid version, invalid/empty payload or unknown/immutable fields.'),
+        new OA\Response(response: 422, description: 'Invalid version, invalid/empty payload, invalid description or unknown/immutable fields.'),
         new OA\Response(response: 428, description: 'PRECONDITION_REQUIRED; If-Match missing.'),
     ]
 )]

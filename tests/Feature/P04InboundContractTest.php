@@ -129,6 +129,7 @@ class P04InboundContractTest extends TestCase
         [, $token, , $warehouse] = $this->actor();
         $a = $this->supplierRow($warehouse, 'Alpha 100%');
         $this->supplierRow($warehouse, 'Alpha 200');
+        $described = $this->supplierRow($warehouse, 'Beta', 'ACTIVE', 'Mô tả đặc biệt');
         $inactive = $this->supplierRow($warehouse, 'Alpha inactive', 'INACTIVE');
         $other = Warehouse::create(['code' => 'P04-OTHER', 'name' => 'Other isolated warehouse', 'status' => 'INACTIVE']);
         $this->supplierRow($other, 'Alpha foreign');
@@ -136,6 +137,9 @@ class P04InboundContractTest extends TestCase
         $this->getJson($url.'&q=Alpha&per_page=1&page=1', $this->headers($token))->assertOk()
             ->assertJsonPath('meta.scope', 'GLOBAL')->assertJsonPath('meta.total', 3)->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $a);
         $this->getJson($url.'&q=100%25', $this->headers($token))->assertOk()->assertJsonPath('meta.total', 1);
+        $this->getJson($url.'&q=đặc biệt', $this->headers($token))->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $described)
+            ->assertJsonPath('data.0.description', 'Mô tả đặc biệt');
         $this->getJson(self::BASE.'/suppliers?status=INACTIVE', $this->headers($token))->assertOk()->assertJsonPath('data.0.id', $inactive);
         $this->getJson($url.'&per_page=101', $this->headers($token))->assertStatus(422);
     }
@@ -632,10 +636,14 @@ class P04InboundContractTest extends TestCase
         return self::BASE.'/drafts/'.$id.'/requests/'.$key.'?'.http_build_query($this->identity($body) + ['command' => $command]);
     }
 
-    private function supplierRow(Warehouse $warehouse, string $name, string $status = 'ACTIVE'): string
+    private function supplierRow(Warehouse $warehouse, string $name, string $status = 'ACTIVE', ?string $description = null): string
     {
         $id = (string) Str::uuid();
-        DB::table('inbound_suppliers')->insert(['id' => $id, 'warehouse_id' => (string) $warehouse->id, 'name' => $name, 'status' => $status, 'version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('inbound_suppliers')->insert([
+            'id' => $id, 'warehouse_id' => (string) $warehouse->id, 'name' => $name,
+            'description' => $description, 'status' => $status, 'version' => 1,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
 
         return $id;
     }

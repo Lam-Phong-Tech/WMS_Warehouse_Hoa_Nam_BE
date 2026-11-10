@@ -35,6 +35,7 @@ final class SupplierWriteController extends Controller
             $row = [
                 'id' => (string) Str::uuid(), 'warehouse_id' => $warehouse->id,
                 'code' => $this->nextCode(), 'name' => $input['name'],
+                'description' => $input['description'] ?? null,
                 'status' => $input['status'] ?? 'ACTIVE', 'version' => 1,
                 'created_at' => now(), 'updated_at' => now(),
             ];
@@ -101,18 +102,25 @@ final class SupplierWriteController extends Controller
             ApiError::abort(413, 'SUPPLIER_PAYLOAD_TOO_LARGE', 'Nội dung nhà cung cấp vượt giới hạn.');
         }
         $input = $request->json()->all();
-        if (array_diff(array_keys($input), ['name', 'status']) !== []) {
-            ApiError::abort(422, 'UNEXPECTED_FIELD', 'Chỉ được gửi tên và trạng thái nhà cung cấp.');
+        if (array_diff(array_keys($input), ['name', 'description', 'status']) !== []) {
+            ApiError::abort(422, 'UNEXPECTED_FIELD', 'Chỉ được gửi tên, mô tả và trạng thái nhà cung cấp.');
         }
         if ($update && $input === []) {
-            ApiError::abort(422, 'EMPTY_UPDATE', 'Cần gửi tên hoặc trạng thái để cập nhật.');
+            ApiError::abort(422, 'EMPTY_UPDATE', 'Cần gửi tên, mô tả hoặc trạng thái để cập nhật.');
         }
         if (isset($input['name']) && is_string($input['name'])) {
             $input['name'] = trim($input['name']);
         }
+        if (array_key_exists('description', $input) && is_string($input['description'])) {
+            $input['description'] = trim($input['description']);
+            if ($input['description'] === '') {
+                $input['description'] = null;
+            }
+        }
 
         return Validator::make($input, [
             'name' => $update ? ['sometimes', 'required', 'string', 'max:200'] : ['required', 'string', 'max:200'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:500'],
             'status' => ['sometimes', 'required', Rule::in(['ACTIVE', 'INACTIVE'])],
         ])->validate();
     }
@@ -139,6 +147,7 @@ final class SupplierWriteController extends Controller
         $assigned = is_string($supplier->code) && $supplier->code !== '';
         $data = [
             'id' => $supplier->id, 'code' => $supplier->code, 'name' => $supplier->name,
+            'description' => $supplier->description,
             'display_name' => $assigned ? $supplier->code.' - '.$supplier->name : $supplier->name,
             'code_status' => $assigned ? 'ASSIGNED' : 'NOT_ASSIGNED', 'status' => $supplier->status,
             'version' => (int) $supplier->version, 'updated_at' => $supplier->updated_at,
