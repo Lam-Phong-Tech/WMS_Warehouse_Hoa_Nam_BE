@@ -103,7 +103,7 @@ services:
     # download_url/error_code = null — đúng triệu chứng WWHN-345.
     # Ngưỡng phải LỚN HƠN `wms_export.memory_limit` (512M) cộng biên, nếu không hàng rào
     # bộ nhớ của WWHN-347 chỉ đổi một kiểu chết này lấy một kiểu chết khác.
-    command: ["sh", "-lc", "php artisan queue:work --tries=3 --timeout=${QUEUE_WORKER_TIMEOUT:-90} --memory=${QUEUE_WORKER_MEMORY_MB:-768}"]
+    command: ["sh", "-lc", "sh /var/www/html/docker/php/queue-supervisor.sh"]
     # WWHN-345 — thoát mã 12 là hành vi THIẾT KẾ của Laravel: nó trông cậy một process
     # supervisor dựng worker dậy. Trong compose, supervisor đó chính là restart policy;
     # thiếu nó thì mọi lần worker dừng (hết bộ nhớ, timeout, `queue:restart`, PHP fatal)
