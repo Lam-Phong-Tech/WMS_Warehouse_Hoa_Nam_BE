@@ -106,6 +106,9 @@ Route::prefix('v1/mini-app')->middleware('auth:api')->group(function (): void {
     Route::get('inbound-documents/{id}', [MiniAppInboundController::class, 'show'])
         ->middleware(['permission:inbound.view', EnforceInboundWarehouseScope::class]);
 
+    Route::get('inbound-documents/{id}/resume-context', [\Modules\Warehouse\Http\Controllers\InboundDraftResumeController::class, 'show'])
+        ->whereUuid('id')->middleware(['permission:inbound.view', 'permission:inbound.create', EnforceInboundWarehouseScope::class]);
+
     Route::post('inbound-documents/{id}/cancel', [MiniAppInboundController::class, 'cancel'])
         ->middleware(['permission:inbound.cancel|inbound.create', EnforceInboundWarehouseScope::class]);
 

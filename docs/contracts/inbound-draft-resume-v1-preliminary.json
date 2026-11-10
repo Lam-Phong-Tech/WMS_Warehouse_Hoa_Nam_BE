@@ -1,0 +1,40 @@
+{
+  "contract": "inbound-draft-resume-v1",
+  "revision": "read-only-candidate-r1",
+  "status": "SOURCE_IMPLEMENTED_NOT_DEPLOYED_WRITE_PENDING",
+  "owner_split_approved": true,
+  "canonical_stock_draft": {
+    "read": "GET /api/v1/mini-app/inbound-documents/{stock_document_id}/resume-context?warehouse_id={confirmed_uuid}",
+    "access": "ACTIVE stable family, inbound.view AND inbound.create, selected warehouse ACL and tenant, stock_documents.created_by exactly caller",
+    "state": "stock_documents receipt DRAFT only; other owner 404, other state 409",
+    "can_resume": false,
+    "reason": "CREATOR_GUARDED_WRITE_PROTOCOL_PENDING",
+    "p03_draft_id": null,
+    "scan_session_id": null,
+    "write_target": null,
+    "source_fields": {
+      "stock_document_id": "stock_documents.id",
+      "document_no": "stock_documents.doc_no",
+      "warehouse_id": "stock_documents.dst_warehouse_id",
+      "owner_user_id": "stock_documents.created_by",
+      "status": "stock_documents.status",
+      "version": "stock_documents.version",
+      "doc_date": "stock_documents.doc_date",
+      "note": "stock_documents.note",
+      "supplier_id": "stock_documents.supplier_id when persisted",
+      "supplier_code": "null: no historical code snapshot on stock DRAFT",
+      "supplier_name": "null: no historical name snapshot on stock DRAFT",
+      "inbound_category": "null: not recorded on stock DRAFT",
+      "items": "stock_document_lines id/line_no/product_id/qty_planned/scanned_qty/version; raw codes not in line"
+    },
+    "never": ["lookup supplier code/name from current directory for history", "invent P03 ID or scan session", "expose existing unsafe canonical PATCH as App resume writer", "insert a stock document on GET"]
+  },
+  "personal_p03_draft": {
+    "list_owner": "mini_app_drafts operation INBOUND, distinct from P12 stock_documents",
+    "existing_same_family_get": "GET /api/v1/mini-app/inbound/drafts/{draft_id}",
+    "new_family_claim": "PENDING: explicit authenticated command, owner/version/UNKNOWN/shift audit and receipt policy",
+    "no_implicit_takeover": true
+  },
+  "write_gates": ["creator-only canonical PATCH with idempotent receipt and original-key GET reconcile", "approved canonical supplier/category snapshot source", "P03 new-family claim/audit and old receipt semantics", "both DB/route-cache tests", "authenticated DEV owner smoke", "Web/APK same source UAT"],
+  "migration_seed_production_changes": false
+}
