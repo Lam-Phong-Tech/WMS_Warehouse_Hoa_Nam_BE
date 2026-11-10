@@ -27,6 +27,7 @@ final class P14ShiftOwnerFence
     {
         if (! $request->is('api/v1/mini-app/*') || $request->isMethodSafe()
             || $request->is('api/v1/mini-app/work-shifts/*') || $this->checkOnly($request)
+            || $this->isSupplierDirectory($request)
             || ! P14ShiftLifecycle::fenceRequired($request)) {
             return $next($request);
         }
@@ -205,6 +206,13 @@ final class P14ShiftOwnerFence
             'api/v1/mini-app/nfc/resolve-code',
             'api/v1/mini-app/nfc/resolve-tag',
         ], true);
+    }
+
+    /** Supplier CRUD is global web-admin master data, not a shift-scoped owner command. */
+    private function isSupplierDirectory(Request $request): bool
+    {
+        return $request->is('api/v1/mini-app/inbound/suppliers')
+            || $request->is('api/v1/mini-app/inbound/suppliers/*');
     }
 
     private function fingerprint(Request $request): string

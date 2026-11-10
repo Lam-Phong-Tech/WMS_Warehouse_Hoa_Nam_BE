@@ -20,6 +20,8 @@ class SupplierWriteApiTest extends TestCase
 
     private const URL = '/api/v1/mini-app/inbound/suppliers';
 
+    private const ADMIN_URL = '/api/v1/master-data/suppliers';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -188,6 +190,35 @@ class SupplierWriteApiTest extends TestCase
             ->assertOk()->assertJsonPath('data.description', null)->assertJsonPath('data.version', 3);
         $this->patchJson(self::URL.'/'.$id, ['description' => str_repeat('a', 501)], $headers + ['If-Match' => '"3"'])
             ->assertUnprocessable()->assertJsonValidationErrors('description');
+    }
+
+    public function test_admin_supplier_writes_are_not_shift_owner_commands(): void
+    {
+        config(['p14.shift_enabled' => true, 'p14.shift_drain_enabled' => false]);
+        $headers = $this->actor();
+
+        $created = $this->postJson(self::ADMIN_URL, ['name' => 'Admin master data'], $headers)
+            ->assertCreated()->assertJsonPath('data.name', 'Admin master data');
+
+        $this->patchJson(self::ADMIN_URL.'/'.$created->json('data.id'), ['name' => 'Renamed from web'], $headers + ['If-Match' => '"1"'])
+            ->assertOk()->assertJsonPath('data.name', 'Renamed from web');
+
+        // The Mini App write routes remain available for existing clients and
+        // must not regress into the shift fence while they are still published.
+        $this->postJson(self::URL, ['name' => 'Legacy mini app route'], $headers)->assertCreated();
+    }
+
+    public function test_admin_supplier_routes_keep_the_same_action_grants(): void
+    {
+        $headers = $this->actor(false, ['supplier.create']);
+        $created = $this->postJson(self::ADMIN_URL, ['name' => 'Admin creator'], $headers)->assertCreated();
+        $this->patchJson(self::ADMIN_URL.'/'.$created->json('data.id'), ['name' => 'Forbidden'], $headers + ['If-Match' => '"1"'])
+            ->assertForbidden();
+
+        $headers = $this->actor(false, ['supplier.update']);
+        $this->postJson(self::ADMIN_URL, ['name' => 'Forbidden'], $headers)->assertForbidden();
+        $this->patchJson(self::ADMIN_URL.'/'.$created->json('data.id'), ['name' => 'Admin updater'], $headers + ['If-Match' => '"1"'])
+            ->assertOk()->assertJsonPath('data.name', 'Admin updater');
     }
 
     private function supplier(array $overrides = []): string

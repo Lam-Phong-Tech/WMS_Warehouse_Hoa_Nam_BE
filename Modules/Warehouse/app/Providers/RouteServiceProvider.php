@@ -36,6 +36,7 @@ class RouteServiceProvider extends ServiceProvider
         $this->mapApiRoutes();
         $this->mapPublicApiRoutes();
         $this->mapMiniAppRoutes();
+        $this->mapMasterDataRoutes();
         $this->mapWorkShiftRoutes();
         $this->mapImportRoutes();
         $this->mapGovernanceRoutes();
@@ -133,6 +134,12 @@ class RouteServiceProvider extends ServiceProvider
     protected function mapWorkShiftRoutes(): void
     {
         Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/work_shifts.php'));
+    }
+
+    /** Web-admin master data stays out of the Mini App shift fence. */
+    protected function mapMasterDataRoutes(): void
+    {
+        Route::middleware('api')->prefix('api')->name('api.')->group(module_path($this->name, '/routes/master_data.php'));
     }
 
     protected function mapImportRoutes(): void

@@ -7,8 +7,10 @@
   },
   "api": {
     "GET /api/v1/mini-app/inbound/suppliers": { "any": ["supplier.view", "inbound.view"], "reason": "Preserve existing inbound picker access" },
-    "POST /api/v1/mini-app/inbound/suppliers": { "all": ["supplier.create"] },
-    "PATCH /api/v1/mini-app/inbound/suppliers/{id}": { "all": ["supplier.update"] }
+    "POST /api/v1/mini-app/inbound/suppliers": { "all": ["supplier.create"], "status": "legacy-compatible" },
+    "PATCH /api/v1/mini-app/inbound/suppliers/{id}": { "all": ["supplier.update"], "status": "legacy-compatible" },
+    "POST /api/v1/master-data/suppliers": { "all": ["supplier.create"], "reason": "Web admin master data; not a shift-scoped owner command" },
+    "PATCH /api/v1/master-data/suppliers/{id}": { "all": ["supplier.update"], "reason": "Web admin master data; not a shift-scoped owner command" }
   },
   "frontend_page": "supplier.view",
   "delegation": "Existing IAM role and individual grant endpoints; unchanged anti-self-escalation, delegation scope and reason requirements",

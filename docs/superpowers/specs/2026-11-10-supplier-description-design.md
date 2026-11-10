@@ -105,3 +105,11 @@ $table->string('description', 500)->nullable();
 - Câu chữ helper/placeholder tiếng Việt/Anh/Trung cụ thể, miễn đúng nghĩa.
 - Cách rút gọn mô tả dài (CSS line-clamp + title) miễn không làm vỡ bảng.
 - Thứ tự chạy migration/kiểm thử trong từng repo.
+
+## Cập nhật 2026-11-10 — tách API web admin khỏi namespace mini-app
+
+- Thêm `POST /api/v1/master-data/suppliers` và `PATCH /api/v1/master-data/suppliers/{id}` cho web admin; dùng chung `SupplierWriteController`, quyền `supplier.create`/`supplier.update`, ETag/version và validation.
+- Giữ nguyên `GET /api/v1/mini-app/inbound/suppliers` cho app mini; giữ luôn hai route ghi cũ để tương thích ngược và miễn trừ riêng nhóm NCC khỏi P14ShiftOwnerFence.
+- FE: danh sách vẫn đọc route mini-app; tạo/sửa NCC chuyển sang `/master-data/suppliers`.
+- Lý do: NCC là danh mục dùng chung, không phải lệnh nghiệp vụ theo ca. P14 vẫn bảo vệ đầy đủ các lệnh nhập/xuất/bảo hành/linh kiện/upload.
+- Thay `window.confirm` bằng `useUiConfirm`/`UiConfirmDialog` cho xác nhận bỏ thay đổi, có nút “Tiếp tục sửa” / “Bỏ thay đổi”.
