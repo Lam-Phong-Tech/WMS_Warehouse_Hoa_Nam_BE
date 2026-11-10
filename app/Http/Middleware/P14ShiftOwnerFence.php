@@ -211,8 +211,10 @@ final class P14ShiftOwnerFence
     /** Supplier CRUD is global web-admin master data, not a shift-scoped owner command. */
     private function isSupplierDirectory(Request $request): bool
     {
-        return $request->is('api/v1/mini-app/inbound/suppliers')
-            || $request->is('api/v1/mini-app/inbound/suppliers/*');
+        return in_array($request->route()?->getName(), [
+            'api.p04.suppliers.store',
+            'api.p04.suppliers.update',
+        ], true);
     }
 
     private function fingerprint(Request $request): string
