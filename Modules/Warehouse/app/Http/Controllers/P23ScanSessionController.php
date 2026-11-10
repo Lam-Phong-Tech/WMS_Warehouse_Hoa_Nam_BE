@@ -16,6 +16,7 @@ use Modules\Warehouse\Support\P08HistoryPolicy;
 use Modules\Warehouse\Support\P09WarrantyPage;
 use Modules\Warehouse\Support\P23ScanSessionPolicy;
 use Modules\Warehouse\Support\P23ScanSessionReadModel;
+use Modules\Warehouse\Support\P23SessionV4;
 use Modules\Warehouse\Support\P23WarrantyDateFilter;
 use Throwable;
 
@@ -26,6 +27,7 @@ final class P23ScanSessionController extends Controller
 
     public function index(Request $request): JsonResponse
     {
+        $v4 = P23SessionV4::requested($request);
         $allowed = ['warehouse_id', 'keyword', 'source_type', 'status', 'page', 'per_page', 'cursor', 'date_mode', 'date_field', 'date', 'from', 'to'];
         if (array_diff(array_keys($request->query()), $allowed) !== []) {
             ApiError::abort(422, 'P23_UNKNOWN_FILTER', 'Bộ lọc ngoài contract phiên quét; không dùng mine hoặc ID phiên đăng nhập để đổi phạm vi.');
@@ -35,9 +37,12 @@ final class P23ScanSessionController extends Controller
             'status' => ['sometimes', 'string', 'max:30']])->validate();
         $input['warehouse_id'] = strtolower($input['warehouse_id']);
 
-        return P06ReadSnapshot::run(function (array $snapshot) use ($request, $input): JsonResponse {
+        return P06ReadSnapshot::run(function (array $snapshot) use ($request, $input, $v4): JsonResponse {
             // Same fresh actor, permission, active warehouse and stable-auth checks as P08.
             $scope = $this->history->scope($request, $input);
+            if ($v4) {
+                $scope = P23SessionV4::scope($scope, $request);
+            }
             $name = config('app.timezone');
             try {
                 if (! is_string($name) || $name === '') {
@@ -84,20 +89,26 @@ final class P23ScanSessionController extends Controller
                 $q->where('s.sort_time', '>=', P23ScanSessionReadModel::dateKey($window['start']))
                     ->where('s.sort_time', '<', P23ScanSessionReadModel::dateKey($window['end']));
             }
-            $pageScope = $scope + ['p23Contract' => P23ScanSessionPolicy::CONTRACT, 'timezone' => $name, 'batchSources' => $sources,
+            $contract = $v4 ? P23SessionV4::CONTRACT : P23ScanSessionPolicy::CONTRACT;
+            $pageScope = $scope + ['p23Contract' => $contract, 'timezone' => $name, 'batchSources' => $sources,
                 'timestamp_contract' => HistoryTimestamp::CONTRACT];
             [$ids, $page] = P09WarrantyPage::read($request, clone $q, $pageScope, 's.session_id', 's.sort_time');
             $rows = (clone $q)->whereIn('s.session_id', $ids)->get()->keyBy('session_id');
             $asOf = HistoryTimestamp::utc(now());
-            $counts = $this->model->counts($scope, $ids, $asOf, $sources);
-            $latest = $this->model->latestEvents($scope, $ids, $asOf, $sources);
-            $data = array_map(fn (string $id): array => $this->model->serializeWithMetadata($rows[$id], $latest[$id] ?? []) + ['counts' => $counts[$id]], $ids);
+            if ($v4) {
+                $projected = app(P23SessionV4::class)->batches($scope, array_map(fn ($id) => $rows[$id], $ids), $asOf, $sources);
+                $data = array_map(fn ($id) => $projected[$id], $ids);
+            } else {
+                $counts = $this->model->counts($scope, $ids, $asOf, $sources);
+                $latest = $this->model->latestEvents($scope, $ids, $asOf, $sources);
+                $data = array_map(fn (string $id): array => $this->model->serializeWithMetadata($rows[$id], $latest[$id] ?? []) + ['counts' => $counts[$id]], $ids);
+            }
             $batchComplete = ! in_array('UNAVAILABLE', array_column($sources, 'status'), true)
                 && ! in_array('UNAVAILABLE', array_column($sources, 'eventStatus'), true);
             $page = array_replace($page, ['availableTotal' => $page['total'], 'total' => $batchComplete ? $page['total'] : null]);
 
-            return response()->json(['success' => true, 'data' => $data, 'meta' => $page + [
-                'contract' => P23ScanSessionPolicy::CONTRACT, 'countUnit' => 'SCAN_SESSION',
+            $response = response()->json(['success' => true, 'data' => $data, 'meta' => $page + [
+                'contract' => $contract, 'countUnit' => 'SCAN_SESSION',
                 'timestamp_contract' => HistoryTimestamp::CONTRACT,
                 'warehouseId' => $scope['warehouse_id'], 'batchSources' => $sources,
                 'coverage' => $batchComplete ? 'SUPPORTED_PERSISTED_BATCHES' : 'PARTIAL_SOURCE',
@@ -111,6 +122,11 @@ final class P23ScanSessionController extends Controller
                 'releaseStatus' => 'SOURCE_IMPLEMENTED_PENDING_BA_AND_LIVE_TEST',
                 'request_id' => $request->attributes->get('request_id'), 'timestamp' => now()->toIso8601String(),
             ]])->header('Cache-Control', 'private, no-store');
+            if ($v4) {
+                $response->setVary([P23SessionV4::HEADER], false);
+            }
+
+            return $response;
         });
     }
 }

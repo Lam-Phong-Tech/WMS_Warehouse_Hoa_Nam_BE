@@ -21,6 +21,7 @@ use Modules\Warehouse\Support\P06ReadSnapshot;
 use Modules\Warehouse\Support\P08HistoryPolicy as Policy;
 use Modules\Warehouse\Support\P08HistoryReadModel;
 use Modules\Warehouse\Support\P23ScanSessionReadModel;
+use Modules\Warehouse\Support\P23SessionV4;
 use Throwable;
 
 /** P08 has GET/HEAD only. History is not a write receipt or proof of NFC confirm. */
@@ -83,17 +84,28 @@ final class P08HistoryController extends Controller
 
     public function scanSession(Request $request, string $sessionId): JsonResponse
     {
+        $v4 = P23SessionV4::requested($request);
         [, $id] = $this->identity('SCAN:'.$sessionId);
 
-        return $this->read($request, function (Builder $q, array $s, array $i, array $m) use ($id): JsonResponse {
+        return $this->read($request, function (Builder $q, array $s, array $i, array $m) use ($id, $v4): JsonResponse {
             $tables = $this->model->requireScanSession($s, $id);
             $q->where('record_id', 'SCAN:'.$id);
             $counts = (clone $q)->selectRaw("COALESCE(status, 'UNKNOWN') AS state, COUNT(*) AS n")->groupByRaw("COALESCE(status, 'UNKNOWN')")->pluck('n', 'state')->all();
             [$events, $paging] = $this->page($q, $s, $i, $m);
 
-            return $this->reply(['sessionId' => $id, 'sessionType' => 'SCAN_BATCH', 'sourceTables' => $tables,
+            if ($v4) {
+                $m['p23_contract'] = P23SessionV4::CONTRACT;
+            }
+
+            $response = $this->reply(['sessionId' => $id, 'sessionType' => 'SCAN_BATCH', 'sourceTables' => $tables,
                 ...Policy::scanCounts($counts), 'events' => $events,
-                'p23' => app(P23ScanSessionReadModel::class)->detail($s, $id, $counts, $m['sources']['SCAN'])], $m + $paging);
+                'p23' => $v4 ? app(P23SessionV4::class)->detail($s, $id, $events, $m['asOf'])
+                    : app(P23ScanSessionReadModel::class)->detail($s, $id, $counts, $m['sources']['SCAN'])], $m + $paging);
+            if ($v4) {
+                $response->setVary([P23SessionV4::HEADER], false);
+            }
+
+            return $response;
         }, 'SCAN');
     }
 
@@ -186,6 +198,9 @@ final class P08HistoryController extends Controller
 
         return P06ReadSnapshot::run(function (array $snapshot) use ($request, $input, $callback): JsonResponse {
             $scope = $this->scope($request, $input);
+            if ($request->route('sessionId') !== null && P23SessionV4::requested($request)) {
+                $scope = P23SessionV4::scope($scope, $request);
+            }
             $filters = $input;
             unset($filters['cursor']);
             $fingerprint = Policy::fingerprint($scope, ['path' => $request->path(),
