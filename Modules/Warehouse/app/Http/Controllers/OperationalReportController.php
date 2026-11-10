@@ -2162,12 +2162,15 @@ class OperationalReportController extends Controller
             ->leftJoin('warehouses as sw', 'sw.id', '=', 'sd.src_warehouse_id')
             ->leftJoin('warehouses as dw', 'dw.id', '=', 'sd.dst_warehouse_id')
             ->leftJoin('agencies as a', 'a.agency_id', '=', 'sd.agency_id')
+            ->leftJoin('inbound_suppliers as sup', 'sup.id', '=', 'sd.supplier_id')
+            ->leftJoin('mini_app_inbound_record_metadata as mim', 'mim.document_id', '=', 'sd.id')
             ->leftJoin('app_user as cu', 'cu.user_id', '=', 'sd.created_by')
             ->leftJoin('app_user as pu', 'pu.user_id', '=', 'sd.posted_by')
             ->whereIn('sd.doc_type', ['receipt', 'issue'])
             ->whereBetween('sd.doc_date', [$from, $to])
             ->select('sd.*', 'sw.code as src_warehouse_code', 'dw.code as dst_warehouse_code', 'a.agency_name',
-                'cu.display_name as creator_name', 'pu.display_name as poster_name');
+                'cu.display_name as creator_name', 'pu.display_name as poster_name',
+                'sup.code as supplier_code', 'sup.name as supplier_name', 'mim.supplier_name as recorded_supplier_name');
         // Chứng từ có hai đầu kho; chỉ cần một đầu nằm trong scope là người dùng có
         // quyền thấy dòng đó (đúng như /inbound-documents, /outbound-documents).
         if ($scope !== null) {
@@ -2214,7 +2217,7 @@ class OperationalReportController extends Controller
             'document_no' => (string) $d->doc_no,
             'doc_type' => $d->doc_type === 'receipt' ? 'INBOUND' : 'OUTBOUND',
             'warehouse_code' => (string) ($d->doc_type === 'receipt' ? $d->dst_warehouse_code : $d->src_warehouse_code),
-            'counterpart' => (string) ($d->doc_type === 'receipt' ? ($d->source_name ?? '') : ($d->agency_name ?: ($d->recipient_name ?? ''))),
+            'counterpart' => (string) ($d->doc_type === 'receipt' ? $this->supplierCounterpart($d) : ($d->agency_name ?: ($d->recipient_name ?? ''))),
             'document_date' => (string) $d->doc_date,
             'status' => strtoupper((string) $d->status),
             'posted_at' => $d->posted_at ?? null,
@@ -2235,6 +2238,24 @@ class OperationalReportController extends Controller
             ],
             'rows' => $rows,
         ], $scope);
+    }
+
+    /**
+     * NCC của phiếu nhập cho cột "Đối tác": ưu tiên NCC gắn trực tiếp trên phiếu
+     * (inbound_suppliers qua sd.supplier_id — hiển thị "MÃ - Tên" như /inbound-documents),
+     * rồi tới snapshot mini_app_inbound_record_metadata ghi lúc quét. Không có NCC →
+     * chuỗi rỗng (FE hiện "—") — TUYỆT ĐỐI không rơi về source_name/payload quét máy:
+     * đó là mã chứng từ nguồn, không phải thông tin đối tác.
+     */
+    private function supplierCounterpart(object $d): string
+    {
+        $code = trim((string) ($d->supplier_code ?? ''));
+        $name = trim((string) ($d->supplier_name ?? ''));
+        if ($name !== '') {
+            return $code !== '' ? $code.' - '.$name : $name;
+        }
+
+        return trim((string) ($d->recorded_supplier_name ?? ''));
     }
 
     /**

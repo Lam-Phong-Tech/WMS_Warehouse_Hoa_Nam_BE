@@ -230,6 +230,60 @@ class ReportFlow06IntegrationTest extends TestCase
             ->assertJsonPath('data.summary.posted', 2);
     }
 
+    public function test_document_history_counterpart_shows_supplier_not_source_payload(): void
+    {
+        $today = now()->toDateString();
+        // NCC gắn trực tiếp trên phiếu → hiển thị "MÃ - Tên" như /inbound-documents.
+        $supplierId = (string) Str::uuid();
+        DB::table('inbound_suppliers')->insert([
+            'id' => $supplierId,
+            'warehouse_id' => $this->warehouse->id,
+            'name' => 'Nhà cung cấp Test',
+            'code' => 'NCC-TEST',
+            'status' => 'ACTIVE',
+            'version' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->createStockDocument('receipt', 'POSTED', $today, 'IN-SUP-001', null, $supplierId, 'HN1|SKU=D051812A|ITEM=QR-IN-20261029-015');
+        // Phiếu scan KHÔNG gắn NCC → đối tác rỗng, tuyệt đối không in payload mã chứng từ nguồn.
+        $this->createStockDocument('receipt', 'POSTED', $today, 'IN-NOSUP-001', null, null, 'HN1|SKU=D051812A|ITEM=QR-IN-20261029-015');
+        // Phiếu mini-app không có supplier_id trên stock_documents nhưng có snapshot metadata lúc quét.
+        $onlySnapshot = $this->createStockDocument('receipt', 'POSTED', $today, 'IN-SNAP-001', null, null, 'HN1|SKU=X|ITEM=QR-SNAP');
+        $draftId = (string) Str::uuid();
+        DB::table('mini_app_drafts')->insert([
+            'document_id' => $draftId,
+            'actor_id' => $this->user->user_id,
+            'auth_session_id' => (string) Str::uuid(),
+            'warehouse_id' => $this->warehouse->id,
+            'scan_session_id' => (string) Str::uuid(),
+            'operation' => 'INBOUND',
+            'status' => 'RECORDED',
+            'version' => 1,
+            'codes' => '[]',
+            'form' => '{}',
+            'last_request_id' => (string) Str::uuid(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('mini_app_inbound_record_metadata')->insert([
+            'document_id' => $onlySnapshot,
+            'draft_id' => $draftId,
+            'inbound_type' => 'STANDARD',
+            'supplier_id' => null,
+            'supplier_name' => 'NCC Snapshot Tên',
+            'supplier_version' => null,
+            'recorded_at' => now(),
+        ]);
+
+        $response = $this->api("/api/v1/reports/document-history?from_date={$today}&to_date={$today}&doc_type=inbound");
+        $response->assertOk();
+        $rows = collect($response->json('data.rows'))->keyBy('document_no');
+        $this->assertSame('NCC-TEST - Nhà cung cấp Test', $rows['IN-SUP-001']['counterpart']);
+        $this->assertSame('', $rows['IN-NOSUP-001']['counterpart']);
+        $this->assertSame('NCC Snapshot Tên', $rows['IN-SNAP-001']['counterpart']);
+    }
+
     public function test_document_history_filters_by_doc_type(): void
     {
         $today = now()->toDateString();
@@ -1085,7 +1139,7 @@ class ReportFlow06IntegrationTest extends TestCase
         ];
     }
 
-    private function createStockDocument(string $docType, string $status, string $date, string $docNo, ?string $agencyId = null): string
+    private function createStockDocument(string $docType, string $status, string $date, string $docNo, ?string $agencyId = null, ?string $supplierId = null, ?string $sourceName = null): string
     {
         $id = (string) Str::uuid();
         DB::table('stock_documents')->insert([
@@ -1097,6 +1151,8 @@ class ReportFlow06IntegrationTest extends TestCase
             'src_warehouse_id' => $docType === 'issue' ? $this->warehouse->id : null,
             'dst_warehouse_id' => $docType === 'receipt' ? $this->warehouse->id : null,
             'agency_id' => $agencyId,
+            'source_name' => $sourceName,
+            'supplier_id' => $supplierId,
             // SRS v1.12 §15: receiver_name NOT NULL sau Confirm — outbound mirror
             // (outbound_documents.recipient_name NOT NULL) yêu cầu giá trị thật.
             'recipient_name' => $docType === 'issue' ? 'Người nhận RPT' : null,
