@@ -540,6 +540,27 @@ public function test_privileged_accounts_get_a_seven_day_trust_ttl(): void
     $this->mock(MfaService::class, fn ($mock) => $mock->shouldReceive('isPrivileged')->with($user)->andReturn(true));
     $this->assertSame(7, app(TrustedDeviceService::class)->ttlDaysFor($user));
 }
+
+public function test_trust_cookie_is_http_only_secure_and_rotates_with_grace(): void
+{
+    $user = $this->makeUser();
+    $installationId = (string) Str::uuid();
+    DB::table('auth_client_installations')->insert([
+        'id' => $installationId, 'user_id' => $user->user_id,
+        'client_device_id' => (string) Str::uuid(), 'device_label' => 'Test browser',
+        'platform' => 'Windows', 'client_type' => 'web',
+        'first_seen_at' => now('UTC'), 'last_seen_at' => now('UTC'),
+    ]);
+    $issued = app(TrustedDeviceService::class)->trust($user, $installationId, Request::create('/'));
+    $this->assertTrue($issued['cookie']->isHttpOnly());
+    $this->assertTrue($issued['cookie']->isSecure());
+    $this->assertSame('lax', $issued['cookie']->getSameSite());
+
+    Carbon::setTestNow(now()->addDays(8));
+    $rotated = app(TrustedDeviceService::class)->rotateIfNeeded($issued['model']);
+    $this->assertNotNull($rotated);
+    $this->assertNotNull($issued['model']->fresh()->previous_hash);
+}
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -1081,6 +1102,9 @@ it("lists a signed-out trusted device and revokes the current device with confir
   expect(await screen.findByText("Windows - Chrome")).toBeInTheDocument();
   await userEvent.click(screen.getAllByRole("button", { name: /thu hồi/i })[1]);
   expect(await screen.findByRole("dialog")).toHaveTextContent(/đăng xuất/i);
+  await userEvent.click(screen.getByRole("button", { name: /thu hồi/i }));
+  await waitFor(() => expect(profileService.revokeTrustedDevice).toHaveBeenCalledWith("t2"));
+  await waitFor(() => expect(useAuthStore.getState().token).toBeNull());
 });
 ```
 
@@ -1145,6 +1169,23 @@ public function test_challenge_verifies_leading_zero_bits_once(): void
         ['challenge_id' => $issued['challenge_id'], 'solution' => $solution],
         'a@b.test', '10.0.0.5',
     ));
+}
+
+public function test_difficulty_escalates_with_failure_count(): void
+{
+    config([
+        'login_security.pow.enabled' => true,
+        'login_security.pow.trigger_failures' => 1,
+        'login_security.pow.base_difficulty' => 16,
+    ]);
+    Cache::flush();
+    $throttle = app(LoginThrottle::class);
+    for ($i = 0; $i < 9; $i++) {
+        $throttle->registerFailure('risk@example.test', '10.0.0.5');
+        Carbon::setTestNow(now()->addSeconds(901));
+    }
+    $issued = app(LoginPow::class)->challenge('risk@example.test', '10.0.0.5');
+    $this->assertSame(20, $issued['difficulty']);
 }
 ```
 
@@ -1378,7 +1419,7 @@ git commit -m "docs(auth): add risk-adaptive login rollout and flags"
 - [ ] Spec §7.1–7.8: Task 7, 8, 9, 10, 11, 14 cover trust rows, per-user cookies, installation fallback, unknown-device OTP, MFA interaction, bulk/admin revocations and UI.
 - [ ] Spec §8.1–8.5: Task 15, 16, 17 cover challenge, difficulty, single-use, 428 and worker fallback.
 - [ ] Spec §10: config, migration, API and error codes match the task names and signatures.
-- [ ] Spec §15: every acceptance row has a test in Tasks 1, 4, 5, 7, 8, 9, 10, 11, 13, 14, 16, 17, 18.
+- [ ] Spec §15: every acceptance row has a test in Tasks 1, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18.
 - [ ] No task uses `sleep()`; every 429 carries `Retry-After`; no token is issued before full verification.
 - [ ] Shared browser, missing `X-Device-Id`, shared NAT, MFA + five cycles and email failure each have a test.
 - [ ] The existing `/auth/devices` contract and MFA tests remain unchanged.
