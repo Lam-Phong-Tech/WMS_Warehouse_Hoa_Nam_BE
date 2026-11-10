@@ -43,7 +43,7 @@ final class InboundDraftResumeContextTest extends TestCase
         [$creator, $token, $warehouse] = $this->actor();
         $id = $this->document($creator, $warehouse->id);
         $url = $this->url($id, $warehouse->id);
-        DB::table('stock_documents')->where('id', $id)->update(['status' => 'POSTED']);
+        DB::table('stock_documents')->where('id', $id)->update(['status' => 'CANCELLED']);
         $this->getJson($url, $this->headers($token))->assertConflict();
         DB::table('stock_documents')->where('id', $id)->update(['status' => 'DRAFT']);
         $this->getJson($this->url($id, (string) Str::uuid()), $this->headers($token))->assertForbidden();
