@@ -308,9 +308,14 @@ class Wwhn295RuntimeConfigHealthTest extends TestCase
     public function test_queue_worker_container_reads_the_same_timeout_as_the_retry_window(): void
     {
         $compose = (string) File::get(base_path('docker-compose.yml'));
+        $supervisor = (string) File::get(base_path('docker/php/queue-supervisor.sh'));
 
-        $this->assertStringContainsString('--timeout=${QUEUE_WORKER_TIMEOUT:-90}', $compose);
+        $this->assertStringContainsString('queue-supervisor.sh', $compose);
         $this->assertStringContainsString('QUEUE_WORKER_TIMEOUT=${QUEUE_WORKER_TIMEOUT:-90}', $compose);
+        $this->assertStringContainsString('timeout="${QUEUE_WORKER_TIMEOUT:-90}"', $supervisor);
+        $this->assertStringContainsString('--timeout="$timeout"', $supervisor);
+        $this->assertStringContainsString('--queue=notifications', $supervisor);
+        $this->assertStringContainsString('--queue=default', $supervisor);
     }
 
     public function test_env_example_documents_the_runtime_contract(): void
