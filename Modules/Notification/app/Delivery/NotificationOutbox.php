@@ -24,8 +24,17 @@ final class NotificationOutbox
         }
         $count = 0;
         $now = now()->utc()->toIso8601String();
-        foreach (NotificationRecipient::where('notification_id', $n->id)->get() as $r) {
-            foreach (DB::table('notification_delivery_bindings')->where('user_id', $r->user_id)->where('status', 'ACTIVE')->when($registrationIds !== null, fn (Builder $q) => $q->whereIn('id', $registrationIds))->get() as $b) {
+        $recipients = NotificationRecipient::where('notification_id', $n->id)->get();
+        $bindings = $recipients->isEmpty()
+            ? collect()
+            : DB::table('notification_delivery_bindings')
+                ->whereIn('user_id', $recipients->pluck('user_id')->unique()->values()->all())
+                ->where('status', 'ACTIVE')
+                ->when($registrationIds !== null, fn (Builder $q) => $q->whereIn('id', $registrationIds))
+                ->get()
+                ->groupBy('user_id');
+        foreach ($recipients as $r) {
+            foreach ($bindings->get($r->user_id, collect()) as $b) {
                 if (! CarbonImmutable::parse($b->expires_at)->isFuture()) {
                     continue;
                 }

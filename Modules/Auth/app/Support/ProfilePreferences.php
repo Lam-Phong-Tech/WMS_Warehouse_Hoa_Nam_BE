@@ -22,10 +22,31 @@ final class ProfilePreferences
 
     public static function read(string $user): array
     {
-        $row = DB::table('user_profile_preferences')->where('user_id', $user)->first();
+        return self::readMany([$user])[$user];
+    }
 
-        return ['version' => (int) ($row->version ?? 1),
-            ...array_replace_recursive(self::defaults(), $row === null ? [] : json_decode($row->preferences, true, 512, JSON_THROW_ON_ERROR))];
+    /**
+     * Read preferences for many users with one query. Missing rows resolve to
+     * defaults so a notification fan-out never becomes an N+1 read.
+     *
+     * @param  array<int,string>  $users
+     * @return array<string,array>
+     */
+    public static function readMany(array $users): array
+    {
+        $ids = array_values(array_unique(array_filter($users, fn ($id) => is_string($id) && $id !== '')));
+        if ($ids === []) {
+            return [];
+        }
+        $rows = DB::table('user_profile_preferences')->whereIn('user_id', $ids)->get()->keyBy('user_id');
+        $result = [];
+        foreach ($ids as $id) {
+            $row = $rows->get($id);
+            $result[$id] = ['version' => (int) ($row->version ?? 1),
+                ...array_replace_recursive(self::defaults(), $row === null ? [] : json_decode($row->preferences, true, 512, JSON_THROW_ON_ERROR))];
+        }
+
+        return $result;
     }
 
     public static function validate(array $body): array

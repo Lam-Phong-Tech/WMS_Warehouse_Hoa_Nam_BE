@@ -5,6 +5,11 @@ namespace Modules\Notification\Providers;
 use App\Support\Modules\HttpLeanModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Modules\Notification\Console\Commands\BackfillNotificationActorsCommand;
+use Modules\Notification\Console\Commands\DrainNotificationDeliveries;
+use Modules\Notification\Console\Commands\MonitorNotificationBurst;
+use Modules\Notification\Console\Commands\PruneNotificationDeliveryStateCommand;
+use Modules\Notification\Delivery\FcmAccessTokenSource;
+use Modules\Notification\Delivery\GoogleFcmAccessTokenSource;
 
 class NotificationServiceProvider extends HttpLeanModuleServiceProvider
 {
@@ -25,8 +30,9 @@ class NotificationServiceProvider extends HttpLeanModuleServiceProvider
      */
     protected array $commands = [
         BackfillNotificationActorsCommand::class,
-        \Modules\Notification\Console\Commands\DrainNotificationDeliveries::class,
-        \Modules\Notification\Console\Commands\PruneNotificationDeliveryStateCommand::class,
+        DrainNotificationDeliveries::class,
+        PruneNotificationDeliveryStateCommand::class,
+        MonitorNotificationBurst::class,
     ];
 
     /**
@@ -50,17 +56,17 @@ class NotificationServiceProvider extends HttpLeanModuleServiceProvider
 
     /**
      * Define module schedules.
-     *
-     * @param $schedule
      */
     protected function configureSchedules(Schedule $schedule): void
     {
         $schedule->command('notification-delivery:drain --limit=100')->everyMinute()->withoutOverlapping()->onOneServer();
         $schedule->command('notification-delivery:prune --limit=250')->hourly()->withoutOverlapping()->onOneServer();
+        $schedule->command('notifications:monitor --json')->everyMinute()->withoutOverlapping()->onOneServer();
     }
+
     public function register(): void
     {
         parent::register();
-        $this->app->bind(\Modules\Notification\Delivery\FcmAccessTokenSource::class,\Modules\Notification\Delivery\GoogleFcmAccessTokenSource::class);
+        $this->app->bind(FcmAccessTokenSource::class, GoogleFcmAccessTokenSource::class);
     }
 }

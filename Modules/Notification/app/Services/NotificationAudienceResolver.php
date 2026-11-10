@@ -2,6 +2,8 @@
 
 namespace Modules\Notification\Services;
 
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\User;
 
@@ -12,20 +14,29 @@ use Modules\Auth\Models\User;
  */
 class NotificationAudienceResolver
 {
+    private const AUDIENCE_CACHE_SECONDS = 5;
+
     /**
      * @param  array<int,string>  $excludeUserIds
      * @return array<int,string>
      */
     public function byPermission(string $permissionKey, ?string $warehouseId = null, array $excludeUserIds = []): array
     {
-        return $this->activeUsers()
-            ->filter(fn (User $user): bool => $user->hasPermission($permissionKey))
-            ->filter(fn (User $user): bool => $warehouseId === null || $user->canAccessWarehouse($warehouseId))
-            ->pluck('user_id')
-            ->diff($excludeUserIds)
-            ->unique()
-            ->values()
-            ->all();
+        $cacheKey = 'notification:audience:'.sha1($permissionKey.'|'.($warehouseId ?? '*'));
+        $ids = Cache::remember(
+            $cacheKey,
+            now()->addSeconds(self::AUDIENCE_CACHE_SECONDS),
+            fn (): array => $this->activeUsers()
+                ->filter(fn (User $user): bool => $user->hasPermission($permissionKey))
+                ->filter(fn (User $user): bool => $warehouseId === null || $user->canAccessWarehouse($warehouseId))
+                ->pluck('user_id')
+                ->map(fn ($id): string => (string) $id)
+                ->unique()
+                ->values()
+                ->all(),
+        );
+
+        return array_values(array_diff($ids, $excludeUserIds));
     }
 
     /**
@@ -46,8 +57,8 @@ class NotificationAudienceResolver
             ->all();
     }
 
-    /** @return \Illuminate\Support\Collection<int, User> */
-    private function activeUsers(): \Illuminate\Support\Collection
+    /** @return Collection<int, User> */
+    private function activeUsers(): Collection
     {
         return User::query()->where('status', 'ACTIVE')->get();
     }

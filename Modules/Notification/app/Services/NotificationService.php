@@ -3,6 +3,7 @@
 namespace Modules\Notification\Services;
 
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -15,7 +16,6 @@ use Modules\Notification\Delivery\NotificationOutbox;
 use Modules\Notification\Events\NotificationPushed;
 use Modules\Notification\Mail\ProfileNotificationMail;
 use Modules\Notification\Models\Notification;
-use Modules\Notification\Models\NotificationRecipient;
 use Modules\Notification\Support\EventSourceSnapshot;
 use Throwable;
 
@@ -57,9 +57,10 @@ class NotificationService
         $inAppIds = [];
         $emailRecipients = [];
         $users = User::query()->whereIn('user_id', $userIds)->get(['user_id', 'email', 'status'])->keyBy('user_id');
+        $preferences = ProfilePreferences::readMany($userIds);
         foreach ($userIds as $userId) {
             $channels = $category === null ? ['in_app' => true, 'email' => false]
-                : ProfilePreferences::read($userId)['notifications'][$category];
+                : $preferences[$userId]['notifications'][$category];
             if ($category === 'account' || $channels['in_app']) {
                 $inAppIds[] = $userId;
             }
@@ -71,6 +72,24 @@ class NotificationService
         }
         if ($inAppIds === [] && $emailRecipients === []) {
             return null;
+        }
+
+        $coalesceSeconds = max(0, (int) config('notification_delivery.coalesce_seconds', 30));
+        $coalesceKey = null;
+        if ($deliveryKey === null && $subjectId !== null && $coalesceSeconds > 0) {
+            $audience = $inAppIds;
+            sort($audience);
+            $coalesceKey = 'notification:coalesce:'.sha1(json_encode([
+                $eventKey, $sourceModule, $subjectType, $subjectId, $title, $body, $severity, $audience,
+            ], JSON_THROW_ON_ERROR));
+            try {
+                if (! Cache::add($coalesceKey, true, now()->addSeconds($coalesceSeconds))) {
+                    return null;
+                }
+            } catch (Throwable) {
+                // Cache is optional for notification safety; fail open and keep the database path.
+                $coalesceKey = null;
+            }
         }
 
         // Snapshot tên hiển thị NGAY tại thời điểm tạo thông báo (bảng append-only):
@@ -125,13 +144,17 @@ class NotificationService
                     DB::table('notification_source_snapshots')->insert(['notification_id' => $notification->id, ...$sourceSnapshot]);
                 }
 
-                foreach ($inAppIds as $userId) {
-                    NotificationRecipient::create([
-                        'id' => (string) Str::uuid(),
-                        'notification_id' => $notification->id,
-                        'user_id' => $userId,
-                        'created_at' => now(),
-                    ]);
+                if ($inAppIds !== []) {
+                    $createdAt = now();
+                    DB::table('notification_recipients')->insert(array_map(
+                        static fn (string $userId): array => [
+                            'id' => (string) Str::uuid(),
+                            'notification_id' => $notification->id,
+                            'user_id' => $userId,
+                            'created_at' => $createdAt,
+                        ],
+                        $inAppIds,
+                    ));
                 }
 
                 app(NotificationOutbox::class)->enqueue($notification, $deliveryRegistrationIds);
@@ -152,14 +175,20 @@ class NotificationService
 
         // Bắn broadcast NGOÀI transaction ghi DB: nếu broadcaster lỗi (Reverb down),
         // notification vẫn đã được ghi nhận bền vững và sẽ thấy được qua GET /notifications.
-        foreach ($broadcastInApp ? $inAppIds : [] as $userId) {
-            DB::afterCommit(function () use ($notification, $userId): void {
-                try {
-                    event(new NotificationPushed($notification, $userId));
-                } catch (Throwable $error) {
-                    Log::warning('Notification realtime deferred', ['notification_id' => (string) $notification->id, 'exception' => $error::class]);
-                }
-            });
+        if ($broadcastInApp && $inAppIds !== []) {
+            foreach (array_chunk($inAppIds, 100) as $recipientChunk) {
+                DB::afterCommit(function () use ($notification, $recipientChunk): void {
+                    try {
+                        event(new NotificationPushed($notification, $recipientChunk));
+                    } catch (Throwable $error) {
+                        Log::warning('Notification realtime deferred', [
+                            'notification_id' => (string) $notification->id,
+                            'recipient_count' => count($recipientChunk),
+                            'exception' => $error::class,
+                        ]);
+                    }
+                });
+            }
         }
         foreach ($emailRecipients as $email) {
             // A transport/queue outage must not turn the committed notification or

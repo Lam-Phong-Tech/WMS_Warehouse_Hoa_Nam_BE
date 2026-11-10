@@ -17,6 +17,11 @@ $retryAfter = max($workerTimeout + 30, (int) env('QUEUE_RETRY_AFTER', $workerTim
 
 return [
 
+    // Queue name for notification listeners. Keep "default" until a deployed
+    // worker consumes the dedicated queue; switching without that consumer
+    // would silently stop realtime notifications.
+    'notification_queue' => env('NOTIFICATION_QUEUE', 'default'),
+
     // Timeout mà `php artisan queue:work --timeout=` phải dùng (docker-compose.yml
     // đọc cùng biến QUEUE_WORKER_TIMEOUT) — dùng cho golive-check, không phải key
     // của Laravel.

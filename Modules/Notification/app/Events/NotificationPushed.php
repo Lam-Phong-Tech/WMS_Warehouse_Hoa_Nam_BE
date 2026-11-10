@@ -10,8 +10,10 @@ use Modules\Notification\Support\NotificationTimestamp;
 
 /**
  * Được bắn (không qua queue lần nữa — Listener sinh ra nó đã chạy trong queued
- * job) cho từng recipient trên channel riêng `private-user.{userId}` ngay sau
- * khi NotificationService::notify() ghi xong notifications + notification_recipients.
+ * job) cho một nhóm recipient trên các channel riêng `private-user.{userId}`
+ * ngay sau khi NotificationService::notify() ghi xong notifications +
+ * notification_recipients. Một event nhiều channel = một HTTP publish tới
+ * Reverb/Pusher thay vì một publish cho từng người.
  */
 class NotificationPushed implements ShouldBroadcastNow
 {
@@ -19,12 +21,15 @@ class NotificationPushed implements ShouldBroadcastNow
 
     public function __construct(
         public readonly Notification $notification,
-        public readonly string $userId,
+        public readonly array $userIds,
     ) {}
 
     public function broadcastOn(): array
     {
-        return [new PrivateChannel('user.'.$this->userId)];
+        return array_map(
+            static fn (string $userId): PrivateChannel => new PrivateChannel('user.'.$userId),
+            array_values($this->userIds),
+        );
     }
 
     public function broadcastAs(): string
