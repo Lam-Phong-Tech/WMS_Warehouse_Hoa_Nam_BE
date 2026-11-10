@@ -125,6 +125,26 @@ class ProfileNotificationDeliveryTest extends TestCase
         $this->assertSame(1, DB::table('notification_recipients')->count());
     }
 
+    public function test_per_user_in_app_rate_limit_drops_excess_optional_notifications(): void
+    {
+        config(['notification_delivery.max_in_app_per_minute' => 1]);
+        $user = $this->recipient([]);
+
+        $first = DB::transaction(fn () => app(NotificationService::class)->notify(
+            'stock.shortage_detected', 'First', 'First', [$user->user_id],
+            sourceModule: 'inventory', subjectType: 'stock_document', subjectId: (string) Str::uuid(),
+        ));
+        $second = DB::transaction(fn () => app(NotificationService::class)->notify(
+            'stock.shortage_detected', 'Second', 'Second', [$user->user_id],
+            sourceModule: 'inventory', subjectType: 'stock_document', subjectId: (string) Str::uuid(),
+        ));
+
+        $this->assertNotNull($first);
+        $this->assertNull($second);
+        $this->assertSame(1, DB::table('notifications')->count());
+        $this->assertSame(1, DB::table('notification_recipients')->count());
+    }
+
     public function test_notification_monitor_emits_metrics_json(): void
     {
         $this->artisan('notifications:monitor', ['--json' => true])

@@ -74,6 +74,11 @@ class NotificationService
             return null;
         }
 
+        $inAppIds = $this->rateLimitInApp($inAppIds, $category);
+        if ($inAppIds === [] && $emailRecipients === []) {
+            return null;
+        }
+
         $coalesceSeconds = max(0, (int) config('notification_delivery.coalesce_seconds', 30));
         $coalesceKey = null;
         if ($deliveryKey === null && $subjectId !== null && $coalesceSeconds > 0) {
@@ -205,5 +210,38 @@ class NotificationService
         }
 
         return $notification;
+    }
+
+    /**
+     * Cap optional in-app notifications per user/minute. Account and security
+     * events bypass the cap so security warnings are never dropped.
+     *
+     * @param  array<int,string>  $userIds
+     * @return array<int,string>
+     */
+    private function rateLimitInApp(array $userIds, ?string $category): array
+    {
+        $limit = (int) config('notification_delivery.max_in_app_per_minute', 60);
+        if ($limit <= 0 || $category === 'account' || $userIds === []) {
+            return $userIds;
+        }
+
+        $minute = now()->format('YmdHi');
+        $allowed = [];
+        foreach ($userIds as $userId) {
+            try {
+                $key = 'notification:rate:'.sha1($userId).':'.$minute;
+                Cache::add($key, 0, now()->addMinutes(2));
+                $count = (int) Cache::increment($key);
+                if ($count <= $limit) {
+                    $allowed[] = $userId;
+                }
+            } catch (Throwable) {
+                // Notification delivery must not fail because the optional cache is down.
+                $allowed[] = $userId;
+            }
+        }
+
+        return array_values(array_unique($allowed));
     }
 }

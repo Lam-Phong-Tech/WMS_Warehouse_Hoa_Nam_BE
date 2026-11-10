@@ -3,6 +3,7 @@
 return [
     'enabled' => filter_var(env('NOTIFICATION_DELIVERY_ENABLED', false), FILTER_VALIDATE_BOOL),
     'coalesce_seconds' => (int) env('NOTIFICATION_COALESCE_SECONDS', 30),
+    'max_in_app_per_minute' => (int) env('NOTIFICATION_MAX_IN_APP_PER_MINUTE', 60),
     'monitor_queue_threshold' => (int) env('NOTIFICATION_MONITOR_QUEUE_THRESHOLD', 100),
     'monitor_failed_threshold' => (int) env('NOTIFICATION_MONITOR_FAILED_THRESHOLD', 0),
     'tier' => env('NOTIFICATION_DELIVERY_TIER', 'unknown'),
