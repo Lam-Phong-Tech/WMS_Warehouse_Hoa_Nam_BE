@@ -57,6 +57,19 @@ class WarrantyAndComponentNumberingTest extends TestCase
         }
     }
 
+    public function test_warranty_numbering_is_ready_when_warranty_case_is_a_view(): void
+    {
+        // PostgreSQL layout: `warranty_cases` is the base table while
+        // `warranty_case` is a view (INSTEAD OF trigger). Laravel 13's
+        // PostgresGrammar::compileTableExists() only matches relkind r/p, so
+        // Schema::hasTable('warranty_case') is false there. Readiness must
+        // accept the view or every create returns 503.
+        Schema::drop('warranty_case');
+        DB::statement('CREATE VIEW warranty_case AS SELECT 1 AS warranty_case_id');
+
+        $this->assertTrue(app(WarrantyCaseNumber::class)->ready());
+    }
+
     public function test_component_issue_numbering_fails_closed_when_counter_schema_is_missing(): void
     {
         Schema::drop('component_issue_daily_numbers');

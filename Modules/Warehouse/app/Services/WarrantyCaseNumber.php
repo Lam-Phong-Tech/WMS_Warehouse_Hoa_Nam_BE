@@ -16,7 +16,13 @@ final class WarrantyCaseNumber
 
     public function ready(): bool
     {
-        return Schema::hasTable('warranty_daily_numbers') && Schema::hasTable('warranty_case');
+        // PostgreSQL lưu hồ sơ trong bảng `warranty_cases` và chỉ expose view
+        // `warranty_case` (INSTEAD OF trigger); SQLite/test thì ngược lại.
+        // Laravel 13 PostgresGrammar::compileTableExists() chỉ khớp relkind
+        // 'r'/'p' nên hasTable('warranty_case') LUÔN false trên PostgreSQL —
+        // phải chấp nhận view, nếu không mọi lần tạo hồ sơ đều trả 503.
+        return Schema::hasTable('warranty_daily_numbers')
+            && (Schema::hasTable('warranty_case') || Schema::hasView('warranty_case'));
     }
 
     public function next(?Carbon $at = null): string
