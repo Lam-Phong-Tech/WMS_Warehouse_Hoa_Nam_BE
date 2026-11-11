@@ -35,11 +35,16 @@ class EnforcePasswordChangeRequired
         $user = ApiAuthContext::resolveUser();
 
         if ($user !== null
-            && $user->must_change_password
+            && $user->requiresPasswordChange()
             && ! $request->is('api/v1/auth/change-password')
             && ! $request->is('api/v1/auth/logout')
         ) {
-            ApiError::abort(403, 'PASSWORD_CHANGE_REQUIRED', 'Bạn phải đổi mật khẩu trước khi tiếp tục sử dụng hệ thống.');
+            $maxAgeDays = (int) config('login_security.password.max_age_days', 90);
+            $message = (! $user->must_change_password && $user->isPasswordExpired())
+                ? "Mật khẩu của bạn đã quá hạn {$maxAgeDays} ngày. Vui lòng đặt lại mật khẩu mới để tiếp tục sử dụng hệ thống."
+                : 'Bạn phải đổi mật khẩu trước khi tiếp tục sử dụng hệ thống.';
+
+            ApiError::abort(403, 'PASSWORD_CHANGE_REQUIRED', $message);
         }
 
         return $next($request);

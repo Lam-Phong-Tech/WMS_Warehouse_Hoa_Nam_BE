@@ -52,4 +52,7 @@ return [
         'challenge_ttl_seconds' => (int) env('LOGIN_POW_CHALLENGE_TTL_SECONDS', 120),
         'max_solve_ms' => (int) env('LOGIN_POW_MAX_SOLVE_MS', 3000),
     ],
+    'password' => [
+        'max_age_days' => (int) env('LOGIN_PASSWORD_MAX_AGE_DAYS', 90),
+    ],
 ];

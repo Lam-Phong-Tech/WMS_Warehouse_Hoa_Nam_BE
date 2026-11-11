@@ -444,6 +444,9 @@ final class P10ProfileController extends AuthController
                 if (! Hash::check($data['current_password'], $user->password_hash)) {
                     ApiError::abort(422, SecurityContract::WRONG_CURRENT, 'Mật khẩu hiện tại không đúng.', ['current_password' => ['Mật khẩu hiện tại không đúng.']]);
                 }
+                if (Hash::check($data['new_password'], $user->password_hash)) {
+                    ApiError::abort(422, 'PASSWORD_POLICY_VIOLATION', 'Mật khẩu mới không được trùng với mật khẩu hiện tại.', ['new_password' => ['Mật khẩu mới không được trùng với mật khẩu hiện tại.']]);
+                }
                 $user->forceFill(['password_hash' => $newHash, 'must_change_password' => false,
                     'version' => (int) $user->version + 1])->save();
                 $user->markPasswordChangedNow();

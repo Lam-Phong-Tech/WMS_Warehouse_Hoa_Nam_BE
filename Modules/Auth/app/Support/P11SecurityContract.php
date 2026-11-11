@@ -64,6 +64,7 @@ final class P11SecurityContract
             'confirmation_required' => true,
             'confirmation_field' => 'new_password_confirmation',
             'current_password_required' => true,
+            'max_age_days' => (int) config('login_security.password.max_age_days', 90),
             'composition_rules' => [],
             'input_normalization' => 'EXISTING_REQUEST_MIDDLEWARE',
             'hasher' => $driver,

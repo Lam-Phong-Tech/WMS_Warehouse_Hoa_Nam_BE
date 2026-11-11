@@ -98,6 +98,66 @@ class User extends Model implements AuthenticatableContract, JWTSubject
         return Carbon::parse((string) $raw, 'UTC')->getTimestamp();
     }
 
+    /**
+     * Mốc tham chiếu tuổi mật khẩu (epoch giây UTC): ưu tiên `password_changed_at`,
+     * fallback sang `created_at` nếu tài khoản chưa từng đổi mật khẩu.
+     */
+    public function passwordReferenceEpoch(): ?int
+    {
+        $changedAt = $this->passwordChangedAtEpoch();
+        if ($changedAt !== null) {
+            return $changedAt;
+        }
+
+        return $this->created_at?->getTimestamp();
+    }
+
+    /**
+     * Thời điểm mật khẩu hết hạn theo chính sách quay vòng (mặc định 90 ngày).
+     * Trả null nếu chính sách tắt (max_age_days <= 0) hoặc không có mốc tham chiếu.
+     */
+    public function passwordExpiresAtEpoch(): ?int
+    {
+        $maxAgeDays = (int) config('login_security.password.max_age_days', 90);
+        if ($maxAgeDays <= 0) {
+            return null;
+        }
+
+        $refEpoch = $this->passwordReferenceEpoch();
+        if ($refEpoch === null) {
+            return null;
+        }
+
+        return Carbon::createFromTimestampUTC($refEpoch)->addDays($maxAgeDays)->getTimestamp();
+    }
+
+    /** Chuỗi ISO-8601 UTC của thời điểm mật khẩu hết hạn định kỳ. */
+    public function passwordExpiresAtIso(): ?string
+    {
+        $expiresAt = $this->passwordExpiresAtEpoch();
+
+        return $expiresAt === null
+            ? null
+            : Carbon::createFromTimestampUTC($expiresAt)->toIso8601String();
+    }
+
+    /** Mật khẩu đã quá hạn quay vòng (mặc định >= 90 ngày kể từ lần đặt/đổi gần nhất). */
+    public function isPasswordExpired(): bool
+    {
+        $expiresAt = $this->passwordExpiresAtEpoch();
+        if ($expiresAt === null) {
+            return false;
+        }
+
+        return now()->getTimestamp() >= $expiresAt;
+    }
+
+    /** Tài khoản có đang bị bắt buộc đổi mật khẩu (lần đầu hoặc quá hạn 90 ngày) hay không. */
+    public function requiresPasswordChange(): bool
+    {
+        return (bool) $this->must_change_password || $this->isPasswordExpired();
+    }
+
     /** GĐ1-REQ-011: user thuộc một phòng ban (nullable). */
     public function department(): BelongsTo
     {

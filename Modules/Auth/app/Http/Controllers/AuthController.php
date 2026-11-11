@@ -848,6 +848,11 @@ class AuthController extends Controller
                 'current_password' => ['Mật khẩu hiện tại không đúng.'],
             ], 422, 'VALIDATION_ERROR');
         }
+        if (Hash::check($data['new_password'], $user->password_hash)) {
+            return $this->respondError('Mật khẩu mới không được trùng với mật khẩu hiện tại.', [
+                'new_password' => ['Mật khẩu mới không được trùng với mật khẩu hiện tại.'],
+            ], 422, 'VALIDATION_ERROR');
+        }
 
         $user->forceFill([
             'password_hash' => Hash::make($data['new_password']),
