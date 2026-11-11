@@ -207,6 +207,10 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
+            // Session timezone của PostgreSQL phải trùng APP_TIMEZONE để
+            // CURRENT_DATE/date arithmetic khớp ngày lịch Việt Nam. Trước đây
+            // DB để UTC nên từ 00:00–07:00 giờ VN, CURRENT_DATE vẫn là hôm qua.
+            'timezone' => env('DB_TIMEZONE', 'Asia/Ho_Chi_Minh'),
             // WWHN-SEC-05 — xem khối chính sách TLS ở đầu file.
             'sslmode' => $dbSslMode,
             // Chỉ có ý nghĩa với verify-ca / verify-full. Để trống thì khoá không
