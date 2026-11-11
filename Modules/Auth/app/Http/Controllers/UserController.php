@@ -22,6 +22,7 @@ use Modules\Auth\Support\AuthCache;
 use Modules\Auth\Support\PermissionDelegation;
 use Modules\Auth\Support\ProfileAvatar;
 use Modules\Auth\Support\RefreshTokenService;
+use Modules\Auth\Support\RoleEffectiveWindow;
 use Modules\Auth\Support\UserBusinessProfile;
 use OpenApi\Attributes as OA;
 
@@ -369,7 +370,14 @@ class UserController extends Controller
             $pivot = ['user_role_id' => (string) Str::uuid()];
             foreach (['scope_ref', 'effective_from', 'effective_to'] as $column) {
                 if (array_key_exists($column, $assignment) && SchemaCache::hasRelationColumn('user_role', $column)) {
-                    $pivot[$column] = $assignment[$column];
+                    // Ngày lịch YYYY-MM-DD: "từ" = đầu ngày, "đến" = cuối ngày theo
+                    // múi giờ ứng dụng (xem RoleEffectiveWindow) — không để
+                    // PostgreSQL tự hiểu thành 00:00 UTC.
+                    $pivot[$column] = match ($column) {
+                        'effective_from' => RoleEffectiveWindow::normalizeFrom($assignment[$column]),
+                        'effective_to' => RoleEffectiveWindow::normalizeTo($assignment[$column]),
+                        default => $assignment[$column],
+                    };
                 }
             }
             $pivotData[$roleId] = $pivot;

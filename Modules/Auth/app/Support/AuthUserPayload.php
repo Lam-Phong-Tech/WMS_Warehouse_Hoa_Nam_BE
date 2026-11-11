@@ -56,11 +56,45 @@ final class AuthUserPayload
                     'role_code' => $role->role_code,
                     'role_name' => $role->role_name,
                     'scope_ref' => $role->pivot->scope_ref,
+                    // Cửa sổ hiệu lực để chính chủ tài khoản thấy vai trò còn
+                    // hạn tới khi nào (null = không giới hạn).
+                    'effective_from' => RoleEffectiveWindow::toIso($role->pivot->effective_from),
+                    'effective_to' => RoleEffectiveWindow::toIso($role->pivot->effective_to),
                 ])->values()->all(),
+            'inactive_roles' => self::inactiveRoles($user),
             'permissions' => $user->permissionCodes(),
             'warehouse_scope_ids' => $user->warehouseScopeIds(),
             'account_session_policy' => AccountSessionPolicy::contract(),
             ...app(StableAuthSession::class)->payload($user),
         ];
+    }
+
+    /**
+     * Vai trò đã gán nhưng ngoài cửa sổ hiệu lực (hết hạn / chưa tới ngày).
+     * Chỉ để HIỂN THỊ lý do "0 quyền" — không cấp quyền nào, phân quyền vẫn chỉ
+     * dựa trên activeRoles().
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function inactiveRoles(User $user): array
+    {
+        return $user->roles()
+            ->where('role.status', 'ACTIVE')
+            ->orderBy('role_code')
+            ->get(['role.role_id', 'role.role_code', 'role.role_name'])
+            ->map(function ($role): ?array {
+                $reason = RoleEffectiveWindow::inactiveReason($role->pivot->effective_from, $role->pivot->effective_to);
+
+                return $reason === null ? null : [
+                    'role_id' => $role->role_id,
+                    'role_code' => $role->role_code,
+                    'role_name' => $role->role_name,
+                    'scope_ref' => $role->pivot->scope_ref,
+                    'effective_from' => RoleEffectiveWindow::toIso($role->pivot->effective_from),
+                    'effective_to' => RoleEffectiveWindow::toIso($role->pivot->effective_to),
+                    'reason' => $reason,
+                ];
+            })
+            ->filter()->values()->all();
     }
 }
