@@ -2,6 +2,7 @@
 
 namespace Modules\Warehouse\Http\Controllers;
 
+use App\Support\ApiError;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockDocument;
@@ -23,6 +24,8 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'sort_order', in: 'query', required: false, description: 'Sắp xếp theo thời điểm tạo/sửa gần nhất (COALESCE(updated_at, created_at)): desc = Mới nhất trước, asc = Cũ nhất trước. Không gửi = giữ thứ tự mặc định cũ (created_at desc). Giá trị khác trả 422.', schema: new OA\Schema(type: 'string', enum: ['desc', 'asc'])),
+            new OA\Parameter(name: 'from_date', in: 'query', required: false, description: 'Từ ngày tạo phiếu (Y-m-d, bao gồm đầu ngày)', schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'to_date', in: 'query', required: false, description: 'Đến ngày tạo phiếu (Y-m-d, bao gồm cuối ngày)', schema: new OA\Schema(type: 'string', format: 'date')),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Trang danh sách phiếu xuất, mỗi item kèm required_total/matched_count/label_printed_count/packing_label_count/packing_label_applied_count/rfid_mapped_count'),
@@ -33,7 +36,19 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
     public function index(Request $request)
     {
         // Validate before a read-cache hit; retain the existing permission/scope middleware.
-        $request->validate(['warehouse_id' => ['nullable', 'uuid']]);
+        $request->validate([
+            'warehouse_id' => ['nullable', 'uuid'],
+            'from_date' => ['nullable', 'date_format:Y-m-d'],
+            'to_date' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        if (
+            $request->filled('from_date')
+            && $request->filled('to_date')
+            && (string) $request->input('from_date') > (string) $request->input('to_date')
+        ) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'from_date phải nhỏ hơn hoặc bằng to_date.');
+        }
 
         // Cùng chính sách với OutboundDocumentController::index() — TTL 'search'
         // (120s, chứng từ đang lưu thông) trên version `stock:version`. Namespace
@@ -79,6 +94,17 @@ class AlignedOutboundDocumentController extends OutboundDocumentController
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
+
+        // OUT-01 "Từ ngày / Đến ngày": lọc NGAY TRONG SQL theo ngày tạo phiếu,
+        // bao gồm cả hai đầu — cùng luật với IN-01. Không lọc sau phân trang để
+        // số dòng/trang và tổng bản ghi vẫn đúng.
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', (string) $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', (string) $request->input('to_date'));
+        }
+
         $this->applyKeyword($query, $request, ['doc_no', 'note']);
 
         // "Sắp xếp theo" của OUT-01 — sort_order nằm trong query string nên khoá

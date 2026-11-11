@@ -100,6 +100,48 @@ class ListSortOrderTest extends TestCase
             ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
+    public function test_danh_sach_phieu_xuat_loc_theo_ngay_tao(): void
+    {
+        $warehouse = $this->ensureActiveWarehouse('KHO-DATE-C', 'Kho Date C');
+        $viewer = $this->createUser('date_outbound_viewer', $this->createRole('DATE_OUTBOUND', ['outbound.view']));
+
+        $base = ['src_warehouse_id' => $warehouse->getKey(), 'created_by' => $viewer->user_id];
+        $this->makeStockDocument('issue', 'PX-DATE-OLD', $base + ['created_at' => now()->subDays(10), 'updated_at' => now()->subDays(10)]);
+        $this->makeStockDocument('issue', 'PX-DATE-MID', $base + ['created_at' => now()->subDays(5), 'updated_at' => now()->subDays(5)]);
+        $this->makeStockDocument('issue', 'PX-DATE-NEW', $base + ['created_at' => now()->subDay(), 'updated_at' => now()->subDay()]);
+
+        $headers = ['Authorization' => 'Bearer '.JWTAuth::fromUser($viewer)];
+        $old = now()->subDays(10)->toDateString();
+        $mid = now()->subDays(5)->toDateString();
+        $new = now()->subDay()->toDateString();
+
+        // Chỉ from_date: mọi phiếu tạo từ mốc đó trở đi.
+        $fromOnly = $this->getJson('/api/v1/outbound-documents?from_date='.$mid, $headers)->assertOk();
+        $this->assertSame(
+            ['PX-DATE-NEW', 'PX-DATE-MID'],
+            collect($fromOnly->json('data'))->pluck('doc_no')->all(),
+        );
+
+        // Chỉ to_date: mọi phiếu tạo tới hết ngày đó.
+        $toOnly = $this->getJson('/api/v1/outbound-documents?to_date='.$mid, $headers)->assertOk();
+        $this->assertSame(
+            ['PX-DATE-MID', 'PX-DATE-OLD'],
+            collect($toOnly->json('data'))->pluck('doc_no')->all(),
+        );
+
+        // Cả hai đầu: bao gồm đúng ngày biên.
+        $both = $this->getJson('/api/v1/outbound-documents?from_date='.$old.'&to_date='.$mid, $headers)->assertOk();
+        $this->assertSame(
+            ['PX-DATE-MID', 'PX-DATE-OLD'],
+            collect($both->json('data'))->pluck('doc_no')->all(),
+        );
+
+        $this->getJson('/api/v1/outbound-documents?from_date='.$new.'&to_date='.$old, $headers)
+            ->assertStatus(422);
+        $this->getJson('/api/v1/outbound-documents?from_date=2026-13-01', $headers)
+            ->assertStatus(422);
+    }
+
     public function test_danh_sach_bao_hanh_sap_xep_theo_tao_sua_gan_nhat(): void
     {
         $viewer = $this->createUser('sort_warranty_viewer', $this->createRole('SORT_WARRANTY', ['warranty.view']));
