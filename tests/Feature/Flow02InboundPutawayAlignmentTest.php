@@ -454,6 +454,70 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
         $this->assertSame(0, DB::table('stock_documents')->where('doc_type', 'receipt')->count());
     }
 
+    public function test_inbound_list_filters_by_created_date_range_inclusively(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+
+        $old = $this->createInboundHeader($headers, (string) $warehouse->id, [
+            'source_name' => 'DATEWIN-OLD',
+        ]);
+        $mid = $this->createInboundHeader($headers, (string) $warehouse->id, [
+            'source_name' => 'DATEWIN-MID',
+        ]);
+        $new = $this->createInboundHeader($headers, (string) $warehouse->id, [
+            'source_name' => 'DATEWIN-NEW',
+        ]);
+
+        DB::table('stock_documents')
+            ->where('id', $old['document_id'])
+            ->update(['created_at' => '2026-11-04 23:59:59']);
+        DB::table('stock_documents')
+            ->where('id', $mid['document_id'])
+            ->update(['created_at' => '2026-11-05 00:00:00']);
+        DB::table('stock_documents')
+            ->where('id', $new['document_id'])
+            ->update(['created_at' => '2026-11-06 12:00:00']);
+
+        $idsFor = function (string $query) use ($headers): array {
+            $response = $this->getJson(
+                '/api/v1/inbound-documents?keyword=DATEWIN&'.$query,
+                $headers,
+            )->assertOk();
+
+            return array_map(
+                static fn (array $row): string => (string) $row['id'],
+                $response->json('data'),
+            );
+        };
+
+        $this->assertEqualsCanonicalizing(
+            [$mid['document_id'], $new['document_id']],
+            $idsFor('from_date=2026-11-05'),
+        );
+        $this->assertEqualsCanonicalizing(
+            [$old['document_id'], $mid['document_id']],
+            $idsFor('to_date=2026-11-05'),
+        );
+        $this->assertSame(
+            [$mid['document_id']],
+            $idsFor('from_date=2026-11-05&to_date=2026-11-05'),
+        );
+        $this->assertSame(
+            [],
+            $idsFor('from_date=2026-11-07&to_date=2026-11-08'),
+        );
+
+        $this->getJson(
+            '/api/v1/inbound-documents?from_date=2026-11-06&to_date=2026-11-05',
+            $headers,
+        )->assertStatus(422);
+        $this->getJson(
+            '/api/v1/inbound-documents?from_date=2026-13-01',
+            $headers,
+        )->assertStatus(422);
+    }
+
     public function test_scan_code_value_is_trimmed_and_capped_at_150_chars(): void
     {
         $ctx = $this->draftInbound('FLOW02-SCANLEN');

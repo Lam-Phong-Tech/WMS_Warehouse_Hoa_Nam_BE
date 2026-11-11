@@ -29,7 +29,19 @@ trait InteractsWithStockDocuments
     public function index(Request $request)
     {
         // Validate before a read-cache hit; retain the existing permission/scope middleware.
-        $request->validate(['warehouse_id' => ['nullable', 'uuid']]);
+        $request->validate([
+            'warehouse_id' => ['nullable', 'uuid'],
+            'from_date' => ['nullable', 'date_format:Y-m-d'],
+            'to_date' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        if (
+            $request->filled('from_date')
+            && $request->filled('to_date')
+            && (string) $request->input('from_date') > (string) $request->input('to_date')
+        ) {
+            ApiError::abort(422, 'VALIDATION_ERROR', 'from_date phải nhỏ hơn hoặc bằng to_date.');
+        }
 
         $query = StockDocument::query()
             ->with('lines')
@@ -61,6 +73,15 @@ trait InteractsWithStockDocuments
 
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
+        }
+
+        // IN-01 "Từ ngày / Đến ngày": lọc NGAY TRONG SQL theo ngày tạo phiếu,
+        // bao gồm cả hai đầu. Không lọc sau phân trang để số dòng/trang đúng.
+        if ($request->filled('from_date')) {
+            $query->whereDate('created_at', '>=', (string) $request->input('from_date'));
+        }
+        if ($request->filled('to_date')) {
+            $query->whereDate('created_at', '<=', (string) $request->input('to_date'));
         }
 
         $keywordColumns = ['doc_no', 'note'];
