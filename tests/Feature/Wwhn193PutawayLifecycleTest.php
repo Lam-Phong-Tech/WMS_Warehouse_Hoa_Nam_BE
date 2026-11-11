@@ -585,6 +585,13 @@ class Wwhn193PutawayLifecycleTest extends TestCase
         $rows = $history->json('data');
         $this->assertCount(1, $rows, 'History chỉ được liệt kê CONFIRMED, không liệt kê CANCELLED.');
         $this->assertSame('BOX-HIST-02', $rows[0]['box_code']);
+        $this->assertSame('STORED', $rows[0]['box_status']);
+        $this->assertSame('COMP-HIST-02', $rows[0]['sku_code']);
+        $this->assertSame('Component COMP-HIST-02', $rows[0]['sku_name']);
+        $this->assertSame('cai', $rows[0]['unit']);
+        $this->assertSame(5, $rows[0]['quantity']);
+        $this->assertStringStartsWith('PN-PTW-', (string) $rows[0]['receipt_code']);
+        $this->assertNull($rows[0]['note']);
     }
 
     // ------------------------------------------------------------------

@@ -400,6 +400,7 @@ class PutawayController extends Controller
             ->leftJoin('containers as ft', 'ft.container_id', '=', 'p.from_tray_id')
             ->leftJoin('containers as tt', 'tt.container_id', '=', 'p.to_tray_id')
             ->leftJoin('app_user as u', 'u.user_id', '=', 'p.confirmed_by')
+            ->leftJoin('sku as s', 's.sku_id', '=', 'b.primary_sku_id')
             ->where('p.status', 'CONFIRMED')
             ->when($keyword !== '', function ($query) use ($keyword): void {
                 $query->where(function ($nested) use ($keyword): void {
@@ -414,26 +415,47 @@ class PutawayController extends Controller
             ->select([
                 'p.id', 'p.box_container_id', 'p.from_tray_id', 'p.to_tray_id',
                 'p.location_hint', 'p.note', 'p.confirmed_at', 'p.created_at', 'p.version',
-                'b.container_code as box_code', 'ft.container_code as old_tray_code',
+                'b.container_code as box_code', 'b.status as box_status', 'b.primary_sku_id',
+                'ft.container_code as old_tray_code',
                 'tt.container_code as new_tray_code', 'u.display_name as actor_name',
+                's.sku_code', 's.sku_name', 's.unit',
             ])
             ->paginate($this->perPage($request));
 
+        $boxIds = collect($rows->items())
+            ->pluck('box_container_id')
+            ->map(fn ($id): string => (string) $id)
+            ->all();
+        $quantities = $this->postedQuantitiesByBox($boxIds);
+        $receipts = $this->latestPostedReceiptsByBox($boxIds);
+
         $mapped = collect($rows->items())
-            ->map(fn ($row): array => [
-                'id' => (string) $row->id,
-                'box_container_id' => (string) $row->box_container_id,
-                'box_code' => (string) ($row->box_code ?? ''),
-                'old_tray_code' => $row->old_tray_code,
-                'new_tray_code' => $row->new_tray_code,
-                'location_hint' => $row->location_hint,
-                'note' => $row->note,
-                'actor_name' => $row->actor_name,
-                'created_at' => $row->confirmed_at ?: $row->created_at,
-                'version' => (int) $row->version,
-                'stock_effect' => 'NONE',
-                'movement_created' => false,
-            ])->values();
+            ->map(function ($row) use ($quantities, $receipts): array {
+                $boxId = (string) $row->box_container_id;
+                $receipt = $receipts[$boxId] ?? null;
+
+                return [
+                    'id' => (string) $row->id,
+                    'box_container_id' => $boxId,
+                    'box_code' => (string) ($row->box_code ?? ''),
+                    'box_status' => (string) ($row->box_status ?? ''),
+                    'sku_id' => (string) ($row->primary_sku_id ?? ''),
+                    'sku_code' => (string) ($row->sku_code ?? ''),
+                    'sku_name' => (string) ($row->sku_name ?? ''),
+                    'unit' => (string) ($row->unit ?? ''),
+                    'quantity' => (int) ($quantities[$boxId] ?? 0),
+                    'receipt_code' => $receipt?->doc_no,
+                    'old_tray_code' => $row->old_tray_code,
+                    'new_tray_code' => $row->new_tray_code,
+                    'location_hint' => $row->location_hint,
+                    'note' => $row->note,
+                    'actor_name' => $row->actor_name,
+                    'created_at' => $row->confirmed_at ?: $row->created_at,
+                    'version' => (int) $row->version,
+                    'stock_effect' => 'NONE',
+                    'movement_created' => false,
+                ];
+            })->values();
 
         return $this->respondPaginated(
             new LengthAwarePaginator($mapped->all(), $rows->total(), $rows->perPage(), $rows->currentPage()),
