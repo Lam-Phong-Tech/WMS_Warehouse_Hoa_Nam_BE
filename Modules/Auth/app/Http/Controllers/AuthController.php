@@ -1021,29 +1021,35 @@ class AuthController extends Controller
         string $throttleKey,
         int $maxAttempts
     ): JsonResponse {
+        // Tài khoản INACTIVE/LOCKED vẫn tính là lần thử hỏng: nếu không đếm,
+        // kẻ tấn công dò được mật khẩu đúng của tài khoản đã khoá vô hạn lần.
         if ($maxAttempts > 0) {
             RateLimiter::hit($throttleKey, 60);
         }
 
         $this->auditLogger->log(
-            'LOGIN_FAILED',
-            'app_user',
-            $user->user_id,
-            $user->user_id,
-            $this->currentRequestId(),
-            [],
-            ['account_status' => $user->status],
-            'Inactive account login attempt',
-            result: 'FAILED',
-            errorCode: 'ACCOUNT_INACTIVE',
+            'LOGIN_DENIED', 'app_user', $user->user_id, $user->user_id,
+            $this->currentRequestId(), [], ['status' => $user->status],
+            'Inactive or locked account',
+            // DENIED chứ không phải FAILED: đây là từ chối truy cập (403),
+            // theo enum ERD §7 audit_logs.result CHECK SUCCESS/FAILED/DENIED.
+            result: 'DENIED', errorCode: 'ACCESS_DENIED',
         );
 
-        return $this->respondError(
-            'Tài khoản đã bị khoá hoặc vô hiệu hoá.',
-            [],
-            403,
-            'ACCOUNT_INACTIVE',
-        );
+        event(new SecurityAlertRaised(
+            'LOGIN_DENIED',
+            $user->user_id,
+            "Tài khoản {$user->username} bị từ chối đăng nhập vì đang ở trạng thái {$user->status}.",
+        ));
+
+        // Cấp tài khoản nhân viên: phân biệt khoá do admin với tự khoá vì quá
+        // 7 ngày chưa đăng nhập lần đầu (LockExpiredFirstLoginAccounts) để
+        // người dùng biết cần liên hệ ai thay vì thấy message chung chung.
+        $lockMessage = ($user->status === 'LOCKED' && $user->must_change_password && $user->last_login_at === null)
+            ? 'Tài khoản đã bị khoá do không đăng nhập lần đầu trong vòng 7 ngày kể từ khi được cấp. Vui lòng liên hệ quản trị viên để được cấp lại mật khẩu.'
+            : 'Tài khoản đang bị khoá hoặc ngừng hoạt động.';
+
+        return $this->respondError($lockMessage, [], 403, 'ACCESS_DENIED');
     }
 
     private function userPayload(User $user): array
