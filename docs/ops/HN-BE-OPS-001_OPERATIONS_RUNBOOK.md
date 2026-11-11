@@ -96,6 +96,7 @@ Kiểm tra migration/seed/core/security readiness. Đây là cổng **fail-close
 | Mỗi 5 phút | `audit:reconcile` | Rút `audit_outbox` về `audit_log`. Không chạy → outbox phình vô hạn, audit trail không hoàn tất |
 | 01:30 hằng ngày | `inventory:reconcile` | SRS §7.5 — lệch ledger/balance phải sinh `Reconciliation_Incident` chủ động. **Không tự sửa tồn**: sửa sai vẫn đi qua Reversal |
 | 02:15 hằng ngày | `import:purge-error-files` | Xoá file lỗi CSV đã hết hạn. Không chạy → đĩa phình theo số lần import lỗi |
+| 02:30 hằng ngày | `notification-retention:prune --limit=5000` | Dọn chuông theo mức độ. Không chạy → `notification_recipients` phình vô hạn (mỗi sự kiện kho fan-out 50+ người) |
 | 03:10 hằng ngày | `warranty:purge-pii` | SRS §13.8 / DR-PRIV-001 — anonymize PII sau retention 5 năm, trừ legal hold. Đây là nghĩa vụ tuân thủ |
 
 Kiểm tra nhanh scheduler có sống không:
@@ -117,12 +118,25 @@ docker compose logs --tail=100 scheduler
 | `php artisan audit:reconcile [--limit=]` | Rút audit outbox |
 | `php artisan warranty:purge-pii [--dry-run] [--limit=500]` | Purge PII theo retention |
 | `php artisan import:purge-error-files [--dry-run]` | Dọn file lỗi import |
+| `php artisan notification-retention:prune [--dry-run] [--limit=5000]` | Dọn `notification_recipients` theo retention; giữ ledger `notifications` |
 | `php artisan evidence:permission-catalog` | Xuất permission catalog + route matrix làm evidence |
 | `php artisan evidence:stock-snapshot --label=before\|after` | Snapshot tồn/ledger trước–sau thao tác |
 | `php artisan migration:final-load --mode=DRY_RUN\|COMMIT\|ROLLBACK --package=<dir> --run-code=<code>` | Nạp dữ liệu đầu kỳ có kiểm soát |
 | `php artisan wms:seed-uat --password=<pwd>` | Seed tài khoản UAT |
 
-**Luôn `--dry-run` trước** với các lệnh có xoá/ghi dữ liệu (`warranty:purge-pii`, `import:purge-error-files`, `inventory:reconcile`, `migration:final-load`).
+**Luôn `--dry-run` trước** với các lệnh có xoá/ghi dữ liệu (`warranty:purge-pii`, `import:purge-error-files`, `notification-retention:prune`, `inventory:reconcile`, `migration:final-load`).
+
+### 5.1 Retention chuông thông báo
+
+`notification-retention:prune` chỉ xóa dòng `notification_recipients` (hộp thư của từng người), **không** xóa `notifications` (ledger sự kiện) và `notification_source_snapshots`.
+
+| Nhóm | Đã đọc | Chưa đọc |
+| --- | --- | --- |
+| `info` | 90 ngày kể từ `read_at` | 180 ngày kể từ `created_at` |
+| `warning` | 365 ngày kể từ `read_at` | 540 ngày kể từ `created_at` |
+| `critical`, `security.*`, `user.*`, `role.*`, severity lạ | Không tự xóa | Không tự xóa |
+
+`--limit` là giới hạn **mỗi nhóm** trong một lần chạy. Lệnh chạy hằng ngày nên các nhóm đều tiến đều; `--dry-run` trả về số dòng đủ điều kiện mà không xóa.
 
 ---
 

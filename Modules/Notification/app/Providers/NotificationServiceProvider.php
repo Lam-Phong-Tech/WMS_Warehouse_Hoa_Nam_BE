@@ -8,6 +8,7 @@ use Modules\Notification\Console\Commands\BackfillNotificationActorsCommand;
 use Modules\Notification\Console\Commands\DrainNotificationDeliveries;
 use Modules\Notification\Console\Commands\MonitorNotificationBurst;
 use Modules\Notification\Console\Commands\PruneNotificationDeliveryStateCommand;
+use Modules\Notification\Console\Commands\PruneNotificationRecipientsCommand;
 use Modules\Notification\Delivery\FcmAccessTokenSource;
 use Modules\Notification\Delivery\GoogleFcmAccessTokenSource;
 
@@ -32,6 +33,7 @@ class NotificationServiceProvider extends HttpLeanModuleServiceProvider
         BackfillNotificationActorsCommand::class,
         DrainNotificationDeliveries::class,
         PruneNotificationDeliveryStateCommand::class,
+        PruneNotificationRecipientsCommand::class,
         MonitorNotificationBurst::class,
     ];
 
@@ -61,6 +63,7 @@ class NotificationServiceProvider extends HttpLeanModuleServiceProvider
     {
         $schedule->command('notification-delivery:drain --limit=100')->everyMinute()->withoutOverlapping()->onOneServer();
         $schedule->command('notification-delivery:prune --limit=250')->hourly()->withoutOverlapping()->onOneServer();
+        $schedule->command('notification-retention:prune --limit=5000')->dailyAt('02:30')->withoutOverlapping()->onOneServer();
         $schedule->command('notifications:monitor --json')->everyMinute()->withoutOverlapping()->onOneServer();
     }
 

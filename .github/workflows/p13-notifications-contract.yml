@@ -42,6 +42,7 @@ jobs:
       P19_COMMAND_RECOVERY_ENABLED: 'false'
       P13_TESTS: >-
         tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php
+        tests/Feature/NotificationRetentionPruneTest.php
         tests/Feature/P12ReadRevision2Test.php tests/Feature/P03DraftContractTest.php
         tests/Feature/P04InboundContractTest.php tests/Feature/P05OutboundContractTest.php
         tests/Feature/AuthWarehouseContextTest.php tests/Feature/AuthSessionPersistenceTest.php
@@ -49,9 +50,12 @@ jobs:
         Modules/Notification/app/Http/Controllers/NotificationController.php
         Modules/Notification/app/Support/P13NotificationCursor.php
         Modules/Notification/app/Support/P13NotificationPresentation.php
+        Modules/Notification/app/Retention/PruneNotificationRecipients.php
+        Modules/Notification/app/Console/Commands/PruneNotificationRecipientsCommand.php
         Modules/Warehouse/app/Support/P13StockRecordProjection.php
         Modules/Warehouse/app/Http/Middleware/P12DocumentReadMetadata.php
         tests/Feature/P13NotificationContractTest.php tests/Feature/P13NotificationRevision2Test.php
+        tests/Feature/NotificationRetentionPruneTest.php
     steps:
       - uses: actions/checkout@v4
         with:
