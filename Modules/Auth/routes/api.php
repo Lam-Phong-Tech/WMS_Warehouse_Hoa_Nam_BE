@@ -3,14 +3,19 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\DepartmentController;
+use Modules\Auth\Http\Controllers\DeviceVerificationController;
+use Modules\Auth\Http\Controllers\LoginPowController;
+use Modules\Auth\Http\Controllers\LoginStepUpController;
 use Modules\Auth\Http\Controllers\MfaController;
 use Modules\Auth\Http\Controllers\P10ProfileController;
 use Modules\Auth\Http\Controllers\PasswordResetController;
 use Modules\Auth\Http\Controllers\PermissionController;
 use Modules\Auth\Http\Controllers\RoleController;
+use Modules\Auth\Http\Controllers\TrustedDeviceController;
 use Modules\Auth\Http\Controllers\UserController;
 use Modules\Auth\Http\Controllers\WarehouseContextController;
 use Modules\Auth\Http\Middleware\EnsureMutableRole;
+use Modules\Auth\Http\Middleware\PersistInstallationCookie;
 use Modules\Auth\Http\Middleware\PersistRefreshTokenCookie;
 use Modules\Auth\Http\Middleware\PreventSelfRoleAssignment;
 use Modules\Auth\Http\Middleware\PreventSuperAdminRoleGrant;
@@ -19,7 +24,9 @@ use Modules\Auth\Support\P11SecurityCommands;
 
 Route::prefix('v1')->group(function (): void {
     Route::post('auth/login', [AuthController::class, 'login'])
-        ->middleware(PersistRefreshTokenCookie::class);
+        ->middleware([PersistRefreshTokenCookie::class, PersistInstallationCookie::class]);
+    Route::post('auth/login/pow-challenge', [LoginPowController::class, 'challenge'])
+        ->middleware('throttle:auth-pow-challenge');
     Route::post('auth/refresh', [AuthController::class, 'refresh'])
         ->middleware([PersistRefreshTokenCookie::class, 'throttle:auth-refresh']);
 
@@ -35,7 +42,15 @@ Route::prefix('v1')->group(function (): void {
     // trong MfaService — chỉ một trong hai là không đủ: throttle IP bị vượt bằng
     // botnet, còn trần theo tài khoản không chặn được kẻ rải mã qua nhiều tài khoản.
     Route::post('auth/mfa/verify', [MfaController::class, 'verify'])
-        ->middleware(['throttle:auth-mfa-verify', PersistRefreshTokenCookie::class]);
+        ->middleware(['throttle:auth-mfa-verify', PersistRefreshTokenCookie::class, PersistInstallationCookie::class]);
+    Route::post('auth/step-up/verify', [LoginStepUpController::class, 'verify'])
+        ->middleware('throttle:auth-step-up-verify');
+    Route::post('auth/step-up/resend', [LoginStepUpController::class, 'resend'])
+        ->middleware('throttle:auth-step-up-resend');
+    Route::post('auth/device/verify', [DeviceVerificationController::class, 'verify'])
+        ->middleware(['throttle:auth-device-verify', PersistRefreshTokenCookie::class, PersistInstallationCookie::class]);
+    Route::post('auth/device/resend', [DeviceVerificationController::class, 'resend'])
+        ->middleware('throttle:auth-device-resend');
 
     Route::middleware('auth:api')->group(function (): void {
         Route::post('auth/logout', [AuthController::class, 'logout'])
@@ -51,6 +66,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('auth/devices', [P10ProfileController::class, 'devices']);
         Route::get('auth/device-history', [P10ProfileController::class, 'deviceHistory']);
         Route::delete('auth/devices/{id}', [P10ProfileController::class, 'revokeDevice']);
+        Route::get('auth/trusted-devices', [TrustedDeviceController::class, 'index']);
+        Route::delete('auth/trusted-devices/{id}', [TrustedDeviceController::class, 'destroy']);
         Route::post('auth/sessions/revoke-others', [P10ProfileController::class, 'revokeOtherSessions']);
         Route::post('auth/change-password', [AuthController::class, 'changePassword'])
             ->middleware(PersistRefreshTokenCookie::class);

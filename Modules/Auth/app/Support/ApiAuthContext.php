@@ -41,6 +41,11 @@ final class ApiAuthContext
      */
     public const PUBLIC_PATH_PATTERNS = [
         'api/v1/auth/login',
+        'api/v1/auth/login/pow-challenge',
+        'api/v1/auth/step-up/verify',
+        'api/v1/auth/step-up/resend',
+        'api/v1/auth/device/verify',
+        'api/v1/auth/device/resend',
         // Bước 2 của đăng nhập hai bước. Route này CỐ Ý không có `auth:api`: bước
         // 1 không phát token nào, nên tại đây chưa hề có actor. Không khai vào
         // đây thì EnforceActiveAccountStatus / EnforceCredentialFreshness /

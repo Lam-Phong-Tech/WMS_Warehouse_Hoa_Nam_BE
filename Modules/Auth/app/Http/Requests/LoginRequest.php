@@ -36,6 +36,11 @@ class LoginRequest extends FormRequest
                 'max:128',
                 'regex:/\A[^\s[:cntrl:]]+\z/u',
             ],
+            'step_up_token' => ['nullable', 'string', 'max:128'],
+            'pow' => ['nullable', 'array'],
+            'pow.challenge_id' => ['required_with:pow', 'string', 'max:128'],
+            'pow.solution' => ['required_with:pow', 'integer', 'min:0'],
+            'pow_supported' => ['nullable', 'boolean'],
         ];
     }
 

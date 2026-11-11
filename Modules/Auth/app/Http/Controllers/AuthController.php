@@ -5,6 +5,7 @@ namespace Modules\Auth\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\RateLimitResponse;
 use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -15,12 +16,19 @@ use Modules\Auth\Events\SecurityAlertRaised;
 use Modules\Auth\Http\Requests\LoginRequest;
 use Modules\Auth\Models\RefreshToken;
 use Modules\Auth\Models\User;
-use Modules\Auth\Support\AuthUserPayload;
 use Modules\Auth\Support\AccountSessionPolicy;
+use Modules\Auth\Support\AuthUserPayload;
+use Modules\Auth\Support\DeviceVerification;
+use Modules\Auth\Support\InstallationIdentity;
+use Modules\Auth\Support\LoginPow;
+use Modules\Auth\Support\LoginStepUp;
+use Modules\Auth\Support\LoginThrottle;
 use Modules\Auth\Support\MfaService;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
+use Modules\Auth\Support\TrustedDeviceService;
 use OpenApi\Attributes as OA;
+use Throwable;
 
 class AuthController extends Controller
 {
@@ -63,6 +71,28 @@ class AuthController extends Controller
         // endpoint nhận thêm `username` nên `admin` và `admin@gmail.com` cùng vào
         // được một tài khoản.
         $credentials = ['email' => (string) $request->input('email'), 'password' => (string) $request->input('password')];
+        $email = $credentials['email'];
+        $ip = (string) $request->ip();
+        $isCookieTransport = $this->tokenTransport->mode($request) === RefreshTokenTransport::COOKIE;
+        $backoffEnabled = (bool) config('login_security.backoff.enabled', true);
+        $stepUpEnabled = (bool) config('login_security.step_up.enabled', true) && $isCookieTransport;
+        $trustEnabled = (bool) config('login_security.trusted_device.enabled', false) && $isCookieTransport;
+        $throttle = app(LoginThrottle::class);
+        $stepUpService = app(LoginStepUp::class);
+        $trustedDeviceService = app(TrustedDeviceService::class);
+
+        $presentedTrustCookie = $isCookieTransport
+            ? $request->cookie($trustedDeviceService->cookieName($email))
+            : null;
+        $validTrust = $isCookieTransport
+            ? $trustedDeviceService->findValid($email, is_string($presentedTrustCookie) ? $presentedTrustCookie : null)
+            : null;
+        $hasValidTrust = $validTrust !== null;
+
+        $stepUpToken = is_string($request->input('step_up_token')) && trim((string) $request->input('step_up_token')) !== ''
+            ? trim((string) $request->input('step_up_token'))
+            : null;
+        $stepUpMethod = null;
 
         // WWHN-289 (DEV289-P1-04): trước đây /auth/login không có bất kỳ giới hạn
         // nào — dò mật khẩu không giới hạn tốc độ. Chỉ đếm lần THẤT BẠI và khoá
@@ -70,7 +100,103 @@ class AuthController extends Controller
         // chặn và một IP dùng chung (NAT trong kho) không tự khoá lẫn nhau.
         $throttleKey = $this->loginThrottleKey($request, $credentials);
         $maxAttempts = (int) config('rate_limit.auth_login_per_minute', 10);
-        if ($maxAttempts > 0 && RateLimiter::tooManyAttempts($throttleKey, $maxAttempts)) {
+
+        if ($stepUpToken !== null) {
+            if (! $stepUpService->isVerified($stepUpToken, $email)) {
+                $this->auditLogger->log(
+                    'LOGIN_STEP_UP_FAILED', 'app_user', null, null,
+                    $this->currentRequestId(), [], ['reason' => 'unverified_or_expired'],
+                    'Step-up token not verified or expired',
+                    result: 'FAILED', errorCode: 'STEP_UP_EXPIRED',
+                );
+
+                return $this->respondError(
+                    'Phiên xác minh bảo mật đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.',
+                    [], 422, 'STEP_UP_EXPIRED',
+                );
+            }
+
+            $consumedAttempt = $stepUpService->consumePasswordAttempt($stepUpToken, $email);
+            if (! $consumedAttempt['ok']) {
+                $this->auditLogger->log(
+                    'LOGIN_STEP_UP_FAILED', 'app_user', null, null,
+                    $this->currentRequestId(), [], ['reason' => 'password_attempts_exhausted'],
+                    'Step-up password attempts exhausted',
+                    result: 'FAILED', errorCode: 'STEP_UP_EXPIRED',
+                );
+
+                return $this->respondError(
+                    'Phiên xác minh bảo mật đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.',
+                    [], 422, 'STEP_UP_EXPIRED',
+                );
+            }
+
+            $stepUpMethod = $consumedAttempt['method'];
+        } elseif ($backoffEnabled && ! $hasValidTrust) {
+            $state = $throttle->state($email, $ip);
+            $retryAfter = $throttle->retryAfter($email, $ip);
+
+            if ($retryAfter > 0) {
+                $this->auditLogger->log(
+                    'LOGIN_THROTTLED', 'app_user', null, null,
+                    $this->currentRequestId(), [], [
+                        'scope' => $state['account_retry_after'] > $state['pair_retry_after'] ? 'account' : 'pair',
+                        'failure_count' => $state['failures'],
+                        'cap_hits' => $state['cap_hits'],
+                        'retry_after_seconds' => $retryAfter,
+                        'trust_cookie_valid' => false,
+                    ],
+                    'Too many failed login attempts',
+                    result: 'FAILED', errorCode: 'RATE_LIMIT_EXCEEDED',
+                );
+
+                event(new SecurityAlertRaised(
+                    'LOGIN_THROTTLED',
+                    null,
+                    'Phát hiện nhiều lần đăng nhập sai liên tiếp; một định danh đã bị tạm khoá thử đăng nhập.',
+                ));
+
+                return RateLimitResponse::make(
+                    $request,
+                    ['Retry-After' => (string) $retryAfter],
+                    'Bạn đã đăng nhập sai quá nhiều lần. Vui lòng thử lại sau '.$retryAfter.' giây.',
+                );
+            }
+
+            if ($stepUpEnabled && $state['step_up_required']) {
+                $existingUser = User::query()->where('email', $email)->first();
+                if ($existingUser !== null && $existingUser->status !== 'ACTIVE') {
+                    return $this->denyInactiveAccount($existingUser, $throttleKey, 0);
+                }
+
+                try {
+                    $stepUpChallenge = $stepUpService->issue($existingUser, $ip, $email);
+                } catch (Throwable) {
+                    return $this->respondError(
+                        'Không thể gửi mã xác minh qua email lúc này. Vui lòng thử lại sau hoặc liên hệ quản trị viên.',
+                        [], 503, 'EMAIL_DELIVERY_UNAVAILABLE',
+                    );
+                }
+
+                $this->auditLogger->log(
+                    'LOGIN_STEP_UP_REQUIRED', 'app_user', $existingUser?->user_id, $existingUser?->user_id,
+                    $this->currentRequestId(), [], [
+                        'method' => $stepUpChallenge['method'],
+                        'cap_hits' => $state['cap_hits'],
+                    ],
+                    'Five cap cycles reached; step-up verification required',
+                    result: 'SUCCESS',
+                );
+
+                return $this->respondSuccess([
+                    'step_up_required' => true,
+                    'step_up_token' => $stepUpChallenge['token'],
+                    'method' => $stepUpChallenge['method'],
+                    'masked_email' => $stepUpChallenge['masked_email'],
+                    'expires_in' => $stepUpChallenge['expires_in'],
+                ], 'Vì lý do bảo mật, vui lòng xác minh thiết bị để tiếp tục.');
+            }
+        } elseif (! $backoffEnabled && $maxAttempts > 0 && RateLimiter::tooManyAttempts($throttleKey, $maxAttempts)) {
             $retryAfter = RateLimiter::availableIn($throttleKey);
             $this->auditLogger->log(
                 'LOGIN_THROTTLED', 'app_user', null, null,
@@ -92,10 +218,49 @@ class AuthController extends Controller
             );
         }
 
-        if (! $accessToken = auth('api')->attempt($credentials)) {
-            if ($maxAttempts > 0) {
-                RateLimiter::hit($throttleKey, 60);
+        $powService = app(LoginPow::class);
+        if ($isCookieTransport && ! $hasValidTrust && $powService->required($email, $ip)) {
+            $powSupported = $request->input('pow_supported');
+            if ($powSupported === false || $powSupported === 'false' || $powSupported === 0 || $powSupported === '0') {
+                $this->auditLogger->log(
+                    'LOGIN_POW_UNAVAILABLE',
+                    'app_user',
+                    null,
+                    null,
+                    $this->currentRequestId(),
+                    [],
+                    ['user_agent' => substr((string) $request->userAgent(), 0, 255)],
+                    'Client reported WebWorker/WebCrypto unavailable for PoW',
+                    result: 'SUCCESS',
+                );
+            } else {
+                $powInput = $request->input('pow');
+                if (! is_array($powInput) || ! $powService->verify($powInput, $email, $ip)) {
+                    $freshChallenge = $powService->challenge($email, $ip);
+                    $this->auditLogger->log(
+                        is_array($powInput) ? 'LOGIN_POW_FAILED' : 'LOGIN_POW_REQUIRED',
+                        'app_user',
+                        null,
+                        null,
+                        $this->currentRequestId(),
+                        [],
+                        ['difficulty' => $freshChallenge['difficulty']],
+                        'Proof of work required or invalid for elevated-risk login',
+                        result: 'FAILED',
+                        errorCode: 'POW_REQUIRED',
+                    );
+
+                    return $this->respondError(
+                        'Vui lòng xác minh thiết bị trước khi tiếp tục đăng nhập.',
+                        ['challenge' => $freshChallenge],
+                        428,
+                        'POW_REQUIRED',
+                    );
+                }
             }
+        }
+
+        if (! $accessToken = auth('api')->attempt($credentials)) {
             $user = User::query()->where('email', $credentials['email'] ?? null)->first();
 
             // Chỉ ghi diagnostic không nhạy cảm. Tuyệt đối không log password,
@@ -122,6 +287,13 @@ class AuthController extends Controller
                 errorCode: 'UNAUTHENTICATED',
             );
 
+            if ($stepUpToken === null) {
+                $throttledResponse = $this->handleFailedPasswordThrottle($request, $throttle, $email, $ip, $user, $throttleKey, $maxAttempts, $backoffEnabled);
+                if ($throttledResponse !== null) {
+                    return $throttledResponse;
+                }
+            }
+
             return $this->respondError('Email, tài khoản hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
         }
 
@@ -130,9 +302,6 @@ class AuthController extends Controller
 
         if (! $this->credentialsMatchExactly($user, $credentials)) {
             auth('api')->logout();
-            if ($maxAttempts > 0) {
-                RateLimiter::hit($throttleKey, 60);
-            }
 
             $logData = $credentials;
             unset($logData['password']);
@@ -150,43 +319,38 @@ class AuthController extends Controller
                 errorCode: 'UNAUTHENTICATED',
             );
 
+            if ($stepUpToken === null) {
+                $throttledResponse = $this->handleFailedPasswordThrottle($request, $throttle, $email, $ip, $user, $throttleKey, $maxAttempts, $backoffEnabled);
+                if ($throttledResponse !== null) {
+                    return $throttledResponse;
+                }
+            }
+
             return $this->respondError('Email, tài khoản hoặc mật khẩu không đúng.', [], 401, 'UNAUTHENTICATED');
         }
 
         if ($user->status !== 'ACTIVE') {
             auth('api')->logout();
-            // Tài khoản INACTIVE/LOCKED vẫn tính là lần thử hỏng: nếu không đếm,
-            // kẻ tấn công dò được mật khẩu đúng của tài khoản đã khoá vô hạn lần.
-            if ($maxAttempts > 0) {
-                RateLimiter::hit($throttleKey, 60);
+            if ($stepUpToken === null && $backoffEnabled) {
+                $throttle->registerFailure($email, $ip);
             }
-            $this->auditLogger->log(
-                'LOGIN_DENIED', 'app_user', $user->user_id, $user->user_id,
-                $this->currentRequestId(), [], ['status' => $user->status],
-                'Inactive or locked account',
-                // DENIED chứ không phải FAILED: đây là từ chối truy cập (403),
-                // theo enum ERD §7 audit_logs.result CHECK SUCCESS/FAILED/DENIED.
-                result: 'DENIED', errorCode: 'ACCESS_DENIED',
-            );
 
-            event(new SecurityAlertRaised(
-                'LOGIN_DENIED',
-                $user->user_id,
-                "Tài khoản {$user->username} bị từ chối đăng nhập vì đang ở trạng thái {$user->status}.",
-            ));
-
-            // Cấp tài khoản nhân viên: phân biệt khoá do admin với tự khoá vì quá
-            // 7 ngày chưa đăng nhập lần đầu (LockExpiredFirstLoginAccounts) để
-            // người dùng biết cần liên hệ ai thay vì thấy message chung chung.
-            $lockMessage = ($user->status === 'LOCKED' && $user->must_change_password && $user->last_login_at === null)
-                ? 'Tài khoản đã bị khoá do không đăng nhập lần đầu trong vòng 7 ngày kể từ khi được cấp. Vui lòng liên hệ quản trị viên để được cấp lại mật khẩu.'
-                : 'Tài khoản đang bị khoá hoặc ngừng hoạt động.';
-
-            return $this->respondError($lockMessage, [], 403, 'ACCESS_DENIED');
+            return $this->denyInactiveAccount($user, $throttleKey, $backoffEnabled ? 0 : $maxAttempts);
         }
 
         // Đăng nhập thành công xoá bộ đếm để người dùng hợp lệ không bị phạt oan.
         RateLimiter::clear($throttleKey);
+        if ($stepUpToken !== null) {
+            $stepUpService->clear($stepUpToken);
+        }
+        if ($backoffEnabled) {
+            $throttle->registerSuccess($email, $ip);
+        }
+
+        $installation = app(InstallationIdentity::class)->resolve($request, $user);
+        $installationId = $validTrust !== null
+            ? (string) $validTrust->installation_id
+            : $installation['installation_id'];
 
         // WWHN-SEC-08 — mật khẩu mới chỉ là YẾU TỐ THỨ NHẤT.
         //
@@ -198,7 +362,7 @@ class AuthController extends Controller
         //
         // JWT vừa tạo ở bước xác thực mật khẩu phải được huỷ ngay: nó là một
         // access token hợp lệ đầy đủ và không bao giờ được rời khỏi tiến trình.
-        if ($this->mfa->isEnabled($user)) {
+        if ($this->mfa->isEnabled($user) && $stepUpMethod !== 'mfa') {
             auth('api')->logout();
 
             $challenge = $this->mfa->issueChallenge($user);
@@ -213,6 +377,66 @@ class AuthController extends Controller
                 'mfa_token' => $challenge['mfa_token'],
                 'expires_in' => $challenge['expires_in'],
             ], 'Nhập mã xác thực hai bước để hoàn tất đăng nhập.');
+        }
+
+        $trustCookieToAttach = null;
+        if ($isCookieTransport && $stepUpToken !== null && in_array($stepUpMethod, ['email', 'mfa'], true)) {
+            $issuedTrust = $trustedDeviceService->trust($user, $installationId, $request);
+            $trustCookieToAttach = $issuedTrust['cookie'];
+            $this->auditLogger->log(
+                'DEVICE_TRUSTED',
+                'trusted_device',
+                $issuedTrust['model']->id,
+                $user->user_id,
+                $this->currentRequestId(),
+                [],
+                ['via' => 'step_up_'.$stepUpMethod, 'installation_id' => $installationId],
+                'Device trusted via step-up verification',
+                result: 'SUCCESS',
+            );
+        } elseif ($trustEnabled) {
+            if ($validTrust === null) {
+                auth('api')->logout();
+                try {
+                    $deviceChallenge = app(DeviceVerification::class)->issue($user, $installationId, $ip);
+                } catch (Throwable) {
+                    return $this->respondError(
+                        'Không thể gửi mã xác minh qua email lúc này. Vui lòng thử lại sau hoặc liên hệ quản trị viên.',
+                        [],
+                        503,
+                        'EMAIL_DELIVERY_UNAVAILABLE',
+                    );
+                }
+
+                $this->auditLogger->log(
+                    'DEVICE_OTP_SENT',
+                    'app_user',
+                    $user->user_id,
+                    $user->user_id,
+                    $this->currentRequestId(),
+                    [],
+                    ['installation_id' => $installationId],
+                    'Unknown device verification OTP sent',
+                    result: 'SUCCESS',
+                );
+
+                return $this->respondSuccess([
+                    'device_verification_required' => true,
+                    'device_token' => $deviceChallenge['device_token'],
+                    'expires_in' => $deviceChallenge['expires_in'],
+                    'masked_email' => $deviceChallenge['masked_email'],
+                ], 'Thiết bị này chưa được tin cậy. Nhập mã xác minh đã gửi tới email đăng ký.');
+            }
+
+            $rotatedRaw = $trustedDeviceService->rotateIfNeeded($validTrust);
+            if ($rotatedRaw !== null) {
+                $trustCookieToAttach = $trustedDeviceService->makeCookieForModel($validTrust, $user->email, $rotatedRaw);
+            }
+        } elseif ($validTrust !== null) {
+            $rotatedRaw = $trustedDeviceService->rotateIfNeeded($validTrust);
+            if ($rotatedRaw !== null) {
+                $trustCookieToAttach = $trustedDeviceService->makeCookieForModel($validTrust, $user->email, $rotatedRaw);
+            }
         }
 
         // P1 10/09/2026: refresh token KHÔNG còn nằm trong JSON. Trình duyệt (Origin tin
@@ -237,6 +461,10 @@ class AuthController extends Controller
 
         if ($session !== null) {
             $this->tokenTransport->deliver($request, $response, $session['raw']);
+        }
+
+        if ($trustCookieToAttach !== null) {
+            $response->headers->setCookie($trustCookieToAttach);
         }
 
         $this->auditLogger->log('LOGIN', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
@@ -636,6 +864,9 @@ class AuthController extends Controller
         // (use-change-password.ts), nên không phát sinh thao tác mới cho người dùng.
         $user->markPasswordChangedNow();
         $this->refreshTokens->revokeAllForUser($user->user_id);
+        if (config('login_security.trusted_device.revoke_on_password_change', true)) {
+            app(TrustedDeviceService::class)->revokeAllForUser((string) $user->user_id);
+        }
         $this->auditLogger->log('CHANGE_PASSWORD', 'app_user', $user->user_id, $user->user_id, $this->currentRequestId(), result: 'SUCCESS');
 
         return $this->respondSuccess(null, 'Đổi mật khẩu thành công');
@@ -719,6 +950,100 @@ class AuthController extends Controller
     private function credentialsMatchExactly(User $user, array $credentials): bool
     {
         return hash_equals((string) $user->email, (string) ($credentials['email'] ?? ''));
+    }
+
+    private function handleFailedPasswordThrottle(
+        Request $request,
+        LoginThrottle $throttle,
+        string $submittedEmail,
+        string $ip,
+        ?User $user,
+        string $throttleKey,
+        int $maxAttempts,
+        bool $backoffEnabled
+    ): ?JsonResponse {
+        if ($backoffEnabled) {
+            $failure = $throttle->registerFailure($submittedEmail, $ip);
+
+            if ($failure['step_up_triggered']) {
+                event(new SecurityAlertRaised(
+                    'LOGIN_STEP_UP_REQUIRED',
+                    $user?->user_id,
+                    'Phát hiện nhiều chu kỳ khoá tối đa liên tiếp; yêu cầu xác minh bổ sung trước khi đăng nhập.',
+                ));
+            }
+
+            if ($failure['retry_after'] > 0) {
+                $this->auditLogger->log(
+                    'LOGIN_THROTTLED',
+                    'app_user',
+                    $user?->user_id,
+                    $user?->user_id,
+                    $this->currentRequestId(),
+                    [],
+                    [
+                        'scope' => $failure['scope'],
+                        'failure_count' => $failure['failures'],
+                        'cap_hits' => $failure['cap_hits'],
+                        'retry_after_seconds' => $failure['retry_after'],
+                        'trust_cookie_valid' => false,
+                    ],
+                    'Too many failed login attempts',
+                    result: 'FAILED',
+                    errorCode: 'RATE_LIMIT_EXCEEDED',
+                );
+
+                event(new SecurityAlertRaised(
+                    'LOGIN_THROTTLED',
+                    $user?->user_id,
+                    'Phát hiện nhiều lần đăng nhập sai liên tiếp; một định danh đã bị tạm khoá thử đăng nhập.',
+                ));
+
+                return RateLimitResponse::make(
+                    $request,
+                    ['Retry-After' => (string) $failure['retry_after']],
+                    'Bạn đã đăng nhập sai quá nhiều lần. Vui lòng thử lại sau '.$failure['retry_after'].' giây.',
+                );
+            }
+
+            return null;
+        }
+
+        if ($maxAttempts > 0) {
+            RateLimiter::hit($throttleKey, 60);
+        }
+
+        return null;
+    }
+
+    private function denyInactiveAccount(
+        User $user,
+        string $throttleKey,
+        int $maxAttempts
+    ): JsonResponse {
+        if ($maxAttempts > 0) {
+            RateLimiter::hit($throttleKey, 60);
+        }
+
+        $this->auditLogger->log(
+            'LOGIN_FAILED',
+            'app_user',
+            $user->user_id,
+            $user->user_id,
+            $this->currentRequestId(),
+            [],
+            ['account_status' => $user->status],
+            'Inactive account login attempt',
+            result: 'FAILED',
+            errorCode: 'ACCOUNT_INACTIVE',
+        );
+
+        return $this->respondError(
+            'Tài khoản đã bị khoá hoặc vô hiệu hoá.',
+            [],
+            403,
+            'ACCOUNT_INACTIVE',
+        );
     }
 
     private function userPayload(User $user): array

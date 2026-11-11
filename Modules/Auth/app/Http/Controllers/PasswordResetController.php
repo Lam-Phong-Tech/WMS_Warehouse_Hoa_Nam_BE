@@ -223,6 +223,9 @@ class PasswordResetController extends Controller
         // dùng tin rằng mình vừa lấy lại được tài khoản.
         $user->markPasswordChangedNow();
         $this->refreshTokens->revokeAllForUser($user->user_id);
+        if (config('login_security.trusted_device.revoke_on_password_change', true)) {
+            app(\Modules\Auth\Support\TrustedDeviceService::class)->revokeAllForUser((string) $user->user_id);
+        }
         $record->forceFill(['consumed_at' => now()])->save();
 
         // Đặt lại thành công thì bộ đếm không còn ý nghĩa: token đã bị tiêu, và

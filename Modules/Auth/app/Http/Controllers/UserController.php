@@ -257,6 +257,7 @@ class UserController extends Controller
         if ($passwordWasReset && $user !== null) {
             $user->markPasswordChangedNow();
             $this->refreshTokens->revokeAllForUser($id);
+            app(\Modules\Auth\Support\TrustedDeviceService::class)->revokeAllForUser($id);
         }
 
         // WWHN-SEC-09: vô hiệu hoá/khoá tài khoản phải giết luôn các phiên đang
@@ -268,6 +269,7 @@ class UserController extends Controller
         $statusInPayload = $data['status'] ?? null;
         if ($statusInPayload !== null && $statusInPayload !== 'ACTIVE' && $before->status === 'ACTIVE') {
             $this->refreshTokens->revokeAllForUser($id);
+            app(\Modules\Auth\Support\TrustedDeviceService::class)->revokeAllForUser($id);
         }
 
         AuditLogger::record(

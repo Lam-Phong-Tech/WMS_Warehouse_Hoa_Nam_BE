@@ -9,9 +9,11 @@ use Illuminate\Support\Facades\Hash;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\AuthUserPayload;
+use Modules\Auth\Support\InstallationIdentity;
 use Modules\Auth\Support\MfaService;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
+use Modules\Auth\Support\TrustedDeviceService;
 use OpenApi\Attributes as OA;
 
 /**
@@ -261,6 +263,18 @@ class MfaController extends Controller
             return $this->respondError('Mã xác thực không đúng.', [], 401, 'MFA_CODE_INVALID');
         }
 
+        $installation = app(InstallationIdentity::class)->resolve($request, $user);
+        $trustCookie = null;
+        if ($this->tokenTransport->mode($request) === RefreshTokenTransport::COOKIE) {
+            $issuedTrust = app(TrustedDeviceService::class)->trust($user, $installation['installation_id'], $request);
+            $trustCookie = $issuedTrust['cookie'];
+            $this->auditLogger->log(
+                'DEVICE_TRUSTED', 'trusted_device', $issuedTrust['model']->id, $user->user_id,
+                $this->currentRequestId(), [], ['via' => 'mfa_'.$method, 'installation_id' => $installation['installation_id']],
+                'Device trusted after MFA verification', result: 'SUCCESS',
+            );
+        }
+
         // Chỉ tới đây mới phát token thật. Phiên refresh (nếu có) tạo TRƯỚC để access
         // token mang claim `sid` trỏ đúng phiên đó — cùng lý do với AuthController::login().
         $completed = $this->refreshTokens->completeLogin($user, $request, $this->tokenTransport->shouldIssueOnLogin($request));
@@ -299,6 +313,10 @@ class MfaController extends Controller
         // trên (trước khi cấp access token); ở đây chỉ giao nó đi, KHÔNG issue lần hai.
         if ($session !== null) {
             $this->tokenTransport->deliver($request, $response, $session['raw']);
+        }
+
+        if ($trustCookie !== null) {
+            $response->headers->setCookie($trustCookie);
         }
 
         return $response;

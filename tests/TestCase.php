@@ -36,6 +36,13 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
     }
 
+    public function withCookie($name, $value)
+    {
+        $this->withCredentials();
+
+        return $this->withUnencryptedCookie($name, $value);
+    }
+
     private function assertTestDatabaseIsDisposable(): void
     {
         // Chỉ chặn test thật sự huỷ dữ liệu. Test đọc/ghi thường vẫn được phép

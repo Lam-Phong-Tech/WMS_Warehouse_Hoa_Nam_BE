@@ -229,6 +229,86 @@ class AppServiceProvider extends ServiceProvider
                     'Vượt quá giới hạn làm mới phiên đăng nhập. Vui lòng thử lại sau.',
                 ));
         });
+
+        RateLimiter::for('auth-step-up-verify', static function (Request $request) {
+            $perMinute = (int) config('rate_limit.auth_mfa_verify_per_minute', 10);
+            if ($perMinute <= 0) {
+                return Limit::none();
+            }
+
+            $token = (string) $request->input('step_up_token', '');
+
+            return Limit::perMinute($perMinute)
+                ->by('auth-step-up-verify:'.$request->ip().':'.($token !== '' ? hash('sha256', $token) : 'anonymous'))
+                ->response(static fn (Request $throttled, array $headers) => RateLimitResponse::make(
+                    $throttled,
+                    $headers,
+                    'Bạn đã nhập mã xác minh quá nhiều lần. Vui lòng thử lại sau.',
+                ));
+        });
+
+        RateLimiter::for('auth-step-up-resend', static function (Request $request) {
+            $perMinute = (int) config('login_security.step_up.otp_max_per_hour', 5);
+            if ($perMinute <= 0) {
+                return Limit::none();
+            }
+
+            $token = (string) $request->input('step_up_token', '');
+
+            return Limit::perMinute($perMinute)
+                ->by('auth-step-up-resend:'.$request->ip().':'.($token !== '' ? hash('sha256', $token) : 'anonymous'))
+                ->response(static fn (Request $throttled, array $headers) => RateLimitResponse::make(
+                    $throttled,
+                    $headers,
+                    'Bạn đã yêu cầu gửi lại mã xác minh quá nhiều lần. Vui lòng thử lại sau.',
+                ));
+        });
+
+        RateLimiter::for('auth-device-verify', static function (Request $request) {
+            $perMinute = (int) config('rate_limit.auth_mfa_verify_per_minute', 10);
+            if ($perMinute <= 0) {
+                return Limit::none();
+            }
+
+            $token = (string) $request->input('device_token', '');
+
+            return Limit::perMinute($perMinute)
+                ->by('auth-device-verify:'.$request->ip().':'.($token !== '' ? hash('sha256', $token) : 'anonymous'))
+                ->response(static fn (Request $throttled, array $headers) => RateLimitResponse::make(
+                    $throttled,
+                    $headers,
+                    'Bạn đã nhập mã xác minh thiết bị quá nhiều lần. Vui lòng thử lại sau.',
+                ));
+        });
+
+        RateLimiter::for('auth-device-resend', static function (Request $request) {
+            $perMinute = (int) config('login_security.device_otp.max_per_hour', 5);
+            if ($perMinute <= 0) {
+                return Limit::none();
+            }
+
+            $token = (string) $request->input('device_token', '');
+
+            return Limit::perMinute($perMinute)
+                ->by('auth-device-resend:'.$request->ip().':'.($token !== '' ? hash('sha256', $token) : 'anonymous'))
+                ->response(static fn (Request $throttled, array $headers) => RateLimitResponse::make(
+                    $throttled,
+                    $headers,
+                    'Bạn đã yêu cầu gửi lại mã xác minh thiết bị quá nhiều lần. Vui lòng thử lại sau.',
+                ));
+        });
+
+        RateLimiter::for('auth-pow-challenge', static function (Request $request) {
+            $perMinute = 30;
+
+            return Limit::perMinute($perMinute)
+                ->by('auth-pow-challenge:'.$request->ip())
+                ->response(static fn (Request $throttled, array $headers) => RateLimitResponse::make(
+                    $throttled,
+                    $headers,
+                    'Vượt quá giới hạn yêu cầu xác minh thiết bị. Vui lòng thử lại sau.',
+                ));
+        });
     }
 
     /**

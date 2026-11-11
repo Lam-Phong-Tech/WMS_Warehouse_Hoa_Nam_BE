@@ -28,6 +28,7 @@ use Modules\Auth\Support\ProfileAvatar;
 use Modules\Auth\Support\ProfilePreferences;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Auth\Support\RefreshTokenTransport;
+use Modules\Auth\Support\TrustedDeviceService;
 use Throwable;
 
 /** Self-service profile and installation APIs; login/refresh/MFA remain inherited. */
@@ -91,8 +92,10 @@ final class P10ProfileController extends AuthController
                         'expected_version' => $expected, 'current_version' => (int) $user->version,
                     ]);
                 }
+                $emailChanged = false;
                 if (array_key_exists('email', $data)) {
-                    if (strtolower((string) $user->email) !== $data['email']
+                    $emailChanged = strtolower((string) $user->email) !== $data['email'];
+                    if ($emailChanged
                         && (! is_string($data['current_password'] ?? null) || ! Hash::check($data['current_password'], $user->password_hash))) {
                         ApiError::abort(422, 'INVALID_CURRENT_PASSWORD', 'Nhập mật khẩu hiện tại để thay đổi email.',
                             ['current_password' => ['Mật khẩu hiện tại không đúng hoặc chưa được nhập.']]);
@@ -104,6 +107,9 @@ final class P10ProfileController extends AuthController
                 }
                 unset($data['current_password']);
                 $user->forceFill([...$data, 'version' => $expected + 1])->save();
+                if ($emailChanged) {
+                    app(TrustedDeviceService::class)->revokeAllForUser((string) $user->user_id);
+                }
                 if ($avatar !== null) {
                     DB::table('user_profile_avatars')->updateOrInsert(['user_id' => $user->user_id], [...$avatar, 'updated_at' => now('UTC')]);
                 } elseif ($removeAvatar) {
@@ -278,20 +284,26 @@ final class P10ProfileController extends AuthController
         return DB::transaction(function () use ($request): JsonResponse {
             $user = $this->actor($request, true);
             $current = Family::current($user, true);
+            $currentInstallationId = null;
             $count = 0;
             foreach (ClientInstallations::activeFamilies((string) $user->user_id) as $row) {
                 $family = Policy::family($row->auth_session_id, (string) $row->id);
-                if (! hash_equals($current, $family)) {
+                if (hash_equals($current, $family)) {
+                    $currentInstallationId = $row->auth_device_id !== null ? (string) $row->auth_device_id : null;
+                } else {
                     Family::revoke((string) $user->user_id, $family);
                     $count++;
                 }
             }
-            if ($count > 0) {
+            $trustRevokedCount = app(TrustedDeviceService::class)->revokeAllForUser((string) $user->user_id, $currentInstallationId);
+            if ($count > 0 || $trustRevokedCount > 0) {
                 AuditLogger::record(action: 'REVOKE_OTHER_SESSIONS', objectType: 'app_user', objectId: (string) $user->user_id,
-                    actorId: (string) $user->user_id, requestId: $request->attributes->get('request_id'), afterData: ['revoked_session_count' => $count]);
+                    actorId: (string) $user->user_id, requestId: $request->attributes->get('request_id'),
+                    afterData: ['revoked_session_count' => $count, 'trust_revoked_count' => $trustRevokedCount]);
             }
 
             return $this->respondSuccess(['revoked' => true, 'revoked_session_count' => $count,
+                'trust_revoked_count' => $trustRevokedCount,
                 'preserved_session_id' => $current, 'request_receipt_supported' => false])->header('Cache-Control', 'private, no-store');
         }, 3);
     }
@@ -436,6 +448,9 @@ final class P10ProfileController extends AuthController
                     'version' => (int) $user->version + 1])->save();
                 $user->markPasswordChangedNow();
                 app(RefreshTokenService::class)->revokeAllForUser((string) $user->user_id);
+                if (config('login_security.trusted_device.revoke_on_password_change', true)) {
+                    app(TrustedDeviceService::class)->revokeAllForUser((string) $user->user_id);
+                }
                 AuditLogger::record(action: 'CHANGE_PASSWORD', objectType: 'app_user',
                     objectId: (string) $user->user_id, actorId: (string) $user->user_id,
                     requestId: $request->attributes->get('request_id'),

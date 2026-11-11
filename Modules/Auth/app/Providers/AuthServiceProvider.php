@@ -4,6 +4,7 @@ namespace Modules\Auth\Providers;
 
 use App\Support\Modules\HttpLeanModuleServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
+use Modules\Auth\Console\Commands\ClearLoginThrottle;
 use Modules\Auth\Console\Commands\LockExpiredFirstLoginAccounts;
 use Modules\Auth\Console\Commands\PruneRefreshTokens;
 use Modules\Auth\Repositories\Contracts\PermissionRepositoryInterface;
@@ -31,6 +32,7 @@ class AuthServiceProvider extends HttpLeanModuleServiceProvider
      * @var string[]
      */
     protected array $commands = [
+        ClearLoginThrottle::class,
         LockExpiredFirstLoginAccounts::class,
         PruneRefreshTokens::class,
     ];
