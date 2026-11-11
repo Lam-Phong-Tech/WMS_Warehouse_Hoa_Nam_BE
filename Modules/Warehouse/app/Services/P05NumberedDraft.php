@@ -49,7 +49,7 @@ final class P05NumberedDraft
             'allowed' => $warehouse !== null && $this->numbers->ready() && self::allowed($request->user(), $warehouse, 'save'),
             'save' => ['method' => 'PUT', 'path' => '/api/v1/mini-app/drafts/{draft_id}', 'operation' => 'OUTBOUND',
                 'headers' => [self::HEADER => self::CONTRACT], 'response_field' => 'data.document.document_no'],
-            'format' => 'PX-YYYYMMDD-SEQUENCE', 'cancel_policy' => 'RETAIN_NEVER_REUSE',
+            'format' => 'PX-YYYYMMDDHHmmss', 'timezone' => 'Asia/Ho_Chi_Minh', 'cancel_policy' => 'RETAIN_NEVER_REUSE',
             'source_linked_policy' => 'KEEP_SOURCE_DOCUMENT_NO', 'stock_effect' => 'NONE'];
     }
 

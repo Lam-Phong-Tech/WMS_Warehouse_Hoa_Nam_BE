@@ -8,6 +8,7 @@ This is manual-create mode only; source-linked Web mode is unchanged.
 
 1. GET existing outbound context. Verify schema readiness and
    `data.document_number_assignment=WITH_DRAFT_SAVE`, `data.numbering.mode`,
+   `data.numbering.format=PX-YYYYMMDDHHmmss`, `data.numbering.timezone=Asia/Ho_Chi_Minh`,
    `data.numbering.allowed` and the declared contract/revision.
 2. For a new manual run, use the original P03 draft/scan-session IDs and:
 

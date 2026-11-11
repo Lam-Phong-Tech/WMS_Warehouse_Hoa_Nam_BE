@@ -82,8 +82,8 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             content: new OA\JsonContent(
                 required: ['customer_name', 'customer_phone', 'description'],
                 properties: [
-                    new OA\Property(property: 'warranty_case_code', type: 'string', maxLength: 80, nullable: true, description: 'Bỏ trống để hệ thống tự sinh mã phiếu.', example: 'WC-20260821-AB12'),
-                    new OA\Property(property: 'case_no', type: 'string', maxLength: 80, nullable: true, description: 'Alias của warranty_case_code.', example: 'WC-20260821-AB12'),
+                    new OA\Property(property: 'warranty_case_code', type: 'string', maxLength: 80, nullable: true, description: 'Bỏ trống để hệ thống tự sinh mã phiếu.', example: 'BH-20261111140530'),
+                    new OA\Property(property: 'case_no', type: 'string', maxLength: 80, nullable: true, description: 'Alias của warranty_case_code.', example: 'BH-20261111140530'),
                     new OA\Property(property: 'item_id', type: 'string', format: 'uuid', nullable: true, description: 'Item đã xuất cho khách; thiếu item thì case ở nhánh TEMP_ONLY.', example: '9c6b1a2e-3f4d-4b7a-8c1e-2d3f4a5b6c7d'),
                     new OA\Property(property: 'item_code', type: 'string', maxLength: 200, nullable: true, example: 'SN-000123456'),
                     new OA\Property(property: 'defect_id', type: 'string', format: 'uuid', nullable: true, example: '1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e'),

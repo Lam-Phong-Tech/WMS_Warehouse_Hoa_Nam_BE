@@ -31,30 +31,34 @@ class P04InboundContractTest extends TestCase
 
     public function test_internal_receipt_creation_does_not_reuse_an_app_reservation(): void
     {
+        $this->travelTo(Carbon::parse('2026-11-02T03:00:00Z'));
         [$actor, $token, , $warehouse] = $this->actor();
         [$id, $body] = $this->save($token, $warehouse);
         $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()->json('data.document.document_no');
+        $this->assertSame('PN-20261102100000', $number);
         $receipt = app(StockDocumentService::class)->create('receipt', ['dst_warehouse_id' => (string) $warehouse->id, 'lines' => []], (string) $actor->user_id);
         $this->assertNotSame($number, $receipt->doc_no);
-        $this->assertSame('PN-'.now('Asia/Ho_Chi_Minh')->format('Ymd').'-0002', $receipt->doc_no);
+        $this->assertSame('PN-20261102100001', $receipt->doc_no);
+        $this->travelBack();
     }
 
     public function test_web_and_app_share_daily_receipt_numbers_and_preserve_replay(): void
     {
+        $this->travelTo(Carbon::parse('2026-11-02T03:00:00Z'));
         [, $token, , $warehouse] = $this->actor();
-        $prefix = 'PN-'.now('Asia/Ho_Chi_Minh')->format('Ymd').'-';
         $key = (string) Str::uuid();
         $payload = ['dst_warehouse_id' => (string) $warehouse->id];
         $first = $this->postJson('/api/v1/inbound-documents', $payload, $this->headers($token, null, $key))->assertCreated();
-        $first->assertJsonPath('data.doc_no', $prefix.'0001')->assertJsonPath('data.source_reference', null);
+        $first->assertJsonPath('data.doc_no', 'PN-20261102100000')->assertJsonPath('data.source_reference', null);
         $this->postJson('/api/v1/inbound-documents', $payload, $this->headers($token, null, $key))->assertCreated()
-            ->assertJsonPath('data.id', $first->json('data.id'))->assertJsonPath('data.doc_no', $prefix.'0001');
+            ->assertJsonPath('data.id', $first->json('data.id'))->assertJsonPath('data.doc_no', 'PN-20261102100000');
         [$id, $body] = $this->save($token, $warehouse);
         $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()
-            ->assertJsonPath('data.document.document_no', $prefix.'0002');
+            ->assertJsonPath('data.document.document_no', 'PN-20261102100001');
         $this->postJson('/api/v1/inbound-documents', $payload + ['source_reference' => 'GH-035'], $this->headers($token, null, (string) Str::uuid()))
-            ->assertCreated()->assertJsonPath('data.doc_no', $prefix.'0003')->assertJsonPath('data.source_reference', 'GH-035');
+            ->assertCreated()->assertJsonPath('data.doc_no', 'PN-20261102100002')->assertJsonPath('data.source_reference', 'GH-035');
         $this->assertDatabaseCount('stock_movements', 0);
+        $this->travelBack();
     }
 
     public function test_app_external_reference_is_optional_and_independent_of_legacy_title(): void
@@ -156,7 +160,7 @@ class P04InboundContractTest extends TestCase
             ->assertJsonPath('data.scan_session_id', $body['scan_session_id'])->assertJsonPath('data.document_id', $id);
         $this->assertStockNeutral();
         $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->json('data.document.document_no');
-        $this->assertMatchesRegularExpression('/^PN-[0-9]{8}-[0-9]{4,}$/D', (string) $number);
+        $this->assertMatchesRegularExpression('/^PN-[0-9]{14}$/D', (string) $number);
     }
 
     public function test_context_advertises_save_numbering_and_the_three_approved_categories(): void
@@ -164,7 +168,8 @@ class P04InboundContractTest extends TestCase
         [, $token] = $this->actor();
         $this->getJson(self::BASE.'/context', $this->headers($token))->assertOk()
             ->assertJsonPath('data.document_number_assignment', 'WITH_DRAFT_SAVE')
-            ->assertJsonPath('data.document_number_format', 'PN-YYYYMMDD-STT')
+            ->assertJsonPath('data.document_number_format', 'PN-YYYYMMDDHHmmss')
+            ->assertJsonPath('data.document_number_timezone', 'Asia/Ho_Chi_Minh')
             ->assertJsonPath('data.ui_metadata_extension', 'p04-ui-options-v1')
             ->assertJsonPath('data.inbound_categories.0.id', 'PRODUCT')
             ->assertJsonPath('data.inbound_categories.1.id', 'COMPONENT')
@@ -180,7 +185,7 @@ class P04InboundContractTest extends TestCase
         $key = (string) Str::uuid();
         $first = $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 0, $key))->assertCreated();
         $number = $first->json('data.document.document_no');
-        $this->assertMatchesRegularExpression('/^PN-[0-9]{8}-[0-9]{4,}$/D', (string) $number);
+        $this->assertMatchesRegularExpression('/^PN-[0-9]{14}$/D', (string) $number);
         $this->putJson(self::BASE.'/drafts/'.$id, $body, $this->headers($token, 0, $key))->assertCreated()
             ->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.document.document_no', $number);
         $body['name'] = $number;
@@ -224,13 +229,13 @@ class P04InboundContractTest extends TestCase
         [, $token, , $warehouse] = $this->actor();
         [$id, $body, $key] = $this->save($token, $warehouse);
         $number = $this->getJson($this->draftUrl($id, $body), $this->headers($token))->json('data.document.document_no');
-        $this->assertSame('PN-20261102-0001', $number);
+        $this->assertSame('PN-20261102235950', $number);
         $this->postJson(self::BASE.'/drafts/'.$id.'/cancel', $this->identity($body) + ['confirmed_request_id' => $key, 'reason' => 'Cancel isolated draft'], $this->headers($token, 1, (string) Str::uuid()))->assertOk();
         [$next, $nextBody] = $this->save($token, $warehouse);
-        $this->getJson($this->draftUrl($next, $nextBody), $this->headers($token))->assertOk()->assertJsonPath('data.document.document_no', 'PN-20261102-0002');
+        $this->getJson($this->draftUrl($next, $nextBody), $this->headers($token))->assertOk()->assertJsonPath('data.document.document_no', 'PN-20261102235951');
         $this->travelTo(Carbon::parse('2026-11-02T17:00:01Z'));
         [$tomorrow, $tomorrowBody] = $this->save($token, $warehouse);
-        $this->getJson($this->draftUrl($tomorrow, $tomorrowBody), $this->headers($token))->assertOk()->assertJsonPath('data.document.document_no', 'PN-20261103-0001');
+        $this->getJson($this->draftUrl($tomorrow, $tomorrowBody), $this->headers($token))->assertOk()->assertJsonPath('data.document.document_no', 'PN-20261103000001');
         $this->travelBack();
         $this->assertStockNeutral();
     }
@@ -290,16 +295,16 @@ class P04InboundContractTest extends TestCase
         $this->assertDatabaseCount('stock_movements', 0);
     }
 
-    public function test_allocator_skips_existing_web_numbers_and_keeps_more_than_four_sequence_digits(): void
+    public function test_allocator_skips_existing_web_numbers_and_advances_monotonically_in_same_second(): void
     {
         $this->travelTo(Carbon::parse('2026-11-02T03:00:00Z'));
         [$actor, $token, , $warehouse] = $this->actor();
         app(StockDocumentService::class)->create('receipt', [
-            'doc_no' => 'PN-20261102-9999', 'dst_warehouse_id' => (string) $warehouse->id, 'lines' => [],
+            'doc_no' => 'PN-20261102100005', 'dst_warehouse_id' => (string) $warehouse->id, 'lines' => [],
         ], (string) $actor->user_id);
         [$id, $body] = $this->save($token, $warehouse);
         $this->getJson($this->draftUrl($id, $body), $this->headers($token))->assertOk()
-            ->assertJsonPath('data.document.document_no', 'PN-20261102-10000');
+            ->assertJsonPath('data.document.document_no', 'PN-20261102100006');
         $this->assertDatabaseCount('stock_documents', 1);
         $this->assertDatabaseCount('stock_movements', 0);
         $this->travelBack();

@@ -41,7 +41,7 @@ class OutboundDocumentNumberUnificationTest extends TestCase
 
         $response->assertCreated();
         $docNo = (string) $response->json('data.doc_no');
-        $this->assertMatchesRegularExpression('/^PX-[0-9]{8}-[0-9]{4,}$/D', $docNo);
+        $this->assertMatchesRegularExpression('/^PX-[0-9]{14}$/D', $docNo);
         $this->assertDatabaseHas('stock_documents', [
             'doc_no' => $docNo,
             'doc_type' => 'issue',
@@ -75,7 +75,7 @@ class OutboundDocumentNumberUnificationTest extends TestCase
         $confirm->assertOk();
         $documentId = (string) $confirm->json('data.outbound_document_ids.0');
         $docNo = (string) DB::table('stock_documents')->where('id', $documentId)->value('doc_no');
-        $this->assertMatchesRegularExpression('/^PX-[0-9]{8}-[0-9]{4,}$/D', $docNo);
+        $this->assertMatchesRegularExpression('/^PX-[0-9]{14}$/D', $docNo);
     }
 
     public function test_direct_create_fails_closed_when_numbering_schema_is_missing(): void

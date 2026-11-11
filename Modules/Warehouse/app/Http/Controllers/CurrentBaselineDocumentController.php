@@ -420,7 +420,7 @@ class CurrentBaselineDocumentController extends Controller
             $documentId = (string) Str::uuid();
             $docNo = $validated['doc_no'] ?? ($type === 'receipt'
                 ? app(InboundDocumentNumber::class)->next()
-                : 'PX-'.now()->format('YmdHis').'-'.Str::upper(Str::random(4)));
+                : app(OutboundDocumentNumber::class)->next());
             if ($type === 'receipt' && isset($validated['doc_no'])) {
                 app(InboundDocumentNumber::class)->guardExplicit($docNo);
             }

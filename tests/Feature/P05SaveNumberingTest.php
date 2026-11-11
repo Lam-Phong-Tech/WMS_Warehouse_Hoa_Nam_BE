@@ -34,6 +34,8 @@ class P05SaveNumberingTest extends TestCase
             ->assertJsonPath('data.document_number_assignment', 'WITH_DRAFT_SAVE')
             ->assertJsonPath('data.numbering.contract', self::CONTRACT)
             ->assertJsonPath('data.numbering.mode', 'MANUAL_CREATE_ONLY')
+            ->assertJsonPath('data.numbering.format', 'PX-YYYYMMDDHHmmss')
+            ->assertJsonPath('data.numbering.timezone', 'Asia/Ho_Chi_Minh')
             ->assertJsonPath('data.numbering.allowed', true)
             ->assertJsonPath('data.numbering.source_linked_policy', 'KEEP_SOURCE_DOCUMENT_NO');
         $this->assertDatabaseCount('outbound_draft_numbers', 0);
@@ -49,7 +51,7 @@ class P05SaveNumberingTest extends TestCase
         $saved = $this->putJson(self::BASE.'/'.$id, $body, $this->headers($f, 0, $key))->assertCreated()
             ->assertJsonPath('data.document.numbering_status', 'ASSIGNED')->assertJsonPath('data.document.business_document_id', null);
         $number = $saved->json('data.document.document_no');
-        $this->assertMatchesRegularExpression('/^PX-[0-9]{8}-[0-9]{4,}$/D', (string) $number);
+        $this->assertMatchesRegularExpression('/^PX-[0-9]{14}$/D', (string) $number);
         $this->putJson(self::BASE.'/'.$id, $body, $this->headers($f, 0, $key))->assertCreated()
             ->assertHeader('Idempotent-Replay', 'true')->assertJsonPath('data.document.document_no', $number);
         $receipt = DB::table('mini_app_draft_receipts')->where('request_id', $key)->first();
@@ -215,11 +217,11 @@ class P05SaveNumberingTest extends TestCase
         $this->travelTo(Carbon::parse('2026-11-03T16:59:50Z'));
         $f = $this->actor();
         [$id, $body, , $first] = $this->save($f);
-        $this->assertSame('PX-20261103-0001', $first);
+        $this->assertSame('PX-20261103235950', $first);
         $this->travelTo(Carbon::parse('2026-11-03T17:00:01Z'));
         $this->putJson(self::BASE.'/'.$id, $body, $this->headers($f, 1, (string) Str::uuid()))->assertOk()->assertJsonPath('data.document.document_no', $first);
         [, , , $next] = $this->save($f);
-        $this->assertSame('PX-20261104-0001', $next);
+        $this->assertSame('PX-20261104000001', $next);
         $this->assertNeutral();
     }
 
@@ -334,9 +336,9 @@ class P05SaveNumberingTest extends TestCase
         $sku = $this->productSkuFixture('P05-SEQ-'.Str::upper(Str::random(6)));
         $request = $this->outboundRequestFixture($sku->sku_id, 1, 'P05-SEQ-REQ-'.Str::upper(Str::random(8)));
         $doc = $this->outboundDocumentFixture($f['warehouse']->id, $request);
-        DB::table('stock_documents')->where('id', $doc['document_id'])->update(['doc_no' => 'PX-20261103-9999']);
+        DB::table('stock_documents')->where('id', $doc['document_id'])->update(['doc_no' => 'PX-20261103100005']);
         [, , , $number] = $this->save($f);
-        $this->assertSame('PX-20261103-10000', $number);
+        $this->assertSame('PX-20261103100006', $number);
         $this->assertDatabaseCount('stock_documents', 1);
         $this->assertDatabaseCount('stock_movements', 0);
     }

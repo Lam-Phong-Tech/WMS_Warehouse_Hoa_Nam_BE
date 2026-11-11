@@ -4,7 +4,7 @@
   "context_owner":"mini-app-p05-v1",
   "draft_owner":"mini-app-p03-v1",
   "scope":"P05 manual create on DEV/TEST; production activation remains OFF",
-  "context":{"method":"GET","path":"/api/v1/mini-app/outbound/context","document_number_assignment":"WITH_DRAFT_SAVE when schema_ready, otherwise UNAVAILABLE","numbering":{"contract":"p05-save-numbering-v1","revision":"p05-save-numbering-r1","mode":"MANUAL_CREATE_ONLY","allowed":"Actual active scoped grants and schema readiness, not the root legacy role-derived permissions flag","format":"PX-YYYYMMDD-SEQUENCE","cancel_policy":"RETAIN_NEVER_REUSE","source_linked_policy":"KEEP_SOURCE_DOCUMENT_NO"}},
+  "context":{"method":"GET","path":"/api/v1/mini-app/outbound/context","document_number_assignment":"WITH_DRAFT_SAVE when schema_ready, otherwise UNAVAILABLE","numbering":{"contract":"p05-save-numbering-v1","revision":"p05-save-numbering-r1","mode":"MANUAL_CREATE_ONLY","allowed":"Actual active scoped grants and schema readiness, not the root legacy role-derived permissions flag","format":"PX-YYYYMMDDHHmmss","timezone":"Asia/Ho_Chi_Minh","cancel_policy":"RETAIN_NEVER_REUSE","source_linked_policy":"KEEP_SOURCE_DOCUMENT_NO"}},
   "routes":{
     "save":"PUT /api/v1/mini-app/drafts/{draft_id}",
     "detail":"GET /api/v1/mini-app/drafts/{draft_id}",
@@ -42,7 +42,7 @@
   "persistence":{
     "tables":["outbound_daily_numbers","outbound_draft_numbers"],
     "ownership":"outbound_draft_numbers.draft_id FK -> mini_app_drafts.document_id -> exact actor/auth_session/warehouse/scan identity. One unique doc_no per unique draft.",
-    "counter":"Global receipt-independent PX sequence per Asia/Ho_Chi_Minh assignment date, minimum four digits. Lock the date row and include both existing stock_documents.doc_no and retained reservations; never COUNT+1.",
+    "counter":"Global receipt-independent PX timestamp PX-YYYYMMDDHHmmss in Asia/Ho_Chi_Minh. Lock the date row in outbound_daily_numbers and advance monotonically (+1s) across both existing stock_documents.doc_no and retained reservations without suffixes or collisions.",
     "later_save":"New key/current version on the same draft preserves its number, even across Vietnam midnight. Changes to address or other UI metadata never regenerate it.",
     "cancel":"Retain the reservation and counter permanently; do not recycle the number.",
     "atomicity":"Draft, receipt, counter and reservation commit together or roll back together.",

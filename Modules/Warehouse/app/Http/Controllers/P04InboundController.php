@@ -55,7 +55,8 @@ final class P04InboundController extends Controller
         $data['scan_session_creation'] = 'WITH_DRAFT_SAVE';
         $data['scan_session_expiry_policy'] = 'AUTH_SESSION';
         $data['document_number_assignment'] = 'WITH_DRAFT_SAVE';
-        $data['document_number_format'] = 'PN-YYYYMMDD-STT';
+        $data['document_number_format'] = 'PN-YYYYMMDDHHmmss';
+        $data['document_number_timezone'] = 'Asia/Ho_Chi_Minh';
         $data['ui_metadata_extension'] = 'p04-ui-options-v1';
         $data['inbound_categories'] = [
             ['id' => 'PRODUCT', 'label' => 'Nhập sản phẩm'],

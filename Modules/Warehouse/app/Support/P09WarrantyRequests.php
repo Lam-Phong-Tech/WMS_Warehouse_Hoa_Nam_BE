@@ -124,15 +124,18 @@ final class P09WarrantyRequests
 
     private static function reply(object $row, array $scope, bool $replay, bool $read = false): JsonResponse
     {
+        $caseCode = null;
         if ($row->state === 'SUCCEEDED') {
-            P09WarrantyScope::requireCase($scope, $row->warranty_case_id);
+            $case = P09WarrantyScope::requireCase($scope, $row->warranty_case_id);
+            $caseCode = isset($case->warranty_case_code) && is_string($case->warranty_case_code) ? $case->warranty_case_code : null;
         }
         $state = $row->state;
         if ($state === 'PROCESSING' && Carbon::parse($row->created_at)->lt(now()->subMinutes(5))) {
             $state = 'UNKNOWN'; // Age never grants permission to retry a command.
         }
         $receipt = ['request_id' => $row->request_id, 'state' => $state, 'operation' => $row->operation,
-            'warranty_case_id' => $row->warranty_case_id, 'version' => $row->committed_version === null ? null : (int) $row->committed_version,
+            'warranty_case_id' => $row->warranty_case_id, 'warranty_case_code' => $caseCode, 'case_no' => $caseCode,
+            'version' => $row->committed_version === null ? null : (int) $row->committed_version,
             'status' => $row->committed_status, 'http_status' => $row->http_status === null ? null : (int) $row->http_status,
             'error_code' => $row->error_code, 'completed_at' => $row->completed_at,
             'may_create_new_request' => $state === 'FAILED', 'stock_effect' => 'NONE', 'movement_created' => false];
@@ -144,6 +147,8 @@ final class P09WarrantyRequests
         // can expose this ID. Unknown/processing/failed never become a record.
         if ($state === 'SUCCEEDED') {
             $body['data']['warranty_case_id'] = $row->warranty_case_id;
+            $body['data']['warranty_case_code'] = $caseCode;
+            $body['data']['case_no'] = $caseCode;
         }
         if (! $read && $state === 'FAILED') {
             $body['error_code'] = $row->error_code;
