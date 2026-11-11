@@ -5,8 +5,10 @@ namespace Modules\Auth\Support;
 use App\Support\Cache\CacheKey;
 use App\Support\Cache\CacheService;
 use App\Support\Cache\CacheTtl;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Modules\Auth\Models\User;
+use Throwable;
 
 /**
  * Domain cache helper cho RBAC (mục 11). Tập trung key/TTL/invalidation của
@@ -63,6 +65,7 @@ final class AuthCache
     {
         DB::afterCommit(static function () use ($user): void {
             $user->newQueryWithoutScopes()->whereKey($user->getKey())->increment('version');
+            self::bumpAudienceVersion();
         });
     }
 
@@ -80,7 +83,22 @@ final class AuthCache
                     $query->select('user_id')->from('user_role')->where('role_id', $roleId);
                 })
                 ->increment('version');
+            self::bumpAudienceVersion();
         });
+    }
+
+    /**
+     * Notification audience is cached for a few seconds. Invalidate that cache
+     * when roles/permissions/status change so new or revoked access applies to
+     * the next notification instead of waiting for the TTL.
+     */
+    private static function bumpAudienceVersion(): void
+    {
+        try {
+            Cache::increment('notification:audience:version');
+        } catch (Throwable) {
+            // Cache is optional; the short TTL remains the fallback.
+        }
     }
 
     /**

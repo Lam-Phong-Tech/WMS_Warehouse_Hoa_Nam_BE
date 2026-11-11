@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Notification\Models\NotificationRecipient;
 use Modules\Notification\Support\EventSourceSnapshot;
+use Modules\Notification\Support\NotificationContentAccess;
 use Modules\Notification\Support\NotificationTimestamp;
 use Modules\Notification\Support\P13NotificationCursor;
 use Modules\Notification\Support\P13NotificationPresentation;
@@ -209,30 +210,33 @@ class NotificationController extends Controller
     {
         $snapshots = DB::table('notification_source_snapshots')->whereIn('notification_id', $recipients->pluck('notification_id'))->get()->keyBy('notification_id');
 
-        return $recipients->map(function (NotificationRecipient $recipient) use ($snapshots): array {
+        return $recipients->map(function (NotificationRecipient $recipient) use ($snapshots, $request): array {
             $notification = $recipient->notification;
             $rawReadAt = $recipient->getRawOriginal('read_at');
             $readAt = NotificationTimestamp::read($rawReadAt);
+            $allowed = NotificationContentAccess::allows($request->user(), $notification);
+            $denied = ! $allowed;
 
             return [
                 'id' => $recipient->id,
                 'notification_id' => $notification?->id,
                 'event_key' => $notification?->event_key,
-                'title' => $notification?->title,
-                'body' => $notification?->body,
+                'title' => $denied ? NotificationContentAccess::DENIED_TITLE : $notification?->title,
+                'body' => $denied ? NotificationContentAccess::DENIED_BODY : $notification?->body,
                 'severity' => $notification?->severity,
                 'source_module' => $notification?->source_module,
-                'subject_type' => $notification?->subject_type,
-                'subject_id' => $notification?->subject_id,
-                'actor_id' => $notification?->actor_id,
-                'actor_name' => $notification?->actor_name,
-                'payload' => $notification?->payload,
+                'subject_type' => $denied ? null : $notification?->subject_type,
+                'subject_id' => $denied ? null : $notification?->subject_id,
+                'actor_id' => $denied ? null : $notification?->actor_id,
+                'actor_name' => $denied ? null : $notification?->actor_name,
+                'payload' => $denied ? null : $notification?->payload,
                 'read_at' => $readAt,
                 'read_at_status' => $rawReadAt === null ? 'NOT_READ' : ($readAt === null ? 'SOURCE_INVALID' : 'RECORDED'),
                 'created_at' => NotificationTimestamp::read($recipient->getRawOriginal('created_at')),
-                'payload_semantics' => 'EVENT_SNAPSHOT_NOT_AUTHORIZATION',
-                'subject' => P13NotificationPresentation::subject($recipient),
-                'source_snapshot' => EventSourceSnapshot::presentation($notification?->id ?? '', $snapshots->get($notification?->id)),
+                'payload_semantics' => $denied ? 'CONTENT_ACCESS_DENIED' : 'EVENT_SNAPSHOT_NOT_AUTHORIZATION',
+                'content_access' => $denied ? 'DENIED' : 'GRANTED',
+                'subject' => $denied ? null : P13NotificationPresentation::subject($recipient),
+                'source_snapshot' => $denied ? null : EventSourceSnapshot::presentation($notification?->id ?? '', $snapshots->get($notification?->id)),
             ];
         })->values();
     }

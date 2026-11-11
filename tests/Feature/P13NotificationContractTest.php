@@ -14,6 +14,8 @@ use Modules\Auth\Models\User;
 use Modules\Auth\Support\RefreshTokenService;
 use Modules\Notification\Models\Notification;
 use Modules\Notification\Models\NotificationRecipient;
+use Modules\Notification\Services\NotificationAudienceResolver;
+use Modules\Notification\Support\NotificationContentAccess;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -200,6 +202,77 @@ class P13NotificationContractTest extends TestCase
         $this->assertSame('NOT_READ', $missing['/data/read_at']['status']);
         $this->assertNull($recipient->fresh()->read_at);
         $this->get(self::BASE.'/unread-count', $this->headers($token))->assertOk()->assertJsonPath('data.unread_count', 1);
+    }
+
+    public function test_role_audience_only_contains_active_unexpired_holders(): void
+    {
+        [$user] = $this->actor();
+        $role = $user->roles()->firstOrFail();
+        $resolver = app(NotificationAudienceResolver::class);
+
+        $expired = User::create(['username' => 'p13_expired_'.Str::random(8), 'display_name' => 'Expired holder', 'email' => Str::random(8).'@wms-hoanam.test', 'password_hash' => Hash::make('secret123'), 'status' => 'ACTIVE', 'version' => 1]);
+        $expired->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid(), 'effective_to' => now()->subMinute()]);
+        $inactive = User::create(['username' => 'p13_inactive_'.Str::random(8), 'display_name' => 'Inactive holder', 'email' => Str::random(8).'@wms-hoanam.test', 'password_hash' => Hash::make('secret123'), 'status' => 'INACTIVE', 'version' => 1]);
+        $inactive->roles()->attach($role->role_id, ['user_role_id' => (string) Str::uuid()]);
+
+        $ids = $resolver->byRoleId($role->role_id);
+
+        $this->assertContains($user->user_id, $ids);
+        $this->assertNotContains($expired->user_id, $ids);
+        $this->assertNotContains($inactive->user_id, $ids);
+    }
+
+    public function test_content_access_permission_mapping_matches_listener_audiences(): void
+    {
+        $this->assertSame(['inbound.scan'], NotificationContentAccess::requiredPermissions('inbound.sku_info_pending'));
+        $this->assertSame(['inbound.post', 'outbound.post'], NotificationContentAccess::requiredPermissions('stock.shortage_detected'));
+        $this->assertSame(['inbound.view'], NotificationContentAccess::requiredPermissions('inbound.completed'));
+        $this->assertSame(['outbound.view'], NotificationContentAccess::requiredPermissions('outbound.posted'));
+        $this->assertSame(['inventory.view'], NotificationContentAccess::requiredPermissions('reversal.posted'));
+        $this->assertSame(['warranty.view'], NotificationContentAccess::requiredPermissions('warranty.case_created'));
+        $this->assertSame([], NotificationContentAccess::requiredPermissions('role.permissions_changed'));
+    }
+
+    public function test_current_permission_is_rechecked_when_reading_notification_content(): void
+    {
+        [$deniedUser, $deniedToken, $warehouse] = $this->actor();
+        [$allowedUser, $allowedToken] = $this->actor(['inbound.view']);
+
+        $make = function (User $user, string $warehouseId): NotificationRecipient {
+            $documentId = (string) Str::uuid();
+            $notification = Notification::create([
+                'event_key' => 'inbound.completed',
+                'title' => 'Secret inbound document',
+                'body' => 'Phiếu PN-SECRET đã hoàn tất.',
+                'severity' => 'info',
+                'source_module' => 'warehouse',
+                'subject_type' => 'stock_document',
+                'subject_id' => $documentId,
+                'payload' => ['document_id' => $documentId, 'doc_no' => 'PN-SECRET', 'warehouse_id' => $warehouseId],
+                'created_at' => now(),
+            ]);
+
+            return NotificationRecipient::create([
+                'notification_id' => $notification->id,
+                'user_id' => $user->user_id,
+                'created_at' => now(),
+            ]);
+        };
+
+        $denied = $make($deniedUser, (string) $warehouse->id);
+        $allowed = $make($allowedUser, (string) $warehouse->id);
+
+        $this->getJson(self::BASE.'/'.$denied->id, $this->headers($deniedToken))->assertOk()
+            ->assertJsonPath('data.content_access', 'DENIED')
+            ->assertJsonPath('data.title', NotificationContentAccess::DENIED_TITLE)
+            ->assertJsonPath('data.body', NotificationContentAccess::DENIED_BODY)
+            ->assertJsonPath('data.payload', null)
+            ->assertJsonPath('data.subject_id', null)
+            ->assertJsonPath('data.source_snapshot', null);
+
+        $this->getJson(self::BASE.'/'.$allowed->id, $this->headers($allowedToken))->assertOk()
+            ->assertJsonPath('data.content_access', 'GRANTED')
+            ->assertJsonPath('data.payload.doc_no', 'PN-SECRET');
     }
 
     private function actor(array $permissions = []): array
