@@ -44,7 +44,9 @@ trait InteractsWithStockDocuments
         }
 
         $query = StockDocument::query()
-            ->with('lines')
+            // `lines.product` chỉ lấy đúng hai cột đủ để hiện loại hàng
+            // (Sản phẩm/Linh kiện) dưới tiến độ ghi nhận ở danh sách.
+            ->with('lines.product:sku_id,sku_type')
             ->where('doc_type', $this->docType())
             ->when($request->filled('warehouse_id'), fn ($filtered) => $filtered->where(
                 ($this->docType() === StockDocument::TYPE_RECEIPT ? 'dst_warehouse_id' : 'src_warehouse_id'),
@@ -108,12 +110,29 @@ trait InteractsWithStockDocuments
         $page = $query->paginate($this->perPage($request));
 
         $this->decoratePendingProductInfo($page->getCollection());
+        $this->attachLineProductTypes($page->getCollection());
         if ($this->docType() === StockDocument::TYPE_RECEIPT) {
             $page->getCollection()->each(fn (StockDocument $document) => $this->attachCreatorName($document));
             $this->attachSuppliers($page->getCollection());
         }
 
         return $this->respondPaginated($page);
+    }
+
+    /**
+     * Gắn loại hàng của từng dòng (PRODUCT/COMPONENT) để danh sách hiện được
+     * "Sản phẩm"/"Linh kiện" ngay dưới tiến độ ghi nhận, không phải mở phiếu.
+     * Dữ liệu lấy từ `lines.product` đã eager-load ở index() — không N+1.
+     *
+     * @param  Collection<int,StockDocument>  $documents
+     */
+    private function attachLineProductTypes($documents): void
+    {
+        $documents->each(function (StockDocument $document): void {
+            $document->lines->each(function ($line): void {
+                $line->setAttribute('product_type', $line->product?->sku_type);
+            });
+        });
     }
 
     /**

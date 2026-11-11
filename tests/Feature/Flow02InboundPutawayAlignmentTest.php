@@ -440,6 +440,21 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
             ->assertJsonPath('data.source_reference', 'PO-2026-0002');
     }
 
+    public function test_list_returns_product_type_for_progress_badge(): void
+    {
+        $ctx = $this->draftInbound('FLOW02-LIST-TYPE');
+        $this->scanCandidate($ctx, 'SN-FLOW02-TYPE-0001', 1);
+
+        $row = collect(
+            $this->getJson('/api/v1/inbound-documents?per_page=50', $ctx['headers'])
+                ->assertOk()
+                ->json('data'),
+        )->firstWhere('id', $ctx['document_id']);
+
+        $this->assertNotNull($row);
+        $this->assertSame('PRODUCT', $row['lines'][0]['product_type']);
+    }
+
     public function test_source_reference_longer_than_200_chars_is_rejected(): void
     {
         $headers = $this->superAdminHeaders();
