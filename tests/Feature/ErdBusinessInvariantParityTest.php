@@ -67,6 +67,22 @@ class ErdBusinessInvariantParityTest extends TestCase
         }
     }
 
+    public function test_warranty_purchase_date_check_uses_vietnam_calendar_day(): void
+    {
+        $this->requirePostgres();
+
+        $definition = DB::selectOne(
+            "SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conrelid='warranty_cases'::regclass AND conname='chk_erd_warranty_purchase_date' LIMIT 1"
+        );
+
+        $this->assertNotNull($definition, 'Missing ERD CHECK [warranty_cases.chk_erd_warranty_purchase_date].');
+        $this->assertStringContainsString(
+            'Asia/Ho_Chi_Minh',
+            (string) $definition->definition,
+            'purchase_date must be checked against the Vietnam calendar day, not the UTC CURRENT_DATE.',
+        );
+    }
+
     public function test_required_partial_unique_business_indexes_exist(): void
     {
         $this->requirePostgres();
