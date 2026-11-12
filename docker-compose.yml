@@ -41,6 +41,9 @@ services:
     volumes:
       - .:/var/www/html:delegated
       - wms_vendor:/var/www/html/vendor
+      # WAR-02: upload video bảo hành tới 300MB — mount file ini từ repo để
+      # stack dev nhận giới hạn ngay cả khi image PHP chưa được build lại.
+      - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/zz-wms-00-uploads.ini:ro
     environment:
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
