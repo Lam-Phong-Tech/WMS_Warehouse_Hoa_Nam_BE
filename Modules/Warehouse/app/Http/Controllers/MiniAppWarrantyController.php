@@ -125,14 +125,31 @@ class MiniAppWarrantyController extends Controller
             $timeline = P23WarrantyTimeline::metadata(clone $q);
             [$ids, $page] = P09WarrantyPage::read($request, clone $q, $scope, 'e.warranty_event_id', 'e.event_at', $request->query('sort', 'event_at_asc') === 'event_at_desc');
             $events = $q->whereIn('e.warranty_event_id', $ids)->get(['e.warranty_event_id', 'e.warranty_case_id', 'e.event_type', 'e.from_status', 'e.to_status', 'e.note', 'e.created_by', 'e.event_at'])->keyBy('warranty_event_id');
-            $rows = array_map(function (string $eventId) use ($events, $scope): array {
+            $actorIds = $events->pluck('created_by')->filter()->unique()->values()->all();
+            $actors = collect();
+            if ($actorIds !== []) {
+                try {
+                    $actors = DB::table('app_user')->whereIn('user_id', $actorIds)
+                        ->get(['user_id', 'display_name'])->keyBy('user_id');
+                } catch (\Throwable) {
+                    $actors = collect();
+                }
+            }
+            $rows = array_map(function (string $eventId) use ($events, $actors, $scope): array {
                 $e = $events[$eventId];
+                $actorId = $e->created_by;
+                $actor = $actorId === null ? null : $actors->get($actorId);
+                $displayName = $actor?->display_name;
+                $displayName = is_string($displayName) && trim($displayName) !== '' ? $displayName : null;
 
                 return ['event_id' => $e->warranty_event_id, 'warranty_case_id' => $e->warranty_case_id,
                     'event_type' => $e->event_type, 'from_status' => $e->from_status, 'status' => $e->to_status,
                     'to_status' => $e->to_status, 'event_at' => $e->event_at,
-                    'actor' => ['user_id' => $e->created_by, 'user_id_source' => 'warranty_event.created_by',
-                        'display_name' => null, 'display_name_status' => 'NOT_RECORDED_IN_EVENT'],
+                    'actor' => ['user_id' => $actorId, 'user_id_source' => 'warranty_event.created_by',
+                        'display_name' => $displayName,
+                        'display_name_status' => $actorId === null ? 'NOT_RECORDED_IN_EVENT'
+                            : ($displayName === null ? 'ACTOR_SOURCE_UNAVAILABLE' : 'CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT'),
+                        'display_name_source' => $displayName === null ? null : 'app_user.display_name'],
                     'related_document_event_id' => null, 'related_document_event_status' => 'NOT_RECORDED_IN_EVENT',
                     'message' => $scope['pii'] ? $e->note : null,
                     'message_redacted' => ! $scope['pii'], 'time_status' => $e->event_at === null ? 'NOT_RECORDED' : 'SOURCE_TIMESTAMP'];

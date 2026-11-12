@@ -178,6 +178,57 @@ class MiniAppWarrantyAdapterTest extends TestCase
             ->assertJsonPath('meta.status_counts.RECEIVED', 1);
     }
 
+    public function test_events_resolve_actor_display_name_from_app_user(): void
+    {
+        $headers = $this->authHeaders();
+        $created = $this->postJson('/api/v1/mini-app/warranty-cases', [
+            'customer_name' => 'Event Actor Customer',
+            'customer_phone' => '0901234567',
+            'description' => 'Event actor test',
+            'missing_code_reason' => 'Event actor test',
+            'manual_product_description' => 'Event actor product',
+        ], $headers + [
+            'Idempotency-Key' => 'event-actor-'.Str::lower(Str::random(8)),
+            'X-Request-ID' => (string) Str::uuid(),
+        ])->assertCreated();
+
+        $caseId = (string) $created->json('data.warranty_case_id');
+        $receive = DB::table('warranty_event')->where('warranty_case_id', $caseId)
+            ->where('event_type', 'RECEIVE')->first();
+        $this->assertNotNull($receive);
+
+        $otherActor = User::create([
+            'username' => 'event-actor-'.Str::lower(Str::random(8)),
+            'email' => 'event-actor-'.Str::lower(Str::random(8)).'@wms.test',
+            'display_name' => 'Second Event Actor',
+            'password_hash' => Hash::make('secret123'),
+            'status' => 'ACTIVE',
+            'version' => 1,
+        ]);
+
+        $unknownEventId = (string) Str::uuid();
+        $nullEventId = (string) Str::uuid();
+        DB::table('warranty_event')->insert([
+            ['warranty_event_id' => $unknownEventId, 'warranty_case_id' => $caseId,
+                'event_type' => 'NOTE', 'from_status' => 'RECEIVED', 'to_status' => 'RECEIVED',
+                'note' => 'second actor', 'created_by' => (string) $otherActor->user_id, 'event_at' => now()->addSecond()],
+            ['warranty_event_id' => $nullEventId, 'warranty_case_id' => $caseId,
+                'event_type' => 'NOTE', 'from_status' => 'RECEIVED', 'to_status' => 'RECEIVED',
+                'note' => 'no actor', 'created_by' => null, 'event_at' => now()->addSeconds(2)],
+        ]);
+
+        $rows = collect($this->getJson('/api/v1/mini-app/warranty-cases/'.$caseId.'/events', $headers)
+            ->assertOk()->json('data'))->keyBy('event_id');
+
+        $this->assertSame('Mini Warranty Tester', $rows[$receive->warranty_event_id]['actor']['display_name']);
+        $this->assertSame('CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT', $rows[$receive->warranty_event_id]['actor']['display_name_status']);
+        $this->assertSame('app_user.display_name', $rows[$receive->warranty_event_id]['actor']['display_name_source']);
+        $this->assertSame('Second Event Actor', $rows[$unknownEventId]['actor']['display_name']);
+        $this->assertSame('CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT', $rows[$unknownEventId]['actor']['display_name_status']);
+        $this->assertNull($rows[$nullEventId]['actor']['display_name']);
+        $this->assertSame('NOT_RECORDED_IN_EVENT', $rows[$nullEventId]['actor']['display_name_status']);
+    }
+
     private function authHeaders(): array
     {
         $role = Role::create([
