@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Support\ListSortOrder;
+use Modules\Warehouse\Support\SkuImageLookup;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use Modules\Warehouse\Support\WarrantyOverdue;
 use Modules\Warehouse\Support\WarrantyWarehouseScope;
@@ -429,6 +430,7 @@ class CanonicalMvpController extends Controller
                 WarrantyWarehouseScope::enrich($rows);
 
                 $productIds = $rows->pluck('product_id')->filter()->unique()->values()->all();
+                $imageBySku = SkuImageLookup::forSkuIds($productIds);
                 if ($productIds !== []) {
                     $skus = DB::table('sku')->whereIn('sku_id', $productIds)
                         ->get(['sku_id', 'sku_code', 'sku_name'])
@@ -437,6 +439,13 @@ class CanonicalMvpController extends Controller
                         $sku = $row->product_id !== null ? $skus->get($row->product_id) : null;
                         $row->sku_code = $sku->sku_code ?? null;
                         $row->sku_name = $sku->sku_name ?? null;
+                        $row->image_url = $row->product_id !== null
+                            ? ($imageBySku[(string) $row->product_id] ?? null)
+                            : null;
+                    }
+                } else {
+                    foreach ($rows as $row) {
+                        $row->image_url = null;
                     }
                 }
 
