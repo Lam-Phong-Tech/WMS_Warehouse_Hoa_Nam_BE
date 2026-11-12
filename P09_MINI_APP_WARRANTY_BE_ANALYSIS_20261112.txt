@@ -1,7 +1,7 @@
 ================================================================================
 PHÂN TÍCH & ĐỀ XUẤT FIX API MINI APP BẢO HÀNH - P09
 Repo: WMS_Warehouse_Hoa_Nam_BE | Branch: dev | Ngày: 2026-11-12
-Trạng thái: CHƯA SỬA CODE - CHỜ CHỐT PHƯƠNG ÁN
+Trạng thái: ĐÃ TRIỂN KHAI - 2026-11-12 (xem mục KẾT QUẢ TRIỂN KHAI cuối file)
 ================================================================================
 
 TÓM TẮT
@@ -392,5 +392,45 @@ GHI CHÚ CÁC FILE/ENDPOINT LIÊN QUAN
   (route warranty-requests/{requestId} và component-issues)
 
 ================================================================================
+KẾT QUẢ TRIỂN KHAI (2026-11-12)
+================================================================================
+
+Các commit trên nhánh dev:
+
+  785b9306  fix(p09): persist rejected warranty receipts and return NOT_FOUND
+            for unknown request ids
+  7e031f50  feat(p09): expose warranty status counts in list meta
+  b85fb8b1  feat(p09): resolve warranty event actor display names
+  7c9d247f  feat(p09): include component issue line summary in warranty case list
+  6c71c4aa  fix(catalog): retire DEF-902 via audited data migration
+  06dd6273  docs: record P09 Mini App warranty analysis and implementation plan
+
+Đã chốt và triển khai đủ 6 điểm:
+
+1. Reconcile dùng NOT_FOUND + global-existence check; UNKNOWN/false vẫn giữ cho
+   request id tồn tại ở scope khác.
+2. Response 4xx đầu tiên giữ message + errors field-level song song data.receipt.
+3. actor.display_name trả cho mọi user có quyền xem bảo hành, không gate PII.
+4. Chỉ legacy component-issues path có lines/total_quantity; P20 v1 giữ nguyên.
+5. meta.status_counts trả đủ 6 status + ALL, facet semantics bỏ qua status filter.
+6. Data migration DEF-902 + audit_log + bump cache; đã verify câu UPDATE trên
+   PostgreSQL dev-test trong transaction và rollback (row hiện vẫn ACTIVE chờ
+   deploy/migrate).
+
+Kiểm tra dev-test ngày 2026-11-12:
+
+  SELECT COUNT(*) FROM p09_warranty_requests
+  WHERE request_id = '826c3896-2a98-48d7-8b8a-42943059408a';
+  => 0
+
+  Không có row, không phải PROCESSING kẹt. Sau deploy, GET sẽ trả NOT_FOUND
+  + may_create_new_request = true.
+
+Test đã chạy:
+
+  Focused suite: 63 passed, 954 assertions.
+  Full suite: đã dừng sau ~35 phút để kịp push theo yêu cầu; focused suite
+  đã pass 63/63. CI trên dev sẽ chạy bộ test bắt buộc của repo.
+
 HẾT
 ================================================================================
