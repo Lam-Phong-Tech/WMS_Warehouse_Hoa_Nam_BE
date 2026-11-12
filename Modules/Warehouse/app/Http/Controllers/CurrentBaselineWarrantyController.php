@@ -591,14 +591,14 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
                 ]);
 
                 event(new WarrantyStatusChanged($id, $case->status, $target, $this->currentActorId()));
-            } elseif (($validated['note'] ?? $validated['description'] ?? $validated['confirmed_defect'] ?? null) !== null) {
+            } elseif (($eventNote = $validated['note'] ?? $validated['description'] ?? $validated['confirmed_defect'] ?? null) !== null) {
                 DB::table('warranty_event')->insert([
                     'warranty_event_id' => (string) Str::uuid(),
                     'warranty_case_id' => $id,
                     'event_type' => 'NOTE',
                     'from_status' => $case->status,
                     'to_status' => $case->status,
-                    'note' => $validated['description'] ?? $validated['confirmed_defect'],
+                    'note' => $eventNote,
                     'created_by' => $this->currentActorId(),
                     'event_at' => now('UTC')->toISOString(),
                 ]);

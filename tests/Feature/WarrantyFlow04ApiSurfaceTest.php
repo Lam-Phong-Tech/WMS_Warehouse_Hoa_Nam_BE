@@ -145,6 +145,42 @@ class WarrantyFlow04ApiSurfaceTest extends TestCase
         $this->assertNotNull($cancel->json('data.closed_at'));
     }
 
+    public function test_note_only_correction_records_note_event_without_undefined_key_error(): void
+    {
+        $headers = $this->authHeaders();
+        $defectId = (string) Str::uuid();
+        DB::table('defect_catalogs')->insert([
+            'defect_id' => $defectId,
+            'defect_code' => 'DF-F04-NOTE',
+            'defect_name' => 'Loi ghi chu',
+            'status' => 'ACTIVE',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $caseId = $this->createTempOnlyCase($headers);
+
+        // Form "Sửa thông tin" gửi note + defect/PII nhưng KHÔNG gửi
+        // confirmed_defect/description. Trước đây nhánh ghi event NOTE đọc
+        // trực tiếp hai khoá đó nên ném ErrorException 500.
+        $response = $this->patchJson("/api/v1/warranty-cases/{$caseId}", [
+            'defect_ids' => [$defectId],
+            'note' => 'Chinh sua thong tin khach',
+            'customer_name' => 'Khach da sua',
+            'customer_phone' => '0999999999',
+            'customer_address' => 'Phuong Bac Giang, Tinh Bac Ninh',
+            'purchase_date' => now()->subYear()->toDateString(),
+        ], $headers + $this->idem() + ['If-Match' => '1']);
+
+        $response->assertOk()->assertJsonPath('data.version', 2);
+        $event = DB::table('warranty_event')
+            ->where('warranty_case_id', $caseId)
+            ->where('event_type', 'NOTE')
+            ->latest('event_at')
+            ->first();
+        $this->assertNotNull($event);
+        $this->assertSame('Chinh sua thong tin khach', $event->note);
+    }
+
     public function test_warranty_attachment_upload_list_download_and_logical_delete(): void
     {
         Storage::fake('local');
