@@ -80,6 +80,38 @@ class DockerNginxBackendUnavailableTest extends TestCase
         $this->assertSame(0, preg_match($pattern, 'http://localhost:5173|,'));
     }
 
+    public function test_upload_body_limits_cover_warranty_video_contract(): void
+    {
+        foreach (self::TEMPLATES as $path) {
+            $this->assertStringContainsString(
+                'client_max_body_size ${WMS_NGINX_MAX_BODY};',
+                $this->read($path),
+                $path,
+            );
+        }
+
+        $this->assertStringContainsString(
+            '- WMS_NGINX_MAX_BODY=${WMS_NGINX_MAX_BODY:-320m}',
+            $this->read('docker-compose.yml'),
+        );
+
+        $ini = $this->read('docker/php/uploads.ini');
+        foreach ([
+            'upload_max_filesize = 300M',
+            'post_max_size = 320M',
+            'memory_limit = 512M',
+            'max_input_time = 300',
+            'max_execution_time = 300',
+        ] as $line) {
+            $this->assertStringContainsString($line, $ini);
+        }
+
+        $this->assertStringContainsString(
+            'COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/zz-wms-00-uploads.ini',
+            $this->read('docker/php/Dockerfile'),
+        );
+    }
+
     private function allowListMap(string $path): string
     {
         $this->assertSame(

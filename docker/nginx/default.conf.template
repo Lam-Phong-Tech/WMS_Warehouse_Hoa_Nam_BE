@@ -109,6 +109,11 @@ server {
     keepalive_timeout 65;
     keepalive_requests 1000;
 
+    # WAR-02: video bảo hành tới 300MB. Phải khớp PHP upload_max_filesize/
+    # post_max_size và các nginx phía trước (host/FE). Mặc định 320m để dư
+    # phần multipart; perf profile có thể override qua WMS_NGINX_MAX_BODY.
+    client_max_body_size ${WMS_NGINX_MAX_BODY};
+
     # Compress JSON/API responses and web assets before sending them to FE.
     gzip on;
     gzip_vary on;

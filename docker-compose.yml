@@ -13,6 +13,9 @@ services:
       # terminator) — must match the host-mapped port above so self-referential
       # URLs Laravel generates (L5-Swagger docs.json, asset links) keep it.
       - WMS_NGINX_EXTERNAL_PORT=${NGINX_DOCKER_PORT:-8080}
+      # WAR-02: trần body cho upload video bảo hành (300MB + multipart).
+      # Host/FE nginx phía trước cũng phải mở tối thiểu bằng giá trị này.
+      - WMS_NGINX_MAX_BODY=${WMS_NGINX_MAX_BODY:-320m}
       # Allow-list CORS cho lỗi 502/503/504 do nginx TỰ SINH khi backend chưa sẵn
       # sàng (xem đầu docker/nginx/default.conf.template) — CÙNG biến mà
       # config/cors.php đọc, để hai tầng không lệch nhau. Rỗng = không kèm CORS.

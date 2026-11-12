@@ -38,6 +38,9 @@ RUN apk add --no-cache --virtual .phpize-deps $PHPIZE_DEPS \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/zz-wms-opcache.ini
+# WAR-02: upload video bảo hành tới 300MB. Tên zz-wms-00-* để nạp trước
+# zz-wms-opcache.ini, cho phép perf-entrypoint override memory_limit.
+COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/zz-wms-00-uploads.ini
 # expose_php=Off: không công bố phiên bản PHP qua header X-Powered-By ở MỌI đường
 # phát response, kể cả lỗi xảy ra trước middleware SecurityHeaders (WWHN-SEC-03).
 COPY docker/php/security.ini /usr/local/etc/php/conf.d/zz-wms-security.ini
