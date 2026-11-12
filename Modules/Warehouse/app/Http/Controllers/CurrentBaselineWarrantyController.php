@@ -507,19 +507,30 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
 
             $returning = $target === 'RETURNED' && $case->status !== 'RETURNED';
             if ($returning) {
+                $requiredHandoverFields = [
+                    'receiver' => 'người nhận',
+                    'handover_date' => 'ngày bàn giao',
+                    'handover_checked' => 'xác nhận kiểm tra',
+                    'note' => 'ghi chú',
+                ];
                 $missing = [];
-                foreach (['receiver', 'handover_date', 'handover_checked', 'note'] as $field) {
+                foreach ($requiredHandoverFields as $field => $label) {
                     if (! array_key_exists($field, $validated)
                         || ($field !== 'handover_checked' && trim((string) $validated[$field]) === '')
                         || ($field === 'handover_checked' && $validated[$field] !== true)) {
-                        $missing[] = $field;
+                        $missing[] = $label;
                     }
                 }
                 if ($missing !== []) {
-                    ApiError::abort(422, 'WARRANTY_HANDOVER_REQUIRED', 'Bàn giao cần đủ người nhận, ngày người dùng nhập, xác nhận kiểm tra và ghi chú.', [
-                        'required_fields' => ['receiver', 'handover_date', 'handover_checked', 'note'],
-                        'missing_or_invalid_fields' => $missing,
-                    ]);
+                    // Không đính kèm tên field máy (receiver/handover_date...) vào
+                    // `errors`: FE sẽ nối các giá trị đó vào toast và người dùng
+                    // thấy câu tiếng Việt lẫn token kỹ thuật. Nêu thẳng phần còn
+                    // thiếu bằng tiếng Việt trong message.
+                    ApiError::abort(
+                        422,
+                        'WARRANTY_HANDOVER_REQUIRED',
+                        'Chưa đủ thông tin bàn giao: '.implode(', ', $missing).'.'
+                    );
                 }
                 P09WarrantyHandover::requireSchema();
                 $this->assertReturnComponentIssuesPosted($id);

@@ -165,9 +165,12 @@ class Wwhn244WarrantyStateMatrixTest extends TestCase
             'note' => 'Da thay pin 20V',
         ], 3)->assertOk()->assertJsonPath('data.status', 'COMPLETED');
 
-        $this->patchCase($headers, $caseId, ['status' => 'RETURNED'], 4)
+        $missingHandover = $this->patchCase($headers, $caseId, ['status' => 'RETURNED'], 4)
             ->assertStatus(422)
-            ->assertJsonPath('error.code', 'WARRANTY_HANDOVER_REQUIRED');
+            ->assertJsonPath('error.code', 'WARRANTY_HANDOVER_REQUIRED')
+            ->assertJsonPath('message', 'Chưa đủ thông tin bàn giao: người nhận, ngày bàn giao, xác nhận kiểm tra, ghi chú.')
+            ->assertJsonPath('errors', []);
+        $this->assertStringNotContainsString('receiver', (string) $missingHandover->json('errors.receiver'));
 
         $handover = [
             'status' => 'RETURNED',
