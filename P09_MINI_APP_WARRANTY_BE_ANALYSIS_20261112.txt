@@ -413,9 +413,9 @@ Các commit trên nhánh dev:
 3. actor.display_name trả cho mọi user có quyền xem bảo hành, không gate PII.
 4. Chỉ legacy component-issues path có lines/total_quantity; P20 v1 giữ nguyên.
 5. meta.status_counts trả đủ 6 status + ALL, facet semantics bỏ qua status filter.
-6. Data migration DEF-902 + audit_log + bump cache; đã verify câu UPDATE trên
-   PostgreSQL dev-test trong transaction và rollback (row hiện vẫn ACTIVE chờ
-   deploy/migrate).
+6. Data migration DEF-902 + audit_log + bump cache; đã apply trên PostgreSQL
+   dev-test: DEF-902 = INACTIVE, version = 2, audit_log có row UPDATE
+   (module SYSTEM), index p09_warranty_requests(request_id) đã tạo.
 
 Kiểm tra dev-test ngày 2026-11-12:
 
@@ -423,14 +423,23 @@ Kiểm tra dev-test ngày 2026-11-12:
   WHERE request_id = '826c3896-2a98-48d7-8b8a-42943059408a';
   => 0
 
-  Không có row, không phải PROCESSING kẹt. Sau deploy, GET sẽ trả NOT_FOUND
+  Không có row, không phải PROCESSING kẹt. Sau deploy, GET trả NOT_FOUND
   + may_create_new_request = true.
+
+Deploy:
+
+  - Push dev: ac0469b7..2df457af.
+  - CI "DEV backend test and deploy": Core regression PASS (1m45s),
+    Deploy PASS (38s).
+  - Live health build.sha = 2df457afc0589947ff0cfd300b83a2d715b68668.
+  - Backend container mount release 2df457af..., DEF-902 INACTIVE/version 2,
+    index request_id tồn tại.
 
 Test đã chạy:
 
   Focused suite: 63 passed, 954 assertions.
   Full suite: đã dừng sau ~35 phút để kịp push theo yêu cầu; focused suite
-  đã pass 63/63. CI trên dev sẽ chạy bộ test bắt buộc của repo.
+  đã pass 63/63. CI trên dev đã chạy bộ test bắt buộc và PASS.
 
 HẾT
 ================================================================================
