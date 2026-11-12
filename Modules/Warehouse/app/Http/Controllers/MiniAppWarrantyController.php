@@ -49,27 +49,42 @@ class MiniAppWarrantyController extends Controller
             $scope = Scope::resolve($request);
             $q = Scope::cases($scope);
             $dates = P23WarrantyDateFilter::apply($request, $q);
+            if (isset($input['search']) && trim($input['search']) !== '') {
+                $this->applyWarrantySearch($q, $input['search'], $scope);
+            }
+            // Facet counts share every filter except the selected status.
+            $counts = (clone $q)->selectRaw('c.status, COUNT(*) AS count')->groupBy('c.status')->pluck('count', 'status');
+            $statusCounts = ['ALL' => (int) $counts->sum()];
+            foreach (Policy::STATUSES as $status) {
+                $statusCounts[$status] = (int) ($counts[$status] ?? 0);
+            }
             if (isset($input['status']) && $input['status'] !== 'ALL') {
                 $q->where('c.status', $input['status']);
-            }
-            if (isset($input['search']) && trim($input['search']) !== '') {
-                $pattern = Policy::pattern($input['search']);
-                $q->where(function (Builder $filter) use ($pattern, $scope): void {
-                    $filter->whereRaw("LOWER(c.warranty_case_code) LIKE LOWER(?) ESCAPE '!'", [$pattern])
-                        ->orWhereRaw("LOWER(c.temporary_item_code) LIKE LOWER(?) ESCAPE '!'", [$pattern])
-                        ->orWhereExists(function (Builder $item) use ($pattern, $scope): void {
-                            $item->selectRaw('1')->from('item_instances as i')->whereColumn('i.item_id', 'c.item_id')
-                                ->whereRaw("LOWER(i.serial_number) LIKE LOWER(?) ESCAPE '!'", [$pattern]);
-                            Scope::isolate($item, 'item_instances', 'i', $scope);
-                        });
-                });
             }
             $pageScope = $scope + ($dates === [] ? [] : ['p23_date_filter' => $dates]);
             [$ids, $page] = P09WarrantyPage::read($request, $q, $pageScope, 'c.warranty_case_id', 'c.created_at', ($input['sort'] ?? 'created_at_desc') === 'created_at_desc');
             // Bounded to per_page, reuse canonical PII masking rather than a second serializer.
             $rows = array_map(fn (string $id): array => $this->caseData($request, $scope, $id), $ids);
 
-            return $this->reply($rows, $scope, $page + $dates + ['snapshot' => $snapshot, 'search_fields' => ['warranty_case_code', 'temporary_item_code', 'serial_number']]);
+            return $this->reply($rows, $scope, $page + $dates + [
+                'snapshot' => $snapshot, 'search_fields' => ['warranty_case_code', 'temporary_item_code', 'serial_number'],
+                'status_counts' => $statusCounts,
+                'status_counts_basis' => 'SAME_WAREHOUSE_SEARCH_DATE_FILTERS_EXCLUDING_STATUS',
+            ]);
+        });
+    }
+
+    private function applyWarrantySearch(Builder $query, string $search, array $scope): void
+    {
+        $pattern = Policy::pattern($search);
+        $query->where(function (Builder $filter) use ($pattern, $scope): void {
+            $filter->whereRaw("LOWER(c.warranty_case_code) LIKE LOWER(?) ESCAPE '!'", [$pattern])
+                ->orWhereRaw("LOWER(c.temporary_item_code) LIKE LOWER(?) ESCAPE '!'", [$pattern])
+                ->orWhereExists(function (Builder $item) use ($pattern, $scope): void {
+                    $item->selectRaw('1')->from('item_instances as i')->whereColumn('i.item_id', 'c.item_id')
+                        ->whereRaw("LOWER(i.serial_number) LIKE LOWER(?) ESCAPE '!'", [$pattern]);
+                    Scope::isolate($item, 'item_instances', 'i', $scope);
+                });
         });
     }
 

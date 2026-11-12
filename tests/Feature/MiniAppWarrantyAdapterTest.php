@@ -122,6 +122,62 @@ class MiniAppWarrantyAdapterTest extends TestCase
             ->assertJsonPath('error_code', 'WARRANTY_ITEM_NOT_FOUND');
     }
 
+    public function test_status_counts_exclude_only_the_status_filter(): void
+    {
+        $headers = $this->authHeaders();
+        $caseCodes = [];
+
+        foreach (['RECEIVED', 'CHECKING', 'CHECKING'] as $index => $status) {
+            $created = $this->postJson('/api/v1/mini-app/warranty-cases', [
+                'customer_name' => 'Status Count '.$index,
+                'customer_phone' => '0901234567',
+                'description' => 'Status count test',
+                'missing_code_reason' => 'Status count test',
+                'manual_product_description' => 'Status count product',
+            ], $headers + [
+                'Idempotency-Key' => 'status-count-'.$index.'-'.Str::lower(Str::random(8)),
+                'X-Request-ID' => (string) Str::uuid(),
+            ])->assertCreated();
+
+            $caseCodes[] = (string) $created->json('data.warranty_case_code');
+            if ($status !== 'RECEIVED') {
+                DB::table('warranty_case')->where('warranty_case_id', $created->json('data.warranty_case_id'))
+                    ->update(['status' => $status]);
+            }
+        }
+
+        // A case owned by another warehouse must not contribute to this facet.
+        $otherWarehouse = Warehouse::create(['code' => 'KHO-COUNT-OTHER', 'name' => 'Other count warehouse', 'status' => 'ACTIVE']);
+        $outside = $this->postJson('/api/v1/mini-app/warranty-cases', [
+            'customer_name' => 'Status Count Outside',
+            'customer_phone' => '0901234567',
+            'description' => 'Status count outside',
+            'missing_code_reason' => 'Status count outside',
+            'manual_product_description' => 'Status count outside product',
+        ], $headers + [
+            'Idempotency-Key' => 'status-count-outside-'.Str::lower(Str::random(8)),
+            'X-Request-ID' => (string) Str::uuid(),
+        ])->assertCreated();
+        DB::table('warranty_case')->where('warranty_case_id', $outside->json('data.warranty_case_id'))->update(['status' => 'COMPLETED']);
+        DB::table('warranty_case_warehouse_owners')->where('warranty_case_id', $outside->json('data.warranty_case_id'))
+            ->update(['warehouse_id' => $otherWarehouse->id]);
+
+        $this->getJson('/api/v1/mini-app/warranty-cases?per_page=100', $headers)->assertOk()
+            ->assertJsonPath('meta.status_counts.ALL', 3)
+            ->assertJsonPath('meta.status_counts.RECEIVED', 1)
+            ->assertJsonPath('meta.status_counts.CHECKING', 2)
+            ->assertJsonPath('meta.status_counts.COMPLETED', 0);
+
+        $this->getJson('/api/v1/mini-app/warranty-cases?per_page=100&status=CHECKING', $headers)->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('meta.status_counts.ALL', 3)
+            ->assertJsonPath('meta.status_counts.CHECKING', 2);
+
+        $this->getJson('/api/v1/mini-app/warranty-cases?per_page=100&search='.urlencode($caseCodes[0]), $headers)->assertOk()
+            ->assertJsonPath('meta.status_counts.ALL', 1)
+            ->assertJsonPath('meta.status_counts.RECEIVED', 1);
+    }
+
     private function authHeaders(): array
     {
         $role = Role::create([
