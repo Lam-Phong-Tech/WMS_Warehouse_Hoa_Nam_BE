@@ -8,6 +8,7 @@ use App\Support\Cache\Concerns\CachesReadPayload;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
@@ -334,10 +335,77 @@ class MiniAppWarrantyController extends Controller
             Scope::isolate($q, 'component_issue_documents', 'd', $s);
             [$ids, $page] = P09WarrantyPage::read($request, $q, $s, 'd.id', 'd.created_at');
 
-            return $this->reply(array_map(fn (string $document): array => ['component_issue_document_id' => $document,
-                'warranty_case_id' => $case->warranty_case_id, 'status' => 'POSTED', 'can_open' => true,
-                'detail_url' => '/api/v1/mini-app/warranty-component-issues/'.$document], $ids), $s, $page + ['snapshot' => $snapshot]);
+            $documents = collect();
+            $linesByDocument = collect();
+            $skus = collect();
+            if ($ids !== []) {
+                $documentQuery = DB::table('component_issue_documents as d')
+                    ->whereIn('d.id', $ids)->where('d.warehouse_id', $s['warehouse_id'])->where('d.status', 'POSTED');
+                Scope::isolate($documentQuery, 'component_issue_documents', 'd', $s);
+                $documents = $documentQuery->get(['d.id', 'd.component_issue_no', 'd.posted_at'])->keyBy('id');
+
+                $lineQuery = DB::table('component_issue_lines as l')->whereIn('l.component_issue_document_id', $ids);
+                Scope::isolate($lineQuery, 'component_issue_lines', 'l', $s);
+                $lineRows = $lineQuery->orderBy('l.line_no')->get(['l.component_issue_document_id', 'l.sku_id', 'l.scanned_qty']);
+                $linesByDocument = $lineRows->groupBy('component_issue_document_id');
+
+                $skuIds = $lineRows->pluck('sku_id')->unique()->values()->all();
+                if ($skuIds !== []) {
+                    $skuQuery = DB::table('sku as s')->whereIn('s.sku_id', $skuIds);
+                    Scope::isolate($skuQuery, 'sku', 's', $s);
+                    $skus = $skuQuery->get(['s.sku_id', 's.sku_code', 's.sku_name', 's.unit'])->keyBy('sku_id');
+                }
+            }
+
+            $rows = array_map(function (string $document) use ($case, $documents, $linesByDocument, $skus): array {
+                $documentLines = $linesByDocument->get($document, collect());
+                $grouped = [];
+                $complete = $documentLines->isNotEmpty();
+                foreach ($documentLines as $line) {
+                    if ($line->scanned_qty === null) {
+                        $complete = false;
+
+                        continue;
+                    }
+                    $skuId = (string) $line->sku_id;
+                    if (! isset($grouped[$skuId])) {
+                        $sku = $skus->get($skuId);
+                        $grouped[$skuId] = ['sku_id' => $skuId,
+                            'sku_code' => $sku?->sku_code, 'sku_name' => $sku?->sku_name,
+                            'unit' => $sku?->unit, 'quantity' => 0];
+                    }
+                    $grouped[$skuId]['quantity'] += (int) $line->scanned_qty;
+                }
+                $summaryLines = array_values($grouped);
+                $documentRow = $documents->get($document);
+
+                return ['component_issue_document_id' => $document,
+                    'warranty_case_id' => $case->warranty_case_id, 'status' => 'POSTED', 'can_open' => true,
+                    'document_no' => $documentRow?->component_issue_no,
+                    'posted_at' => $this->instant($documentRow?->posted_at),
+                    'line_count' => $documentLines->count(),
+                    'total_quantity' => array_sum(array_column($summaryLines, 'quantity')),
+                    'quantity_status' => $complete ? 'CONFIRMED' : 'INCOMPLETE',
+                    'lines' => $summaryLines,
+                    'detail_url' => '/api/v1/mini-app/warranty-component-issues/'.$document];
+            }, $ids);
+
+            return $this->reply($rows, $s, $page + ['snapshot' => $snapshot,
+                'component_lines_basis' => 'SUM_POSTED_LINE_SCANNED_QTY_BY_CURRENT_SKU_MASTER']);
         });
+    }
+
+    private function instant(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value, (string) config('app.timezone', 'UTC'))->toIso8601String();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function commandRequest(Request $request, string $requestId): Request

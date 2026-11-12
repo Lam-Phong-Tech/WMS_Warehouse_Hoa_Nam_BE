@@ -43,6 +43,16 @@ class P20ComponentHistoryTest extends TestCase
             ->assertJsonPath('data.0.component_issue_document_id', $id)->assertJsonPath('data.0.status', 'POSTED');
         $this->assertArrayNotHasKey('lines', $list->json('data.0'));
         $this->assertNotSame($id, $list->json('data.0.document_no'));
+        $skuCode = DB::table('sku')->where('sku_id', $f['sku_id'])->value('sku_code');
+        $legacy = $this->getJson($this->listUrl($f), $this->headers($f['token'], false))->assertOk()
+            ->assertJsonPath('data.0.component_issue_document_id', $id)
+            ->assertJsonPath('data.0.line_count', 1)
+            ->assertJsonPath('data.0.total_quantity', 3)
+            ->assertJsonPath('data.0.quantity_status', 'CONFIRMED')
+            ->assertJsonPath('data.0.lines.0.sku_code', $skuCode)
+            ->assertJsonPath('data.0.lines.0.quantity', 3);
+        $this->assertNotNull($legacy->json('data.0.document_no'));
+        $this->assertNotNull($legacy->json('data.0.posted_at'));
         $detail = $this->getJson($this->detailUrl($f, $id), $this->headers($f['token']))->assertOk()
             ->assertJsonPath('data.document.id', $id)->assertJsonPath('data.document.warranty_case_id', $f['case_id'])
             ->assertJsonPath('data.history.quantity_status', 'CONFIRMED')->assertJsonPath('data.history.quantity_total', 3)
