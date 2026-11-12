@@ -32,7 +32,7 @@ class P11SecurityCrashTest extends TestCase
             $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
             $this->assertSame(0, DB::transactionLevel());
             $old = bin2hex(random_bytes(18));
-            $new = bin2hex(random_bytes(18));
+            $new = 'New#Pass2026';
             $user = User::create(['username' => 'p11_crash', 'email' => 'p11crash@wms-hoanam.test',
                 'display_name' => 'Isolated worker', 'password_hash' => Hash::make($old), 'status' => 'ACTIVE', 'version' => 1]);
             $token = $this->browserLogin($user->email, $old)->assertOk()->json('data.access_token');

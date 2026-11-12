@@ -85,7 +85,7 @@ class P10Revision2MetadataTest extends TestCase
     public function test_wrong_current_password_preserves_auth_and_declares_no_reconciliation(): void
     {
         [, $token] = $this->loginFixture();
-        $new = bin2hex(random_bytes(18));
+        $new = 'New#Pass2026';
         $this->postJson('/api/v1/auth/change-password', [
             'current_password' => bin2hex(random_bytes(18)),
             'new_password' => $new, 'new_password_confirmation' => $new,

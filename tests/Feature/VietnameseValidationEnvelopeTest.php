@@ -71,7 +71,7 @@ class VietnameseValidationEnvelopeTest extends TestCase
             // Thiếu bắt buộc: gọi đúng tên tiếng Việt của ô, không phải "display_name".
             ->assertJsonPath('errors.display_name.0', 'Vui lòng nhập họ và tên.')
             ->assertJsonPath('errors.phone.0', 'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0.')
-            ->assertJsonPath('errors.password.0', 'Mật khẩu phải có ít nhất 8 ký tự.');
+            ->assertJsonPath('errors.password.0', 'Mật khẩu tối thiểu 8 ký tự');
 
         foreach ($this->flattenStrings($response->json('errors', [])) as $message) {
             $this->assertStringNotContainsString(

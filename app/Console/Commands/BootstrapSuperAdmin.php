@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Events\SecurityAlertRaised;
+use Modules\Auth\Support\PasswordHistory;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\CredentialPolicy;
@@ -189,6 +190,8 @@ class BootstrapSuperAdmin extends Command
                     'must_change_password' => true,
                     'first_login_deadline_at' => now()->addDays(self::FIRST_LOGIN_DEADLINE_DAYS),
                 ]);
+
+                PasswordHistory::record($user, (string) $user->password_hash, PasswordHistory::SOURCE_SYSTEM);
 
                 $user->roles()->attach($lockedRole->getKey(), ['user_role_id' => (string) Str::uuid()]);
 

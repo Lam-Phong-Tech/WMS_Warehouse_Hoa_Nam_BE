@@ -154,7 +154,7 @@ class P10ProfileContractTest extends TestCase
     {
         [$user, $a, $secret] = $this->loginFixture();
         [, $b] = $this->loginFixture($user, $secret);
-        $new = bin2hex(random_bytes(18));
+        $new = 'New#Pass2026';
         $body = ['current_password' => $secret, 'new_password' => $new, 'new_password_confirmation' => $new];
         $this->postJson(self::BASE.'change-password', $body + ['keep_sessions' => true], $this->headers($a))->assertUnprocessable();
         $bad = $body;

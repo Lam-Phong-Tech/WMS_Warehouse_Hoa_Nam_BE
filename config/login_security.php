@@ -54,5 +54,8 @@ return [
     ],
     'password' => [
         'max_age_days' => (int) env('LOGIN_PASSWORD_MAX_AGE_DAYS', 90),
+        // Số mật khẩu người dùng tự đặt gần nhất bị chặn tái sử dụng. Mật khẩu
+        // do hệ thống cấp luôn bị chặn vĩnh viễn, không tính vào giới hạn này.
+        'history_limit' => (int) env('LOGIN_PASSWORD_HISTORY_LIMIT', 5),
     ],
 ];

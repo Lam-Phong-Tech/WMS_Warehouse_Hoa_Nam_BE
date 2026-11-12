@@ -5,6 +5,7 @@ namespace Modules\Auth\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Support\RateLimitResponse;
 use App\Traits\ApiResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
@@ -16,6 +17,8 @@ use Modules\Auth\Http\Requests\VerifyOtpRequest;
 use Modules\Auth\Mail\PasswordResetOtpMail;
 use Modules\Auth\Models\PasswordResetOtp;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\PasswordHistory;
+use Modules\Auth\Support\PasswordPolicy;
 use Modules\Auth\Support\RefreshTokenService;
 use OpenApi\Attributes as OA;
 
@@ -211,17 +214,29 @@ class PasswordResetController extends Controller
             return $this->respondError($genericError, [], 422, 'BUSINESS_RULE_ERROR');
         }
 
-        $user->forceFill([
-            'password_hash' => Hash::make((string) $request->input('new_password')),
-            'must_change_password' => false,
-            'version' => ((int) $user->version) + 1,
-        ])->save();
+        $newPassword = (string) $request->input('new_password');
+        $reuseMessage = PasswordPolicy::reuseMessage($user, $newPassword, (string) $user->password_hash);
+        if ($reuseMessage !== null) {
+            return $this->respondError($reuseMessage, ['new_password' => [$reuseMessage]], 422, 'PASSWORD_POLICY_VIOLATION');
+        }
 
-        // WWHN-SEC-02: đây là luồng "quên mật khẩu" — thường được dùng CHÍNH VÌ
-        // nghi tài khoản đã bị chiếm. Nếu chỉ thu hồi refresh token thì access
-        // token kẻ tấn công đang giữ vẫn sống tới khi hết hạn, đúng lúc người
-        // dùng tin rằng mình vừa lấy lại được tài khoản.
-        $user->markPasswordChangedNow();
+        $previousHash = (string) $user->password_hash;
+        $previousSource = PasswordHistory::sourceForCurrentPassword($user);
+
+        DB::transaction(function () use ($user, $newPassword, $previousHash, $previousSource): void {
+            $user->forceFill([
+                'password_hash' => Hash::make($newPassword),
+                'must_change_password' => false,
+                'version' => ((int) $user->version) + 1,
+            ])->save();
+
+            // WWHN-SEC-02: đây là luồng "quên mật khẩu" — thường được dùng CHÍNH VÌ
+            // nghi tài khoản đã bị chiếm. Nếu chỉ thu hồi refresh token thì access
+            // token kẻ tấn công đang giữ vẫn sống tới khi hết hạn, đúng lúc người
+            // dùng tin rằng mình vừa lấy lại được tài khoản.
+            $user->markPasswordChangedNow();
+            PasswordHistory::recordPrevious($user, $previousHash, $previousSource);
+        });
         $this->refreshTokens->revokeAllForUser($user->user_id);
         if (config('login_security.trusted_device.revoke_on_password_change', true)) {
             app(\Modules\Auth\Support\TrustedDeviceService::class)->revokeAllForUser((string) $user->user_id);

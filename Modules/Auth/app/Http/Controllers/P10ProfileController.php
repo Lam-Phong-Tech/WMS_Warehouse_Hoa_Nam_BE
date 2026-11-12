@@ -24,6 +24,8 @@ use Modules\Auth\Support\P10ProfilePolicy as Policy;
 use Modules\Auth\Support\P10SessionFamily as Family;
 use Modules\Auth\Support\P11SecurityCommands;
 use Modules\Auth\Support\P11SecurityContract as SecurityContract;
+use Modules\Auth\Support\PasswordHistory;
+use Modules\Auth\Support\PasswordPolicy;
 use Modules\Auth\Support\ProfileAvatar;
 use Modules\Auth\Support\ProfilePreferences;
 use Modules\Auth\Support\RefreshTokenService;
@@ -423,7 +425,7 @@ final class P10ProfileController extends AuthController
     {
         $this->noQuery($request);
         $body = $this->body($request, ['current_password', 'new_password', 'new_password_confirmation']);
-        $validator = Validator::make($body, SecurityContract::passwordRules());
+        $validator = Validator::make($body, SecurityContract::passwordRules(), SecurityContract::passwordValidationMessages());
         $driver = (string) config('hashing.driver', 'bcrypt');
         if ($validator->fails()) {
             ApiError::abort(422, SecurityContract::validationCode($validator->failed()),
@@ -431,6 +433,12 @@ final class P10ProfileController extends AuthController
                 ['password_policy' => SecurityContract::passwordPolicy($driver)]);
         }
         $data = $validator->validated();
+        if ($data['new_password'] !== $data['new_password_confirmation']) {
+            ApiError::abort(422, 'PASSWORD_CONFIRMATION_MISMATCH',
+                'Mật khẩu xác nhận không khớp với mật khẩu mới',
+                ['new_password_confirmation' => [PasswordPolicy::MSG_CONFIRM_MISMATCH]],
+                ['password_policy' => SecurityContract::passwordPolicy($driver)]);
+        }
         if (SecurityContract::unsafeEncoding($data['new_password'], $driver)) {
             ApiError::abort(422, 'PASSWORD_POLICY_VIOLATION',
                 'Mật khẩu chứa ký tự không hỗ trợ hoặc vượt giới hạn byte của bộ mã hóa.',
@@ -439,17 +447,23 @@ final class P10ProfileController extends AuthController
         }
         $newHash = Hash::make($data['new_password']);
         $command = function () use ($request, $data, $newHash, $driver): JsonResponse {
-            $changedAt = DB::transaction(function () use ($request, $data, $newHash): ?int {
+            $changedAt = DB::transaction(function () use ($request, $data, $newHash, $driver): ?int {
                 $user = $this->actor($request, true);
                 if (! Hash::check($data['current_password'], $user->password_hash)) {
-                    ApiError::abort(422, SecurityContract::WRONG_CURRENT, 'Mật khẩu hiện tại không đúng.', ['current_password' => ['Mật khẩu hiện tại không đúng.']]);
+                    ApiError::abort(422, SecurityContract::WRONG_CURRENT, PasswordPolicy::MSG_WRONG_CURRENT, ['current_password' => [PasswordPolicy::MSG_WRONG_CURRENT]]);
                 }
-                if (Hash::check($data['new_password'], $user->password_hash)) {
-                    ApiError::abort(422, 'PASSWORD_POLICY_VIOLATION', 'Mật khẩu mới không được trùng với mật khẩu hiện tại.', ['new_password' => ['Mật khẩu mới không được trùng với mật khẩu hiện tại.']]);
+                $previousHash = (string) $user->password_hash;
+                $previousSource = PasswordHistory::sourceForCurrentPassword($user);
+                $reuseMessage = PasswordPolicy::reuseMessage($user, $data['new_password'], $previousHash);
+                if ($reuseMessage !== null) {
+                    ApiError::abort(422, 'PASSWORD_POLICY_VIOLATION', $reuseMessage,
+                        ['new_password' => [$reuseMessage]],
+                        ['password_policy' => SecurityContract::passwordPolicy($driver)]);
                 }
                 $user->forceFill(['password_hash' => $newHash, 'must_change_password' => false,
                     'version' => (int) $user->version + 1])->save();
                 $user->markPasswordChangedNow();
+                PasswordHistory::recordPrevious($user, $previousHash, $previousSource);
                 app(RefreshTokenService::class)->revokeAllForUser((string) $user->user_id);
                 if (config('login_security.trusted_device.revoke_on_password_change', true)) {
                     app(TrustedDeviceService::class)->revokeAllForUser((string) $user->user_id);

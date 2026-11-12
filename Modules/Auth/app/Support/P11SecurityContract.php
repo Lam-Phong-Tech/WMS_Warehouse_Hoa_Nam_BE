@@ -9,17 +9,48 @@ namespace Modules\Auth\Support;
 final class P11SecurityContract
 {
     public const VERSION = 'p11-existing-routes-v1';
-    public const MIN_LENGTH = 8;
-    public const MAX_LENGTH = 128;
+    public const MIN_LENGTH = PasswordPolicy::MIN_LENGTH;
+    public const MAX_LENGTH = PasswordPolicy::MAX_LENGTH;
     public const WRONG_CURRENT = 'CURRENT_PASSWORD_INCORRECT';
 
-    /** @return array<string, list<string>> */
+    /** @return array<string, list<string|\Closure>> */
     public static function passwordRules(): array
     {
         return [
             'current_password' => ['required', 'string', 'max:255'],
-            'new_password' => ['required', 'string', 'min:'.self::MIN_LENGTH, 'max:'.self::MAX_LENGTH, 'confirmed'],
+            'new_password' => [
+                'required', 'string', 'min:'.self::MIN_LENGTH, 'max:'.self::MAX_LENGTH,
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if (! is_string($value)) {
+                        return;
+                    }
+                    if (PasswordPolicy::hasWhitespace($value)) {
+                        $fail(PasswordPolicy::MSG_WHITESPACE);
+
+                        return;
+                    }
+                    if (! PasswordPolicy::hasAllCharacterClasses($value)) {
+                        $fail(PasswordPolicy::MSG_COMPLEXITY);
+                    }
+                },
+            ],
             'new_password_confirmation' => ['required', 'string', 'max:'.self::MAX_LENGTH],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function passwordValidationMessages(): array
+    {
+        return [
+            'current_password.required' => PasswordPolicy::MSG_CURRENT_REQUIRED,
+            'current_password.string' => PasswordPolicy::MSG_CURRENT_REQUIRED,
+            'new_password.required' => PasswordPolicy::MSG_NEW_REQUIRED,
+            'new_password.string' => PasswordPolicy::MSG_NEW_REQUIRED,
+            'new_password.min' => PasswordPolicy::MSG_MIN,
+            'new_password.max' => PasswordPolicy::MSG_MAX,
+            'new_password_confirmation.required' => PasswordPolicy::MSG_CONFIRM_REQUIRED,
+            'new_password_confirmation.string' => PasswordPolicy::MSG_CONFIRM_REQUIRED,
+            'new_password_confirmation.max' => PasswordPolicy::MSG_MAX,
         ];
     }
 
@@ -42,9 +73,6 @@ final class P11SecurityContract
         if (isset($failed['new_password_confirmation']['Required'])) {
             return 'PASSWORD_CONFIRMATION_REQUIRED';
         }
-        if (isset($failed['new_password']['Confirmed'])) {
-            return 'PASSWORD_CONFIRMATION_MISMATCH';
-        }
         if (isset($failed['new_password'])) {
             return 'PASSWORD_POLICY_VIOLATION';
         }
@@ -55,7 +83,7 @@ final class P11SecurityContract
     public static function passwordPolicy(string $driver): array
     {
         return [
-            'version' => 'p11-password-v1-'.$driver,
+            'version' => 'p11-password-v2-'.$driver,
             'min_length' => self::MIN_LENGTH,
             'max_length' => self::MAX_LENGTH,
             'length_unit' => 'UNICODE_CHARACTERS',
@@ -65,7 +93,9 @@ final class P11SecurityContract
             'confirmation_field' => 'new_password_confirmation',
             'current_password_required' => true,
             'max_age_days' => (int) config('login_security.password.max_age_days', 90),
-            'composition_rules' => [],
+            'history_limit' => (int) config('login_security.password.history_limit', 5),
+            'system_issued_permanent' => true,
+            'composition_rules' => ['UPPERCASE', 'LOWERCASE', 'DIGIT', 'SPECIAL'],
             'input_normalization' => 'EXISTING_REQUEST_MIDDLEWARE',
             'hasher' => $driver,
             'session_policy' => 'RELOGIN_ALL_REFRESH_FAMILIES_REVOKED',

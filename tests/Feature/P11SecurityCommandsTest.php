@@ -114,7 +114,7 @@ class P11SecurityCommandsTest extends TestCase
         [$user, $token, $password] = $this->fixture();
         $key = (string) Str::uuid();
         $trace = (string) Str::uuid();
-        $new = bin2hex(random_bytes(18));
+        $new = 'New#Pass2026';
         $body = ['current_password' => 'wrong', 'new_password' => $new, 'new_password_confirmation' => $new];
         $this->postJson('/api/v1/auth/change-password', $body, $this->command($token, $key, $trace))->assertStatus(422)
             ->assertJsonPath('data.receipt.state', 'REJECTED')->assertJsonPath('data.receipt.error_code', 'CURRENT_PASSWORD_INCORRECT');

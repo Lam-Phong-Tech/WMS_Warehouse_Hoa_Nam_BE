@@ -45,7 +45,7 @@ class P11SecurityReadContractTest extends TestCase
     {
         [$user, $token, $secret] = $this->loginFixture();
         $before = $user->fresh()->password_hash;
-        $new = bin2hex(random_bytes(16));
+        $new = 'New#Pass2026';
         $response = $this->postJson(self::BASE.'change-password', [
             'current_password' => 'wrong-'.$secret,
             'new_password' => $new, 'new_password_confirmation' => $new,
@@ -61,7 +61,7 @@ class P11SecurityReadContractTest extends TestCase
     public function test_confirmation_and_length_errors_are_distinct_and_never_commit(): void
     {
         [$user, $token, $secret] = $this->loginFixture();
-        $new = bin2hex(random_bytes(16));
+        $new = 'New#Pass2026';
         $base = ['current_password' => $secret, 'new_password' => $new];
         $this->postJson(self::BASE.'change-password', $base, $this->headers($token))
             ->assertUnprocessable()->assertJsonPath('error_code', 'PASSWORD_CONFIRMATION_REQUIRED');
@@ -95,7 +95,7 @@ class P11SecurityReadContractTest extends TestCase
     {
         [$user, $token, $secret] = $this->loginFixture();
         [, $other] = $this->loginFixture($user, $secret);
-        $new = bin2hex(random_bytes(16));
+        $new = 'New#Pass2026';
         $response = $this->postJson(self::BASE.'change-password', [
             'current_password' => $secret, 'new_password' => $new, 'new_password_confirmation' => $new,
         ], $this->headers($token))->assertOk()

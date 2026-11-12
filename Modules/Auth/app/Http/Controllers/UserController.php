@@ -19,6 +19,8 @@ use Modules\Auth\Http\Requests\StoreUserRequest;
 use Modules\Auth\Http\Requests\UpdateUserRequest;
 use Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
 use Modules\Auth\Support\AuthCache;
+use Modules\Auth\Support\PasswordHistory;
+use Modules\Auth\Support\PasswordPolicy;
 use Modules\Auth\Support\PermissionDelegation;
 use Modules\Auth\Support\ProfileAvatar;
 use Modules\Auth\Support\RefreshTokenService;
@@ -119,6 +121,9 @@ class UserController extends Controller
 
         $user = DB::transaction(function () use ($data, $hasTitle, $jobTitle, $request) {
             $user = $this->users->create($data);
+            // Mật khẩu ban đầu do admin cấp phải bị chặn vĩnh viễn sau khi nhân
+            // viên đổi sang mật khẩu riêng (A→B không được quay lại A).
+            PasswordHistory::record($user, (string) $user->password_hash, PasswordHistory::SOURCE_SYSTEM);
             if ($hasTitle) {
                 UserBusinessProfile::put($user->user_id, $jobTitle, $request->user()?->user_id);
             }
@@ -229,18 +234,30 @@ class UserController extends Controller
         $this->assertVersionMatches($request, $before);
 
         $passwordWasReset = array_key_exists('password', $data);
+        $previousHash = (string) $before->password_hash;
+        $previousSource = PasswordHistory::sourceForCurrentPassword($before);
 
         if ($passwordWasReset) {
+            $reuseMessage = PasswordPolicy::reuseMessage($before, (string) $data['password'], (string) $before->password_hash);
+            if ($reuseMessage !== null) {
+                ApiError::abort(422, 'PASSWORD_POLICY_VIOLATION', $reuseMessage, ['password' => [$reuseMessage]]);
+            }
             $data['password_hash'] = Hash::make($data['password']);
             unset($data['password']);
         }
 
         $data['version'] = $before->version + 1;
 
-        $user = DB::transaction(function () use ($id, $data, $hasTitle, $jobTitle, $request) {
+        $user = DB::transaction(function () use ($id, $data, $hasTitle, $jobTitle, $request, $passwordWasReset, $previousHash, $previousSource) {
             $user = $this->users->update($id, $data);
             if ($user !== null && $hasTitle) {
                 UserBusinessProfile::put($id, $jobTitle, $request->user()?->user_id);
+            }
+            if ($user !== null && $passwordWasReset) {
+                // Mật khẩu cũ vẫn bị chặn theo nguồn của nó; mật khẩu admin vừa
+                // đặt là mật khẩu hệ thống cấp, giữ vĩnh viễn.
+                PasswordHistory::recordPrevious($user, $previousHash, $previousSource);
+                PasswordHistory::record($user, (string) $user->password_hash, PasswordHistory::SOURCE_SYSTEM);
             }
 
             return $user;

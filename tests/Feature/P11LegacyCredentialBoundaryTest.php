@@ -51,7 +51,7 @@ class P11LegacyCredentialBoundaryTest extends TestCase
         $this->resetGuards();
         $login = $this->browserLogin($user->email, $secret)->assertOk();
         $old = $login->json('data.access_token');
-        $replacement = bin2hex(random_bytes(18));
+        $replacement = 'New#Pass2026';
         $this->postJson('/api/v1/auth/change-password', [
             'current_password' => $secret,
             'new_password' => $replacement,
