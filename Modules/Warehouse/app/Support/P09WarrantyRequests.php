@@ -78,6 +78,9 @@ final class P09WarrantyRequests
                 if ($stored !== null && $stored->state === 'SUCCEEDED') {
                     return self::reply($stored, $scope, true);
                 }
+                $failure = $error instanceof ValidationException
+                    ? ['message' => $error->getMessage(), 'errors' => $error->errors()]
+                    : null;
                 $http = $error instanceof ValidationException ? 422
                     : ($error instanceof HttpResponseException ? $error->getResponse()->getStatusCode()
                         : ($error instanceof HttpExceptionInterface ? $error->getStatusCode() : 0));
@@ -85,6 +88,7 @@ final class P09WarrantyRequests
                     $code = $error instanceof ValidationException ? 'VALIDATION_ERROR' : 'WARRANTY_REQUEST_REJECTED';
                     if ($error instanceof HttpResponseException && $error->getResponse() instanceof JsonResponse) {
                         $body = $error->getResponse()->getData(true);
+                        $failure = $body;
                         $candidate = $body['error_code'] ?? null;
                         if (is_string($candidate) && preg_match('/^[A-Z][A-Z0-9_]{0,99}$/D', $candidate)) {
                             $code = $candidate;
@@ -94,7 +98,7 @@ final class P09WarrantyRequests
                         'state' => 'FAILED', 'http_status' => $http, 'error_code' => $code,
                         'completed_at' => now(), 'updated_at' => now()]);
 
-                    return self::reply(DB::table(self::TABLE)->where('id', $id)->first(), $scope, false);
+                    return self::reply(DB::table(self::TABLE)->where('id', $id)->first(), $scope, false, false, $failure);
                 }
             } catch (Throwable) {
                 // No raw exception / SQL / input / credentials in the response.
@@ -111,18 +115,46 @@ final class P09WarrantyRequests
 
     public static function reconcile(array $scope, string $requestId): JsonResponse
     {
+        $requestId = strtolower($requestId);
         $hash = P09WarrantyPolicy::digest(P09WarrantyScope::key($scope), (string) config('app.key'));
-        $row = DB::table(self::TABLE)->where('scope_hash', $hash)->where('request_id', strtolower($requestId))->first();
+        $row = DB::table(self::TABLE)->where('scope_hash', $hash)->where('request_id', $requestId)->first();
         if ($row === null) {
-            return response()->json(['success' => true, 'data' => ['receipt' => ['request_id' => strtolower($requestId),
-                'state' => 'UNKNOWN', 'may_create_new_request' => false]], 'meta' => P09WarrantyScope::metadata($scope)])
-                ->header('Cache-Control', 'private, no-store');
+            // A request ID may exist under another actor/session/warehouse scope.
+            // Its absence here is not proof that no command committed, so only a
+            // globally unknown ID is safe to retry.
+            if (DB::table(self::TABLE)->where('request_id', $requestId)->exists()) {
+                return self::unknownScopeResponse($scope, $requestId);
+            }
+
+            return self::notFoundResponse($scope, $requestId);
         }
 
         return self::reply($row, $scope, true, true);
     }
 
-    private static function reply(object $row, array $scope, bool $replay, bool $read = false): JsonResponse
+    private static function receiptReadResponse(array $scope, array $receipt): JsonResponse
+    {
+        return response()->json(['success' => true, 'data' => ['receipt' => $receipt],
+            'meta' => P09WarrantyScope::metadata($scope) + ['request_id' => request()->attributes->get('request_id')]])
+            ->header('Cache-Control', 'private, no-store');
+    }
+
+    private static function unknownScopeResponse(array $scope, string $requestId): JsonResponse
+    {
+        return self::receiptReadResponse($scope, ['request_id' => $requestId, 'state' => 'UNKNOWN',
+            'may_create_new_request' => false, 'retry_policy' => 'CHECK_ONLY']);
+    }
+
+    private static function notFoundResponse(array $scope, string $requestId): JsonResponse
+    {
+        return self::receiptReadResponse($scope, ['request_id' => $requestId, 'state' => 'NOT_FOUND',
+            'error_code' => 'REQUEST_NOT_RECORDED', 'retry_policy' => 'NEW_REQUEST_ALLOWED',
+            'may_create_new_request' => true, 'operation' => null, 'warranty_case_id' => null,
+            'warranty_case_code' => null, 'case_no' => null, 'version' => null, 'status' => null,
+            'http_status' => null, 'completed_at' => null, 'stock_effect' => 'NONE', 'movement_created' => false]);
+    }
+
+    private static function reply(object $row, array $scope, bool $replay, bool $read = false, ?array $failure = null): JsonResponse
     {
         $caseCode = null;
         if ($row->state === 'SUCCEEDED') {
@@ -151,10 +183,18 @@ final class P09WarrantyRequests
             $body['data']['case_no'] = $caseCode;
         }
         if (! $read && $state === 'FAILED') {
+            $failureDetails = $failure['error']['details'] ?? null;
+            $failureErrors = $failure['errors'] ?? null;
+            $details = is_array($failureDetails) && $failureDetails !== []
+                ? $failureDetails
+                : (is_array($failureErrors) ? $failureErrors : []);
+            $errors = is_array($failureErrors) && $failureErrors !== [] ? $failureErrors : $details;
             $body['error_code'] = $row->error_code;
-            $body['error'] = ['code' => $row->error_code, 'details' => []];
-            $body['errors'] = [];
-            $body['message'] = 'Yêu cầu không được thực hiện. Kiểm tra dữ liệu, quyền và phiên bản trước khi tạo request mới.';
+            $body['error'] = ['code' => $row->error_code, 'details' => $details];
+            $body['errors'] = $errors;
+            $body['message'] = is_string($failure['message'] ?? null) && $failure['message'] !== ''
+                ? $failure['message']
+                : 'Yêu cầu không được thực hiện. Kiểm tra dữ liệu, quyền và phiên bản trước khi tạo request mới.';
         }
         $response = response()->json($body, $code)->header('Idempotent-Replay', $replay ? 'true' : 'false')
             ->header('Cache-Control', 'private, no-store');

@@ -189,11 +189,11 @@ class MiniAppWarrantyController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $this->queryFields($request, ['warehouse_id']);
-        $body = $this->body($request, Policy::CREATE_FIELDS);
         $s = Scope::resolve($request, true);
 
-        return P09WarrantyRequests::execute($request, $s, 'CREATE', null, function (string $requestId) use ($request, $s, $body): JsonResponse {
+        return P09WarrantyRequests::execute($request, $s, 'CREATE', null, function (string $requestId) use ($request, $s): JsonResponse {
+            $this->queryFields($request, ['warehouse_id']);
+            $body = $this->body($request, Policy::CREATE_FIELDS);
             $inner = $this->commandRequest($request, $requestId);
             WarrantyWarehouseScope::prepareCreate($inner);
             WarrantyWarehouseScope::lockCreate($inner);
@@ -224,20 +224,20 @@ class MiniAppWarrantyController extends Controller
 
     public function update(Request $request, string $id): JsonResponse
     {
-        $this->queryFields($request, ['warehouse_id']);
-        $body = $this->body($request, Policy::UPDATE_FIELDS);
         $s = Scope::resolve($request, true);
         $id = (string) Scope::requireCase($s, $id)->warranty_case_id;
-        if (! $request->hasHeader('If-Match')) {
-            ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match là bắt buộc.');
-        }
-        try {
-            $version = Policy::version((string) $request->header('If-Match'));
-        } catch (\InvalidArgumentException) {
-            ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là phiên bản số nguyên dương, ví dụ "1".');
-        }
 
-        return P09WarrantyRequests::execute($request, $s, 'UPDATE', strtolower($id), function (string $requestId) use ($request, $s, $id, $body, $version): JsonResponse {
+        return P09WarrantyRequests::execute($request, $s, 'UPDATE', strtolower($id), function (string $requestId) use ($request, $s, $id): JsonResponse {
+            $this->queryFields($request, ['warehouse_id']);
+            $body = $this->body($request, Policy::UPDATE_FIELDS);
+            if (! $request->hasHeader('If-Match')) {
+                ApiError::abort(428, 'PRECONDITION_REQUIRED', 'If-Match là bắt buộc.');
+            }
+            try {
+                $version = Policy::version((string) $request->header('If-Match'));
+            } catch (\InvalidArgumentException) {
+                ApiError::abort(422, 'INVALID_VERSION', 'If-Match phải là phiên bản số nguyên dương, ví dụ "1".');
+            }
             $inner = $this->commandRequest($request, $requestId);
             WarrantyWarehouseScope::assertCase($inner, $id, true);
             $case = Scope::requireCase($s, $id, true);
