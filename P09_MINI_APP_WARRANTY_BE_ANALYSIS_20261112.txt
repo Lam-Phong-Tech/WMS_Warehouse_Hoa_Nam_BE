@@ -1,0 +1,396 @@
+================================================================================
+PHÂN TÍCH & ĐỀ XUẤT FIX API MINI APP BẢO HÀNH - P09
+Repo: WMS_Warehouse_Hoa_Nam_BE | Branch: dev | Ngày: 2026-11-12
+Trạng thái: CHƯA SỬA CODE - CHỜ CHỐT PHƯƠNG ÁN
+================================================================================
+
+TÓM TẮT
+--------------------------------------------------------------------------------
+- Mục 1 là blocker thật và đúng nguyên nhân: 4xx phát sinh TRƯỚC receipt boundary
+  không được ghi nhận, sau đó reconcile trả UNKNOWN + may_create_new_request=false.
+- Mục 2/3/4 là thiếu field trong read-model; fix additive, rủi ro thấp.
+- Mục 5 không phải lỗi seeder: MasterCatalogCoverageSeeder đã để DEF-902 = INACTIVE
+  từ commit 66f0f0d3 (2026-09-04). Vấn đề nằm ở dữ liệu DB live hoặc cache list.
+
+
+================================================================================
+1. BLOCKER: GET /api/v1/mini-app/warranty-requests/{request_id}
+================================================================================
+
+1.1. HIỆN TRẠNG CODE
+--------------------------------------------------------------------------------
+P09WarrantyRequests::execute()
+(Modules/Warehouse/app/Support/P09WarrantyRequests.php) đã làm đúng phần lõi:
+
+- Chèn receipt PROCESSING TRƯỚC khi chạy command.
+- Command + receipt SUCCEEDED commit CÙNG MỘT transaction.
+- 4xx phát sinh BÊN TRONG transaction (stale version, state conflict, validation
+  của canonical handler) đã được ghi FAILED, may_create_new_request = true.
+  Test P09WarrantyHandoverContractTest đang chứng minh việc này.
+
+Nhưng trong MiniAppWarrantyController:
+
+- store() gọi queryFields(), body(), Scope::resolve() TRƯỚC
+  P09WarrantyRequests::execute().
+- update() gọi queryFields(), body(), Scope::requireCase(), kiểm tra If-Match
+  TRƯỚC execute().
+
+Nếu các bước này ném 4xx (unknown field, unknown query, thiếu If-Match,
+If-Match sai format, case không tồn tại...) thì CHƯA có receipt nào được ghi.
+Sau đó reconcile() không tìm thấy row và trả:
+
+  {
+    "receipt": {
+      "state": "UNKNOWN",
+      "may_create_new_request": false
+    }
+  }
+
+=> Đúng kịch bản client bị khóa vĩnh viễn.
+
+Bảng đối chiếu nhanh:
+
+  Vị trí check                          | 4xx      | Có receipt?
+  --------------------------------------|----------|----------------
+  queryFields/body/If-Match trước execute| 422/428  | KHÔNG
+  Validator/ApiError trong closure       | 422/409/412 | CÓ (FAILED)
+  5xx/ambiguous                          | 503      | PROCESSING/UNKNOWN, false
+
+
+1.2. ĐỀ XUẤT FIX
+--------------------------------------------------------------------------------
+1.2.1. Đưa các pre-check vào trong receipt boundary
+
+Chỉ giữ Scope::resolve() và Scope::requireCase() ở ngoài (vì cần scope/case ID
+để tính receipt key). Các check còn lại chuyển vào closure của execute():
+
+- queryFields()
+- body() / kiểm tra field ngoài contract
+- If-Match bắt buộc + parse version
+
+Khi đó mọi 4xx đều đi qua catch hiện có => ghi FAILED + trả data.receipt ngay
+trong response 4xx.
+
+Cần giữ field-level validation errors trong response 4xx đầu tiên (hiện catch
+chỉ giữ error_code). Nếu không, FE sẽ mất thông báo lỗi từng field khi
+validation bị move vào trong.
+
+1.2.2. Sửa semantics của reconcile - có một điểm an toàn cần xử lý
+
+Không nên trả may_create_new_request = true cho MỌI request_id không tìm thấy.
+scope_hash của P09 gồm actor_id + auth_session_id + warehouse_id
+(P09WarrantyScope::key()). Vì vậy "không tìm thấy trong scope hiện tại" có thể là:
+
+  (a) request chưa từng tới server => an toàn để tạo lại;
+  (b) request đã thành công nhưng dưới session/kho/actor khác => tạo lại sẽ duplicate.
+
+Đề xuất phân biệt bằng global-existence check:
+
+  Tìm theo (scope_hash, request_id):
+    Có row  => xử lý như hiện tại (SUCCEEDED / PROCESSING / FAILED / UNKNOWN)
+    Không có row:
+      request_id có tồn tại ở scope khác?
+        Có  => UNKNOWN + may_create_new_request = false (giữ nguyên hành vi an toàn)
+        Không => NOT_FOUND + may_create_new_request = true
+
+Như vậy:
+
+- Request UUID chưa từng gửi => NOT_FOUND + true => client mở khóa.
+- Request đã thành công ở session khác => vẫn UNKNOWN + false, không lộ dữ liệu,
+  không cho tạo trùng.
+- Test P12ReadRevision2Test (foreign token phải thấy UNKNOWN/false) vẫn xanh.
+- Cần thêm index p09_warranty_requests(request_id) vì unique index hiện tại là
+  (scope_hash, request_id).
+
+1.2.3. Shape đề xuất cho not-found
+
+  {
+    "success": true,
+    "data": {
+      "receipt": {
+        "request_id": "826c...",
+        "state": "NOT_FOUND",
+        "error_code": "REQUEST_NOT_RECORDED",
+        "retry_policy": "NEW_REQUEST_ALLOWED",
+        "may_create_new_request": true,
+        "operation": null,
+        "warranty_case_id": null,
+        "version": null,
+        "status": null,
+        "http_status": null,
+        "completed_at": null,
+        "stock_effect": "NONE",
+        "movement_created": false
+      }
+    }
+  }
+
+Giữ HTTP 200 cho GET; signal là state + may_create_new_request, không phải
+HTTP status.
+
+1.2.4. Hai lưu ý quan trọng cho FE
+
+- Sau FAILED/NOT_FOUND, lần thử mới phải dùng CẢ Idempotency-Key mới VÀ
+  X-Request-ID mới. Nếu chỉ đổi key mà giữ request_id cũ, unique
+  (scope_hash, request_id) sẽ trả 409 IDEMPOTENCY_CONFLICT.
+- Case PROCESSING đã quá 5 phút hiện bị map thành UNKNOWN + false vĩnh viễn.
+  Fix này KHÔNG giải quyết case đó; muốn xử lý cần một recovery policy riêng
+  (ví dụ recovery_required + ops can thiệp). Nên tách ticket nếu cần.
+
+
+================================================================================
+2. STATUS_COUNTS CHO DANH SÁCH PHIẾU
+================================================================================
+
+Hiện index() chỉ trả meta.total sau khi đã filter status. Không có facet count.
+
+Đề xuất bổ sung vào meta:
+
+  "status_counts": {
+    "ALL": 20,
+    "RECEIVED": 3,
+    "CHECKING": 4,
+    "REPAIRING": 5,
+    "COMPLETED": 4,
+    "RETURNED": 3,
+    "CANCELLED": 1
+  },
+  "status_counts_basis": "SAME_WAREHOUSE_SEARCH_DATE_FILTERS_EXCLUDING_STATUS"
+
+Cách tính (giống precedent P06CatalogController::tab_totals):
+
+- Clone query SAU khi áp warehouse + search + date filter, TRƯỚC khi áp status.
+- groupBy(c.status) một query duy nhất.
+- Zero-fill đủ 6 status; ALL = tổng các group (kể cả status lạ nếu có).
+- Chạy trong cùng P06ReadSnapshot nên counts và page nhất quán.
+
+Lưu ý: khi FE đang chọn một status, meta.total = số của status đó, còn
+status_counts.ALL = tổng bỏ filter status. Đây là semantics facet chuẩn; cần ghi
+rõ trong contract để FE không so sánh sai.
+
+Về 4 chip: BE trả đủ 6 status + ALL; FE tự cộng nhóm (ví dụ
+Đang xử lý = RECEIVED + CHECKING + REPAIRING). Nếu 4 chip của FE là 4 nhóm cố
+định, cần chốt nhóm nào để BE trả thêm đúng key đó.
+
+
+================================================================================
+3. ACTOR.DISPLAY_NAME TRONG EVENTS
+================================================================================
+
+Hiện MiniAppWarrantyController::events() hardcode:
+
+  'display_name' => null,
+  'display_name_status' => 'NOT_RECORDED_IN_EVENT'
+
+Đề xuất:
+
+- Sau khi lấy page events, batch query app_user theo created_by
+  (1 query, không join vào query phân trang).
+- Map display_name, thêm display_name_source.
+- Status rõ ràng:
+
+  Trường hợp                      | display_name_status
+  --------------------------------|-----------------------------------------------
+  Tìm thấy user                   | CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT
+  created_by = null               | NOT_RECORDED_IN_EVENT
+  Có user_id nhưng không còn row  | ACTOR_SOURCE_UNAVAILABLE
+
+Đây là TÊN HIỆN TẠI, không phải snapshot lịch sử - status nói rõ điều đó,
+giống cách P12 xử lý.
+
+Điểm cần chốt: P12 gate tên nhân viên bằng warranty.pii.view, nhưng P22 NFC
+history lại trả actor_name cho người có warranty.view. Tôi nghiêng về trả tên
+cho mọi người có quyền xem bảo hành (vì đây là audit trail nội bộ, và P22 đã có
+precedent). Nếu Security muốn đồng nhất với P12 thì đổi thành
+REDACTED_PII_PERMISSION khi thiếu quyền.
+
+Shape đề xuất:
+
+  "actor": {
+    "user_id": "...",
+    "user_id_source": "warranty_event.created_by",
+    "display_name": "Nguyễn Văn A",
+    "display_name_status": "CURRENT_DIRECTORY_LABEL_NOT_HISTORICAL_SNAPSHOT",
+    "display_name_source": "app_user.display_name"
+  }
+
+
+================================================================================
+4. TÓM TẮT LINH KIỆN TRONG LIST COMPONENT-ISSUES
+================================================================================
+
+Hiện MiniAppWarrantyController::componentIssues() chỉ trả:
+
+  {
+    "component_issue_document_id": "...",
+    "status": "POSTED",
+    "can_open": true,
+    "detail_url": "..."
+  }
+
+Đề xuất bổ sung vào từng row (legacy path, không có header P20):
+
+  {
+    "line_count": 2,
+    "total_quantity": 5,
+    "quantity_status": "CONFIRMED",
+    "lines": [
+      {
+        "sku_id": "...",
+        "sku_code": "LK-001",
+        "sku_name": "Bộ chế hòa khí",
+        "unit": "cái",
+        "quantity": 3
+      }
+    ]
+  }
+
+Nguồn số lượng: SUM(component_issue_lines.scanned_qty) group theo sku_id, chỉ
+với document POSTED. Đây là basis đang dùng ở report (BaM1ReportController /
+AlignedWarrantyReportController: SUM(cil.scanned_qty) AS issued_qty). Nếu có line
+scanned_qty null thì quantity_status = INCOMPLETE.
+
+Chỉ cần 1 query batch cho cả page (whereIn document_id), kèm Scope::isolate cho
+component_issue_lines và sku; không N+1.
+
+Lưu ý quan trọng: route này có 2 nhánh:
+
+- Không gửi X-Component-History-Contract => MiniAppWarrantyController::
+  componentIssues() (legacy) => thêm lines ở đây.
+- Có gửi header => P20ComponentHistoryController::index() đang cố ý trả
+  list_has_lines: false, và test P20ComponentHistoryTest assert KHÔNG CÓ key
+  lines. Muốn thêm vào nhánh này phải bump contract P20 lên v2, không nên làm lẫn.
+
+Cần xác nhận Mini App có gửi header P20 hay không. Nếu không gửi, chỉ sửa legacy
+path là đủ và không phá contract nào.
+
+
+================================================================================
+5. DEF-902 VẪN ACTIVE
+================================================================================
+
+Đây là điểm cần nói rõ: CODE SEEDER HIỆN TẠI ĐÃ ĐÚNG.
+
+MasterCatalogCoverageSeeder::DEFECTS dòng 65 đã là:
+
+  ['DEF-902', 'Lỗi bao bì (ngừng dùng)', '...', 'INACTIVE'],
+
+và seedDefects() có update status nếu row đã tồn tại. Vậy nguyên nhân khả năng
+cao là:
+
+1. DB live có row DEF-902 vẫn ACTIVE (seeder chưa chạy lại từ 04/09, hoặc bị
+   set tay).
+2. Cache list warehouse.defect_catalog:list còn giữ kết quả cũ
+   (TTL reference = 3600s).
+
+Đề xuất fix:
+
+- Thêm data migration idempotent, không phụ thuộc seeder:
+
+  UPDATE defect_catalogs
+  SET status = 'INACTIVE',
+      version = COALESCE(version, 0) + 1,
+      updated_at = now()
+  WHERE defect_code = 'DEF-902'
+    AND status <> 'INACTIVE';
+
+- Bump cache warehouse.defect_catalog:list và stock:version (vì defect name/status
+  còn nằm trong cache báo cáo bảo hành).
+- Kiểm tra live bằng:
+
+  SELECT defect_code, status, updated_at
+  FROM defect_catalogs
+  WHERE defect_code = 'DEF-902';
+
+Không xóa row, không đổi lịch sử: các warranty_case cũ vẫn giữ defect_id, chỉ
+dropdown ?status=ACTIVE không còn DEF-902.
+
+Nếu cần sửa ngay không chờ deploy: PATCH /api/v1/defects/{defect_id} với
+{"status":"INACTIVE"} cũng được, nhưng vẫn nên có migration để môi trường khác
+không bị lại.
+
+
+================================================================================
+THỨ TỰ ĐỀ XUẤT
+================================================================================
+
+  Ưu tiên | Việc                                  | Ghi chú
+  --------|---------------------------------------|---------------------------
+  P0      | Mục 1: receipt + reconcile            | Blocker, contract amendment
+          |                                       | AMD-API-036
+  P0      | Mục 5: migration DEF-902 + cache bump | Nhanh, rủi ro thấp
+  P1      | Mục 2: status_counts                  | 1 query thêm, precedent P06
+  P1      | Mục 3: display_name                   | 1 query batch, không đổi paging
+  P1      | Mục 4: lines/total_quantity           | Chỉ legacy path, tránh phá P20 v1
+  P1      | Test + handoff FE                     | Cập nhật document-numbering-v1.md,
+          |                                       | baseline contract, P12 note
+
+
+================================================================================
+CẦN CHỐT
+================================================================================
+
+Mặc định sẽ làm theo các đề xuất in đậm nếu chỉ trả lời "OK theo đề xuất":
+
+1. Mục 1: dùng state NOT_FOUND + global-existence gate (an toàn cross-session),
+   hay muốn dùng FAILED để FE hiện tại không phải sửa logic unlock?
+
+2. Mục 1: có giữ field-level validation errors trong response 4xx đầu tiên
+   không? (nên có)
+
+3. Mục 3: trả display_name cho mọi người có quyền xem bảo hành, hay gate bằng
+   warranty.pii.view như P12?
+
+4. Mục 4: Mini App có gửi header X-Component-History-Contract không? Nếu có,
+   cần làm P20 v2 thay vì chỉ sửa legacy path.
+
+5. Mục 2: 4 chip lọc nhanh của FE là 4 nhóm nào? BE sẽ trả đủ 6 status + ALL;
+   nếu cần nhóm riêng thì chốt tên.
+
+6. Mục 5: có cần ghi thêm audit_log cho lần đổi DEF-902 không, hay migration
+   là đủ?
+
+
+================================================================================
+GHI CHÚ CÁC FILE/ENDPOINT LIÊN QUAN
+================================================================================
+
+- Modules/Warehouse/app/Support/P09WarrantyRequests.php
+  (execute / reconcile / reply - receipt boundary)
+
+- Modules/Warehouse/app/Http/Controllers/MiniAppWarrantyController.php
+  (store / update / events / index / componentIssues)
+
+- Modules/Warehouse/app/Support/P09WarrantyScope.php
+  (scope_hash gồm actor_id + auth_session_id + warehouse_id)
+
+- Modules/Warehouse/database/seeders/MasterCatalogCoverageSeeder.php
+  (DEF-902 đã INACTIVE trong seed definition)
+
+- Modules/Warehouse/app/Http/Controllers/DefectCatalogController.php
+  (GET /api/v1/defects?status=ACTIVE)
+
+- Modules/Warehouse/app/Http/Controllers/P20ComponentHistoryController.php
+  (nhánh có header P20, list_has_lines=false)
+
+- Modules/Warehouse/app/Http/Controllers/P06CatalogController.php
+  (precedent tab_totals cho status_counts)
+
+- tests/Feature/P12ReadRevision2Test.php
+  (foreign session phải thấy UNKNOWN/false)
+
+- tests/Feature/P09WarrantyHandoverContractTest.php
+  (4xx trong transaction đã ghi FAILED)
+
+- tests/Feature/P20ComponentHistoryTest.php
+  (assert list P20 không có key lines)
+
+- Modules/Warehouse/routes/mini_app.php
+  (route warranty-cases / status / events / component-issues)
+
+- Modules/Warehouse/routes/p09_warranty.php
+  (route warranty-requests/{requestId} và component-issues)
+
+================================================================================
+HẾT
+================================================================================
