@@ -690,7 +690,7 @@
           "introduced_in": "41bdbaee",
           "introduced_at": "2026-10-08",
           "title": "P09 warranty command reconciliation",
-          "rationale": "Read the exact warranty owner command result under actor/session/warehouse identity; absence is UNKNOWN and never authorizes a replacement command.",
+          "rationale": "Read the exact warranty owner command result under actor/session/warehouse identity. Absence is UNKNOWN when the request id exists under another scope; a globally unknown request id is NOT_FOUND with may_create_new_request=true. A new attempt must use a new Idempotency-Key and a new X-Request-ID; no receipt is ever overwritten.",
           "owner": "BE owner + BA + QA",
           "approval": "PENDING (BA + QA live acceptance)",
           "operations": ["GET /api/v1/mini-app/warranty-requests/{requestId}"]

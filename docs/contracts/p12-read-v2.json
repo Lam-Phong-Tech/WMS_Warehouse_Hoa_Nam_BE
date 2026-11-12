@@ -78,7 +78,7 @@
     "path": "GET /api/v1/mini-app/warranty-requests/{requestId}",
     "location": "meta.p12.read_target",
     "success": "Only SUCCEEDED plus matching canonical warranty_case_id, after existing owner ACL, exposes GET case detail target.",
-    "other_states": "UNKNOWN/PROCESSING/FAILED have no target; original receipt and may_create_new_request policy remain owned by P09.",
+    "other_states": "UNKNOWN/PROCESSING/FAILED/NOT_FOUND have no target; original receipt and may_create_new_request policy remain owned by P09. NOT_FOUND is only returned when the request id is globally unknown; UNKNOWN also covers ids known under another actor/session/warehouse scope.",
     "pii": "No receipt note/name/phone is added; existing safeCase and event redaction remain in force."
   },
   "attachments": {
