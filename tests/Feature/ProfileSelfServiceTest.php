@@ -206,6 +206,27 @@ class ProfileSelfServiceTest extends TestCase
         $this->getJson('/api/v1/auth/devices', $this->headers($current))->assertOk()->assertJsonPath('meta.active_session_count', 1);
     }
 
+    public function test_login_history_is_capped_to_30_newest_ended_families(): void
+    {
+        config()->set('refresh_token.single_active_session.enabled', true);
+        [$user] = $this->identity();
+        // 33 lần đăng nhập → 32 family kết thúc; cap chỉ còn 30 mới nhất.
+        for ($i = 0; $i < 32; $i++) {
+            $this->makeSession($user);
+        }
+        [$current] = $this->makeSession($user);
+
+        $this->getJson('/api/v1/auth/device-history?per_page=100', $this->headers($current))
+            ->assertOk()
+            ->assertJsonPath('meta.total', 30)
+            ->assertJsonCount(30, 'data');
+
+        $this->artisan('auth:prune-refresh-tokens')->assertSuccessful();
+
+        $this->assertSame(31, RefreshToken::where('user_id', $user->user_id)->count());
+    }
+
+
     public function test_login_history_includes_expiry_and_rejects_foreign_filters(): void
     {
         config()->set('refresh_token.single_active_session.enabled', false);

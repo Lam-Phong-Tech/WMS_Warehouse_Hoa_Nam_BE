@@ -225,8 +225,16 @@ final class P10ProfileController extends AuthController
             $ranked = RefreshToken::query()->where('user_id', $user->user_id)
                 ->select(['id', 'auth_session_id', 'auth_device_id', 'auth_session_started_at', 'user_agent', 'ip_address', 'created_at', 'expires_at', 'revoked_at'])
                 ->selectRaw('ROW_NUMBER() OVER (PARTITION BY COALESCE(auth_session_id, id) ORDER BY CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END, created_at DESC, expires_at DESC, id DESC) AS history_rank');
-            $page = DB::query()->fromSub($ranked, 'login_history')->where('history_rank', 1)
+            // Chỉ giữ lại tối đa 30 phiên đăng nhập mới nhất (các phiên đã kết
+            // thúc); các phiên cũ hơn bị xoá hẳn bởi lệnh auth:prune-refresh-tokens.
+            $keep = DB::query()->fromSub($ranked, 'login_history')
+                ->where('history_rank', 1)
                 ->where(fn ($query) => $query->whereNotNull('revoked_at')->orWhere('expires_at', '<=', now()))
+                ->orderByDesc('created_at')->orderByDesc('id')
+                ->limit(30)
+                ->pluck('id');
+            $page = DB::query()->fromSub($ranked, 'login_history')->where('history_rank', 1)
+                ->whereIn('id', $keep)
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->paginate((int) ($input['per_page'] ?? 6), ['*'], 'page', (int) ($input['page'] ?? 1));
             $devices = DB::table('auth_client_installations')->where('user_id', $user->user_id)
