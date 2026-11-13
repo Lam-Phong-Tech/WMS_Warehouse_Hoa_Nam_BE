@@ -84,7 +84,16 @@ class PutawayController extends Controller
                 $query->where(function ($nested) use ($keyword): void {
                     $nested->where('c.container_code', 'like', "%{$keyword}%")
                         ->orWhere('s.sku_code', 'like', "%{$keyword}%")
-                        ->orWhere('s.sku_name', 'like', "%{$keyword}%");
+                        ->orWhere('s.sku_name', 'like', "%{$keyword}%")
+                        ->orWhereExists(function ($receipt) use ($keyword): void {
+                            $receipt->selectRaw('1')
+                                ->from('inbound_scan_entries as search_entry')
+                                ->join('stock_document_lines as search_line', 'search_line.id', '=', 'search_entry.inbound_line_id')
+                                ->join('stock_documents as search_receipt', 'search_receipt.id', '=', 'search_line.stock_document_id')
+                                ->whereColumn('search_entry.container_id', 'c.container_id')
+                                ->where('search_receipt.status', 'POSTED')
+                                ->where('search_receipt.doc_no', 'like', "%{$keyword}%");
+                        });
                 });
             })
             ->orderBy('c.container_code')

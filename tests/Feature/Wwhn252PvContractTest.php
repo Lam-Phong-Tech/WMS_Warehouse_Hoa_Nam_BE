@@ -28,6 +28,34 @@ class Wwhn252PvContractTest extends TestCase
     use PreparesOutboundFixtures;
     use RefreshDatabase;
 
+    public function test_admin_rule_keyword_matches_sku_and_tag_names_before_pagination(): void
+    {
+        $headers = $this->headersForPermissions(['pv.master.manage']);
+        $industry = $this->industryFixture('SEARCH-IND', 'Search industry');
+        $sku = $this->publishedSkuFixture('SEARCH-SKU-REMOTE', 'Remote product');
+        $tag = $this->tagFixture('SEARCH-TAG', 'Remote classification');
+        $this->ruleFixture($industry, ['sku_id' => $sku->sku_id], 1);
+        $this->ruleFixture($industry, ['tag_id' => $tag], 2);
+        foreach (['SEARCH-SKU-REMOTE', 'Remote classification'] as $keyword) {
+            $this->getJson('/api/v1/pv-admin/resources/recommendation-rules?'.http_build_query([
+                'keyword' => $keyword, 'per_page' => 1,
+            ]), $headers)->assertOk()->assertJsonPath('meta.total', 1);
+        }
+    }
+
+    public function test_admin_profile_keyword_and_industry_filter_combine_before_pagination(): void
+    {
+        $headers = $this->headersForPermissions(['pv.master.manage']);
+        $industry = $this->industryFixture('PROFILE-SEARCH-IND', 'Profile search industry');
+        $sku = $this->publishedSkuFixture('PROFILE-SEARCH-1', 'Profile search one');
+        $this->publishedSkuFixture('PROFILE-SEARCH-2', 'Profile search two');
+        $this->mapProfileToIndustry($this->profileIdForSku($sku->sku_id), $industry);
+        $this->getJson('/api/v1/pv-admin/resources/product-profiles?'.http_build_query([
+            'keyword' => 'PROFILE-SEARCH', 'industry_id' => $industry, 'per_page' => 1,
+        ]), $headers)->assertOk()->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.sku_id', $sku->sku_id);
+    }
+
     public function test_profile_text_limits_accept_255_and_500_and_reject_overflow_on_create_and_update(): void
     {
         $headers = $this->headersForPermissions(['pv.master.manage']);

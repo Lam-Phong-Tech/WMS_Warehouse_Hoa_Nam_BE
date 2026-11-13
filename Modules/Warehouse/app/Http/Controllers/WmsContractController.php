@@ -295,6 +295,7 @@ class WmsContractController extends Controller
         security: [['bearerAuth' => []]],
         tags: ['07. Inventory'],
         parameters: [
+            new OA\Parameter(name: 'keyword', in: 'query', description: 'Contains scan batch identifier', schema: new OA\Schema(type: 'string', maxLength: 200)),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
@@ -307,9 +308,14 @@ class WmsContractController extends Controller
     )]
     public function scanBatches(Request $request)
     {
+        $request->validate(['keyword' => ['nullable', 'string', 'max:200']]);
         $query = DB::table('scan_batches')->orderByDesc('created_at');
         if ($request->filled('warehouse_id')) {
             $query->where('warehouse_id', $request->input('warehouse_id'));
+        }
+
+        if ($request->filled('keyword')) {
+            $query->whereRaw('LOWER(CAST(scan_batch_id AS TEXT)) LIKE ?', ['%'.mb_strtolower(trim((string) $request->input('keyword'))).'%']);
         }
 
         return $this->respondPaginated($query->paginate($this->perPage($request)));
@@ -322,6 +328,7 @@ class WmsContractController extends Controller
         security: [['bearerAuth' => []]],
         tags: ['07. Inventory'],
         parameters: [
+            new OA\Parameter(name: 'keyword', in: 'query', description: 'Contains raw scanned code in either evidence store', schema: new OA\Schema(type: 'string', maxLength: 200)),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'result_status', in: 'query', schema: new OA\Schema(type: 'string')),
@@ -346,6 +353,7 @@ class WmsContractController extends Controller
         // Truy vết phải nhìn được cả hai nên hợp nhất về một contract chung.
         $request->validate([
             'result_status' => ['nullable', 'string', 'max:40'],
+            'keyword' => ['nullable', 'string', 'max:200'],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
             'entity_type' => ['nullable', 'string', 'max:60'],
@@ -356,6 +364,7 @@ class WmsContractController extends Controller
         // `mine=1` là cách DUY NHẤT lọc theo người quét, và nó luôn là người đang gọi.
         // Không nhận user_id từ client: đó chính là đường đọc lịch sử quét của người khác.
         $filters = [
+            'keyword' => trim((string) $request->input('keyword', '')),
             'result_status' => $request->filled('result_status') ? (string) $request->input('result_status') : null,
             'from' => $request->filled('from') ? (string) $request->input('from') : null,
             'to' => $request->filled('to') ? (string) $request->input('to') : null,
@@ -414,10 +423,13 @@ class WmsContractController extends Controller
      * trên tập đã lọc — lọc sau khi cắt trang sẽ trả trang thiếu dòng mà meta.total
      * vẫn tính cả phần bị lọc.
      *
-     * @param  array{result_status: ?string, from: ?string, to: ?string, entity_type: ?string, scan_batch_id: ?string, actor_id: ?string}  $filters
+     * @param  array{keyword: string, result_status: ?string, from: ?string, to: ?string, entity_type: ?string, scan_batch_id: ?string, actor_id: ?string}  $filters
      */
     private function applyScanEvidenceFilters(Builder $query, array $filters, string $batchTable, bool $hasActorColumn): void
     {
+        if ($filters['keyword'] !== '') {
+            $query->whereRaw('LOWER(raw_code) LIKE ?', ['%'.mb_strtolower($filters['keyword']).'%']);
+        }
         if ($filters['result_status'] !== null) {
             $query->where('result_status', $filters['result_status']);
         }

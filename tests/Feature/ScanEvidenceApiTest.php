@@ -68,6 +68,11 @@ class ScanEvidenceApiTest extends TestCase
 
         $this->assertContains('EVIDENCE-RECORD-001', $codes);
         $this->assertContains('EVIDENCE-CANONICAL-001', $codes);
+        foreach (['RECORD', 'CANONICAL'] as $store) {
+            $this->getJson('/api/v1/scan/events?keyword='.$store.'&per_page=1', $headers)
+                ->assertOk()->assertJsonPath('meta.total', 1)
+                ->assertJsonPath('data.0.raw_code', 'EVIDENCE-'.$store.'-001');
+        }
     }
 
     public function test_scan_batches_endpoint_returns_paginated_rows(): void
@@ -85,5 +90,33 @@ class ScanEvidenceApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonStructure(['data', 'meta' => ['current_page', 'per_page']]);
+    }
+
+    public function test_scan_history_keyword_and_batch_filter_apply_before_pagination(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $warehouse = $this->warehouseFixture();
+        $batchIds = [(string) Str::uuid(), (string) Str::uuid()];
+        foreach ($batchIds as $ordinal => $batchId) {
+            DB::table('scan_batches')->insert([
+                'scan_batch_id' => $batchId, 'source_type' => 'INBOUND',
+                'warehouse_id' => $warehouse->id, 'created_at' => now()->addSeconds($ordinal),
+            ]);
+            foreach (['MATCH-CODE', 'OTHER-CODE'] as $code) {
+                DB::table('scan_record_events')->insert([
+                    'scan_event_id' => (string) Str::uuid(), 'scan_batch_id' => $batchId,
+                    'raw_code' => $code, 'result_status' => 'SUCCESS', 'created_at' => now(),
+                ]);
+            }
+        }
+        $this->getJson('/api/v1/scan/batches?'.http_build_query([
+            'keyword' => $batchIds[0], 'per_page' => 1,
+        ]), $headers)->assertOk()->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.scan_batch_id', $batchIds[0]);
+        $this->getJson('/api/v1/scan/events?'.http_build_query([
+            'keyword' => 'MATCH', 'scan_batch_id' => $batchIds[0], 'per_page' => 1,
+        ]), $headers)->assertOk()->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.raw_code', 'MATCH-CODE')
+            ->assertJsonPath('data.0.scan_batch_id', $batchIds[0]);
     }
 }

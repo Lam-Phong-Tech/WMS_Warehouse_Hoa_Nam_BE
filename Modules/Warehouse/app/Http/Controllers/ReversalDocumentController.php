@@ -66,7 +66,7 @@ class ReversalDocumentController extends Controller
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'keyword', in: 'query', description: 'Reversal number, displayed original document number (stock or component issue), or reason', schema: new OA\Schema(type: 'string')),
         ],
         responses: [
             new OA\Response(response: 200, description: 'Danh sách chứng từ điều chỉnh'),
@@ -80,7 +80,7 @@ class ReversalDocumentController extends Controller
         // applyWarehouseScope() lọc trong SQL — hai user khác scope không bao giờ
         // dùng chung entry, nên cache hit không thể nuốt mất giới hạn phạm vi.
         $payload = $this->cachedReadPayload(
-            'warehouse:reversal-document:list',
+            'warehouse:reversal-document:list:source-search-v2',
             // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
             $this->readFiltersWithPaging($request),
             fn (): array => $this->buildIndexPayload($request),
@@ -150,10 +150,11 @@ class ReversalDocumentController extends Controller
             $query->where('reversal_documents.status', $request->input('status'));
         }
         if ($request->filled('keyword')) {
-            $keyword = '%'.mb_strtolower((string) $request->input('keyword')).'%';
+            $keyword = '%'.mb_strtolower(trim((string) $request->input('keyword'))).'%';
             // sqlite không có ILIKE; hạ chữ hai vế để cùng ngữ nghĩa trên mọi driver.
             $query->where(function ($q) use ($keyword) {
                 $q->whereRaw('LOWER(CAST(reversal_documents.reversal_no AS TEXT)) LIKE ?', [$keyword])
+                    ->orWhereRaw('LOWER(CAST(COALESCE(stock_documents.doc_no, component_issue_documents.component_issue_no) AS TEXT)) LIKE ?', [$keyword])
                     ->orWhereRaw('LOWER(CAST(reversal_documents.reason_text AS TEXT)) LIKE ?', [$keyword]);
             });
         }

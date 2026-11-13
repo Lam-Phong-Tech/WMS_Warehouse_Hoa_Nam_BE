@@ -31,6 +31,31 @@ class AgencyTest extends TestCase
         return ['Authorization' => "Bearer {$token}"];
     }
 
+    public function test_recipient_keyword_zero_searches_promised_fields_before_pagination(): void
+    {
+        $headers = $this->authHeaders();
+        foreach (['agency_code', 'agency_name', 'market', 'region'] as $index => $field) {
+            Agency::forceCreate(array_replace([
+                'agency_code' => 'MATCH-'.chr(65 + $index),
+                'agency_name' => 'Recipient '.chr(65 + $index),
+                'recipient_type' => 'AGENCY',
+                'status' => 'ACTIVE',
+            ], [$field => '0']));
+        }
+        Agency::create([
+            'agency_code' => 'UNRELATED', 'agency_name' => 'Unrelated recipient',
+            'recipient_type' => 'AGENCY', 'status' => 'ACTIVE',
+        ]);
+
+        foreach (['recipients', 'agencies'] as $route) {
+            $this->getJson("/api/v1/{$route}?keyword=0&per_page=2&page=2", $headers)
+                ->assertOk()
+                ->assertJsonPath('meta.total', 4)
+                ->assertJsonPath('meta.last_page', 2)
+                ->assertJsonCount(2, 'data');
+        }
+    }
+
     /**
      * GĐ1-REQ-001 (5c64d42 + 652fc7d, 25/08/2026; khối agencies/recipients trong
      * Modules/Warehouse/routes/api.php): /agencies là alias tương thích của master "nơi nhận"

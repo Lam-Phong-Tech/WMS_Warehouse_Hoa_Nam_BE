@@ -397,6 +397,22 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->assertArrayHasKey('consumed_by_name', $row);
     }
 
+    public function test_import_match_keyword_finds_source_request_before_pagination(): void
+    {
+        $target = $this->createOutboundRequestImport('VALIDATED', 'target.xlsx', 1, 1, 0);
+        $this->createOutboundRequestImport('UPLOADED', 'other.xlsx', 0, 0, 0);
+        DB::table('outbound_request_import_rows')->insert([
+            'id' => (string) Str::uuid(), 'import_id' => $target, 'row_no' => 1,
+            'validation_status' => 'VALID',
+            'normalized_payload' => json_encode(['request_no' => 'REQUEST-SEARCH-42', 'sku_id' => $this->productA->id, 'sku_code' => 'SP-RPT-A', 'required_qty' => 1]),
+            'created_at' => now(),
+        ]);
+        $today = now()->toDateString();
+        $this->api("/api/v1/reports/import-match?from_date={$today}&to_date={$today}&keyword=request-search-42&per_page=1&page=1")
+            ->assertOk()->assertJsonPath('data.summary.total_batches', 1)
+            ->assertJsonPath('data.rows.0.source_request_no', 'REQUEST-SEARCH-42');
+    }
+
     // ── 6. Packing Label (Label Log) ─────────────────────────
 
     public function test_label_log_returns_packing_label_rows(): void
@@ -615,6 +631,33 @@ class ReportFlow06IntegrationTest extends TestCase
         $from = now()->subDays(1)->toDateString();
         $response = $this->api("/api/v1/reports/warranty-defects?from_date={$from}&to_date={$today}&status=RECEIVED");
         $response->assertOk()->assertJsonPath('data.summary.total', 1);
+    }
+
+    public function test_warranty_report_exposes_authoritative_serial_for_search(): void
+    {
+        $caseId = $this->createWarrantyCase('WAR-SERIAL-SEARCH', 'RECEIVED');
+        $itemId = (string) Str::uuid();
+        DB::table('item_instances')->insert([
+            'item_id' => $itemId, 'sku_id' => $this->productA->id,
+            'serial_number' => 'SN-REPORT-42', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('warranty_case')->where('warranty_case_id', $caseId)->update([
+            'identification_status' => 'IDENTIFIED', 'item_id' => $itemId,
+            'product_id' => $this->productA->id, 'temporary_item_code' => null,
+            'missing_code_reason' => null, 'manual_product_description' => null,
+        ]);
+        foreach (['QR-REPORT-42', 'RFID-REPORT-42'] as $code) {
+            DB::table('physical_codes')->insert([
+                'physical_code_id' => (string) Str::uuid(), 'code_value' => $code,
+                'code_type' => 'ITEM', 'carrier_type' => str_starts_with($code, 'QR') ? 'QR' : 'RFID',
+                'item_id' => $itemId, 'assigned_object_type' => 'ITEM', 'assigned_object_id' => $itemId,
+                'status' => 'ACTIVE', 'version' => 1, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+        }
+        $today = now()->toDateString();
+        $this->api("/api/v1/reports/warranty-defects?from_date={$today}&to_date={$today}")
+            ->assertOk()->assertJsonPath('data.rows.0.serial_number', 'SN-REPORT-42')
+            ->assertJsonPath('data.rows.0.physical_codes', ['QR-REPORT-42', 'RFID-REPORT-42']);
     }
 
     public function test_warranty_defects_export_returns_xlsx(): void

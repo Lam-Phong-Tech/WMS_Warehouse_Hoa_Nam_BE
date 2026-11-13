@@ -433,6 +433,15 @@ class Flow02InboundPutawayAlignmentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.source_reference', 'PO-2026-0001');
 
+        // A newer unrelated document must not hide an external-reference match.
+        $this->postJson('/api/v1/inbound-documents', [
+            'dst_warehouse_id' => $warehouse->id,
+            'source_reference' => 'UNRELATED-EXTERNAL-REF',
+        ], $headers)->assertCreated();
+        $this->getJson('/api/v1/inbound-documents?keyword=PO-2026-0001&per_page=1', $headers)
+            ->assertOk()->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $documentId);
+
         $this->patchJson("/api/v1/inbound-documents/{$documentId}", [
             'source_reference' => 'PO-2026-0002',
         ], $headers + ['If-Match' => '1'])

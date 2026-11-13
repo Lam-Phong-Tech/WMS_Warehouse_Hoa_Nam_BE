@@ -79,8 +79,9 @@ class BaM1RecipientController extends Controller
                         $query->where($field, $validated[$field]);
                     }
                 }
-                if (! empty($validated['keyword'])) {
-                    $keyword = '%'.mb_strtolower(trim((string) $validated['keyword'])).'%';
+                $term = trim((string) ($validated['keyword'] ?? ''));
+                if ($term !== '') {
+                    $keyword = '%'.mb_strtolower($term).'%';
                     $query->where(function ($nested) use ($keyword): void {
                         $nested->whereRaw('LOWER(agency_code) LIKE ?', [$keyword])
                             ->orWhereRaw('LOWER(agency_name) LIKE ?', [$keyword])
@@ -321,6 +322,7 @@ class BaM1RecipientController extends Controller
     private function validatePayload(Request $request, ?string $id, bool $partial): array
     {
         $required = $partial ? 'sometimes' : 'required';
+
         return $request->validate([
             'agency_code' => [
                 $required, 'string', 'max:50',

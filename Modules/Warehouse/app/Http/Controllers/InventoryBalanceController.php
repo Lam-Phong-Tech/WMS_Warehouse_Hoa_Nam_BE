@@ -88,7 +88,7 @@ class InventoryBalanceController extends Controller
         // trúng dữ liệu kho không thuộc quyền của họ (rò dữ liệu, không chỉ là sai số).
         // Cùng quy ước với CachesReadPayload::readCacheKey (khoá của
         // /stock-movements đã có 'scope-global').
-        $key = CacheKey::of('warehouse:inventory-balance:list', [
+        $key = CacheKey::of('warehouse:inventory-balance:list:search-v2', [
             'f' => CacheKey::hashFilters($filters),
             'scope' => CacheKey::scopeSignature($this->warehouseScopeIds()),
             'per_page' => $perPage,
@@ -162,9 +162,14 @@ class InventoryBalanceController extends Controller
         }
         if ($keyword !== '') {
             $like = '%'.mb_strtolower($keyword).'%';
-            $query->whereHas('product', function ($q) use ($like): void {
-                $q->whereRaw('LOWER(CAST(sku.sku_code AS TEXT)) LIKE ?', [$like])
-                    ->orWhereRaw('LOWER(CAST(sku.sku_name AS TEXT)) LIKE ?', [$like]);
+            $query->where(function ($nested) use ($like): void {
+                $nested->whereHas('product', function ($q) use ($like): void {
+                    $q->whereRaw('LOWER(CAST(sku.sku_code AS TEXT)) LIKE ?', [$like])
+                        ->orWhereRaw('LOWER(CAST(sku.sku_name AS TEXT)) LIKE ?', [$like]);
+                })->orWhereHas('warehouse', function ($q) use ($like): void {
+                    $q->whereRaw('LOWER(CAST(code AS TEXT)) LIKE ?', [$like])
+                        ->orWhereRaw('LOWER(CAST(name AS TEXT)) LIKE ?', [$like]);
+                });
             });
         }
 

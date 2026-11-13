@@ -255,7 +255,7 @@ class BaM1ReportController extends Controller
         return response()->json([
             'success' => true,
             'data' => $this->cachedReportPayload(
-                'warehouse:report:warranty-defects:instant-v2',
+                'warehouse:report:warranty-defects:instant-v3-identifiers',
                 // Phân trang nằm TRONG SQL -> page/per_page BẮT BUỘC ở trong key,
                 // nếu không trang 3 sẽ nhận lại payload của trang 1.
                 $this->reportFiltersWithPaging($request),
@@ -299,6 +299,7 @@ class BaM1ReportController extends Controller
 
         $query = WarrantyWarehouseScope::query($request, 'wc')
             ->leftJoin('sku as s', 's.sku_id', '=', 'wc.product_id')
+            ->leftJoin('item_instances as report_item', 'report_item.item_id', '=', 'wc.item_id')
             ->where(WarrantyReportTime::range($from, $to));
         if (! empty($validated['status'])) {
             $query->where('wc.status', $validated['status']);
@@ -328,7 +329,7 @@ class BaM1ReportController extends Controller
             ->forPage($page, $perPage)
             ->get(array_merge([
                 'wc.warranty_case_id', 'wc.warranty_case_code', 'wc.identification_status', 'wc.status',
-                'wc.temporary_item_code', 'wc.manual_product_description',
+                'wc.temporary_item_code', 'wc.manual_product_description', 'wc.item_id', 'report_item.serial_number',
                 'wc.purchase_date', 'wc.received_at',
                 'wc.created_at', 'wc.updated_at', 'wc.completed_at', 'wc.returned_at',
                 'wc.estimated_completion_date', 's.sku_id', 's.sku_code', 's.sku_name',
@@ -364,7 +365,13 @@ class BaM1ReportController extends Controller
                 ->get()->groupBy('warranty_case_id');
         }
 
-        $rows = $cases->map(function (object $case) use ($defectsByCase, $issuedByCase): array {
+        $physicalCodesByItem = DB::table('physical_codes')
+            ->where('assigned_object_type', 'ITEM')->where('status', 'ACTIVE')
+            ->whereIn('assigned_object_id', $cases->pluck('item_id')->filter()->all())
+            ->orderBy('code_value')->get(['assigned_object_id', 'code_value'])
+            ->groupBy('assigned_object_id');
+
+        $rows = $cases->map(function (object $case) use ($defectsByCase, $issuedByCase, $physicalCodesByItem): array {
             $defects = collect($defectsByCase->get((string) $case->warranty_case_id) ?? [])
                 ->map(fn (object $row): array => [
                     'defect_id' => (string) $row->defect_id,
@@ -390,6 +397,8 @@ class BaM1ReportController extends Controller
                 'case_no' => (string) $case->warranty_case_code,
                 'identification_status' => (string) $case->identification_status,
                 'temporary_item_code' => $case->temporary_item_code,
+                'serial_number' => $case->serial_number,
+                'physical_codes' => collect($physicalCodesByItem->get((string) $case->item_id) ?? [])->pluck('code_value')->values(),
                 'sku_id' => $case->sku_id,
                 'model' => $model,
                 'sku_name' => $case->sku_name,

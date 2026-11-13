@@ -3,11 +3,13 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
+use Modules\Warehouse\Http\Controllers\InventoryBalanceController;
 use Modules\Warehouse\Models\InventoryBalance;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Models\StockMovement;
@@ -54,6 +56,45 @@ class InventoryReconciliationFilterTest extends TestCase
             'inventory' => ['/api/v1/inventory'],
             'balances alias' => ['/api/v1/inventory/balances'],
         ];
+    }
+
+    public function test_keyword_matches_warehouse_name_before_pagination_and_keeps_other_filters(): void
+    {
+        $this->warehouse->update(['name' => 'Search warehouse Delta']);
+        $first = $this->balance(1, 1);
+        $second = $this->balance(2, 1);
+        $this->balance(3, 1, 'DEFECTIVE');
+        foreach ([$first, $second] as $offset => $sku) {
+            $this->getJson('/api/v1/inventory?'.http_build_query([
+                'keyword' => 'warehouse Delta', 'stock_status' => 'AVAILABLE',
+                'per_page' => 1, 'page' => $offset + 1,
+            ]), $this->headers)->assertOk()
+                ->assertJsonPath('meta.total', 2)
+                ->assertJsonPath('data.0.sku_id', $sku->sku_id);
+        }
+    }
+
+    public function test_warehouse_keyword_or_branch_preserves_scope_and_scope_specific_cache(): void
+    {
+        $this->warehouse->update(['name' => 'Shared search warehouse']);
+        $sku = $this->balance(1, 1);
+        $other = Warehouse::create(['code' => 'OTHER-SEARCH', 'name' => 'Shared search warehouse', 'status' => 'INACTIVE']);
+        InventoryBalance::create([
+            'warehouse_id' => $other->id, 'product_id' => $sku->sku_id,
+            'stock_status' => 'AVAILABLE', 'on_hand_qty' => 9, 'available_qty' => 9,
+            'reserved_qty' => 0, 'version' => 1,
+        ]);
+        foreach ([$this->warehouse->id, $other->id, $this->warehouse->id] as $warehouseId) {
+            $actor = new InventoryKeywordScopeUser;
+            $actor->setRawAttributes($this->user->getAttributes());
+            $actor->searchWarehouseIds = [$warehouseId];
+            auth('api')->setUser($actor);
+            $request = Request::create('/api/v1/inventory', 'GET', ['keyword' => 'Shared search warehouse']);
+            $request->setUserResolver(fn () => $actor);
+            $response = app(InventoryBalanceController::class)->index($request)->getData(true);
+            $this->assertSame(1, $response['meta']['total']);
+            $this->assertSame($warehouseId, $response['data'][0]['warehouse_id']);
+        }
     }
 
     public static function paginatedFilters(): array
@@ -248,5 +289,15 @@ class InventoryReconciliationFilterTest extends TestCase
             'occurred_at' => now(),
             'created_at' => now(),
         ]);
+    }
+}
+
+class InventoryKeywordScopeUser extends User
+{
+    public array $searchWarehouseIds = [];
+
+    public function warehouseScopeIds(): ?array
+    {
+        return $this->searchWarehouseIds;
     }
 }

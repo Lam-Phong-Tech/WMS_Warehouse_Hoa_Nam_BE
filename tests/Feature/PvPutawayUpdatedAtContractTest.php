@@ -89,7 +89,11 @@ class PvPutawayUpdatedAtContractTest extends TestCase
             'status' => 'RECEIVED_PENDING_PUTAWAY',
             'version' => 1,
         ]);
-        $this->seedPostedReceiptForBox((string) $box->container_id, (string) $sku->sku_id);
+        $receipt = $this->seedPostedReceiptForBox((string) $box->container_id, (string) $sku->sku_id);
+        $this->getJson('/api/v1/putaway/tasks?'.http_build_query([
+            'search' => $receipt['doc_no'], 'per_page' => 1,
+        ]), $headers)->assertOk()->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.box_container_id', (string) $box->container_id);
         $query = fn () => DB::table('containers')->where('container_id', $box->container_id);
         $persisted = '2026-09-11 06:07:08';
         $query()->update(['updated_at' => $persisted]);

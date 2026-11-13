@@ -69,7 +69,7 @@ class StockMovementController extends Controller
         // lần Post. Data-scope kho (global scope ScopesWarehouseData) đã nằm trong
         // khoá qua readCacheScopeIds() nên hai người khác scope không dùng chung entry.
         $payload = $this->cachedReadPayload(
-            'warehouse:stock-movement:list',
+            'warehouse:stock-movement:list:search-v2',
             // Phân trang chạy TRONG SQL ⇒ page/per_page BẮT BUỘC nằm trong khoá.
             $this->readFiltersWithPaging($request),
             fn (): array => $this->buildIndexPayload($request),
@@ -98,7 +98,24 @@ class StockMovementController extends Controller
         if ($request->filled('movement_type')) {
             $query->where('movement_type', $request->input('movement_type'));
         }
-        $this->applyKeyword($query, $request, ['movement_no', 'business_key', 'source_type']);
+        if ($request->filled('keyword')) {
+            $keyword = '%'.trim((string) $request->input('keyword')).'%';
+            $operator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $query->where(function ($match) use ($keyword, $operator): void {
+                $match->where('movement_no', $operator, $keyword)
+                    ->orWhere('business_key', $operator, $keyword)
+                    ->orWhere('source_type', $operator, $keyword)
+                    ->orWhereHas('product', function ($product) use ($keyword, $operator): void {
+                        $product->where('sku_code', $operator, $keyword)->orWhere('sku_name', $operator, $keyword);
+                    })
+                    ->orWhereHas('document', fn ($document) => $document->where('doc_no', $operator, $keyword))
+                    ->orWhere(function ($component) use ($keyword, $operator): void {
+                        $component->where('movement_type', 'COMPONENT_ISSUE')->whereIn('source_id', function ($documents) use ($keyword, $operator): void {
+                            $documents->select('id')->from('component_issue_documents')->where('component_issue_no', $operator, $keyword);
+                        });
+                    });
+            });
+        }
 
         $paginator = $query->paginate($this->perPage($request));
 
@@ -779,7 +796,7 @@ class StockMovementController extends Controller
         // Endpoint tự cắt trang TRONG SQL nhưng KHÔNG trả meta phân trang, nên
         // page/per_page vẫn đổi kết quả ⇒ phải giữ trong khoá (readFiltersWithPaging).
         $payload = $this->cachedReadPayload(
-            'warehouse:stock-movement:reversible',
+            'warehouse:stock-movement:reversible:source-search-v2',
             $this->readFiltersWithPaging($request),
             fn (): array => $this->buildReversiblePayload($request),
             'stock_short',
@@ -823,6 +840,7 @@ class StockMovementController extends Controller
                 'stock_movements.created_by',
                 'stock_movements.stock_document_id',
                 DB::raw('COALESCE(stock_documents.version, component_issue_documents.version, 1) AS version'),
+                DB::raw('COALESCE(stock_documents.doc_no, component_issue_documents.component_issue_no, stock_movements.movement_no) AS source_document_code'),
                 'warehouses.name as warehouse_name',
                 'warehouses.code as warehouse_code',
                 'sku.sku_code',
@@ -833,10 +851,21 @@ class StockMovementController extends Controller
             ])
             ->orderByDesc('stock_movements.occurred_at');
 
+        $warehouseIds = auth('api')->user()?->warehouseScopeIds();
+        if ($warehouseIds !== null) {
+            $query->whereIn('stock_movements.warehouse_id', $warehouseIds);
+        }
+        if ($request->filled('warehouse_id')) {
+            $query->where('stock_movements.warehouse_id', $request->input('warehouse_id'));
+        }
+        if ($request->filled('movement_type')) {
+            $query->where('stock_movements.movement_type', $request->input('movement_type'));
+        }
         if ($request->filled('search')) {
-            $keyword = '%'.mb_strtolower((string) $request->input('search')).'%';
+            $keyword = '%'.mb_strtolower(trim((string) $request->input('search'))).'%';
             $query->where(function ($q) use ($keyword) {
                 $q->whereRaw('LOWER(CAST(stock_movements.movement_no AS TEXT)) LIKE ?', [$keyword])
+                    ->orWhereRaw('LOWER(CAST(COALESCE(stock_documents.doc_no, component_issue_documents.component_issue_no) AS TEXT)) LIKE ?', [$keyword])
                     ->orWhereRaw('LOWER(CAST(sku.sku_code AS TEXT)) LIKE ?', [$keyword])
                     ->orWhereRaw('LOWER(CAST(sku.sku_name AS TEXT)) LIKE ?', [$keyword]);
             });
@@ -915,7 +944,7 @@ class StockMovementController extends Controller
                 'movement_type' => $mv->movement_type,
                 'source_document_type' => $mv->source_type,
                 'source_document_id' => $mv->source_id ?? $mv->stock_document_id,
-                'source_document_code' => $mv->movement_no,
+                'source_document_code' => $mv->source_document_code,
                 'warehouse_id' => $mv->warehouse_id,
                 'warehouse_name' => $mv->warehouse_name ?? '-',
                 'posted_at' => $mv->occurred_at,

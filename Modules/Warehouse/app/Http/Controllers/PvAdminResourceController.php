@@ -93,7 +93,7 @@ class PvAdminResourceController extends Controller
         // trong namespace, phân trang chạy TRONG SQL nên page/per_page nằm trong khoá.
         $cached = $this->cachedReadPayload(
             // Do not reuse pre-deploy profile payloads that lack updated_at.
-            'warehouse:pv-admin:'.$resourceType.($resourceType === self::RESOURCE_PROFILES ? ':timestamps-v1' : ''),
+            'warehouse:pv-admin:search-v2:'.$resourceType,
             $this->readFiltersWithPaging($request),
             function () use ($request, $resourceType): array {
                 $page = match ($resourceType) {
@@ -440,7 +440,19 @@ class PvAdminResourceController extends Controller
     {
         $relation = PvRelations::rule();
         $query = DB::table($relation['table'].' as r')
-            ->leftJoin(PvRelations::READ_INDUSTRY.' as i', 'i.industry_id', '=', 'r.industry_id');
+            ->leftJoin(PvRelations::READ_INDUSTRY.' as i', 'i.industry_id', '=', 'r.industry_id')
+            ->leftJoin('sku as rule_sku', 'rule_sku.sku_id', '=', 'r.'.$relation['sku'])
+            ->leftJoin(PvRelations::READ_TAG.' as rule_tag', 'rule_tag.tag_id', '=', 'r.tag_id');
+
+        $keyword = trim((string) $request->query('keyword', ''));
+        if ($keyword !== '') {
+            $like = PvRelations::isPgsql() ? 'ilike' : 'like';
+            $query->where(function ($nested) use ($keyword, $like): void {
+                foreach (['i.industry_code', 'i.industry_name', 'rule_sku.sku_code', 'rule_sku.sku_name', 'rule_tag.tag_code', 'rule_tag.tag_name'] as $column) {
+                    $nested->orWhere($column, $like, '%'.$keyword.'%');
+                }
+            });
+        }
 
         if ($request->filled('status')) {
             $query->where('r.status', strtoupper((string) $request->query('status')));
@@ -628,6 +640,14 @@ class PvAdminResourceController extends Controller
         $relation = PvRelations::profile();
         $query = DB::table($relation['table'].' as p')
             ->join('sku as s', 's.sku_id', '=', 'p.'.$relation['sku']);
+
+        if ($request->filled('industry_id')) {
+            $query->whereExists(function ($mapping) use ($request, $relation): void {
+                $mapping->selectRaw('1')->from(PvRelations::productIndustryTable().' as profile_industry')
+                    ->whereColumn('profile_industry.profile_id', 'p.'.$relation['key'])
+                    ->where('profile_industry.industry_id', $request->query('industry_id'));
+            });
+        }
 
         $keyword = trim((string) $request->query('keyword', ''));
         if ($keyword !== '') {

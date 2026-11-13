@@ -184,10 +184,33 @@ class AlignedImportMatchReportController extends Controller
         if (! empty($validated['keyword'])) {
             $keyword = '%'.trim((string) $validated['keyword']).'%';
             $operator = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
-            $query->where(function ($sub) use ($keyword, $operator): void {
+            // Unconsumed imports have a request number only in their payload.
+            // Decode the same selected-period rows as matchLines, rather than
+            // matching arbitrary JSON values or searching outside this scope.
+            $requestNeedle = mb_strtolower(trim((string) $validated['keyword']));
+            $payloadImports = DB::table('outbound_request_import_rows')
+                ->whereIn('import_id', (clone $query)->select('i.id'))
+                ->get(['import_id', 'normalized_payload', 'raw_payload'])
+                ->filter(function (object $row) use ($requestNeedle): bool {
+                    $payload = json_decode((string) $row->normalized_payload, true)
+                        ?: (json_decode((string) $row->raw_payload, true) ?: []);
+
+                    return str_contains(mb_strtolower((string) ($payload['request_no'] ?? '')), $requestNeedle);
+                })->pluck('import_id')->unique()->all();
+            $query->where(function ($sub) use ($keyword, $operator, $payloadImports): void {
                 $sub->where('i.import_no', $operator, $keyword)
                     ->orWhere('i.source_file_name', $operator, $keyword)
-                    ->orWhere('i.source_key', $operator, $keyword);
+                    ->orWhere('i.source_key', $operator, $keyword)
+                    ->orWhereIn('i.id', $payloadImports)
+                    ->orWhereExists(function ($requests) use ($keyword, $operator): void {
+                        $requests->selectRaw('1')->from('outbound_requests as keyword_request')
+                            ->leftJoin('stock_documents as keyword_document', 'keyword_document.outbound_request_id', '=', 'keyword_request.id')
+                            ->whereColumn('keyword_request.import_id', 'i.id')
+                            ->where(function ($codes) use ($keyword, $operator): void {
+                                $codes->where('keyword_request.request_no', $operator, $keyword)
+                                    ->orWhere('keyword_document.doc_no', $operator, $keyword);
+                            });
+                    });
             });
         }
 
