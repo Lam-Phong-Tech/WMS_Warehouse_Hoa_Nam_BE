@@ -61,10 +61,11 @@ class NotificationServiceProvider extends HttpLeanModuleServiceProvider
      */
     protected function configureSchedules(Schedule $schedule): void
     {
-        $schedule->command('notification-delivery:drain --limit=100')->everyMinute()->withoutOverlapping()->onOneServer();
+        // DB leases and admission locks already serialize sends; recovery must not need Redis mutexes.
+        $schedule->command('notification-delivery:drain --limit=100')->everyMinute();
         $schedule->command('notification-delivery:prune --limit=250')->hourly()->withoutOverlapping()->onOneServer();
         $schedule->command('notification-retention:prune --limit=5000')->dailyAt('02:30')->withoutOverlapping()->onOneServer();
-        $schedule->command('notifications:monitor --json')->everyMinute()->withoutOverlapping()->onOneServer();
+        $schedule->command('notifications:monitor --json')->everyMinute();
     }
 
     public function register(): void

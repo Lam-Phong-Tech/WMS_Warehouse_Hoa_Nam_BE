@@ -34,6 +34,14 @@ return [
 
     'stores' => [
 
+        'notification_scheduler' => [
+            'driver' => 'database',
+            'connection' => env('DB_CACHE_CONNECTION'),
+            'table' => 'notification_scheduler_cache',
+            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION'),
+            'lock_table' => 'notification_scheduler_cache_locks',
+        ],
+
         'array' => [
             'driver' => 'array',
             'serialize' => false,

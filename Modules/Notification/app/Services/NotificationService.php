@@ -56,7 +56,7 @@ class NotificationService
         }
         $category = ProfilePreferences::category($eventKey, $sourceModule);
         $warehouseHistory = NotificationHistoryPolicy::isWarehouse($eventKey, $sourceModule);
-        $inAppIds = [];
+        $historyIds = [];
         $emailRecipients = [];
         $users = User::query()->whereIn('user_id', $userIds)->get(['user_id', 'email', 'status'])->keyBy('user_id');
         $preferences = ProfilePreferences::readMany($userIds);
@@ -64,7 +64,7 @@ class NotificationService
             $channels = $category === null ? ['in_app' => true, 'email' => false]
                 : $preferences[$userId]['notifications'][$category];
             if ($warehouseHistory || $category === 'account' || $channels['in_app']) {
-                $inAppIds[] = $userId;
+                $historyIds[] = $userId;
             }
             $recipient = $users->get($userId);
             if ($channels['email'] && $recipient !== null && $recipient->status === 'ACTIVE'
@@ -72,14 +72,14 @@ class NotificationService
                 $emailRecipients[] = $recipient->email;
             }
         }
-        if ($inAppIds === [] && $emailRecipients === []) {
+        if ($historyIds === [] && $emailRecipients === []) {
             return null;
         }
 
         $coalesceSeconds = max(0, (int) config('notification_delivery.coalesce_seconds', 30));
         $coalesceKey = null;
         if (! $warehouseHistory && $deliveryKey === null && $subjectId !== null && $coalesceSeconds > 0) {
-            $audience = $inAppIds;
+            $audience = $historyIds;
             sort($audience);
             $coalesceKey = 'notification:coalesce:'.sha1(json_encode([
                 $eventKey, $sourceModule, $subjectType, $subjectId, $title, $body, $severity, $audience,
@@ -119,7 +119,7 @@ class NotificationService
         $created = true;
         try {
             $notification = DB::transaction(function () use (
-                $eventKey, $title, $body, $inAppIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName, $sourceSnapshot, $deliveryKey, $deliveryRegistrationIds, &$created
+                $eventKey, $title, $body, $historyIds, $severity, $sourceModule, $subjectType, $subjectId, $payload, $actorId, $actorName, $sourceSnapshot, $deliveryKey, $deliveryRegistrationIds, &$created
             ): Notification {
                 if ($deliveryKey !== null && ($existing = Notification::where('delivery_dispatch_key', $deliveryKey)->first()) !== null) {
                     $created = false;
@@ -146,7 +146,7 @@ class NotificationService
                     DB::table('notification_source_snapshots')->insert(['notification_id' => $notification->id, ...$sourceSnapshot]);
                 }
 
-                if ($inAppIds !== []) {
+                if ($historyIds !== []) {
                     $createdAt = now();
                     DB::table('notification_recipients')->insert(array_map(
                         static fn (string $userId): array => [
@@ -155,7 +155,7 @@ class NotificationService
                             'user_id' => $userId,
                             'created_at' => $createdAt,
                         ],
-                        $inAppIds,
+                        $historyIds,
                     ));
                 }
 
@@ -177,8 +177,8 @@ class NotificationService
 
         // Bắn broadcast NGOÀI transaction ghi DB: nếu broadcaster lỗi (Reverb down),
         // notification vẫn đã được ghi nhận bền vững và sẽ thấy được qua GET /notifications.
-        if ($broadcastInApp && $inAppIds !== []) {
-            foreach (array_chunk($inAppIds, 100) as $recipientChunk) {
+        if ($broadcastInApp && $historyIds !== []) {
+            foreach (array_chunk($historyIds, 100) as $recipientChunk) {
                 DB::afterCommit(function () use ($notification, $recipientChunk): void {
                     try {
                         event(new NotificationPushed($notification, $recipientChunk));
@@ -208,5 +208,4 @@ class NotificationService
 
         return $notification;
     }
-
 }

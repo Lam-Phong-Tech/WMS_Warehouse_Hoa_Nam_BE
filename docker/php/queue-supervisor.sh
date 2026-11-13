@@ -1,29 +1,35 @@
 #!/bin/sh
 set -u
 
-cd /var/www/html
+cd "${APP_BASE_PATH:-/var/www/html}" || exit 1
 
 timeout="${QUEUE_WORKER_TIMEOUT:-90}"
 memory="${QUEUE_WORKER_MEMORY_MB:-768}"
 notifications_pid=""
+delivery_pid=""
 default_pid=""
 
 cleanup() {
-  [ -n "$notifications_pid" ] && kill "$notifications_pid" 2>/dev/null || true
-  [ -n "$default_pid" ] && kill "$default_pid" 2>/dev/null || true
-  [ -n "$notifications_pid" ] && wait "$notifications_pid" 2>/dev/null || true
-  [ -n "$default_pid" ] && wait "$default_pid" 2>/dev/null || true
+  for pid in "$notifications_pid" "$delivery_pid" "$default_pid"; do
+    [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+  done
+  for pid in "$notifications_pid" "$delivery_pid" "$default_pid"; do
+    [ -n "$pid" ] && wait "$pid" 2>/dev/null || true
+  done
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 0' INT TERM
 
-php artisan queue:work --queue=notifications --tries=3 --timeout="$timeout" --memory="$memory" &
+php artisan queue:work --queue="${NOTIFICATION_QUEUE:-notifications}" --tries=3 --timeout="$timeout" --memory="$memory" &
 notifications_pid=$!
+
+php artisan queue:work --queue="${NOTIFICATION_DELIVERY_QUEUE:-notification-delivery}" --tries=1 --timeout="$timeout" --memory="$memory" &
+delivery_pid=$!
 
 php artisan queue:work --queue=default --tries=3 --timeout="$timeout" --memory="$memory" &
 default_pid=$!
 
-# If either worker dies, stop the sibling and let Docker restart both. This keeps
-# notification delivery isolated from long-running report exports.
-while kill -0 "$notifications_pid" 2>/dev/null && kill -0 "$default_pid" 2>/dev/null; do
+# Any failed consumer restarts the group; HTTP push never blocks history or exports.
+while kill -0 "$notifications_pid" 2>/dev/null && kill -0 "$delivery_pid" 2>/dev/null && kill -0 "$default_pid" 2>/dev/null; do
   sleep 2
 done

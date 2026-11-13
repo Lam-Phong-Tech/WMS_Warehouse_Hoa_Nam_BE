@@ -1,0 +1,177 @@
+{
+  "date": "2026-11-13",
+  "timezone": "Asia/Saigon",
+  "branch": "dev",
+  "source_root": "D:\\laragon\\www\\Hoa_Nam\\WMS_Warehouse_Hoa_Nam_BE",
+  "base_commit": "3e2fd7aa4841bad89e09390d96151c7d506ac41b",
+  "scope": "Backend notification persistence and durable push queue; frontend toast Task4 deferred per user queue-first request.",
+  "behavior": [
+    "Warehouse history persists for every eligible recipient, independent of the removed in-app cap and display preference.",
+    "Distinct warehouse events with identical text remain distinct; retry with the same dispatch key stays idempotent.",
+    "Warehouse recipient history is excluded from automatic retention pruning.",
+    "Optional push admission defaults to 60 per user per minute across devices; excess waits in the DB without incrementing attempts.",
+    "New ordinary deliveries start transport TTL on first admitted send, not while waiting; legacy/canary deadlines remain unchanged.",
+    "Database CAS/leases and per-user locks coordinate worker and scheduler; UNKNOWN is not automatically retried.",
+    "Separate notification-delivery consumer and DB-backed scheduler cache keep history creation separate from provider calls.",
+    "Binding pruning cannot cascade-delete retained deliveries; lease/deadline is rechecked after rate-lock waits."
+  ],
+  "verification": [
+    {
+      "suite": "History/preferences/retention",
+      "tests": 19,
+      "passed": 19,
+      "assertions": 73,
+      "stage": "initial implementation"
+    },
+    {
+      "suite": "Backend notification regression after review fixes",
+      "tests": 102,
+      "passed": 102,
+      "assertions": 1842,
+      "command_filter": "NotificationPushQueueTest|NotificationQueueSupervisorTest|NotificationHistoryPersistenceTest|ProfileNotificationDeliveryTest|NotificationRetentionPruneTest|NotificationDeliveryOutboxTest|NotificationDeliveryPruneTest|NotificationAndroidCanaryTest|NotificationHistoryTimestampTest|NotificationDeliverySelfTest|NotificationDeliveryRegistrationTest|P13NotificationContractTest|ControlledMultiSessionNotificationTest"
+    },
+    {
+      "suite": "Final queue suite after dedicated scheduler-cache migration",
+      "tests": 21,
+      "passed": 21,
+      "assertions": 1126,
+      "command": "php vendor/phpunit/phpunit/phpunit --filter NotificationPushQueueTest --do-not-cache-result",
+      "database": "SQLite :memory:"
+    },
+    {
+      "suite": "Real PostgreSQL two-process admission, leases, restart and delayed lock",
+      "tests": 1,
+      "passed": 1,
+      "assertions": 22,
+      "command": "php vendor/phpunit/phpunit/phpunit tests/Feature/NotificationPushQueueConcurrencyTest.php --do-not-cache-result",
+      "database": "Dedicated disposable localhost:55438/hn_notification_queue_test"
+    },
+    {
+      "suite": "Review regression: scheduler, binding cascade, lease and TTL",
+      "tests": 4,
+      "passed": 4,
+      "assertions": 18,
+      "note": "Runs Laravel schedule:run with DB scheduler cache and throwing Redis/mutex dependencies; subprocess command replaced by harmless PHP exit."
+    },
+    {
+      "suite": "FCM transport tests excluding unavailable OAuth dependency",
+      "tests": 5,
+      "passed": 5,
+      "assertions": 22,
+      "command_filter": "NotificationFcmTransportTest::test_(?!oauth)"
+    },
+    {
+      "suite": "History API acceptance for 1000 records",
+      "tests": 1,
+      "passed": 1,
+      "assertions": 5,
+      "note": "1000 notifications, 1000 unread recipients, unread-count=1000, pagination total=1000, first page=100."
+    },
+    {
+      "suite": "Pint changed PHP files",
+      "result": "passed"
+    },
+    {
+      "suite": "Compose YAML parser and scheduler role config",
+      "result": "passed"
+    },
+    {
+      "suite": "Supervisor shell syntax and three-consumer lifecycle",
+      "result": "passed",
+      "note": "Real Git Bash process test with fake PHP workers, configured queue names and sibling cleanup."
+    }
+  ],
+  "baseline_failures": [
+    {
+      "test": "SpreadsheetDependencySecurityTest::test_patched_dependency_and_unicode_xlsx_roundtrip_remain_usable",
+      "cause": "Installed local vendor PhpSpreadsheet 5.9.0; unchanged test requires >=5.10.0. Broad stop-on-failure run: 160 tests, 159 passed, 5000 assertions; isolated rerun reproduces. composer.json, composer.lock and test unchanged from base."
+    },
+    {
+      "test": "P13NotificationRevision2Test::test_event_and_subject_mapping_is_exact_and_not_a_title_or_permission_inference",
+      "cause": "Business type projection null instead of INBOUND. Reproduced with production classes loaded from the original 3e2fd7aa checkout via isolated bootstrap."
+    },
+    {
+      "test": "P13NotificationRevision2Test::test_missing_warehouse_unknown_events_and_mismatched_ids_never_invent_navigation",
+      "cause": "Business identity projection null. Reproduced on original 3e2fd7aa production classes."
+    },
+    {
+      "test": "NotificationFcmTransportTest::test_oauth_is_single_fixed_endpoint_cached_and_never_uses_foreign_token_uri",
+      "cause": "Local vendor lacks Google\\Auth\\Credentials\\ServiceAccountCredentials. This dependency limitation was also recorded in the pre-existing notification-burst QA document."
+    }
+  ],
+  "broad_notification_run": {
+    "tests": 119,
+    "passed": 115,
+    "failures": 2,
+    "errors": 1,
+    "skipped": 1,
+    "note": "Before final review fixes; two P13 failures and missing Google Auth as listed above; PostgreSQL-only test skipped on SQLite, then executed separately and passed."
+  },
+  "review": {
+    "fresh_reviewer": true,
+    "critical": 0,
+    "important": 3,
+    "important_fixed": 3,
+    "minor": 0,
+    "red_green_proof": [
+      "Scheduler cache mutex outage reproduced before fix.",
+      "Binding FK cascade deleted all four waiting states before fix.",
+      "Lease and TTL expiry during rate-lock admission reproduced before fix.",
+      "Real PostgreSQL blocked admission used stale time before fix."
+    ]
+  },
+  "rulings": [
+    {
+      "decision": "Work directly on dev and push dev, preserving unrelated existing dirty files.",
+      "basis": "Explicit user instruction.",
+      "cost_if_wrong": "Would mix changes with concurrent dev work; selective staging and remote fast-forward checks used."
+    },
+    {
+      "decision": "Deliver backend Tasks1–3 first; defer Task4 toast.",
+      "basis": "Explicit queue-first request.",
+      "cost_if_wrong": "Frontend continuous-toast budget remains unchanged for now."
+    },
+    {
+      "decision": "Use canonical user FK app_users.id on PostgreSQL/app_user.user_id on SQLite and fractional available_at precision.",
+      "basis": "Existing registry migration and configured 1..600 admissions/minute.",
+      "cost_if_wrong": "Wrong FK blocks delivery or timestamps distort admission; SQLite and PostgreSQL tests passed."
+    },
+    {
+      "decision": "One-shot canary bypasses optional user pacing while retaining stricter operator lease and expiry.",
+      "basis": "Preserve existing controlled canary behavior.",
+      "cost_if_wrong": "Canary cannot demonstrate normal load pacing; normal queue tests cover it separately."
+    },
+    {
+      "decision": "Keep unrelated dependency/P13 baseline failures visible rather than modify or bypass them.",
+      "basis": "Unchanged baseline reproduction and backend-queue scope.",
+      "cost_if_wrong": "Full repository suite cannot be reported green on this local installation."
+    },
+    {
+      "decision": "Increase perf queue default memory from 300m to 900m for three consumers.",
+      "basis": "New consumer count and export/history/provider separation.",
+      "cost_if_wrong": "Insufficient operator override can still cause OOM; no live resource settings changed."
+    },
+    {
+      "decision": "Use dedicated notification_scheduler DB cache tables and role config-cache path.",
+      "basis": "Laravel global scheduler pause polling also touches cache; legacy migrations removed generic cache tables.",
+      "cost_if_wrong": "Deployment must migrate and configure the scheduler role correctly; full schedule:run regression now verifies it."
+    },
+    {
+      "decision": "Do not broaden this delivery into business-event outbox, frontend Task4, production FCM enablement or VPS deploy.",
+      "basis": "Approved design and explicit backend-first scope.",
+      "cost_if_wrong": "Pre-listener delivery and deployment are not covered by this implementation."
+    }
+  ],
+  "deployment_requirements": [
+    "Apply migration 2026_11_13_000001_add_notification_push_queue_controls before new producer/worker code; pause old drainers during mixed-version rollout because expiry may be NULL.",
+    "Run notifications, notification-delivery and default consumers before routing; keep environment queue names aligned.",
+    "Scheduler CACHE_STORE=notification_scheduler and APP_CONFIG_CACHE=/var/www/html/bootstrap/cache/config.scheduler.php; rebuild role config cache.",
+    "Do not roll back to DROP persistence or old drainer while nullable expiries exist; disable transport and retain pending data instead."
+  ],
+  "limits": [
+    "No Docker stack or VPS deployment performed.",
+    "No live FCM messages sent; provider calls were faked in tests.",
+    "No attempt to reconstruct notifications dropped before this change.",
+    "Full project suite has the pre-existing failures above."
+  ]
+}

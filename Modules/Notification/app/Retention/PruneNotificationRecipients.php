@@ -6,8 +6,8 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
-use RuntimeException;
 use Modules\Notification\Support\NotificationHistoryPolicy;
+use RuntimeException;
 
 /**
  * Dọn chuông thông báo theo mức độ quan trọng.

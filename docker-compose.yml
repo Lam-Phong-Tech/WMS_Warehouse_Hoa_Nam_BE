@@ -45,6 +45,8 @@ services:
       # stack dev nhận giới hạn ngay cả khi image PHP chưa được build lại.
       - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/zz-wms-00-uploads.ini:ro
     environment:
+      - NOTIFICATION_QUEUE=${NOTIFICATION_QUEUE:-notifications}
+      - NOTIFICATION_DELIVERY_QUEUE=${NOTIFICATION_DELIVERY_QUEUE:-notification-delivery}
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -122,6 +124,8 @@ services:
     environment:
       - AUTO_MIGRATE=false
       - QUEUE_WORKER_TIMEOUT=${QUEUE_WORKER_TIMEOUT:-90}
+      - NOTIFICATION_QUEUE=${NOTIFICATION_QUEUE:-notifications}
+      - NOTIFICATION_DELIVERY_QUEUE=${NOTIFICATION_DELIVERY_QUEUE:-notification-delivery}
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -169,6 +173,8 @@ services:
       - AUTO_MIGRATE=false
       - REVERB_HOST=0.0.0.0
       - REVERB_PORT=6001
+      - NOTIFICATION_QUEUE=${NOTIFICATION_QUEUE:-notifications}
+      - NOTIFICATION_DELIVERY_QUEUE=${NOTIFICATION_DELIVERY_QUEUE:-notification-delivery}
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -204,6 +210,11 @@ services:
       - wms_vendor:/var/www/html/vendor
     environment:
       - AUTO_MIGRATE=false
+      # Scheduler pause/mutex/token caching must survive Redis outages.
+      - CACHE_STORE=notification_scheduler
+      - APP_CONFIG_CACHE=/var/www/html/bootstrap/cache/config.scheduler.php
+      - NOTIFICATION_QUEUE=${NOTIFICATION_QUEUE:-notifications}
+      - NOTIFICATION_DELIVERY_QUEUE=${NOTIFICATION_DELIVERY_QUEUE:-notification-delivery}
       - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432

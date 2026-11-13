@@ -8,17 +8,24 @@ use Illuminate\Database\Query\Builder;
 final class NotificationHistoryPolicy
 {
     private const MODULES = ['warehouse', 'inventory', 'warranty', 'component'];
+
     private const FAMILIES = ['inbound.', 'outbound.', 'stock.', 'reversal.', 'warranty.'];
+
     private const ACCOUNT_FAMILIES = ['security.', 'user.', 'role.'];
 
     public static function isWarehouse(string $eventKey, string $sourceModule): bool
     {
         foreach (self::ACCOUNT_FAMILIES as $family) {
-            if (str_starts_with($eventKey, $family)) return false;
+            if (str_starts_with($eventKey, $family)) {
+                return false;
+            }
         }
         foreach (self::FAMILIES as $family) {
-            if (str_starts_with($eventKey, $family)) return true;
+            if (str_starts_with($eventKey, $family)) {
+                return true;
+            }
         }
+
         return in_array($sourceModule, self::MODULES, true);
     }
 

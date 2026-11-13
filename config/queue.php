@@ -21,6 +21,7 @@ return [
     // worker consumes the dedicated queue; switching without that consumer
     // would silently stop realtime notifications.
     'notification_queue' => env('NOTIFICATION_QUEUE', 'default'),
+    'notification_delivery_queue' => env('NOTIFICATION_DELIVERY_QUEUE', 'notification-delivery'),
 
     // Timeout mà `php artisan queue:work --timeout=` phải dùng (docker-compose.yml
     // đọc cùng biến QUEUE_WORKER_TIMEOUT) — dùng cho golive-check, không phải key

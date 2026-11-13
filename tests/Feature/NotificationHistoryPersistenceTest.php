@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
@@ -10,6 +11,7 @@ use Illuminate\Support\Str;
 use Modules\Auth\Models\User;
 use Modules\Auth\Support\ProfilePreferences;
 use Modules\Notification\Events\NotificationPushed;
+use Modules\Notification\Http\Controllers\NotificationController;
 use Modules\Notification\Models\Notification;
 use Modules\Notification\Models\NotificationRecipient;
 use Modules\Notification\Retention\PruneNotificationRecipients;
@@ -40,6 +42,13 @@ class NotificationHistoryPersistenceTest extends TestCase
         }
         $this->assertSame(1000, Notification::count());
         $this->assertSame(1000, NotificationRecipient::where('user_id', $user->user_id)->whereNull('read_at')->count());
+        $request = Request::create('/api/v1/notifications', 'GET', ['per_page' => 100]);
+        $request->setUserResolver(fn () => $user);
+        $controller = app(NotificationController::class);
+        $this->assertSame(1000, $controller->unreadCount($request)->getData(true)['data']['unread_count']);
+        $page = $controller->index($request)->getData(true);
+        $this->assertSame(1000, $page['meta']['total']);
+        $this->assertCount(100, $page['data']);
     }
 
     public function test_display_opt_out_keeps_warehouse_history_but_other_categories_keep_preferences(): void

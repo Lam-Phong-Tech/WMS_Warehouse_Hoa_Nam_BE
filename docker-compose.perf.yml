@@ -169,12 +169,13 @@ services:
     command:
       - sh
       - -lc
-      - php artisan queue:work --tries=3 --timeout=${QUEUE_WORKER_TIMEOUT:-90} --sleep=1 --max-jobs=${QUEUE_MAX_JOBS:-2000}
+      - sh /var/www/html/docker/php/queue-supervisor.sh
     deploy:
       replicas: ${QUEUE_REPLICAS:-2}
       resources:
         limits:
-          memory: ${QUEUE_MEM_LIMIT:-300m}
+          # Three isolated consumers: allow one export plus history and FCM workers.
+          memory: ${QUEUE_MEM_LIMIT:-900m}
     environment:
       - APP_DEBUG=false
       - LOG_LEVEL=${PERF_LOG_LEVEL:-warning}

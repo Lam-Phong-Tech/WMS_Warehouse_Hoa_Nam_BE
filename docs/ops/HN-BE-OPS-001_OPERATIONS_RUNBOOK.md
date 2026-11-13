@@ -240,3 +240,41 @@ Sau rollback: `wms:golive-check` + `/api/v1/health` + kiểm tra `inventory:reco
 | Tài liệu dữ liệu/migration/báo cáo | BE — WWHN-310 |
 
 Tài liệu này **không** thay thế sign-off của DevOps cho environment/backup/monitor.
+
+
+## Bổ sung 13/11/2026 — lịch sử kho đầy đủ và hàng đợi push
+
+Lịch sử kho không chịu hạn mức tốc độ, không mất khi tắt toast/push, không bị coalesce theo title/body và không bị retention tự động xóa recipient. Audience và quyền truy cập vẫn giữ nguyên. Các sự kiện đã drop trước lần sửa này không được tái tạo tự động.
+
+### Cấu hình và consumer
+
+- `NOTIFICATION_QUEUE=notifications`: listener tạo lịch sử/realtime.
+- `NOTIFICATION_DELIVERY_QUEUE=notification-delivery`: worker gọi FCM, tách khỏi listener và export/default.
+- `NOTIFICATION_MAX_PUSH_PER_USER_PER_MINUTE=60`: admission cho push optional, dùng chung trên mọi thiết bị của một user; 60 tương đương một slot/giây. Hợp lệ 1..600; cấu hình sai giữ outbox chờ và cảnh báo. Account/security và one-shot canary giữ policy riêng.
+- `NOTIFICATION_DELIVERY_DRAIN_BUDGET_SECONDS=20`: ngân sách mỗi lượt drain, trần 20 giây; một HTTP call đang chạy có thể cộng tối đa timeout sender 15 giây. Worker timeout 90 giây, lease 120 giây.
+- Biến `NOTIFICATION_MAX_IN_APP_PER_MINUTE` cũ không còn được dùng. Không dùng nó để giới hạn việc ghi lịch sử.
+- Producer, scheduler và supervisor phải nhận cùng tên queue; compose thường/perf đều dùng supervisor ba consumer. Không đổi tên queue mà chưa có consumer tương ứng.
+- Với `QUEUE_CONNECTION=sync`, producer chỉ lưu outbox, không gọi FCM trong request. Scheduler/command drain sẽ xử lý outbox sau.
+
+### Đưa mã vào vận hành
+
+1. Ghi lại số `notification_deliveries` theo state và tuổi backlog. Giữ nguyên công tắc transport/canary hiện có; việc đưa mã lên GitHub không tự cho phép bật FCM production.
+2. Chạy migration `2026_11_13_000001_add_notification_push_queue_controls` bằng quy trình deploy hiện có: expiry nullable, precision available_at=6 và bảng DB admission theo user. Không sửa/replay row terminal hoặc backfill lịch sử cũ.
+3. Khởi động consumer `notifications`, `notification-delivery`, `default`, xác nhận đủ ba process trước khi đổi routing. Nếu deploy theo rolling release, tạm dừng push worker/scheduler drain cũ khi áp dụng schema và producer mới; mã cũ không hiểu expiry NULL.
+4. Cập nhật cấu hình, rebuild config cache và restart worker theo quy trình môi trường. Xác nhận đúng SHA và đúng tên queue trên producer, worker, scheduler.
+5. Kiểm tra listener ghi đủ lịch sử, `notifications:monitor --json`, và tín hiệu thử trong môi trường đang được phép. Không dùng thử nghiệm phát đại trà cho người dùng thật.
+
+### Đối soát backlog
+
+`notifications:monitor --json` bổ sung delivery_states, waiting_deliveries (gồm CONFIGURATION_ERROR), rate_deferred_deliveries, admission_errors, oldest_wait_seconds và oldest_overdue_seconds. Alert nếu waiting > `NOTIFICATION_MONITOR_DELIVERY_THRESHOLD` (100), overdue > `NOTIFICATION_MONITOR_OVERDUE_SECONDS` (300), hoặc có CONFIGURATION_ERROR/UNKNOWN/admission error. Queue Redis rỗng không chứng minh outbox đã hết việc.
+
+Khi hết slot, row giữ ID/state/attempts, đổi available_at và last_code=RATE_DEFERRED; không gọi FCM và không xóa recipient. Job tiếp tục đánh thức worker, scheduler mỗi phút là backstop nếu dispatch/cache lock lỗi. Delivery mới thông thường có expiry NULL trong lúc chờ; TTL 3.600 giây bắt đầu khi được cấp slot gửi đầu tiên. Retry không kéo dài deadline. Row cũ/canary có deadline giữ nguyên hạn cũ.
+
+Kết quả UNKNOWN hoặc lease hết hạn không tự gửi lại vì chưa biết provider đã nhận hay chưa. Token/phiên/quyền bị thu hồi thành SUPPRESSED, không chuyển sang thiết bị hoặc user khác. Những trường hợp này vẫn giữ lịch sử kho. Pruner chỉ dọn audit transport terminal sau 30 ngày theo updated_at, không dọn pending/retry/configuration rows.
+
+### Rollback an toàn
+
+Giữ phiên bản persistence không DROP. Có thể tắt transport và dừng continuation/worker push, nhưng giữ outbox DB để khôi phục xử lý sau. Không chạy migration down hoặc quay producer/drainer về mã cũ khi còn expiry NULL; không phục hồi trần DROP hay chạy retention cũ xóa lịch sử kho. Không xóa/reset attempts hoặc replay UNKNOWN để làm queue có vẻ hết việc.
+
+
+Scheduler phải dùng `CACHE_STORE=notification_scheduler` (store database riêng) và file config cache riêng `APP_CONFIG_CACHE=/var/www/html/bootstrap/cache/config.scheduler.php` (đã đặt trong service scheduler của compose; perf kế thừa). Laravel cũng đọc pause/interrupt và mutex của các cron khác trước khi tới drain, nên chỉ bỏ mutex ở hai lệnh notification chưa đủ khi Redis hỏng. Nếu vận hành bằng systemd/cron ngoài compose, áp dụng cùng hai biến cho process scheduler và rebuild config cache riêng, không dùng cache cấu hình Redis của API/worker. Hai bảng notification_scheduler_cache/notification_scheduler_cache_locks được migration mới tạo riêng; không dùng các bảng cache/cache_locks đã bị migration ERD cũ dọn. Backend, listener và worker push vẫn giữ cache store riêng của môi trường.
