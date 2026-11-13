@@ -324,6 +324,8 @@ class CanonicalMvpController extends Controller
             new OA\Parameter(name: 'warranty_case_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'date_from', in: 'query', description: 'Inclusive document_date lower bound', schema: new OA\Schema(type: 'string', format: 'date')),
+            new OA\Parameter(name: 'date_to', in: 'query', description: 'Inclusive document_date upper bound', schema: new OA\Schema(type: 'string', format: 'date')),
             new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', default: 1)),
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
         ],
@@ -335,7 +337,24 @@ class CanonicalMvpController extends Controller
     )]
     public function listComponentIssueDocuments(Request $request)
     {
-        return $this->tablePage($request, 'component_issue_documents', 'created_at', [], ['warranty_case_id', 'warehouse_id']);
+        $dateToRules = ['nullable', 'date_format:Y-m-d'];
+        if ($request->filled('date_from')) {
+            $dateToRules[] = 'after_or_equal:date_from';
+        }
+        $dates = $request->validate([
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => $dateToRules,
+        ]);
+
+        return $this->tablePage($request, 'component_issue_documents', 'created_at', [], ['warranty_case_id', 'warehouse_id'],
+            filterExtension: static function ($query) use ($dates): void {
+                if (! empty($dates['date_from'])) {
+                    $query->whereDate('document_date', '>=', $dates['date_from']);
+                }
+                if (! empty($dates['date_to'])) {
+                    $query->whereDate('document_date', '<=', $dates['date_to']);
+                }
+            });
     }
 
     // storeComponentIssueDocument/postComponentIssueDocument/storeWarrantyCase/
