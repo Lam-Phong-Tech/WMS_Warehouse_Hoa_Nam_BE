@@ -29,10 +29,10 @@ class NotificationRetentionPruneTest extends TestCase
     public function test_prunes_read_info_after_90_days_and_unread_info_after_180_days(): void
     {
         $user = $this->user();
-        $deletedRead = $this->recipient($user, 'inbound.completed', 'info', readDaysAgo: 91, createdDaysAgo: 200);
-        $keptRead = $this->recipient($user, 'inbound.completed', 'info', readDaysAgo: 89, createdDaysAgo: 200);
-        $deletedUnread = $this->recipient($user, 'inbound.created', 'info', readDaysAgo: null, createdDaysAgo: 181);
-        $keptUnread = $this->recipient($user, 'inbound.created', 'info', readDaysAgo: null, createdDaysAgo: 179);
+        $deletedRead = $this->recipient($user, 'custom.completed', 'info', readDaysAgo: 91, createdDaysAgo: 200);
+        $keptRead = $this->recipient($user, 'custom.completed', 'info', readDaysAgo: 89, createdDaysAgo: 200);
+        $deletedUnread = $this->recipient($user, 'custom.created', 'info', readDaysAgo: null, createdDaysAgo: 181);
+        $keptUnread = $this->recipient($user, 'custom.created', 'info', readDaysAgo: null, createdDaysAgo: 179);
 
         $result = $this->pruner()->prune(5_000);
 
@@ -46,10 +46,10 @@ class NotificationRetentionPruneTest extends TestCase
     public function test_prunes_warning_on_longer_windows(): void
     {
         $user = $this->user();
-        $deletedRead = $this->recipient($user, 'stock.shortage_detected', 'warning', readDaysAgo: 366, createdDaysAgo: 500);
-        $keptRead = $this->recipient($user, 'stock.shortage_detected', 'warning', readDaysAgo: 364, createdDaysAgo: 500);
-        $deletedUnread = $this->recipient($user, 'stock.shortage_detected', 'warning', readDaysAgo: null, createdDaysAgo: 541);
-        $keptUnread = $this->recipient($user, 'stock.shortage_detected', 'warning', readDaysAgo: null, createdDaysAgo: 539);
+        $deletedRead = $this->recipient($user, 'custom.warning', 'warning', readDaysAgo: 366, createdDaysAgo: 500);
+        $keptRead = $this->recipient($user, 'custom.warning', 'warning', readDaysAgo: 364, createdDaysAgo: 500);
+        $deletedUnread = $this->recipient($user, 'custom.warning', 'warning', readDaysAgo: null, createdDaysAgo: 541);
+        $keptUnread = $this->recipient($user, 'custom.warning', 'warning', readDaysAgo: null, createdDaysAgo: 539);
 
         $result = $this->pruner()->prune(5_000);
 
@@ -63,7 +63,7 @@ class NotificationRetentionPruneTest extends TestCase
     public function test_keeps_critical_security_account_and_unknown_severity_rows(): void
     {
         $user = $this->user();
-        $critical = $this->recipient($user, 'stock.shortage_detected', 'critical', readDaysAgo: 1_000, createdDaysAgo: 2_000);
+        $critical = $this->recipient($user, 'custom.warning', 'critical', readDaysAgo: 1_000, createdDaysAgo: 2_000);
         $security = $this->recipient($user, 'security.alert_raised', 'warning', readDaysAgo: 1_000, createdDaysAgo: 2_000);
         $account = $this->recipient($user, 'user.account_changed', 'info', readDaysAgo: 1_000, createdDaysAgo: 2_000);
         $role = $this->recipient($user, 'role.permissions_changed', 'info', readDaysAgo: null, createdDaysAgo: 2_000);
@@ -83,7 +83,7 @@ class NotificationRetentionPruneTest extends TestCase
     {
         $oldUser = $this->user();
         $activeUser = $this->user();
-        $notification = $this->notification('inbound.completed', 'info', now()->subDays(200));
+        $notification = $this->notification('custom.completed', 'info', now()->subDays(200));
         $old = $this->recipientFor($oldUser, $notification, readDaysAgo: 100);
         $active = $this->recipientFor($activeUser, $notification, readDaysAgo: 10);
 
@@ -97,7 +97,7 @@ class NotificationRetentionPruneTest extends TestCase
     public function test_dry_run_reports_without_deleting(): void
     {
         $user = $this->user();
-        $old = $this->recipient($user, 'inbound.completed', 'info', readDaysAgo: 100, createdDaysAgo: 200);
+        $old = $this->recipient($user, 'custom.completed', 'info', readDaysAgo: 100, createdDaysAgo: 200);
 
         $preview = $this->pruner()->prune(5_000, dryRun: true);
 
@@ -116,7 +116,7 @@ class NotificationRetentionPruneTest extends TestCase
     {
         $user = $this->user();
         foreach (range(1, 3) as $index) {
-            $this->recipient($user, 'inbound.completed', 'info', readDaysAgo: 100 + $index, createdDaysAgo: 200);
+            $this->recipient($user, 'custom.completed', 'info', readDaysAgo: 100 + $index, createdDaysAgo: 200);
         }
 
         $this->assertSame(2, $this->pruner()->prune(2)['deleted_total']);
@@ -129,7 +129,7 @@ class NotificationRetentionPruneTest extends TestCase
     public function test_command_supports_dry_run_and_reports_json(): void
     {
         $user = $this->user();
-        $this->recipient($user, 'inbound.completed', 'info', readDaysAgo: 100, createdDaysAgo: 200);
+        $this->recipient($user, 'custom.completed', 'info', readDaysAgo: 100, createdDaysAgo: 200);
 
         $this->artisan('notification-retention:prune', ['--dry-run' => true])
             ->expectsOutputToContain('"dry_run":true')

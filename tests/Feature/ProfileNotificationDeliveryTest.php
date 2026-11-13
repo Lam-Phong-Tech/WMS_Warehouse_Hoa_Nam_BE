@@ -50,13 +50,13 @@ class ProfileNotificationDeliveryTest extends TestCase
         DB::transaction(function () use ($user): void {
             app(NotificationService::class)->notify('stock.shortage_detected', 'Stock notice', 'Stock details', [$user->user_id], sourceModule: 'inventory');
             Mail::assertNothingQueued();
-            $this->assertSame(0, DB::table('notification_recipients')->where('user_id', $user->user_id)->count());
+            $this->assertSame(1, DB::table('notification_recipients')->where('user_id', $user->user_id)->count());
         });
         Mail::assertQueued(ProfileNotificationMail::class, 1);
         Mail::assertQueued(ProfileNotificationMail::class,
             fn ($mail) => $mail->hasTo($user->email) && str_contains($mail->render(), 'Stock details'));
         app(NotificationService::class)->notify('security.alert_raised', 'Security notice', 'Security details', [$user->user_id], sourceModule: 'auth');
-        $this->assertSame(1, DB::table('notification_recipients')->where('user_id', $user->user_id)->count());
+        $this->assertSame(2, DB::table('notification_recipients')->where('user_id', $user->user_id)->count());
         Mail::assertQueued(ProfileNotificationMail::class, 1);
     }
 
@@ -111,12 +111,12 @@ class ProfileNotificationDeliveryTest extends TestCase
         $subject = (string) Str::uuid();
 
         $first = DB::transaction(fn () => app(NotificationService::class)->notify(
-            'stock.shortage_detected', 'Stock notice', 'Stock details', [$user->user_id],
-            sourceModule: 'inventory', subjectType: 'stock_document', subjectId: $subject,
+            'custom.notice', 'Stock notice', 'Stock details', [$user->user_id],
+            sourceModule: 'notification', subjectType: 'stock_document', subjectId: $subject,
         ));
         $second = DB::transaction(fn () => app(NotificationService::class)->notify(
-            'stock.shortage_detected', 'Stock notice', 'Stock details', [$user->user_id],
-            sourceModule: 'inventory', subjectType: 'stock_document', subjectId: $subject,
+            'custom.notice', 'Stock notice', 'Stock details', [$user->user_id],
+            sourceModule: 'notification', subjectType: 'stock_document', subjectId: $subject,
         ));
 
         $this->assertNotNull($first);
@@ -125,7 +125,7 @@ class ProfileNotificationDeliveryTest extends TestCase
         $this->assertSame(1, DB::table('notification_recipients')->count());
     }
 
-    public function test_per_user_in_app_rate_limit_drops_excess_optional_notifications(): void
+    public function test_legacy_in_app_rate_limit_no_longer_drops_warehouse_history(): void
     {
         config(['notification_delivery.max_in_app_per_minute' => 1]);
         $user = $this->recipient([]);
@@ -140,9 +140,9 @@ class ProfileNotificationDeliveryTest extends TestCase
         ));
 
         $this->assertNotNull($first);
-        $this->assertNull($second);
-        $this->assertSame(1, DB::table('notifications')->count());
-        $this->assertSame(1, DB::table('notification_recipients')->count());
+        $this->assertNotNull($second);
+        $this->assertSame(2, DB::table('notifications')->count());
+        $this->assertSame(2, DB::table('notification_recipients')->count());
     }
 
     public function test_notification_monitor_emits_metrics_json(): void

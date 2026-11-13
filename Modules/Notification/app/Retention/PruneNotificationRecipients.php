@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use InvalidArgumentException;
 use RuntimeException;
+use Modules\Notification\Support\NotificationHistoryPolicy;
 
 /**
  * Dọn chuông thông báo theo mức độ quan trọng.
@@ -109,6 +110,8 @@ final class PruneNotificationRecipients
         $query = DB::table('notification_recipients as r')
             ->join('notifications as n', 'n.id', '=', 'r.notification_id')
             ->where('n.severity', $severity);
+
+        NotificationHistoryPolicy::excludeWarehouse($query);
 
         // Các nhóm này phải giữ để đối soát an ninh/tài khoản, bất kể severity.
         return $query->where(function (Builder $protected): void {
