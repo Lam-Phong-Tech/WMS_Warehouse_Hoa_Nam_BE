@@ -153,6 +153,32 @@ class WarrantyFlow04DocsAlignmentTest extends TestCase
      * `SchemaCacheTest::test_relation_columns_also_sees_columns_of_a_view` giữ.
      * Test này giữ phần còn lại: nhánh SKU và việc keyword không đụng vào enum.
      */
+    public function test_keyword_finds_customers_by_name_phone_and_case_code_through_http(): void
+    {
+        $headers = $this->authHeaders('SUPER_ADMIN_W4CUSTOMER');
+        $ids = [];
+        foreach ([['Nguyễn Thị Hường', '0912345678', 'WC-W4-CUSTOMER-A', 'May bom mau xanh'],
+            ['Nguyễn Thị Lan', '0900000002', 'WC-W4-CUSTOMER-B', 'May cat mau do']] as [$name, $phone, $code, $product]) {
+            $created = $this->postJson('/api/v1/warranty-cases', [
+                'warranty_case_code' => $code, 'customer_name' => $name, 'customer_phone' => $phone,
+                'description' => 'Khong len nguon', 'missing_code_reason' => 'Mat tem ma', 'manual_product_description' => $product,
+            ], $headers)->assertCreated();
+            $ids[] = (string) $created->json('data.id');
+        }
+
+        foreach (['WC-W4-CUSTOMER-A', 'nguyen huong', 'Nguyễn Hường', '0912345678', '0912 345 678', '+84912345678', 'bom mau xanh'] as $keyword) {
+            $found = $this->getJson('/api/v1/warranty-cases?'.http_build_query(['keyword' => $keyword]), $headers)->assertOk();
+            $this->assertSame([$ids[0]], array_column($found->json('data'), 'warranty_case_id'), "Incorrect search result for {$keyword}");
+        }
+        $both = $this->getJson('/api/v1/warranty-cases?keyword=nguyen&per_page=1', $headers)->assertOk();
+        $this->assertSame(2, $both->json('meta.total'));
+        $this->assertCount(1, $both->json('data'));
+        foreach (['0912', 'nguyen khongtontai', 'khongcohoso'] as $keyword) {
+            $this->assertSame([], $this->getJson('/api/v1/warranty-cases?'.http_build_query(['keyword' => $keyword]), $headers)->assertOk()->json('data'));
+        }
+        $this->assertSame([], $this->getJson('/api/v1/warranty-cases?keyword=nguyen&status=RETURNED', $headers)->assertOk()->json('data'));
+    }
+
     public function test_keyword_finds_case_by_case_code_and_product_sku(): void
     {
         $headers = $this->authHeaders('SUPER_ADMIN_W4KW');
