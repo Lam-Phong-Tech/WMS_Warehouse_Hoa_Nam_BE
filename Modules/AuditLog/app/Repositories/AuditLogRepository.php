@@ -34,12 +34,29 @@ class AuditLogRepository extends BaseRepository implements AuditLogRepositoryInt
         }
 
         $keyword = $filters['q'] ?? null;
-        if ($keyword !== null && $keyword !== '') {
+        $actions = $filters['actions'] ?? null;
+        $actions = is_array($actions)
+            ? array_values(array_filter($actions, static fn ($item) => is_string($item) && $item !== ''))
+            : [];
+        if (($keyword !== null && $keyword !== '') || $actions !== []) {
             $op = $this->likeOperator($query);
-            $query->where(function (Builder $q) use ($keyword, $op) {
-                $q->orWhere('reason', $op, "%{$keyword}%")
-                    ->orWhere('object_type', $op, "%{$keyword}%")
-                    ->orWhere('object_id', $op, "%{$keyword}%");
+            $query->where(function (Builder $q) use ($keyword, $op, $actions) {
+                if ($keyword !== null && $keyword !== '') {
+                    $q->orWhere('reason', $op, "%{$keyword}%")
+                        ->orWhere('object_type', $op, "%{$keyword}%")
+                        ->orWhere('object_id', $op, "%{$keyword}%")
+                        ->orWhere('action', $op, "%{$keyword}%")
+                        ->orWhereHas('actor', function (Builder $actor) use ($keyword, $op) {
+                            $actor->where('display_name', $op, "%{$keyword}%")
+                                ->orWhere('email', $op, "%{$keyword}%");
+                        });
+                }
+                if ($actions !== []) {
+                    // Nhãn tiếng Việt/Anh/Trung của hành động không nằm trong DB;
+                    // FE gửi mã hành động khớp nhãn tìm kiếm (actions[]) để khớp
+                    // theo ngôn ngữ người dùng gõ.
+                    $q->orWhereIn('action', $actions);
+                }
             });
         }
 
@@ -58,7 +75,7 @@ class AuditLogRepository extends BaseRepository implements AuditLogRepositoryInt
                 ->setTimezone(config('app.timezone', 'Asia/Ho_Chi_Minh')));
         }
 
-        unset($filters['user_id'], $filters['q'], $filters['date_from'], $filters['date_to']);
+        unset($filters['user_id'], $filters['q'], $filters['date_from'], $filters['date_to'], $filters['actions']);
 
         return parent::applyFilters($query, $filters);
     }
