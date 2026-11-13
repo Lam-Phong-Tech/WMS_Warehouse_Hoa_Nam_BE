@@ -314,8 +314,7 @@ class Wwhn295RuntimeConfigHealthTest extends TestCase
         $this->assertStringContainsString('QUEUE_WORKER_TIMEOUT=${QUEUE_WORKER_TIMEOUT:-90}', $compose);
         $this->assertStringContainsString('timeout="${QUEUE_WORKER_TIMEOUT:-90}"', $supervisor);
         $this->assertStringContainsString('--timeout="$timeout"', $supervisor);
-        $this->assertStringContainsString('--queue=notifications', $supervisor);
-        $this->assertStringContainsString('--queue=default', $supervisor);
+        // Queue defaults, overrides and actual argv are covered by NotificationQueueSupervisorTest in test:ci.
     }
 
     public function test_env_example_documents_the_runtime_contract(): void
