@@ -74,6 +74,17 @@ class AuthStepUpEndpointTest extends TestCase
         $this->postJson('/api/v1/auth/step-up/resend', ['step_up_token' => $token])->assertStatus(429);
     }
 
+    public function test_step_up_email_and_resend_follow_each_request_language(): void
+    {
+        $this->withHeader('Accept-Language', 'en');
+        $token = $this->startStepUp($this->makeUser('localized'));
+        $this->assertSame('en', Mail::sent(LoginOtpMail::class)->last()->locale);
+        Carbon::setTestNow(now()->addSeconds(61));
+        $this->withHeader('Accept-Language', 'zh')
+            ->postJson('/api/v1/auth/step-up/resend', ['step_up_token' => $token])->assertOk();
+        $this->assertSame('zh', Mail::sent(LoginOtpMail::class)->last()->locale);
+    }
+
     private function startStepUp(User $user): string
     {
         config([

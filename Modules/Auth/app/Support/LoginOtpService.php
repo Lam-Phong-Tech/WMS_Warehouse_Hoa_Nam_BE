@@ -38,7 +38,9 @@ class LoginOtpService
             'ip_address' => $ip,
         ]);
 
-        Mail::to((string) $user->email)->send(new LoginOtpMail($code, $normalizedPurpose, $ttlMinutes));
+        Mail::to((string) $user->email)->send(
+            (new LoginOtpMail($code, $normalizedPurpose, $ttlMinutes))->locale(AuthMailLocale::fromRequest(request()))
+        );
 
         return [
             'otp_id' => (string) $record->id,

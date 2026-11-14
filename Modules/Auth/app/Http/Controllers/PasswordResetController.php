@@ -17,6 +17,7 @@ use Modules\Auth\Http\Requests\VerifyOtpRequest;
 use Modules\Auth\Mail\PasswordResetOtpMail;
 use Modules\Auth\Models\PasswordResetOtp;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\AuthMailLocale;
 use Modules\Auth\Support\PasswordHistory;
 use Modules\Auth\Support\PasswordPolicy;
 use Modules\Auth\Support\RefreshTokenService;
@@ -83,7 +84,9 @@ class PasswordResetController extends Controller
                 'ip_address' => $request->ip(),
             ]);
 
-            Mail::to($email)->send(new PasswordResetOtpMail($otp, $ttlMinutes));
+            Mail::to($email)->send(
+                (new PasswordResetOtpMail($otp, $ttlMinutes))->locale(AuthMailLocale::fromRequest($request))
+            );
 
             $this->auditLogger->log(
                 'PASSWORD_RESET_REQUESTED', 'app_user', $user->user_id, $user->user_id,

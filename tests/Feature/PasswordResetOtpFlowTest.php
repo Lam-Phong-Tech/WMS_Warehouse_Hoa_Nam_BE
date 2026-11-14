@@ -54,6 +54,20 @@ class PasswordResetOtpFlowTest extends TestCase
         return $otp;
     }
 
+    public function test_requested_language_is_captured_for_each_queued_password_reset_email(): void
+    {
+        Mail::fake();
+        $user = $this->makeActiveUser();
+        foreach (['en', 'zh', 'vi'] as $locale) {
+            $this->withHeader('Accept-Language', $locale)
+                ->postJson('/api/v1/auth/forgot-password', ['email' => $user->email])->assertOk();
+            $mail = Mail::queued(PasswordResetOtpMail::class)->last();
+            $this->assertSame($locale, $mail->locale);
+            $this->assertStringContainsString('lang="'.$locale.'"', $mail->render());
+        }
+        Mail::assertQueued(PasswordResetOtpMail::class, 3);
+    }
+
     public function test_full_forgot_password_flow_resets_the_password(): void
     {
         Mail::fake();

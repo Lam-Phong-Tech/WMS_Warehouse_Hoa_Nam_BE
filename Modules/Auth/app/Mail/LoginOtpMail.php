@@ -20,20 +20,23 @@ class LoginOtpMail extends Mailable
     {
         $safeOtp = e($this->otp);
         $ttl = (int) $this->ttlMinutes;
+        $locale = $this->locale ?? 'vi';
+        $copy = trans('auth_mail.login', [], $locale);
+        $expires = trans('auth_mail.expires', ['minutes' => $ttl], $locale);
         $subject = $this->purpose === 'STEP_UP'
-            ? 'Mã xác minh bảo mật đăng nhập - Hoa Nam WMS'
-            : 'Mã xác minh thiết bị đăng nhập mới - Hoa Nam WMS';
+            ? $copy['step_up_subject']
+            : $copy['device_subject'];
 
         return $this->subject($subject)
             ->html(<<<HTML
-                <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
+                <div lang="{$locale}" style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
                     <h2 style="color: #1f2937;">Hoa Nam WMS</h2>
-                    <p>Mã xác minh đăng nhập của bạn là:</p>
+                    <p>{$copy['intro']}</p>
                     <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1d4ed8; margin: 24px 0;">
                         {$safeOtp}
                     </p>
-                    <p>Mã có hiệu lực trong <strong>{$ttl} phút</strong> kể từ khi gửi.</p>
-                    <p>Nếu không phải bạn, hãy đổi mật khẩu và liên hệ quản trị viên.</p>
+                    <p>{$expires}</p>
+                    <p>{$copy['advice']}</p>
                 </div>
                 HTML);
     }
