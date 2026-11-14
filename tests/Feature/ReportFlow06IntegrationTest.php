@@ -54,6 +54,65 @@ class ReportFlow06IntegrationTest extends TestCase
         $this->productB = Sku::create(['code' => 'SP-RPT-B', 'name' => 'Sản phẩm B', 'sku_type' => 'PRODUCT', 'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE']);
     }
 
+    public function test_dashboard_xnt_projection_preserves_every_numeric_line_and_full_report(): void
+    {
+        $this->createMovement('RECEIPT', $this->productA, 12.5, '2026-11-06');
+        $this->createMovement('ISSUE', $this->productA, -2.25, '2026-11-07');
+        $this->createMovement('REVERSAL', $this->productA, -0.5, '2026-11-07');
+        $this->createMovement('RECEIPT', $this->productB, 3.75, '2026-11-07');
+        $url = '/api/v1/reports/inventory-xnt-enhanced?from_date=2026-11-07&to_date=2026-11-07';
+        $full = $this->api($url)->assertOk()->json('data');
+        $compact = $this->api($url.'&view=dashboard')->assertOk()->json('data');
+        $fields = array_flip(['product_code', 'product_name', 'opening', 'receipt_net', 'issue_net', 'component_issue_net', 'reversal_unlinked_net', 'closing']);
+        $expected = array_map(fn (array $line): array => array_intersect_key($line, $fields), $full['lines']);
+        $this->assertSame($expected, $compact['lines']);
+        $this->assertSame(['lines'], array_keys($compact));
+        $this->assertLessThan(strlen(json_encode($full)) * 0.5, strlen(json_encode($compact)));
+        $this->assertSame($full, $this->api($url)->assertOk()->json('data'));
+        $paged = $this->api($url.'&view=dashboard&per_page=1&page=2')->assertOk()->json('data');
+        $this->assertSame([$expected[1]], $paged['lines']);
+        $this->assertSame(count($expected), $paged['pagination']['total']);
+    }
+
+    public function test_dashboard_threshold_projection_keeps_all_buckets_and_excludes_evidence(): void
+    {
+        foreach ($this->paginationBalanceRows() as [$productId, $status]) {
+            InventoryBalance::create([
+                'warehouse_id' => $this->warehouse->id, 'product_id' => $productId,
+                'stock_status' => $status, 'on_hand_qty' => 12.5, 'available_qty' => 7.25,
+                'reserved_qty' => 5.25, 'version' => 1,
+            ]);
+        }
+        $second = Warehouse::create(['code' => 'KHO-RPT-2', 'name' => 'Kho 2', 'status' => 'INACTIVE']);
+        InventoryBalance::create([
+            'warehouse_id' => $second->id, 'product_id' => $this->productA->id,
+            'stock_status' => 'AVAILABLE', 'on_hand_qty' => 2, 'available_qty' => 2,
+            'reserved_qty' => 0, 'version' => 1,
+        ]);
+        $url = '/api/v1/reports/inventory-reconciliation';
+        $full = $this->api($url)->assertOk()->json('data');
+        $compact = $this->api($url.'?view=dashboard-thresholds')->assertOk()->json('data');
+        $fields = array_flip(['product_code', 'product_name', 'sku_type', 'available_qty']);
+        $expected = array_map(fn (array $row): array => array_intersect_key($row, $fields), $full['rows']);
+        $this->assertCount(6, $expected);
+        $this->assertSame(['rows' => $expected], $compact);
+        $this->assertLessThan(strlen(json_encode($full)) * 0.3, strlen(json_encode($compact)));
+        $this->assertSame($full, $this->api($url)->assertOk()->json('data'));
+        $filteredUrl = $url.'?warehouse_id='.$second->id.'&only_mismatch=1';
+        $filtered = $this->api($filteredUrl)->assertOk()->json('data.rows');
+        $this->assertSame(
+            array_map(fn (array $row): array => array_intersect_key($row, $fields), $filtered),
+            $this->api($filteredUrl.'&view=dashboard-thresholds')->assertOk()->json('data.rows')
+        );
+    }
+
+    public function test_dashboard_projections_preserve_empty_arrays(): void
+    {
+        $this->api('/api/v1/reports/inventory-reconciliation?view=dashboard-thresholds')->assertOk()->assertExactJsonStructure(['success', 'data' => ['rows'], 'meta']);
+        $this->api('/api/v1/reports/inventory-xnt-enhanced?from_date=2026-11-07&to_date=2026-11-07&view=dashboard')
+            ->assertOk()->assertJsonPath('data.lines', []);
+    }
+
     // ── 1. Inventory Balance ─────────────────────────────────
 
     public function test_inventory_balance_returns_rows_with_reconciliation(): void
@@ -898,6 +957,14 @@ class ReportFlow06IntegrationTest extends TestCase
             ->assertJsonPath('error_code', 'ACCESS_DENIED')
             ->assertJsonMissingPath('trace')
             ->assertJsonMissingPath('exception');
+
+        foreach ([
+            '/api/v1/reports/inventory-reconciliation?view=dashboard-thresholds',
+            '/api/v1/reports/inventory-xnt-enhanced?from_date=2026-11-07&to_date=2026-11-07&view=dashboard',
+        ] as $url) {
+            $this->getJson($url, ['Authorization' => "Bearer {$viewerToken}"])
+                ->assertStatus(403)->assertJsonPath('error_code', 'ACCESS_DENIED');
+        }
     }
 
     // ── 11. Hub ──────────────────────────────────────────────

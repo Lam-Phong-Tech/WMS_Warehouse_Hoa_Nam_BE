@@ -29,6 +29,7 @@ use Modules\Warehouse\Jobs\GenerateReportExportJob;
 use Modules\Warehouse\Models\ReportExportJob;
 use Modules\Warehouse\Services\LedgerReconciliationService;
 use Modules\Warehouse\Support\Concerns\ResolvesActorOrNull;
+use Modules\Warehouse\Support\DashboardReportProjection;
 use Modules\Warehouse\Support\ReportExportFileStore;
 use Modules\Warehouse\Support\ReportExportJobRunner;
 use Modules\Warehouse\Support\SkuInformationCompleteness;
@@ -500,10 +501,21 @@ class OperationalReportController extends Controller
         return $this->exportXnt($request, 'bao-cao-xnt');
     }
 
-    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced', operationId: 'report_xnt_enhanced', summary: 'RPT-XNT-01 Nhập-Xuất-Tồn chi tiết theo movement type', description: 'Cùng builder và cùng contract với /reports/inventory-xnt; alias giữ cho client đang dùng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'XNT chi tiết — cùng schema XntReport với /reports/inventory-xnt', content: new OA\JsonContent(allOf: [new OA\Schema(ref: '#/components/schemas/ApiSuccessEnvelope'), new OA\Schema(properties: [new OA\Property(property: 'data', ref: '#/components/schemas/XntReport')])])), new OA\Response(response: 401, description: 'Chưa xác thực', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')), new OA\Response(response: 403, description: 'Thiếu report.view hoặc warehouse_id ngoài data scope (ACCESS_DENIED)', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope'))])]
+    #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced', operationId: 'report_xnt_enhanced', summary: 'RPT-XNT-01 Nhập-Xuất-Tồn chi tiết theo movement type', description: 'Cùng builder và cùng contract với /reports/inventory-xnt; alias giữ cho client đang dùng.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'view', in: 'query', description: 'Optional lossless dashboard field projection; omit for the full report.', schema: new OA\Schema(type: 'string', enum: ['dashboard'])), new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 200))], responses: [new OA\Response(response: 200, description: 'Full XntReport by default; DashboardXntProjection when view=dashboard', content: new OA\JsonContent(allOf: [new OA\Schema(ref: '#/components/schemas/ApiSuccessEnvelope'), new OA\Schema(properties: [new OA\Property(property: 'data', oneOf: [new OA\Schema(ref: '#/components/schemas/XntReport'), new OA\Schema(ref: '#/components/schemas/DashboardXntProjection')])])])), new OA\Response(response: 401, description: 'Chưa xác thực', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope')), new OA\Response(response: 403, description: 'Thiếu report.view hoặc warehouse_id ngoài data scope (ACCESS_DENIED)', content: new OA\JsonContent(ref: '#/components/schemas/ApiErrorEnvelope'))])]
     public function inventoryXntEnhanced(Request $request)
     {
-        return $this->respondSuccess($this->paginateReport($this->buildXnt($request), $request, 'lines'));
+        $dashboard = $request->query('view') === 'dashboard';
+        $sourceRequest = clone $request;
+        if ($dashboard) {
+            // Presentation only: share the canonical report cache, scope and invalidation.
+            $sourceRequest->query->remove('view');
+        }
+        $report = $this->buildXnt($sourceRequest);
+        if ($dashboard) {
+            $report = DashboardReportProjection::xnt($report);
+        }
+
+        return $this->respondSuccess($this->paginateReport($report, $request, 'lines'));
     }
 
     #[OA\Get(path: '/api/v1/reports/inventory-xnt-enhanced/export-excel', operationId: 'report_xnt_enhanced_export', summary: 'Xuất XLSX/PDF Nhập-Xuất-Tồn chi tiết', description: 'Alias của /reports/inventory-xnt/export-excel, cùng bộ lọc và cùng quy tắc BR-EXP.', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'format', in: 'query', schema: new OA\Schema(type: 'string', enum: ['xlsx', 'pdf'], default: 'xlsx')), new OA\Parameter(name: 'from_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'to_date', in: 'query', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'category_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string'))], responses: [new OA\Response(response: 200, description: 'File XLSX/PDF')])]
@@ -609,7 +621,7 @@ class OperationalReportController extends Controller
 
     // ── Reconciliation ───────────────────────────────────────
 
-    #[OA\Get(path: '/api/v1/reports/inventory-reconciliation', operationId: 'report_inventory_reconciliation', summary: 'Đối soát tồn kho với sổ giao dịch', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'only_mismatch', in: 'query', schema: new OA\Schema(type: 'boolean'))], responses: [new OA\Response(response: 200, description: 'Kết quả đối soát')])]
+    #[OA\Get(path: '/api/v1/reports/inventory-reconciliation', operationId: 'report_inventory_reconciliation', summary: 'Đối soát tồn kho với sổ giao dịch', security: [['bearerAuth' => []]], tags: ['12. Dashboard / Report'], parameters: [new OA\Parameter(name: 'view', in: 'query', description: 'dashboard-thresholds returns data conforming to DashboardThresholdProjection; omit for full reconciliation evidence. Permissions, filters and warehouse scope are unchanged.', schema: new OA\Schema(type: 'string', enum: ['dashboard-thresholds'])), new OA\Parameter(name: 'warehouse_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'product_id', in: 'query', schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'stock_status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['AVAILABLE', 'NON_SELLABLE', 'DEFECTIVE', 'QUARANTINE'])), new OA\Parameter(name: 'only_mismatch', in: 'query', schema: new OA\Schema(type: 'boolean'))], responses: [new OA\Response(response: 200, description: 'Full reconciliation by default; data is DashboardThresholdProjection when view=dashboard-thresholds')])]
     public function inventoryReconciliation(Request $request)
     {
         $request->validate([
@@ -623,12 +635,19 @@ class OperationalReportController extends Controller
         // withSubledgerChecks(): no doi chieu serial/so luong/thung cho TUNG dong
         // ton kho. Khong cache o day thi moi lan mo man doi soat lai chay tron bo
         // doi chieu do, du ben duoi ton kho da doc ra tu cache.
-        return $this->respondSuccess($this->cachedReportPayload(
+        $dashboard = $request->query('view') === 'dashboard-thresholds';
+        $sourceRequest = clone $request;
+        if ($dashboard) {
+            $sourceRequest->query->remove('view');
+        }
+        $report = $this->cachedReportPayload(
             'warehouse:report:inventory-reconciliation',
-            $this->reportFiltersWithoutPaging($request),
-            $this->reportWarehouseScope($request),
-            fn (): array => $this->inventoryReconciliationData($request)
-        ));
+            $this->reportFiltersWithoutPaging($sourceRequest),
+            $this->reportWarehouseScope($sourceRequest),
+            fn (): array => $this->inventoryReconciliationData($sourceRequest)
+        );
+
+        return $this->respondSuccess($dashboard ? DashboardReportProjection::thresholds($report) : $report);
     }
 
     /** @return array<string, mixed> */
