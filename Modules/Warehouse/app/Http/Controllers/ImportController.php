@@ -189,6 +189,10 @@ class ImportController extends Controller
             );
 
             $result = $this->withContract($result, $updateExisting);
+            if (! ($result['duplicate'] ?? false) && isset($result['import_report_id'])) {
+                // Uploading the same bytes may also restore a previously unavailable source.
+                DB::afterCommit(fn () => $this->bumpReadCache('master:version'));
+            }
 
             // ImportService ghi thẳng qua Eloquent rồi gọi ProductRepository::forgetCache(),
             // tức chỉ bump 'warehouse.sku:list'. Nhưng sku_code/sku_name/status vừa ghi còn

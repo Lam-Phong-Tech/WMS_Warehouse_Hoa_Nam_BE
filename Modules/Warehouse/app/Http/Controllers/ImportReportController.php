@@ -14,10 +14,12 @@ use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Modules\Auth\Models\User;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Auth\Models\User;
+use Modules\Warehouse\Exceptions\ImportReportPersistenceException;
 use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Services\ImportErrorFileService;
+use Modules\Warehouse\Services\ImportReportLifecycle;
 use Modules\Warehouse\Support\SkuImportContract;
 use OpenApi\Attributes as OA;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -29,12 +31,70 @@ class ImportReportController extends Controller
     use ApiResponse;
     use CachesReadPayload;
 
+    public function versions(Request $request, string $id): JsonResponse
+    {
+        $this->assertValidId($id);
+        $report = $this->scopedQuery()->find($id);
+        if ($report === null) {
+            return $this->respondNotFound('Không tìm thấy báo cáo.');
+        }
+        $request->validate(['page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
+        $query = $this->scopedQuery();
+        if ($report->source_file_id !== null) {
+            $query->where('source_file_id', $report->source_file_id);
+        } else {
+            $query->whereKey($id);
+        }
+
+        return $this->respondPaginated($query->orderByDesc('result_version')->orderByDesc('created_at')->paginate((int) $request->input('per_page', 50)));
+    }
+
+    public function recheck(Request $request, string $id, ImportReportLifecycle $lifecycle): JsonResponse
+    {
+        $this->assertValidId($id);
+        $report = $this->scopedQuery()->find($id);
+        if ($report === null) {
+            return $this->respondNotFound('Không tìm thấy báo cáo.');
+        }
+        try {
+            $created = $lifecycle->recheck($report, auth('api')->id(), $request->attributes->get('request_id'));
+        } catch (ImportReportPersistenceException $e) {
+            return $this->respondError('Không lưu được kết quả kiểm tra. Vui lòng thử lại.', [], 503, 'SKU_IMPORT_REPORT_PERSISTENCE_FAILED');
+        } catch (\InvalidArgumentException $e) {
+            return $this->respondError($e->getMessage(), [], 422, 'SKU_IMPORT_FILE_INVALID');
+        }
+        $this->bumpReadCache(self::CACHE_VERSION_NS);
+
+        return $this->respondSuccess($created, 'Đã lưu phiên bản kiểm tra mới; không ghi dữ liệu SKU.');
+    }
+
+    public function sourceFile(string $id, ImportReportLifecycle $lifecycle): JsonResponse|StreamedResponse
+    {
+        $this->assertValidId($id);
+        $report = $this->scopedQuery()->find($id);
+        if ($report === null) {
+            return $this->respondNotFound('Không tìm thấy báo cáo.');
+        }
+
+        return $lifecycle->sourceFile($report);
+    }
+
+    public function resultFile(string $id, ImportReportLifecycle $lifecycle): JsonResponse|StreamedResponse
+    {
+        $this->assertValidId($id);
+        $report = $this->scopedQuery()->find($id);
+        if ($report === null) {
+            return $this->respondNotFound('Không tìm thấy báo cáo.');
+        }
+        AuditLogger::record(action: 'REPORT_EXPORTED', objectType: 'report', objectId: $id,
+            actorId: auth('api')->id(), afterData: ['report' => 'sku-import-result', 'result_version' => $report->result_version]);
+
+        return $lifecycle->resultFile($report);
+    }
+
     /**
-     * Import báo cáo SKU không có đường GHI nào trong controller này — bản ghi do
-     * ImportController tạo ra. Vì vậy namespace phiên bản `master:version` chỉ được
-     * bump bởi các danh mục khác, và lưới an toàn thật sự ở đây là TTL: dùng 'search'
-     * (120s) thay vì 'master' (1800s) để một lần import vừa chạy xong không bị khuất
-     * khỏi danh sách quá lâu.
+     * Upload and recheck both invalidate this namespace after the report is saved.
+     * Keep the short search TTL as a fallback for writes outside these endpoints.
      */
     private const CACHE_VERSION_NS = 'master:version';
 
@@ -268,21 +328,39 @@ class ImportReportController extends Controller
         ]);
 
         $query = $this->scopedQuery();
-        if (isset($validated['from_date'])) $query->whereDate('created_at', '>=', $validated['from_date']);
-        if (isset($validated['to_date'])) $query->whereDate('created_at', '<=', $validated['to_date']);
-        if (isset($validated['mode'])) $query->where('mode', $validated['mode']);
-        if (isset($validated['status'])) $query->where('status', $validated['status']);
+        if (isset($validated['from_date'])) {
+            $query->whereDate('created_at', '>=', $validated['from_date']);
+        }
+        if (isset($validated['to_date'])) {
+            $query->whereDate('created_at', '<=', $validated['to_date']);
+        }
+        if (isset($validated['mode'])) {
+            $query->where('mode', $validated['mode']);
+        }
+        if (isset($validated['status'])) {
+            $query->where('status', $validated['status']);
+        }
 
         $rows = [];
         $keyword = mb_strtolower(trim((string) ($validated['keyword'] ?? '')));
         foreach ($query->orderByDesc('created_at')->cursor() as $report) {
             $errors = $errorFiles->previewRows(is_array($report->row_errors) ? $report->row_errors : []);
-            if ($keyword !== '' && ! str_contains(mb_strtolower($report->getKey().' '.($report->file_name ?? '')), $keyword)) continue;
-            if (($validated['result'] ?? '') === 'SUCCESS' && $report->valid_rows < 1) continue;
+            if ($keyword !== '' && ! str_contains(mb_strtolower($report->getKey().' '.($report->file_name ?? '')), $keyword)) {
+                continue;
+            }
+            if (($validated['result'] ?? '') === 'SUCCESS' && $report->valid_rows < 1) {
+                continue;
+            }
             $duplicateCount = collect($errors)->filter(fn (array $row): bool => $this->isDuplicateImportError($row['error_code']))->count();
-            if (($validated['result'] ?? '') === 'FAILED' && $report->error_rows - $duplicateCount < 1) continue;
-            if (($validated['result'] ?? '') === 'DUPLICATE' && $duplicateCount < 1) continue;
-            if (($validated['issues_only'] ?? false) && $report->error_rows < 1) continue;
+            if (($validated['result'] ?? '') === 'FAILED' && $report->error_rows - $duplicateCount < 1) {
+                continue;
+            }
+            if (($validated['result'] ?? '') === 'DUPLICATE' && $duplicateCount < 1) {
+                continue;
+            }
+            if (($validated['issues_only'] ?? false) && $report->error_rows < 1) {
+                continue;
+            }
 
             foreach ($errors === [] ? [null] : $errors as $error) {
                 $rows[] = [
@@ -292,7 +370,9 @@ class ImportReportController extends Controller
                     $error['message'] ?? '', $error['raw_value'] ?? '', $error['severity'] ?? '',
                     $error['suggested_action'] ?? '',
                 ];
-                if (count($rows) > 10000) ApiError::abort(422, 'EXPORT_ROW_LIMIT', 'Vượt giới hạn 10.000 dòng xuất.');
+                if (count($rows) > 10000) {
+                    ApiError::abort(422, 'EXPORT_ROW_LIMIT', 'Vượt giới hạn 10.000 dòng xuất.');
+                }
             }
         }
 
@@ -304,6 +384,7 @@ class ImportReportController extends Controller
         );
 
         $name = ReportExportFileName::stamp('sku-import-quality.xlsx');
+
         return response()->streamDownload(function () use ($rows): void {
             ReportExportMemory::raise();
             $book = new Spreadsheet;
@@ -312,8 +393,11 @@ class ImportReportController extends Controller
             $sheet->fromArray(['Import ID', 'Tên tệp', 'Thời gian', 'Chế độ', 'Trạng thái', 'Tổng dòng', 'Dòng hợp lệ', 'Dòng lỗi', 'Dòng nguồn', 'Trường', 'Mã lỗi', 'Mô tả', 'Giá trị nguồn', 'Mức độ', 'Hướng xử lý'], null, 'A1');
             foreach ($rows as $index => $row) {
                 $sheet->fromArray(array_map(static function (mixed $value): mixed {
-                    if (! is_string($value)) return $value;
+                    if (! is_string($value)) {
+                        return $value;
+                    }
                     $trimmed = ltrim($value);
+
                     return $trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@'], true) && ! str_starts_with($value, "'") ? "'".$value : $value;
                 }, $row), null, 'A'.($index + 2));
             }

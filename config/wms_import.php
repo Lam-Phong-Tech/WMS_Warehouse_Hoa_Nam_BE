@@ -21,5 +21,6 @@ return [
     */
 
     'error_disk' => env('IMPORT_ERROR_FILE_DISK', 'local'),
+    'source_disk' => env('IMPORT_SOURCE_FILE_DISK', 'local'),
 
 ];

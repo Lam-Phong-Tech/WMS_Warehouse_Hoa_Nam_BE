@@ -37,6 +37,8 @@ class ImportService
      */
     private ?string $sheetName = null;
 
+    private array $reportContext = [];
+
     /**
      * WWHN-331 FE331-P1-03R3 — bốn hạn mức của import SKU (số dòng, cỡ file, cửa sổ
      * idempotent, hạn file lỗi) trước đây là hằng số riêng trong lớp này, mỗi cái kèm
@@ -99,7 +101,14 @@ class ImportService
         ?string $requestId = null,
         ?string $originalName = null,
         bool $dryRun = false,
+        ?string $sourceFileId = null,
     ): array {
+        $this->reportContext = [
+            '_source_path' => $filePath,
+            '_source_file_id' => $sourceFileId,
+            '_started_at' => now(),
+            '_started_clock' => hrtime(true),
+        ];
         $this->assertFile($filePath);
         $checksum = hash_file('sha256', $filePath);
         if (! is_string($checksum)) {
@@ -635,8 +644,10 @@ class ImportService
         ?string $originalName,
         bool $updateExisting,
     ): array {
-        $report = $this->reportWriter->write($result, $actorId, $requestId, $originalName, $updateExisting);
+        $report = $this->reportWriter->write($result + $this->reportContext, $actorId, $requestId, $originalName, $updateExisting);
         $result['import_report_id'] = (string) $report->import_report_id;
+        $result['source_file_id'] = $report->source_file_id;
+        $result['result_version'] = $report->result_version;
 
         return $result;
     }
