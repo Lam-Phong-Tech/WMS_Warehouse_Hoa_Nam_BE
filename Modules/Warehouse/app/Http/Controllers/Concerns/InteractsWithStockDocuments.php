@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Modules\Warehouse\Models\StockDocument;
 use Modules\Warehouse\Services\StockDocumentService;
+use Modules\Warehouse\Support\InboundOperationHistory;
 use Modules\Warehouse\Support\ListSortOrder;
 use Modules\Warehouse\Support\SkuInboundInfoRule;
 
@@ -339,6 +340,7 @@ trait InteractsWithStockDocuments
             $this->attachCreatorName($doc);
             $this->attachInboundActorNames($doc);
             $this->attachSuppliers(collect([$doc]));
+            $doc->setAttribute('operation_history', app(InboundOperationHistory::class)->forDocument($doc));
         }
 
         return $this->respondSuccess($doc);
