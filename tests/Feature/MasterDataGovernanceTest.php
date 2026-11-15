@@ -187,6 +187,59 @@ class MasterDataGovernanceTest extends TestCase
             ->assertJsonPath('error.code', 'SKU_PUBLISH_REQUIRES_ACTIVE');
     }
 
+    public function test_sku_reads_supply_the_pv_version_for_repeated_publish_actions(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $sku = Sku::create([
+            'code' => 'SKU-PV-READ-VERSION', 'name' => 'SKU profile version', 'sku_type' => 'COMPONENT',
+            'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE', 'version' => 9,
+        ]);
+        $url = "/api/v1/products/{$sku->sku_id}";
+        $publishUrl = "/api/v1/pv/products/{$sku->sku_id}/publish";
+
+        $this->getJson($url, $headers)->assertOk()->assertJsonPath('data.pv_profile_version', 0);
+        $this->getJson('/api/v1/products?keyword=SKU-PV-READ-VERSION', $headers)
+            ->assertOk()->assertJsonPath('data.0.pv_profile_version', 0);
+        $this->patchJson($publishUrl, ['published' => true], $headers + ['If-Match' => '0'])
+            ->assertOk()->assertJsonPath('data.published_to_app', true);
+
+        $this->getJson($url, $headers)->assertOk()->assertJsonPath('data.pv_profile_version', 1);
+        $this->getJson('/api/v1/products?keyword=SKU-PV-READ-VERSION', $headers)
+            ->assertOk()->assertJsonPath('data.0.pv_profile_version', 1);
+        $this->patchJson($publishUrl, ['published' => false], $headers + ['If-Match' => '1'])
+            ->assertOk()->assertJsonPath('data.published_to_app', false);
+        $this->getJson($url, $headers)->assertOk()->assertJsonPath('data.pv_profile_version', 2);
+        $this->patchJson($publishUrl, ['published' => true], $headers + ['If-Match' => '1'])
+            ->assertStatus(412);
+    }
+
+    public function test_pv_sku_picker_excludes_existing_profiles_before_search_and_pagination(): void
+    {
+        $headers = $this->superAdminHeaders();
+        $existing = Sku::create([
+            'code' => 'PV-PICK-A', 'name' => 'Picker existing', 'sku_type' => 'PRODUCT',
+            'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE',
+        ]);
+        $available = Sku::create([
+            'code' => 'PV-PICK-B', 'name' => 'Picker available', 'sku_type' => 'PRODUCT',
+            'unit' => 'cai', 'is_serial_tracked' => false, 'status' => 'ACTIVE',
+        ]);
+        $publishUrl = "/api/v1/pv/products/{$existing->sku_id}/publish";
+        $this->patchJson($publishUrl, ['published' => true], $headers + ['If-Match' => '0'])->assertOk();
+        $this->patchJson($publishUrl, ['published' => false], $headers + ['If-Match' => '1'])->assertOk();
+
+        $picker = '/api/v1/products?without_pv_profile=1&status=ACTIVE&keyword=PV-PICK&per_page=1';
+        $this->getJson($picker, $headers)->assertOk()
+            ->assertJsonPath('data.0.sku_id', $available->sku_id)->assertJsonPath('meta.total', 1);
+        $this->getJson('/api/v1/products?without_pv_profile=1&keyword=Picker%20existing', $headers)
+            ->assertOk()->assertJsonCount(0, 'data');
+        // The general SKU list still includes both records.
+        $this->getJson('/api/v1/products?keyword=PV-PICK', $headers)->assertOk()->assertJsonCount(2, 'data');
+        // Reopening the picker after a profile is created must not reuse old eligibility.
+        $this->patchJson("/api/v1/pv/products/{$available->sku_id}/publish", ['published' => true], $headers + ['If-Match' => '0'])->assertOk();
+        $this->getJson($picker, $headers)->assertOk()->assertJsonCount(0, 'data');
+    }
+
     public function test_warehouse_status_update_keeps_single_active_rule(): void
     {
         $headers = $this->superAdminHeaders();

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Support\ApiError;
 use App\Support\Cache\Concerns\CachesReadPayload;
 use App\Traits\ApiResponse;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -119,6 +120,7 @@ class ProductController extends Controller
             new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', default: 15)),
             new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'information_status', in: 'query', description: 'Independent of usage status. PENDING: missing at least one of brand_id/category_id/model_id. COMPLETE: all three present. Applied before pagination.', schema: new OA\Schema(type: 'string', enum: ['PENDING', 'COMPLETE'])),
+            new OA\Parameter(name: 'without_pv_profile', in: 'query', description: '1: exclude every SKU with an App PV profile, including hidden profiles. Applied before pagination.', schema: new OA\Schema(type: 'integer', enum: [0, 1])),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
         ],
         responses: [
@@ -129,14 +131,27 @@ class ProductController extends Controller
     )]
     public function index(Request $request)
     {
-        $request->validate(['information_status' => ['nullable', 'in:PENDING,COMPLETE']]);
-        $paginator = $this->products->paginate($request->all(), (int) $request->input('per_page', 10));
+        $request->validate([
+            'information_status' => ['nullable', 'in:PENDING,COMPLETE'],
+            'without_pv_profile' => ['nullable', 'boolean'],
+        ]);
+        // Profile membership changes independently of SKU list cache versions.
+        // A scoped query stays fresh and excludes used SKUs before counting/paging.
+        $scope = $request->boolean('without_pv_profile') ? static function (Builder $query): Builder {
+            $profile = PvRelations::profile();
+
+            return $query->whereNotExists(static function ($subquery) use ($profile): void {
+                $subquery->selectRaw('1')->from($profile['table'].' as pv_existing')
+                    ->whereColumn('pv_existing.'.$profile['sku'], 'sku.sku_id');
+            });
+        } : null;
+        $paginator = $this->products->paginate($request->all(), (int) $request->input('per_page', 10), $scope);
 
         // Ảnh sản phẩm cho cột hình ở màn "Danh sách SKU" — MỘT truy vấn cho cả
         // trang, không N+1 (xem SkuImageLookup). Gắn SAU khi lấy trang nên không
         // chạm vào payload đã cache của repository.
         $paginator->setCollection(
-            collect(SkuImageLookup::attach($paginator->getCollection()))
+            collect($this->withPvProfileVersions(SkuImageLookup::attach($paginator->getCollection())))
         );
 
         return $this->respondPaginated($paginator);
@@ -224,7 +239,7 @@ class ProductController extends Controller
             return $this->respondNotFound('Không tìm thấy SKU.');
         }
 
-        return $this->respondSuccess(SkuImageLookup::attach([$product])[0]);
+        return $this->respondSuccess($this->withPvProfileVersions(SkuImageLookup::attach([$product]))[0]);
     }
 
     #[OA\Patch(
@@ -390,6 +405,27 @@ class ProductController extends Controller
         $version = DB::table($relation['table'])->where($relation['sku'], $skuId)->value('version');
 
         return $version === null ? 0 : (int) $version;
+    }
+
+    /** Supply publish preconditions separately from SKU versions, in one query per page. */
+    private function withPvProfileVersions(array $rows): array
+    {
+        $items = array_map(static fn ($row): array => $row instanceof Model ? $row->toArray() : (array) $row, $rows);
+        $ids = array_values(array_filter(array_map(static fn (array $row) => $row['sku_id'] ?? $row['id'] ?? null, $items)));
+        if ($ids === []) {
+            return $items;
+        }
+
+        $relation = PvRelations::profile();
+        $versions = DB::table($relation['table'])->whereIn($relation['sku'], $ids)
+            ->pluck('version', $relation['sku']);
+        foreach ($items as &$item) {
+            $id = $item['sku_id'] ?? $item['id'] ?? '';
+            $item['pv_profile_version'] = (int) ($versions[$id] ?? 0);
+        }
+        unset($item);
+
+        return $items;
     }
 
     /**
