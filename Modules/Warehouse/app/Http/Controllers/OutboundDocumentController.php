@@ -386,7 +386,7 @@ class OutboundDocumentController extends Controller
         // ghi đó đi qua mutateBalance()/bump nên entry "không tìm thấy" không sống lâu.
         $payload = $this->cachedReadPayload(
             'warehouse:outbound-document:detail',
-            ['doc_type' => $this->docType(), 'id' => $id],
+            ['doc_type' => $this->docType(), 'id' => $id, 'payload_version' => 2],
             fn (): array => $this->buildShowPayload($id),
             'search',
             'stock:version',
@@ -410,6 +410,25 @@ class OutboundDocumentController extends Controller
         }
 
         $payload = $doc->toArray();
+        $actorNames = DB::table('app_user')
+            ->whereIn('user_id', array_filter([$doc->created_by, $doc->posted_by, $doc->cancelled_by]))
+            ->pluck('display_name', 'user_id');
+        $payload['created_by_name'] = $actorNames->get($doc->created_by ?? '');
+        $payload['posted_by_name'] = $actorNames->get($doc->posted_by ?? '');
+        $payload['cancelled_by_name'] = $actorNames->get($doc->cancelled_by ?? '');
+
+        // Include persisted scan history across all lines, including removed matches.
+        // Query users by ID so repeated scans from one person produce one name.
+        $scannerIds = DB::table('outbound_item_matches as m')
+            ->join('stock_document_lines as l', 'l.id', '=', 'm.outbound_line_id')
+            ->where('l.stock_document_id', $id)
+            ->selectRaw('COALESCE(m.matched_by, m.created_by)');
+        $payload['scanned_by_names'] = DB::table('app_user')
+            ->whereIn('user_id', $scannerIds)
+            ->orderBy('display_name')->orderBy('user_id')
+            ->pluck('display_name')
+            ->filter(fn ($name): bool => trim((string) $name) !== '')
+            ->values()->all();
         // Phiếu xuất chỉ lưu outbound_request_id; form sửa cần mã toa, ngày yêu
         // cầu và nhãn đại lý đọc được thay vì UUID.
         $request = $doc->outbound_request_id === null ? null : DB::table('outbound_requests')

@@ -70,7 +70,7 @@ class CurrentBaselineComponentIssueQueryController extends Controller
         // nên `stock:version` cũng tự bump.
         $payload = $this->cachedReadPayload(
             'warehouse:component-issue:detail',
-            ['id' => $id, 'status' => (string) ($document->status ?? '')],
+            ['id' => $id, 'status' => (string) ($document->status ?? ''), 'payload_version' => 3],
             fn (): array => $this->buildShowPayload($id, $document),
             'search',
             'stock:version',
@@ -87,6 +87,13 @@ class CurrentBaselineComponentIssueQueryController extends Controller
      */
     private function buildShowPayload(string $id, object $document): array
     {
+        $actorNames = DB::table('app_user')
+            ->whereIn('user_id', array_filter([
+                $document->created_by ?? null,
+                $document->posted_by ?? null,
+            ]))
+            ->pluck('display_name', 'user_id');
+
         $lines = DB::table('component_issue_lines')
             ->where('component_issue_document_id', $id)
             ->orderBy('line_no')
@@ -104,13 +111,18 @@ class CurrentBaselineComponentIssueQueryController extends Controller
                     ...(array) $line,
                     'sku_code' => $sku?->sku_code,
                     'sku_name' => $sku?->sku_name,
+                    'unit' => $sku?->unit,
                     'items' => $items,
                 ];
             })
             ->all();
 
         return [
-            'document' => (array) $document,
+            'document' => [
+                ...(array) $document,
+                'created_by_name' => $actorNames->get($document->created_by ?? ''),
+                'posted_by_name' => $actorNames->get($document->posted_by ?? ''),
+            ],
             'lines' => $lines,
             'stock_effect' => $document->status === 'POSTED' ? 'DECREASE' : 'NONE',
             'movement_created' => $document->status === 'POSTED',

@@ -220,6 +220,31 @@ trait InteractsWithStockDocuments
         $document->unsetRelation('createdBy');
     }
 
+    private function attachInboundActorNames(StockDocument $document): void
+    {
+        // Resolve only display names, including users later soft-deleted.
+        $actors = DB::table('app_user')
+            ->whereIn('user_id', array_filter([$document->posted_by, $document->cancelled_by]))
+            ->pluck('display_name', 'user_id');
+        $document->setAttribute('posted_by_name', $actors->get($document->posted_by ?? ''));
+        $document->setAttribute('cancelled_by_name', $actors->get($document->cancelled_by ?? ''));
+
+        // Read persisted evidence across all lines, independently of scan-log pagination.
+        // Removed scans remain part of the receipt's history of who scanned it.
+        $scannerIds = DB::table('inbound_scan_entries as entry')
+            ->join('stock_document_lines as line', 'line.id', '=', 'entry.inbound_line_id')
+            ->where('line.stock_document_id', $document->id)
+            ->selectRaw('COALESCE(entry.captured_by, entry.created_by)');
+        $names = DB::table('app_user')
+            ->whereIn('user_id', $scannerIds)
+            ->orderBy('display_name')
+            ->orderBy('user_id')
+            ->pluck('display_name')
+            ->filter(fn ($name): bool => trim((string) $name) !== '')
+            ->values()->all();
+        $document->setAttribute('scanned_by_names', $names);
+    }
+
     /**
      * Gắn `supplier` (id/code/name/display_name) cho từng phiếu nhập bằng MỘT
      * truy vấn cho cả trang — danh sách IN-01 hiện tên NCC ngay trên dòng mà
@@ -312,6 +337,7 @@ trait InteractsWithStockDocuments
 
         if ($this->docType() === StockDocument::TYPE_RECEIPT) {
             $this->attachCreatorName($doc);
+            $this->attachInboundActorNames($doc);
             $this->attachSuppliers(collect([$doc]));
         }
 

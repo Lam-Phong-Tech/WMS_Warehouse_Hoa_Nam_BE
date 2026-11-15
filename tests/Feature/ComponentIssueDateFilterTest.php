@@ -72,6 +72,46 @@ class ComponentIssueDateFilterTest extends TestCase
         return $this->getJson('/api/v1/warranty-component-issues?'.http_build_query($filters), $this->headers);
     }
 
+    public function test_detail_resolves_creator_and_poster_names_without_exposing_user_records(): void
+    {
+        $creatorId = (string) DB::table('app_user')->where('username', 'issue_dates')->value('user_id');
+        $poster = User::create(['username' => 'issue_poster', 'display_name' => 'Người xuất linh kiện',
+            'password_hash' => bcrypt(Str::random(24)), 'status' => 'ACTIVE', 'version' => 1]);
+        $id = (string) DB::table('component_issue_documents')->where('status', 'POSTED')->value('id');
+        DB::table('component_issue_documents')->where('id', $id)->update([
+            'created_by' => $creatorId, 'posted_by' => $poster->getKey(),
+        ]);
+
+        $document = $this->getJson('/api/v1/warranty-component-issues/'.$id, $this->headers)
+            ->assertOk()->json('data.document');
+
+        $this->assertSame('Issue dates', $document['created_by_name'] ?? null);
+        $this->assertSame('Người xuất linh kiện', $document['posted_by_name'] ?? null);
+        $this->assertArrayNotHasKey('password_hash', $document);
+
+        $draftId = (string) DB::table('component_issue_documents')->where('status', 'DRAFT')->value('id');
+        $this->getJson('/api/v1/warranty-component-issues/'.$draftId, $this->headers)->assertOk()
+            ->assertJsonPath('data.document.created_by_name', null)
+            ->assertJsonPath('data.document.posted_by_name', null);
+    }
+
+    public function test_detail_includes_the_sku_unit_on_component_lines(): void
+    {
+        $sku = \Modules\Warehouse\Models\Sku::create([
+            'sku_code' => 'UNIT-COMP', 'sku_name' => 'Unit component', 'sku_type' => 'COMPONENT',
+            'unit' => 'Cái', 'is_serial_tracked' => false, 'status' => 'ACTIVE',
+        ]);
+        $id = (string) DB::table('component_issue_documents')->where('status', 'DRAFT')->value('id');
+        DB::table('component_issue_lines')->insert([
+            'id' => (string) Str::uuid(), 'component_issue_document_id' => $id,
+            'sku_id' => $sku->getKey(), 'line_no' => 1, 'required_qty' => 1, 'scanned_qty' => 0,
+            'version' => 1, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->getJson('/api/v1/warranty-component-issues/'.$id, $this->headers)->assertOk()
+            ->assertJsonPath('data.lines.0.unit', 'Cái');
+    }
+
     private function document(string $date, string $status): void
     {
         DB::table('component_issue_documents')->insert([
