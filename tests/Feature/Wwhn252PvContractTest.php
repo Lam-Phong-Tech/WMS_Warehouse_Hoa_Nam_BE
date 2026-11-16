@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Models\Sku;
+use Modules\Warehouse\Services\PvRemoteImageDownloader;
 use Modules\Warehouse\Support\PvRelations;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -743,6 +745,139 @@ class Wwhn252PvContractTest extends TestCase
     // ------------------------------------------------------------------
     // Fixtures
     // ------------------------------------------------------------------
+
+    public function test_pasted_image_is_downloaded_to_storage_and_readable_without_auth(): void
+    {
+        Storage::fake('s3');
+        $this->bindPublicImageDownloader();
+        $image = UploadedFile::fake()->image('source.png', 40, 30);
+        $bytes = file_get_contents($image->getPathname());
+        Http::fake(['https://images.example.test/*' => Http::response($bytes, 200, ['Content-Type' => 'image/png'])]);
+        $response = $this->postJson('/api/v1/pv-admin/product-images', ['url' => 'https://images.example.test/source.png'], $this->headersForPermissions(['pv.master.manage']))->assertCreated();
+        $key = $response->json('data.storage_key');
+        $this->assertSame($bytes, Storage::disk('s3')->get($key));
+        $this->get(parse_url($response->json('data.url'), PHP_URL_PATH))->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->assertDatabaseCount('pv_product_images', 0); // No product was saved.
+        $this->travel(25)->hours();
+        $this->artisan('pv-images:prune')->assertSuccessful();
+        Storage::disk('s3')->assertMissing($key);
+    }
+
+    public function test_abandoned_file_upload_is_kept_for_24_hours_then_pruned(): void
+    {
+        Storage::fake('s3');
+        $uploaded = $this->post('/api/v1/pv-admin/product-images', ['file' => UploadedFile::fake()->image('draft.png')], $this->headersForPermissions(['pv.master.manage']))->assertCreated();
+        $key = $uploaded->json('data.storage_key');
+        $this->travel(23)->hours();
+        $this->artisan('pv-images:prune')->assertSuccessful();
+        Storage::disk('s3')->assertExists($key);
+        $this->travel(2)->hours();
+        $this->artisan('pv-images:prune', ['--dry-run' => true])->assertSuccessful();
+        Storage::disk('s3')->assertExists($key);
+        $this->artisan('pv-images:prune')->assertSuccessful();
+        Storage::disk('s3')->assertMissing($key);
+        $this->assertDatabaseCount('pv_image_uploads', 0);
+        $this->assertDatabaseCount('pv_product_images', 0);
+    }
+
+    public function test_saved_hidden_product_keeps_its_image_and_expired_draft_cannot_be_saved(): void
+    {
+        Storage::fake('s3');
+        $headers = $this->headersForPermissions(['pv.master.manage']);
+        $saved = $this->post('/api/v1/pv-admin/product-images', ['file' => UploadedFile::fake()->image('saved.png')], $headers)->assertCreated();
+        $draft = $this->post('/api/v1/pv-admin/product-images', ['file' => UploadedFile::fake()->image('draft.png')], $headers)->assertCreated();
+        $sku = $this->skuFixture('PV-CLEANUP', 'Cleanup');
+        $this->postJson('/api/v1/pv-admin/resources/product-profiles', ['sku_id' => $sku->sku_id, 'display_name' => 'Hidden product', 'images' => [['url' => $saved->json('data.url')]]], $headers)->assertCreated();
+        $this->travel(25)->hours();
+        $this->artisan('pv-images:prune')->assertSuccessful();
+        Storage::disk('s3')->assertExists($saved->json('data.storage_key'));
+        Storage::disk('s3')->assertMissing($draft->json('data.storage_key'));
+        $other = $this->skuFixture('PV-EXPIRED', 'Expired draft');
+        $this->postJson('/api/v1/pv-admin/resources/product-profiles', ['sku_id' => $other->sku_id, 'display_name' => 'Expired', 'images' => [['url' => $draft->json('data.url')]]], $headers)->assertUnprocessable();
+        $this->assertDatabaseCount('pv_product_images', 1);
+    }
+
+    public function test_failed_product_save_does_not_claim_temporary_images(): void
+    {
+        Storage::fake('s3');
+        $headers = $this->headersForPermissions(['pv.master.manage']);
+        $first = $this->post('/api/v1/pv-admin/product-images', ['file' => UploadedFile::fake()->image('first.png')], $headers)->assertCreated();
+        $missing = $this->post('/api/v1/pv-admin/product-images', ['file' => UploadedFile::fake()->image('missing.png')], $headers)->assertCreated();
+        Storage::disk('s3')->delete($missing->json('data.storage_key'));
+        $sku = $this->skuFixture('PV-FAILED-SAVE', 'Failed save');
+        $this->postJson('/api/v1/pv-admin/resources/product-profiles', ['sku_id' => $sku->sku_id, 'display_name' => 'Failed', 'images' => [['url' => $first->json('data.url')], ['url' => $missing->json('data.url')]]], $headers)->assertUnprocessable();
+        $this->assertDatabaseHas('pv_image_uploads', ['public_url' => $first->json('data.url'), 'claimed_at' => null]);
+        $this->assertDatabaseCount('pv_product_images', 0);
+        $this->travel(25)->hours();
+        $this->artisan('pv-images:prune')->assertSuccessful();
+        Storage::disk('s3')->assertMissing($first->json('data.storage_key'));
+    }
+
+    public function test_legacy_cleanup_keeps_referenced_images_and_other_storage_files(): void
+    {
+        Storage::fake('s3');
+        $headers = $this->headersForPermissions(['pv.master.manage']);
+        $saved = $this->post('/api/v1/pv-admin/product-images', ['file' => UploadedFile::fake()->image('saved.png')], $headers)->assertCreated();
+        $sku = $this->skuFixture('PV-LEGACY', 'Legacy');
+        $this->postJson('/api/v1/pv-admin/resources/product-profiles', ['sku_id' => $sku->sku_id, 'display_name' => 'Legacy hidden', 'images' => [['url' => $saved->json('data.url')]]], $headers)->assertCreated();
+        DB::table('pv_image_uploads')->delete(); // Simulate uploads from before lifecycle tracking.
+        $orphan = 'pv-product-images/'.Str::uuid().'.png';
+        Storage::disk('s3')->put($orphan, 'old orphan');
+        Storage::disk('s3')->put('pv-product-images/keep.txt', 'other file');
+        Storage::disk('s3')->put('warranty-attachments/keep.png', 'other module');
+        $this->travel(25)->hours();
+        $this->artisan('pv-images:prune', ['--dry-run' => true])->expectsOutputToContain('Would delete: 1')->assertSuccessful();
+        $this->assertDatabaseCount('pv_image_uploads', 0);
+        Storage::disk('s3')->assertExists($orphan);
+        $this->artisan('pv-images:prune')->assertSuccessful();
+        Storage::disk('s3')->assertExists($saved->json('data.storage_key'));
+        Storage::disk('s3')->assertMissing($orphan);
+        Storage::disk('s3')->assertExists('pv-product-images/keep.txt');
+        Storage::disk('s3')->assertExists('warranty-attachments/keep.png');
+    }
+
+    public function test_pasted_image_rejects_private_urls_and_redirects_before_requesting_them(): void
+    {
+        Storage::fake('s3');
+        $this->bindPublicImageDownloader();
+        $http = Http::getFacadeRoot();
+        $http->fake(['https://images.example.test/*' => $http->response('', 302, ['Location' => 'http://127.0.0.1/private'])]);
+        $headers = $this->headersForPermissions(['pv.master.manage']);
+        foreach (['http://127.0.0.1/a.png', 'http://169.254.169.254/latest/meta-data', 'http://[::ffff:127.0.0.1]/a', 'https://user:pass@images.example.test/a.png', 'file:///etc/passwd', 'https://images.example.test/redirect'] as $url) {
+            $this->postJson('/api/v1/pv-admin/product-images', ['url' => $url], $headers)->assertUnprocessable();
+        }
+        $http->assertSentCount(1);
+        $this->assertSame([], Storage::disk('s3')->allFiles());
+    }
+
+    public function test_pasted_image_rejects_blocked_html_and_oversized_responses(): void
+    {
+        Storage::fake('s3');
+        $this->bindPublicImageDownloader();
+        config(['pv.image_max_bytes' => 1024]);
+        $http = Http::getFacadeRoot();
+        $http->fake([
+            'https://images.example.test/blocked' => $http->response('blocked', 429),
+            'https://images.example.test/html' => $http->response('<html>not an image</html>', 200, ['Content-Type' => 'image/png']),
+            'https://images.example.test/large' => $http->response(str_repeat('x', 1025), 200),
+        ]);
+        $headers = $this->headersForPermissions(['pv.master.manage']);
+        foreach (['blocked', 'html', 'large'] as $path) {
+            $this->postJson('/api/v1/pv-admin/product-images', ['url' => 'https://images.example.test/'.$path], $headers)->assertUnprocessable();
+        }
+        $this->assertSame([], Storage::disk('s3')->allFiles());
+    }
+
+    private function bindPublicImageDownloader(): void
+    {
+        $this->app->bind(PvRemoteImageDownloader::class, fn () => new class extends PvRemoteImageDownloader
+        {
+            protected function resolveAddresses(string $host): array
+            {
+                return ['93.184.216.34'];
+            }
+        });
+    }
 
     private function skuFixture(string $code, string $name, ?string $categoryId = null): Sku
     {

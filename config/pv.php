@@ -42,6 +42,9 @@ return [
     /** Trần dung lượng mỗi ảnh — khớp FILE_RULES.warrantyImage bên FE. */
     'image_max_bytes' => (int) env('PV_IMAGE_MAX_BYTES', 10 * 1024 * 1024),
 
+    /** Unsaved uploads expire after this grace period; cleanup runs hourly. */
+    'image_pending_hours' => (int) env('PV_IMAGE_PENDING_HOURS', 24),
+
     /*
      * Gốc URL công khai của ảnh.
      *

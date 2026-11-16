@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\PvImageLifecycle;
 use Modules\Warehouse\Support\PvRelations;
 use OpenApi\Attributes as OA;
 
@@ -940,6 +941,7 @@ class PvAdminResourceController extends Controller
         $actorId = $request->user()?->user_id;
         DB::table('pv_product_images')->where('profile_id', $profileId)->delete();
         foreach ($images as $index => $image) {
+            app(PvImageLifecycle::class)->claim($image['url']);
             DB::table('pv_product_images')->insert([
                 'id' => (string) Str::uuid(),
                 'profile_id' => $profileId,

@@ -9,6 +9,12 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Schedule::command('pv-images:prune')
+    ->hourly()
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();
+
 /*
  * SRS §7.5 Reconciliation Controls: divergence giữa ledger, balance và subledger phải
  * "Create Reconciliation_Incident and block readiness/sign-off". Nếu chỉ chạy tay thì

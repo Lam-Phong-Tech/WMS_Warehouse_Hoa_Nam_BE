@@ -8,10 +8,13 @@ use App\Support\WarrantyAttachmentScanner;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Services\PvImageLifecycle;
+use Modules\Warehouse\Services\PvRemoteImageDownloader;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -28,10 +31,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * có thêm route đọc không cần token. Route đó chỉ phục vụ đúng prefix ảnh PV và
  * key phải khớp UUID — không có đường nào đọc sang tệp khác trong bucket.
  *
- * KHÔNG có bảng riêng: ảnh chỉ trở thành dữ liệu nghiệp vụ khi hồ sơ sản phẩm được
+ * Ảnh chỉ trở thành dữ liệu nghiệp vụ khi hồ sơ sản phẩm được
  * lưu (`pv_product_images` do PvAdminResourceController ghi). Tệp upload rồi bấm
- * Hủy là object mồ côi trong bucket — rẻ hơn nhiều so với việc dựng thêm một bảng
- * + vòng đời "đã upload nhưng chưa gắn" chỉ để dọn vài tấm ảnh.
+ * Hủy được theo dõi tạm trong pv_image_uploads và tự dọn sau thời gian ân hạn.
  */
 class PvProductImageController extends Controller
 {
@@ -58,18 +60,24 @@ class PvProductImageController extends Controller
         path: '/api/v1/pv-admin/product-images',
         operationId: 'uploadPvProductImage',
         summary: 'PV Admin — tải ảnh sản phẩm App PV lên object storage',
-        description: 'Trả về URL công khai để gắn vào `images[]` của product-profiles.',
+        description: 'Upload file hoặc tải ảnh từ URL công khai về kho hệ thống. Trả về URL công khai để gắn vào `images[]` của product-profiles.',
         security: [['bearerAuth' => []]],
         tags: ['12. App PV'],
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\MediaType(
+            content: [new OA\MediaType(
                 mediaType: 'multipart/form-data',
                 schema: new OA\Schema(
                     required: ['file'],
                     properties: [new OA\Property(property: 'file', type: 'string', format: 'binary')]
                 )
-            )
+            ), new OA\MediaType(
+                mediaType: 'application/json',
+                schema: new OA\Schema(
+                    required: ['url'],
+                    properties: [new OA\Property(property: 'url', type: 'string', format: 'uri', maxLength: 4096)]
+                )
+            )]
         ),
         responses: [
             new OA\Response(response: 201, description: 'PvProductImage {url, storage_key, bytes, mime_type}'),
@@ -77,15 +85,33 @@ class PvProductImageController extends Controller
             new OA\Response(response: 422, description: 'VALIDATION_ERROR / ATTACHMENT_CONTENT_TYPE_INVALID / ATTACHMENT_MALWARE_DETECTED'),
         ]
     )]
-    public function store(Request $request)
+    public function store(Request $request, PvRemoteImageDownloader $downloader)
     {
         $maxBytes = (int) config('pv.image_max_bytes', 10 * 1024 * 1024);
 
         $request->validate([
-            'file' => ['required', 'file', 'max:'.(int) ceil($maxBytes / 1024)],
+            'file' => ['required_without:url', 'prohibits:url', 'file', 'max:'.(int) ceil($maxBytes / 1024)],
+            'url' => ['required_without:file', 'prohibits:file', 'string', 'max:4096'],
         ]);
 
-        $file = $request->file('file');
+        if ($request->hasFile('file')) {
+            return $this->storeFile($request, $request->file('file'));
+        }
+
+        $path = $downloader->download(trim($request->input('url')));
+        try {
+            // Remote names and Content-Type headers are untrusted; name by actual bytes.
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($path);
+            $extension = WarrantyAttachmentScanner::ALLOWED_MIME_EXTENSIONS[$mime][0] ?? 'bin';
+
+            return $this->storeFile($request, new UploadedFile($path, 'remote-image.'.$extension, null, null, true));
+        } finally {
+            unlink($path);
+        }
+    }
+
+    private function storeFile(Request $request, UploadedFile $file)
+    {
 
         // Kiểm MIME THẬT (magic bytes) trước mọi thứ khác: đổi tên `.php` thành
         // `.jpg` là cách tấn công đầu tiên người ta thử với mọi ô upload, và
@@ -117,6 +143,13 @@ class PvProductImageController extends Controller
         $stored = Storage::disk($disk)->putFileAs($prefix, $file, $key);
         if ($stored === false) {
             ApiError::abort(503, 'STORAGE_UNAVAILABLE', 'Không ghi được ảnh lên kho lưu trữ. Kiểm tra cấu hình bucket rồi thử lại.');
+        }
+
+        try {
+            app(PvImageLifecycle::class)->register($disk, $prefix.'/'.$key, self::publicUrl($key));
+        } catch (\Throwable $error) {
+            Storage::disk($disk)->delete($prefix.'/'.$key);
+            throw $error;
         }
 
         AuditLogger::record(

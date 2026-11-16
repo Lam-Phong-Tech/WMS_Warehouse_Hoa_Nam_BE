@@ -266,6 +266,7 @@ class PvCatalogImportService
     private function createImages(string $profileId, array $media): void
     {
         foreach ($media as $index => $entry) {
+            app(PvImageLifecycle::class)->claim($entry['url']);
             DB::table('pv_product_images')->insert([
                 'id' => (string) Str::uuid(),
                 'profile_id' => $profileId,
