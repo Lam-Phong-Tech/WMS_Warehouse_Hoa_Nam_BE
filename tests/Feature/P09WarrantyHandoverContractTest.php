@@ -10,6 +10,7 @@ use Modules\Auth\Models\Permission;
 use Modules\Auth\Models\Role;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Models\Sku;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Feature\Concerns\InteractsWithBrowserSession;
 use Tests\TestCase;
 
@@ -107,6 +108,60 @@ final class P09WarrantyHandoverContractTest extends TestCase
         ]);
         $ok = $this->patchWith($token, $caseId, $payload, 4, 'p09-posted-'.Str::lower(Str::random(10)), (string) Str::uuid());
         $ok->assertOk()->assertJsonPath('data.receipt.state', 'SUCCEEDED');
+    }
+
+    public static function componentIssueHandoverCases(): array
+    {
+        $cases = [];
+        foreach (['back-office', 'mini-app'] as $route) {
+            foreach (['POSTED' => true, 'CANCELLED' => true, 'DRAFT' => false] as $status => $allowed) {
+                $cases[$route.' posted with '.$status] = [$route, $status, $allowed];
+            }
+        }
+
+        return $cases;
+    }
+
+    #[DataProvider('componentIssueHandoverCases')]
+    public function test_handover_ignores_cancelled_issues_but_requires_active_issues_posted(string $route, string $status, bool $allowed): void
+    {
+        $warehouse = $this->ensureActiveWarehouse('P09-HANDOVER');
+        [$actor] = $this->actor((string) $warehouse->id);
+        $token = $this->sessionToken($actor, $warehouse);
+        $caseId = $this->createCase($token, $warehouse);
+        $this->patchStep($token, $caseId, ['status' => 'CHECKING', 'warehouse_id' => $warehouse->id], 1);
+        $this->patchStep($token, $caseId, ['status' => 'REPAIRING', 'confirmed_defect' => 'Da sua', 'warehouse_id' => $warehouse->id], 2);
+        $this->patchStep($token, $caseId, ['status' => 'COMPLETED', 'note' => 'Da sua xong', 'warehouse_id' => $warehouse->id], 3);
+
+        foreach (['POSTED', $status] as $issueStatus) {
+            DB::table('component_issue_documents')->insert([
+                'id' => (string) Str::uuid(), 'component_issue_no' => 'HANDOVER-'.Str::upper(Str::random(8)),
+                'warehouse_id' => (string) $warehouse->id, 'warranty_case_id' => $caseId,
+                'document_date' => now()->toDateString(), 'status' => $issueStatus,
+                'created_at' => now(), 'version' => 1,
+            ]);
+        }
+        $movementCount = DB::table('stock_movements')->count();
+        $body = ['status' => 'RETURNED', 'warehouse_id' => (string) $warehouse->id,
+            'receiver' => 'Nguoi nhan', 'handover_date' => now()->toDateString(),
+            'handover_checked' => true, 'note' => 'Khach da kiem tra va ky nhan'];
+        $path = $route === 'mini-app' ? '/api/v1/mini-app/warranty-cases/' : '/api/v1/warranty-cases/';
+        $response = $this->patchJson($path.$caseId, $body, $this->headers($token) + [
+            'If-Match' => '4', 'Idempotency-Key' => (string) Str::uuid(), 'X-Request-ID' => (string) Str::uuid(),
+        ]);
+
+        if ($allowed) {
+            $response->assertOk();
+            $this->assertDatabaseHas('warranty_handovers', ['warranty_case_id' => $caseId]);
+        } else {
+            $response->assertStatus(409)->assertJsonPath('error.code', 'WARRANTY_COMPONENT_ISSUES_NOT_POSTED');
+            $this->assertDatabaseCount('warranty_handovers', 0);
+        }
+        $this->assertDatabaseHas('warranty_case', [
+            'warranty_case_id' => $caseId, 'status' => $allowed ? 'RETURNED' : 'COMPLETED',
+            'version' => $allowed ? 5 : 4,
+        ]);
+        $this->assertSame($movementCount, DB::table('stock_movements')->count());
     }
 
     public function test_tracked_rejection_is_a_durable_native_failure_not_a_successful_shift_request(): void

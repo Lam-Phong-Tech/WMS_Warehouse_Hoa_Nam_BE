@@ -949,7 +949,7 @@ class CurrentBaselineWarrantyController extends CurrentBaselineOperationsControl
             ApiError::abort(409, 'WARRANTY_COMPONENT_ISSUE_SCOPE_MISMATCH', 'Có phiếu linh kiện không thuộc kho sở hữu hồ sơ.');
         }
         $notPosted = (clone $linked)->where(function ($query): void {
-            $query->whereNull('status')->orWhere('status', '!=', 'POSTED');
+            $query->whereNull('status')->orWhereNotIn('status', ['POSTED', 'CANCELLED']);
         })->count();
         if ($notPosted > 0) {
             ApiError::abort(409, 'WARRANTY_COMPONENT_ISSUES_NOT_POSTED', 'Mọi phiếu linh kiện phải POSTED trước khi bàn giao.', [
