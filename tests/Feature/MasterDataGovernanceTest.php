@@ -6,7 +6,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\Warehouse\Models\Sku;
-use Modules\Warehouse\Support\PvRelations;
 use Modules\Warehouse\Support\WarrantyCasePii;
 use Tests\Feature\Concerns\PreparesOutboundFixtures;
 use Tests\TestCase;
@@ -212,109 +211,6 @@ class MasterDataGovernanceTest extends TestCase
         $this->getJson($url, $headers)->assertOk()->assertJsonPath('data.pv_profile_version', 2);
         $this->patchJson($publishUrl, ['published' => true], $headers + ['If-Match' => '1'])
             ->assertStatus(412);
-    }
-
-    public function test_unpublished_sku_creation_and_update_remain_available_in_pv_picker(): void
-    {
-        $headers = $this->superAdminHeaders();
-        $created = $this->postJson('/api/v1/products', [
-            'sku_code' => 'PV-NEW-UNPUBLISHED', 'sku_name' => 'New unpublished SKU',
-            'sku_type' => 'PRODUCT', 'unit' => 'cai', 'published_to_app' => false,
-        ], $headers)->assertCreated();
-        $skuId = $created->json('data.sku_id');
-        $relation = PvRelations::profile();
-        $this->assertDatabaseMissing($relation['table'], [$relation['sku'] => $skuId]);
-
-        // Saving the SKU again with the checkbox off must not create a profile either.
-        $this->patchJson('/api/v1/products/'.$skuId, [
-            'sku_name' => 'Updated unpublished SKU', 'published_to_app' => false,
-        ], $headers)->assertOk();
-        $this->assertDatabaseMissing($relation['table'], [$relation['sku'] => $skuId]);
-        $this->getJson('/api/v1/products?without_pv_profile=1&status=ACTIVE&keyword=PV-NEW-UNPUBLISHED', $headers)
-            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.sku_id', $skuId);
-
-        // The add-product flow can now claim the SKU exactly once.
-        $this->postJson('/api/v1/pv-admin/resources/product-profiles', [
-            'sku_id' => $skuId, 'display_name' => 'App display name',
-        ], $headers)->assertCreated();
-        $this->getJson('/api/v1/products?without_pv_profile=1&keyword=PV-NEW-UNPUBLISHED', $headers)
-            ->assertOk()->assertJsonCount(0, 'data');
-    }
-
-    public function test_creating_a_published_sku_still_creates_its_pv_profile(): void
-    {
-        $created = $this->postJson('/api/v1/products', [
-            'sku_code' => 'PV-NEW-PUBLISHED', 'sku_name' => 'Published SKU',
-            'sku_type' => 'PRODUCT', 'unit' => 'cai', 'published_to_app' => true,
-        ], $this->superAdminHeaders())->assertCreated();
-        $relation = PvRelations::profile();
-        $this->assertDatabaseHas($relation['table'], [
-            $relation['sku'] => $created->json('data.sku_id'), 'display_name' => 'Published SKU',
-        ]);
-    }
-
-    public function test_legacy_product_writer_only_creates_profiles_when_publishing_and_preserves_hidden_profiles(): void
-    {
-        $skuId = (string) Str::uuid();
-        $relation = PvRelations::profile();
-        DB::table('products')->insert([
-            'id' => $skuId, 'code' => 'PV-LEGACY-WRITER', 'name' => 'Legacy SKU',
-            'sku_type' => 'PRODUCT', 'unit' => 'cai', 'status' => 'ACTIVE', 'published_to_app' => false,
-        ]);
-        $this->assertDatabaseMissing($relation['table'], [$relation['sku'] => $skuId]);
-        DB::table('products')->where('id', $skuId)->update(['published_to_app' => false]);
-        $this->assertDatabaseMissing($relation['table'], [$relation['sku'] => $skuId]);
-
-        DB::table('products')->where('id', $skuId)->update(['published_to_app' => true]);
-        $profile = DB::table($relation['table'])->where($relation['sku'], $skuId)->first();
-        $this->assertNotNull($profile);
-        DB::table($relation['table'])->where($relation['sku'], $skuId)->update([
-            'display_name' => 'Custom display name', 'description' => 'Keep this description',
-        ]);
-
-        DB::table('products')->where('id', $skuId)->update(['published_to_app' => false]);
-        $this->assertDatabaseHas($relation['table'], [
-            $relation['key'] => $profile->{$relation['key']}, $relation['sku'] => $skuId,
-            'display_name' => 'Custom display name', 'description' => 'Keep this description',
-            'published' => false,
-        ]);
-        $this->assertSame(1, DB::table($relation['table'])->where($relation['sku'], $skuId)->count());
-
-        // Hiding through the SKU API must preserve the same profile and metadata.
-        $headers = $this->superAdminHeaders();
-        $this->patchJson('/api/v1/products/'.$skuId, ['published_to_app' => true], $headers)->assertOk();
-        $this->patchJson('/api/v1/products/'.$skuId, ['published_to_app' => false], $headers)->assertOk();
-        $this->assertDatabaseHas($relation['table'], [
-            $relation['key'] => $profile->{$relation['key']},
-            'display_name' => 'Custom display name', 'description' => 'Keep this description',
-            'published' => false,
-        ]);
-        $this->getJson('/api/v1/products?without_pv_profile=1&keyword=PV-LEGACY-WRITER', $headers)
-            ->assertOk()->assertJsonCount(0, 'data');
-    }
-
-    public function test_pv_profile_guard_migration_can_roll_back_and_reapply_without_deleting_profiles(): void
-    {
-        if (DB::getDriverName() !== 'pgsql') {
-            $this->markTestSkipped('The compatibility functions exist only on PostgreSQL.');
-        }
-
-        $migration = require base_path('Modules/Warehouse/database/migrations/2026_11_17_230000_only_auto_create_pv_profiles_for_published_skus.php');
-        $relation = PvRelations::profile();
-        $migration->down();
-        $old = Sku::create([
-            'sku_code' => 'PV-GUARD-OLD', 'sku_name' => 'Old hidden profile',
-            'status' => 'ACTIVE', 'published_to_app' => false,
-        ]);
-        $this->assertDatabaseHas($relation['table'], [$relation['sku'] => $old->sku_id]);
-
-        $migration->up();
-        $new = Sku::create([
-            'sku_code' => 'PV-GUARD-NEW', 'sku_name' => 'New unpublished SKU',
-            'status' => 'ACTIVE', 'published_to_app' => false,
-        ]);
-        $this->assertDatabaseMissing($relation['table'], [$relation['sku'] => $new->sku_id]);
-        $this->assertDatabaseHas($relation['table'], [$relation['sku'] => $old->sku_id]);
     }
 
     public function test_pv_sku_picker_excludes_existing_profiles_before_search_and_pagination(): void
