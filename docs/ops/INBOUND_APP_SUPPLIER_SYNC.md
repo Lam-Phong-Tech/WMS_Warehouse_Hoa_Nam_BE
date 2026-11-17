@@ -6,7 +6,7 @@
 
 Run against the explicitly selected environment only. For the 2026-11-17 DEV operation, the target is `hoa_nam_dev-backend-1`, never a production container.
 
-1. Take an encrypted logical backup outside source control and verify its restore catalogue. Apply only the reviewed `2026_11_17_000100_allow_verified_posted_inbound_supplier_repair` migration and create the trusted DEV migration receipt for the exact target build SHA.
+1. Take an encrypted logical backup outside source control and verify its restore catalogue. Apply only the reviewed `2026_11_17_000100_allow_verified_posted_inbound_supplier_repair` and `2026_11_17_000200_skip_erd_mirror_for_scoped_supplier_repair` migrations and create the trusted DEV migration receipt for the exact target build SHA and current base release.
 2. Deploy the tested backend build via the existing DEV release pipeline. Verify the live health build SHA.
 3. Run `php artisan inbound:sync-suppliers` (dry-run, no changes). Inspect `summary` and eligible/conflicting rows.
 4. Create a private operator-owned report directory, then run `php artisan inbound:sync-suppliers --apply --report=/absolute/private/path/apply.json`.
@@ -16,6 +16,8 @@ Run against the explicitly selected environment only. For the 2026-11-17 DEV ope
 Report creation/flush failure before commit rolls back all changes. A postcommit sidecar/cache error returns failure with an explicit `Database committed` message; inspect the primary prepared report and current database before retrying. Never assume failure means rollback. A rerun uses a new report filename and never overwrites headers or prior evidence.
 
 POSTED receipts remain protected by their database trigger. The command sets a transaction-local repair flag; the guard permits only a NULL-to-exact-metadata supplier change with all other row fields identical. The flag alone cannot replace existing suppliers, alter notes/quantities/status/versions or delete posted receipts. Never disable the trigger for reconciliation.
+
+The scoped ERD mirror early exit is also required for historical rows: supplier_id is not part of the legacy projections. A supplier-only repair must leave existing mirror timestamps unchanged even if their historical timezone interpretation differs from the current connection. Ordinary app updates continue through the original mirror bodies.
 
 ## Recovery
 

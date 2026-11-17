@@ -43,6 +43,7 @@
 - [ ] Add dry-run/apply/idempotency/conflict/report-failure tests and verify failing behavior.
 - [ ] Implement guarded transactional reconciliation, durable report and cache version invalidation; preserve all business fields.
 - [ ] Verify the POSTED repair guard on PostgreSQL: without transaction-local scope, with wrong supplier, with other field changes, after initial repair and on DELETE it must continue rejecting writes.
+- [ ] Verify supplier-only repair leaves ERD mirrors unchanged across UTC-to-Asia/Ho_Chi_Minh session changes; add the scoped mirror early-exit migration, preserving every ordinary app path.
 - [ ] Run focused tests, formatting, full suite and stock-write guard; obtain independent code review and commit.
 
 ### Task 3: DEV delivery and evidence

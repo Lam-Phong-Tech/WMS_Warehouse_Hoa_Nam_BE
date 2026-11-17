@@ -747,6 +747,35 @@ class P04InboundContractTest extends TestCase
         $this->assertDatabaseHas('stock_documents', ['id' => $id, 'supplier_id' => $supplier, 'status' => 'POSTED']);
     }
 
+    public function test_supplier_repair_preserves_legacy_mirrors_across_session_timezone_changes(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('PostgreSQL legacy timestamp projection contract.');
+        }
+        DB::statement("SET LOCAL TIME ZONE 'UTC'");
+        [, $token, , $warehouse] = $this->actor();
+        $supplier = $this->supplierRow($warehouse, 'Historical timezone supplier');
+        $id = $this->recordSupplierReceipt($token, $warehouse, $supplier);
+        DB::table('stock_documents')->where('id', $id)->update(['supplier_id' => null, 'status' => 'POSTED']);
+        DB::statement("SET LOCAL TIME ZONE 'Asia/Ho_Chi_Minh'");
+        $mirror = (array) DB::table('inbound_documents')->where('id', $id)->first();
+        $lines = DB::table('inbound_lines')->where('inbound_document_id', $id)->orderBy('id')->get()->toJson();
+        $report = sys_get_temp_dir().'/inbound-supplier-tz-'.Str::uuid().'.json';
+        try {
+            $this->artisan('inbound:sync-suppliers', ['--apply' => true, '--report' => $report])->assertSuccessful();
+            $this->assertDatabaseHas('stock_documents', ['id' => $id, 'supplier_id' => $supplier, 'status' => 'POSTED']);
+            $this->assertSame($mirror, (array) DB::table('inbound_documents')->where('id', $id)->first());
+            $this->assertSame($lines, DB::table('inbound_lines')->where('inbound_document_id', $id)->orderBy('id')->get()->toJson());
+        } finally {
+            foreach ([$report, $report.'.result.json'] as $path) {
+                if (is_file($path)) {
+                    unlink($path);
+                }
+            }
+            DB::statement("SET LOCAL TIME ZONE 'UTC'");
+        }
+    }
+
     private function assertPostedGuardRejects(\Closure $operation): void
     {
         try {

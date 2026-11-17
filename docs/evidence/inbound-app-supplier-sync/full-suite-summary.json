@@ -1,0 +1,1165 @@
+{
+  "summary": "Tests: 3120, Assertions: 53536, Errors: 234, Failures: 37, Skipped: 64, Risky: 6.",
+  "issues": [
+    {
+      "test": "Tests\\Feature\\Wwhn165AuthzDenyAuditProofTest",
+      "first_detail": "RuntimeException: Kh\u00f4ng ghi \u0111\u01b0\u1ee3c sample: /var/www/html/build/evidence/wwhn-165/samples/401_UNAUTHENTICATED.json\n\n/var/www/html/tests/Feature/Wwhn165AuthzDenyAuditProofTest.php:77"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn193PutawayAuditFailClosedTest",
+      "first_detail": "RuntimeException: Kh\u00f4ng ghi \u0111\u01b0\u1ee3c evidence: /var/www/html/build/evidence/wwhn-193/audit-fail-closed-proof-sqlite.json\n\n/var/www/html/tests/Feature/Wwhn193PutawayAuditFailClosedTest.php:201"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn193PutawayDependencyChainTest",
+      "first_detail": "RuntimeException: Kh\u00f4ng ghi \u0111\u01b0\u1ee3c evidence: /var/www/html/build/evidence/wwhn-193/dependency-chain-proof.json\n\n/var/www/html/tests/Feature/Wwhn193PutawayDependencyChainTest.php:53"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn193PutawayRetryRecoveryContractTest",
+      "first_detail": "RuntimeException: Kh\u00f4ng ghi \u0111\u01b0\u1ee3c evidence: /var/www/html/build/evidence/wwhn-193/retry-recovery-proof.json\n\n/var/www/html/tests/Feature/Wwhn193PutawayRetryRecoveryContractTest.php:56"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest::test_area_no_negative_second_issue_on_shared_balance_is_rejected_422",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-214/qa-retest-raw-api-db.sqlite.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest::test_area_duplicate_retry_same_key_one_effect_and_conflict_on_payload_change",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-214/qa-retest-raw-api-db.sqlite.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest::test_area_concurrency_precondition_stale_state_guards_block_every_conflicting_write",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-214/qa-retest-raw-api-db.sqlite.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest::test_area_rollback_injected_failure_reverts_all_and_retry_succeeds",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-214/qa-retest-raw-api-db.sqlite.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest::test_area_rbac_anonymous_and_unpermitted_actor_cannot_post",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-214/qa-retest-raw-api-db.sqlite.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest::test_area_append_only_ledger_rejects_raw_update_and_delete_at_db_level",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-214/qa-retest-raw-api-db.sqlite.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest::test_area_reconciliation_delta_is_zero_after_full_cycle",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-214/qa-retest-raw-api-db.sqlite.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn217RuntimeErrorContractTest",
+      "first_detail": "RuntimeException: Kh\u00f4ng ghi \u0111\u01b0\u1ee3c evidence: /var/www/html/build/evidence/wwhn-217/runtime-error-contract.json\n\n/var/www/html/tests/Feature/Wwhn217RuntimeErrorContractTest.php:148"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_017_positive_component_issue_post_decrements_stock_exactly_once",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_018_negative_partial_scan_is_rejected_without_stock_effect",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_019_permission_role_without_component_issue_cannot_post",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_020_invalid_state_reposting_a_posted_document_is_rejected",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_021_retry_same_key_produces_exactly_one_stock_effect",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_022_same_key_with_different_payload_is_rejected",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_023_concurrency_two_documents_racing_the_same_balance",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_tc_p1_024_rollback_injected_failure_reverts_document_movement_and_balance",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest::test_ledger_balance_and_reconciliation_delta_is_zero_after_component_issue",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-core-transaction.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest::test_tc_rev_ci_01_positive_reversal_restores_stock_and_keeps_original_immutable",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-reversal.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest::test_tc_rev_ci_02_pending_return_holds_stock_until_confirm_then_post",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-reversal.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest::test_tc_rev_ci_03_defective_return_does_not_restore_available_bucket",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-reversal.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest::test_tc_rev_ci_04_over_reversal_is_rejected",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-reversal.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest::test_tc_rev_ci_05_idempotency_replay_and_conflict",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-reversal.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest::test_tc_rev_ci_06_permission_and_precondition_contract",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-reversal.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest::test_tc_rev_ci_07_reversal_movement_is_not_a_reversible_source",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-reversal.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn266ComponentIssueReversalTest::test_tc_rev_ci_08_ledger_reconciles_with_balance_after_reversal",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-266/component-issue-reversal.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn289SecurityRegressionProofTest",
+      "first_detail": "RuntimeException: Kh\u00f4ng ghi \u0111\u01b0\u1ee3c evidence: /var/www/html/build/evidence/wwhn-289/security-regression-proof.json\n\n/var/www/html/tests/Feature/Wwhn289SecurityRegressionProofTest.php:87"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn289StockInvariantProofTest",
+      "first_detail": "RuntimeException: Kh\u00f4ng ghi \u0111\u01b0\u1ee3c evidence: /var/www/html/build/evidence/wwhn-289/stock-invariant-proof.json\n\n/var/www/html/tests/Feature/Wwhn289StockInvariantProofTest.php:97"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn290ClosureEvidenceTest::test_gate_run_record_dispositions_failed_project_checks",
+      "first_detail": "ErrorException: file_get_contents(/var/www/html/.github/workflows/wwhn-290-closure.yml): Failed to open stream: No such file or directory\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn299CutoverRehearsalEvidenceTest::test_cutover_rehearsal_produces_retrievable_evidence",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/build/evidence/wwhn-299/01-dry-run.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_a_wrong_permission_on_a_write_route_fails_the_pinned_contract",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/database/golive/wwhn-300-temporary-route-contract.php): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_dry_run_cost_scales_with_row_count_up_to_the_approved_limit",
+      "first_detail": "ErrorException: file_put_contents(/var/www/html/docs/evidence/WWHN-330/BENCHMARK_RAW.json): Failed to open stream: Permission denied\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php:263"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_one_row_over_the_approved_limit_is_rejected_at_exactly_the_boundary",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_sparse_file_at_the_limit_still_imports_every_data_row",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_real_commit_at_the_approved_limit_writes_every_row",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_oversized_file_is_rejected_without_reading_the_whole_workbook",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_file_size_ceiling_is_enforced_from_the_contract",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_lock_timeout_refuses_the_import_instead_of_running_without_the_lock",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_lock_timeout_is_surfaced_as_409_concurrency_conflict_with_the_contract",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_fail_open_remains_possible_but_only_as_an_explicit_written_decision",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_service_level_file_size_ceiling_reads_the_contract_not_a_hard_coded_10mb",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_service_level_extension_whitelist_reads_the_contract",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_physical_scan_policy_comes_from_the_contract_and_rejects_explicitly",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_constraints_publish_the_scan_retention_and_concurrency_policies",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_error_file_follows_the_srs_13_12_schema_with_severity_and_suggested_action",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_error_file_masks_values_that_look_like_personal_data",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_expired_error_file_is_removed_from_disk_and_the_purge_run_is_audited",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_purge_is_idempotent_and_dry_run_changes_nothing",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_unexpired_error_file_is_kept",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_orphan_error_file_with_no_report_row_is_swept_after_retention",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportR3ClosureTest::test_orphan_sweep_never_touches_a_file_still_inside_its_retention",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportResidualHardeningTest::test_blank_rows_interleaved_do_not_silently_truncate_valid_data_rows",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportResidualHardeningTest::test_rows_beyond_physical_scan_cap_are_rejected_explicitly_not_dropped",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportResidualHardeningTest::test_commit_import_is_serialized_by_actor_file_checksum_and_options_lock",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportResidualHardeningTest::test_dry_run_does_not_take_the_commit_lock",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportContractClosureTest::test_same_file_with_a_different_update_existing_option_is_not_a_replay",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportContractClosureTest::test_same_file_with_the_same_options_is_still_an_idempotent_replay",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportContractClosureTest::test_replay_identity_is_reproducible_from_the_documented_canonical_string",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportContractClosureTest::test_every_import_response_carries_the_approved_constraints_contract",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportContractClosureTest::test_row_limit_is_enforced_from_the_contract_not_a_hard_coded_number",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportContractClosureTest::test_report_list_meta_exposes_constraints_and_effective_data_scope",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportContractClosureTest::test_warehouse_scoped_actor_cannot_read_or_download_another_actors_import_report",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportContractClosureTest::test_missing_sku_manage_is_still_rejected_before_data_scope",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_a_second_commit_is_refused_while_the_first_is_still_inside_its_import",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_a_live_claim_left_by_another_process_refuses_the_import_even_when_the_cache_lock_succeeds",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_fail_open_configuration_cannot_bypass_the_durable_claim",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_a_broken_cache_backend_neither_fails_the_request_nor_removes_the_guarantee",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_a_claim_only_blocks_the_same_options_fingerprint",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_an_expired_claim_is_taken_over_and_the_takeover_is_logged",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_claim_ttl_can_never_be_configured_below_twice_the_approved_commit_budget",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_the_claim_is_released_after_success_and_after_failure",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_releasing_only_removes_the_claim_this_request_owns",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn331ImportDurableClaimTest::test_the_published_contract_names_the_durable_guard_not_just_the_timeout_policy",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn340WarrantyListFilterTest::test_loc_nhan_dien_chi_tra_ve_dung_loai_da_chon",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn340WarrantyListFilterTest::test_loc_benh_loi_khop_ca_benh_chinh_lan_benh_phu",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn340WarrantyListFilterTest::test_hai_bo_loc_ket_hop_theo_dung_logic_va",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn340WarrantyListFilterTest::test_bo_loc_khong_bi_o_tim_kiem_vo_hieu_hoa",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn340WarrantyListFilterTest::test_tong_so_dong_theo_dung_bo_loc_khi_phan_trang",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn340WarrantyListFilterTest::test_controller_khong_duoc_gac_bo_loc_bang_has_column",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn343ReportExportStalledJobTest::test_pending_job_without_queue_worker_completes_on_next_poll",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn343ReportExportStalledJobTest::test_download_endpoint_also_rescues_a_forgotten_job",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn343ReportExportStalledJobTest::test_pending_job_fails_loudly_when_inline_fallback_is_disabled",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn343ReportExportStalledJobTest::test_processing_job_abandoned_by_a_dead_worker_is_failed",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn343ReportExportStalledJobTest::test_processing_job_within_timeout_is_left_alone",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn343ReportExportStalledJobTest::test_claim_is_atomic_so_a_job_never_runs_twice",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn343ReportExportStalledJobTest::test_queue_failure_hook_records_error_on_the_job_row",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn343ReportExportStalledJobTest::test_scheduled_reaper_resolves_jobs_nobody_is_polling",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn344ImportMatchExportFormatTest::test_pdf_export_job_delivers_a_real_pdf_not_an_xlsx",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn344ImportMatchExportFormatTest::test_xlsx_export_job_still_delivers_a_real_xlsx",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn344ImportMatchExportFormatTest::test_pdf_export_beyond_the_cell_budget_fails_loudly_instead_of_hanging",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn344ImportMatchExportFormatTest::test_xlsx_is_not_subject_to_the_pdf_limits",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn344ImportMatchExportFormatTest::test_pdf_row_limit_tightens_for_the_22_column_table",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn344ImportMatchExportFormatTest::test_export_row_count_follows_the_screen_filters",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn345PackingLabelExportFormatTest::test_pdf_export_job_delivers_a_real_pdf_not_an_xlsx",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn345PackingLabelExportFormatTest::test_xlsx_export_job_still_delivers_a_real_xlsx",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn345PackingLabelExportFormatTest::test_pdf_export_beyond_row_limit_fails_loudly_instead_of_hanging",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn345PackingLabelExportFormatTest::test_xlsx_is_not_subject_to_the_pdf_row_limit",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn345PackingLabelExportFormatTest::test_pdf_row_limit_tightens_for_wide_tables",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn346WarrantyExportFormatTest::test_job_nen_format_pdf_sinh_ra_file_pdf_that",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn346WarrantyExportFormatTest::test_job_nen_format_xlsx_van_sinh_ra_file_xlsx",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn346WarrantyExportFormatTest::test_chay_trong_boi_canh_worker_guard_rong_van_hoan_tat",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn346WarrantyExportFormatTest::test_guard_khong_giu_lai_actor_cua_job_vua_chay",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn346WarrantyExportFormatTest::test_actor_khong_ton_tai_thi_that_bai_co_ma_loi_ro_rang",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn346WarrantyExportFormatTest::test_ca_hai_duong_xuat_bao_hanh_deu_gac_tran_dong_pdf",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn346WarrantyExportFormatTest::test_nhanh_aligned_tu_nang_tran_bo_nho",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_pdf_over_the_row_limit_aborts_with_a_coded_422",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_pdf_within_the_row_limit_is_not_blocked",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_failed_job_always_carries_a_non_empty_error_message",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_memory_ceiling_is_never_lowered",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_empty_memory_setting_is_a_no_op",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_to_bytes_understands_php_ini_units",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_report_writers_do_not_use_autosize",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_byte_builders_keep_the_memory_and_pdf_guards",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn347ReportExportMemoryTest::test_runner_arms_the_fatal_guard",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_with_unknown_code_value_is_rejected",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_with_inactive_code_value_is_rejected",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_rejects_mismatched_item_id_and_code_value",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_rejects_item_belonging_to_different_sku",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_rejects_item_not_in_stock",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_serial_tracked_line_rejects_quantity_greater_than_one",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_product_line_without_item_is_rejected",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_rejects_quantity_exceeding_line_required_qty",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_scan_code_value_resolves_via_item_instances_fallback_when_physical_code_unassigned_type",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_outbound_request_intake_resolves_a_valid_sku_code_when_the_submitted_id_is_stale",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_outbound_request_intake_rejects_mismatched_sku_id_and_code",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest::test_outbound_request_intake_rejects_component_sku_request",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec05DataTransportTest::test_sslmode_mac_dinh_la_prefer_o_local_va_require_ngoai_local",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec05DataTransportTest::test_app_env_go_sai_van_bi_siet_nhu_production",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec05DataTransportTest::test_redis_context_la_null_khi_chua_bat_tls",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec05DataTransportTest::test_bat_redis_tls_thi_co_scheme_va_xac_thuc_chung_chi",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec05DataTransportTest::test_golive_gate_tu_choi_khi_tang_du_lieu_con_plaintext",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec05DataTransportTest::test_golive_gate_chap_nhan_khi_da_bat_tls_hai_ben",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec05DataTransportTest::test_require_khong_kem_ca_chi_la_canh_bao",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_pii_khong_con_ton_tai_o_dang_ro_trong_csdl",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_ung_dung_van_doc_lai_dung_gia_tri_da_ma_hoa",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_blind_index_van_tra_cuu_duoc_moi_cach_go_so_dien_thoai",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_blind_index_khong_phai_bam_tran_va_doi_theo_khoa",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_ciphertext_chep_sang_cot_khac_thi_khong_dung_duoc",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_khong_co_khoa_thi_khong_giai_ma_duoc",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_xoay_khoa_khong_lam_mat_du_lieu_cu",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_serialize_model_khong_lam_ro_ri_pii",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06PiiEncryptionTest::test_gia_tri_rong_khong_sinh_ra_ciphertext",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_cot_plaintext_khong_con_ton_tai_trong_schema",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_pii_khong_xuat_hien_o_dang_ro_trong_csdl",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_ung_dung_doc_lai_dung_gia_tri",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_giai_ma_xong_thi_go_bo_cot_ky_thuat",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_tim_theo_so_dien_thoai_moi_cach_go",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_tim_theo_ten_khong_dau_va_hep_lai_khi_go_them_tu",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_mat_khoa_thi_khong_doc_duoc_du_lieu",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_encode_khong_dung_cham_vao_truong_khong_duoc_gui",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_khong_con_truy_van_nao_doc_cot_plaintext",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec06WarrantyPiiTest::test_moi_lenh_ghi_warranty_case_deu_di_qua_encode",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_khop_vector_kiem_thu_cua_rfc_6238",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_base32_di_va_ve_khong_mat_du_lieu",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_cua_so_thoi_gian_chap_nhan_lech_dong_ho_mot_buoc",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_bi_mat_totp_khong_nam_o_dang_ro_trong_csdl",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_dang_ky_chua_xac_nhan_thi_chua_duoc_coi_la_da_bat",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_mat_khau_dung_nhung_chua_qua_mfa_thi_khong_phat_token",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_hoan_tat_dang_nhap_hai_buoc",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_hoan_tat_dang_nhap_hai_buoc_tren_trinh_duyet_chi_nhan_refresh_token_qua_cookie",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_ma_phien_cho_chi_dung_duoc_mot_lan",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_ma_totp_da_dung_khong_dung_lai_duoc",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_ma_khoi_phuc_dung_duoc_mot_lan_va_bi_tieu_huy",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_ma_khoi_phuc_luu_o_dang_bam_chu_khong_phai_ma_hoa",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_do_ma_sai_lien_tuc_bi_khoa",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_vai_tro_dac_quyen_bi_chan_khi_chua_dang_ky_va_cuong_che_bat",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_van_goi_duoc_nhom_endpoint_mfa_khi_dang_bi_chan",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_vai_tro_thuong_khong_bi_bat_buoc_mfa",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_khoa_tai_khoan_giua_hai_buoc_thi_khong_phat_token",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec08MfaTest::test_route_buoc_hai_duoc_khai_la_public_va_van_co_throttle_rieng",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_jwt_chi_nhan_qua_authorization_header",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_vo_hieu_hoa_tai_khoan_thu_hoi_moi_refresh_token_dang_song",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_published_to_app_doi_quyen_pv_publish_o_moi_duong_ghi_sku",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_thao_tac_chung_tu_dinh_kem_phai_khop_quyen_voi_loai_phieu",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_prune_refresh_tokens_xoa_token_chet_qua_cua_so_luu_vet",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_log_ung_dung_che_credential_trong_context_va_jwt_trong_message",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_cookie_refresh_va_session_bat_buoc_secure_ngoai_local_testing",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_audit_che_cac_khoa_credential_moi",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_scope_ref_khi_gan_vai_tro_phai_la_kho_co_that",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSec09HardeningTest::test_danh_sach_phieu_nhap_loc_theo_warehouse_scope",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_browser_login_delivers_the_refresh_token_only_in_an_httponly_cookie",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_login_without_any_origin_gets_an_access_token_but_no_refresh_capability",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_login_from_an_untrusted_origin_is_rejected_before_credentials_are_checked",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_cookie_login_accepts_a_cors_pattern_origin",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_cookie_login_accepts_the_effective_same_origin_behind_a_proxy",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_effective_origin_still_rejects_a_different_port_or_host",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_cookie_login_and_refresh_accept_browser_same_origin_when_internal_proxy_host_differs",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_sec_fetch_cross_site_never_bypasses_origin_allowlist",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_cookie_refresh_rotates_the_cookie_and_never_returns_a_token_in_json",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_cookie_refresh_requires_a_trusted_origin_and_a_blocked_attempt_does_not_end_the_session",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_browser_refresh_rejects_a_token_sent_from_javascript_in_the_body",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_replaying_a_rotated_token_revokes_the_whole_session_family",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_two_refreshes_with_the_same_token_never_leave_two_live_sessions",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_password_change_revokes_the_cookie_session_and_expires_the_cookie",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_a_locked_account_cannot_refresh_and_loses_every_session",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_body_transport_is_refused_unless_the_server_enables_it",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_an_unknown_transport_value_is_rejected",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_enabled_body_transport_serves_non_browser_clients_without_ever_touching_cookies",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_browser_origins_cannot_use_the_body_transport_even_when_it_is_enabled",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_every_session_route_carries_the_transport_gate",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecRefreshTokenTransportTest::test_no_controller_places_a_refresh_token_into_a_response_by_hand",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_refuses_to_run_without_an_email",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_fails_closed_when_the_secret_environment_variable_is_missing",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_rejects_a_weak_initial_password@too short with data ('Sh0rt#Pw')",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_rejects_a_weak_initial_password@single character class with data ('aaaaaaaaaaaaaaaaaaaaaaaaa')",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_rejects_a_weak_initial_password@contains the email local part with data ('First-Admin#2026-Secret')",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_rejects_a_credential_on_the_compromised_list",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_creates_exactly_one_super_admin_that_must_change_password_on_first_login",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_refuses_to_run_a_second_time_and_changes_nothing",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_still_refuses_when_the_only_super_admin_is_locked",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_never_takes_over_an_existing_account",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_generated_password_goes_only_to_a_new_private_file",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_it_never_overwrites_an_existing_password_file",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_outside_development_it_requires_explicit_confirmation",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest::test_first_login_forces_password_change_then_mfa_enrollment",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_authenticated_read_endpoint_is_rate_limited",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_rate_limit_headers_are_published_for_client_backoff",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_write_burst_does_not_lock_the_user_out_of_reads",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_public_pv_endpoints_are_not_double_counted",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_login_endpoint_keeps_its_own_failure_only_throttle",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_access_token_issued_before_password_change_is_rejected",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_token_within_the_same_second_is_the_documented_granularity_limit",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_token_issued_after_password_change_still_works",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_password_change_marker_is_not_in_the_future",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_security_headers_are_present_on_api_responses",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_security_headers_also_cover_error_responses",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_api_docs_are_disabled_on_production_by_default",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_api_docs_stay_available_outside_production",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_protected_endpoints_still_reject_anonymous_callers",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\WwhnSecurityHardeningTest::test_authenticated_user_without_permission_is_still_denied",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\ZzScratchSchemaDumpTest::test_dump",
+      "first_detail": "PDOException: There is already an active transaction\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Database/SQLiteConnection.php:38"
+    },
+    {
+      "test": "Tests\\Feature\\AuthorizationCoverageInvariantTest::test_moi_route_can_dang_nhap_deu_co_permission_hoac_duoc_khai_la_tu_scope",
+      "first_detail": "Route sau c\u00f3 auth:api nh\u01b0ng KH\u00d4NG c\u00f3 middleware permission: \u2014 m\u1ecdi t\u00e0i kho\u1ea3n \u0111\u00e3 \u0111\u0103ng nh\u1eadp \u0111\u1ec1u g\u1ecdi \u0111\u01b0\u1ee3c.\nTh\u00eam `->middleware('permission:<CODE>')`, ho\u1eb7c n\u1ebfu route th\u1ef1c s\u1ef1 t\u1ef1 gi\u1edbi h\u1ea1n theo user th\u00ec khai v\u00e0o\nPermissionEnforcementMap::SELF_SCOPED_ROUTES k\u00e8m l\u00fd do:"
+    },
+    {
+      "test": "Tests\\Feature\\DockerRuntimePermissionsGuardTest::test_deploy_workflow_runs_artisan_as_the_php_fpm_user",
+      "first_detail": "Thi\u1ebfu file h\u1ea1 t\u1ea7ng .github/workflows/hn-devops-ci-cd.yml.\nFailed asserting that false is true.\n"
+    },
+    {
+      "test": "Tests\\Feature\\DockerRuntimePermissionsGuardTest::test_deploy_workflow_asserts_runtime_ownership_after_restart",
+      "first_detail": "Thi\u1ebfu file h\u1ea1 t\u1ea7ng .github/workflows/hn-devops-ci-cd.yml.\nFailed asserting that false is true.\n"
+    },
+    {
+      "test": "Tests\\Feature\\DocumentationBaselineContractTest::test_api_surface_matches_current_baseline_and_forbidden_scope_is_absent",
+      "first_detail": "Failed asserting that actual size 472 matches expected size 457.\n\n/var/www/html/tests/Feature/DocumentationBaselineContractTest.php:55"
+    },
+    {
+      "test": "Tests\\Feature\\DocumentationBaselineContractTest::test_generated_swagger_has_route_parity_and_baseline_error_responses",
+      "first_detail": "Failed asserting that 472 is identical to 457.\n\n/var/www/html/tests/Feature/DocumentationBaselineContractTest.php:372"
+    },
+    {
+      "test": "Tests\\Feature\\MiniAppSelfServiceApiTest::test_chi_tiet_thong_bao_chi_chu_so_huu_doc_duoc_va_khong_tu_danh_dau_da_doc",
+      "first_detail": "Failed asserting that null is identical to 'warranty_case'.\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Testing/AssertableJsonString.php:243"
+    },
+    {
+      "test": "Tests\\Feature\\OutboundDocsAlignmentContractTest::test_outbound_request_read_api_and_lifecycle_are_wired",
+      "first_detail": "Failed asserting that '<?php\\n\n\\n\nuse Illuminate\\Support\\Facades\\Route;\\n"
+    },
+    {
+      "test": "Tests\\Feature\\OutboundDocumentFlowTest::test_direct_outbound_document_create_and_update_are_absent_from_api_surface",
+      "first_detail": "Expected response status code [405] but received 200.\nFailed asserting that 200 is identical to 405.\n"
+    },
+    {
+      "test": "Tests\\Feature\\P12MixedDocumentsTest::test_authenticated_v3_read_exposes_required_cache_dimensions",
+      "first_detail": "Expected response status code [200] but received 500.\nFailed asserting that 500 is identical to 200.\n"
+    },
+    {
+      "test": "Tests\\Feature\\P13NotificationRevision2Test::test_event_and_subject_mapping_is_exact_and_not_a_title_or_permission_inference",
+      "first_detail": "Failed asserting that null is identical to 'INBOUND'.\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Testing/AssertableJsonString.php:243"
+    },
+    {
+      "test": "Tests\\Feature\\P13NotificationRevision2Test::test_missing_warehouse_unknown_events_and_mismatched_ids_never_invent_navigation",
+      "first_detail": "Failed asserting that null is identical to '8432ff92-df90-40de-be76-ec064a94d1a6'.\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Testing/AssertableJsonString.php:243"
+    },
+    {
+      "test": "Tests\\Feature\\P23ReadContractTest::test_case_date_filter_precedes_total_and_timeline_latest_is_full_source",
+      "first_detail": "Failed asserting that 'P23 isolated test' is identical to null.\n\n/var/www/html/vendor/laravel/framework/src/Illuminate/Testing/AssertableJsonString.php:243"
+    },
+    {
+      "test": "Tests\\Feature\\SwaggerRouteSyncTest::test_generated_swagger_summaries_are_human_readable",
+      "first_detail": "Failed asserting that two arrays are identical.\n--- Expected\n+++ Actual"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn205InvariantClosureContractTest::test_register_pins_three_commit_roles_and_all_four_p1_items",
+      "first_detail": "P1-01R khai evidence kh\u00f4ng t\u1ed3n t\u1ea1i: .github/workflows/wwhn-205-invariant-gate.yml\nFailed asserting that file \"/var/www/html/.github/workflows/wwhn-205-invariant-gate.yml\" exists.\n"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn205InvariantClosureContractTest::test_postgres_diagnostic_workflow_is_not_dormant_again",
+      "first_detail": "Thi\u1ebfu artifact b\u1eaft bu\u1ed9c c\u1ee7a WWHN-205: .github/workflows/erd-postgres-diagnostic.yml\nFailed asserting that file \"/var/www/html/.github/workflows/erd-postgres-diagnostic.yml\" exists.\n"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn205InvariantClosureContractTest::test_gate_executes_concurrency_and_reconciliation_scripts_for_real",
+      "first_detail": "Thi\u1ebfu artifact b\u1eaft bu\u1ed9c c\u1ee7a WWHN-205: .github/workflows/wwhn-205-invariant-gate.yml\nFailed asserting that file \"/var/www/html/.github/workflows/wwhn-205-invariant-gate.yml\" exists.\n"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn224P1ClosureTest::test_generated_openapi_documents_the_permission_the_route_actually_enforces",
+      "first_detail": "OpenAPI c\u1ee7a get /api/v1/skus/import-reports/{id}/versions m\u00f4 t\u1ea3 quy\u1ec1n kh\u00e1c v\u1edbi quy\u1ec1n route th\u1ef1c thi (sku.manage).\nFailed asserting that 'Kh\u00f4ng c\u00f3 quy\u1ec1n truy c\u1eadp' [UTF-8](length: 29) contains \"sku.manage\" [ASCII](length: 10).\n"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn249PvSurfaceGovernanceTest::test_anonymous_api_surface_matches_the_declared_contract",
+      "first_detail": "M\u1eb7t c\u00f4ng khai \u0111\u00e3 \u0111\u1ed5i. Th\u00eam route \u1ea9n danh ph\u1ea3i k\u00e8m ngu\u1ed3n SRS v\u00e0 c\u1eadp nh\u1eadt:\n  - Wwhn249PvSurfaceGovernanceTest::DECLARED_ANONYMOUS_ROUTES\n  - scripts/generate-endpoint-permission-matrix.mjs PUBLIC_ALLOWLIST"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn267ContractClosureTest::test_no_undeclared_dual_status_code_appears",
+      "first_detail": "M\u00e3 d\u00f9ng nhi\u1ec1u h\u01a1n m\u1ed9t HTTP status m\u00e0 ch\u01b0a khai trong dualStatusCodes: {\"SOURCE_REQUEST_IMMUTABLE\":[422,409]}. M\u1ed7i m\u00e3 nh\u01b0 v\u1eady l\u00e0 m\u1ed9t ch\u1ed7 FE/QA ph\u1ea3i \u0111o\u00e1n, ph\u1ea3i c\u00f3 l\u00fd do t\u1ea7ng n\u00e0o d\u00f9ng status n\u00e0o.\nFailed asserting that two arrays are identical.\n--- Expected"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn273ReleaseSignoffContractTest::test_release_workflow_pins_the_exact_sha_migration_and_rollback_drill",
+      "first_detail": "Failed asserting that file \"/var/www/html/.github/workflows/wwhn-273-backend-release-signoff.yml\" exists.\n\n/var/www/html/tests/Feature/Wwhn273ReleaseSignoffContractTest.php:320"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn273ReleaseSignoffContractTest::test_release_workflow_runs_the_focused_suite_including_this_contract",
+      "first_detail": "Failed asserting that file \"/var/www/html/.github/workflows/wwhn-273-backend-release-signoff.yml\" exists.\n\n/var/www/html/tests/Feature/Wwhn273ReleaseSignoffContractTest.php:320"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn273ReleaseSignoffContractTest::test_release_workflow_smokes_the_served_runtime_and_rejects_the_legacy_health_path",
+      "first_detail": "Failed asserting that file \"/var/www/html/.github/workflows/wwhn-273-backend-release-signoff.yml\" exists.\n\n/var/www/html/tests/Feature/Wwhn273ReleaseSignoffContractTest.php:320"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn273ReleaseSignoffContractTest::test_release_workflow_smokes_auth_master_inbound_outbound_and_inventory",
+      "first_detail": "Failed asserting that file \"/var/www/html/.github/workflows/wwhn-273-backend-release-signoff.yml\" exists.\n\n/var/www/html/tests/Feature/Wwhn273ReleaseSignoffContractTest.php:320"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn273ReleaseSignoffContractTest::test_release_workflow_proves_no_stocktake_surface_on_the_served_runtime",
+      "first_detail": "Failed asserting that file \"/var/www/html/.github/workflows/wwhn-273-backend-release-signoff.yml\" exists.\n\n/var/www/html/tests/Feature/Wwhn273ReleaseSignoffContractTest.php:320"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn273ReleaseSignoffContractTest::test_release_workflow_always_records_gate_status_even_when_red",
+      "first_detail": "Failed asserting that file \"/var/www/html/.github/workflows/wwhn-273-backend-release-signoff.yml\" exists.\n\n/var/www/html/tests/Feature/Wwhn273ReleaseSignoffContractTest.php:320"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn273ReleaseSignoffContractTest::test_rc_pin_agrees_with_the_gate_and_names_the_observed_runs",
+      "first_detail": "Failed asserting that file \"/var/www/html/.github/workflows/wwhn-273-backend-release-signoff.yml\" exists.\n\n/var/www/html/tests/Feature/Wwhn273ReleaseSignoffContractTest.php:320"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn290ClosureEvidenceTest::test_frozen_candidate_is_pinned_and_immutable",
+      "first_detail": "Frozen package file is missing from the tree: .github/workflows/wwhn-290-closure.yml\nFailed asserting that file \"/var/www/html/.github/workflows/wwhn-290-closure.yml\" exists.\n"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_golive_check_passes_on_a_migrated_and_seeded_backend",
+      "first_detail": "Expected status code 0 but received 1.\nFailed asserting that 1 matches expected 0.\n"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_golive_check_emits_machine_readable_evidence_with_every_dimension",
+      "first_detail": "wms:golive-check ph\u1ea3i tho\u00e1t 0 \u1edf tr\u1ea1ng th\u00e1i s\u1eb5n s\u00e0ng.\nmigrations.reversible => {\"allowlist\":\"database/golive/fail_forward_allowlist.php\",\"dispositioned_count\":92,\"irreversible_count\":97,\"undispositioned\":{\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"},\"stale_allowlist_entries\":[],\"irreversible\":{\"2026_08_02_000002_safe_guard_products_to_sku_rename\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000410_drop_non_erd_unused_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000420_harden_latest_mvp_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000500_align_documented_schema_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000590_seed_canonical_masters_before_fk_hardening\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000600_enforce_current_erd_business_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000610_repoint_sku_to_canonical_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000630_repoint_scan_evidence_to_canonical_physical_codes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000640_materialize_putaway_events\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000650_align_container_subledger_quantity\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000660_finalize_current_baseline_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000665_backfill_legacy_container_physical_code_targets\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000670_align_identity_container_and_scan_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000680_align_putaway_and_container_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000690_complete_component_issue_storage_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000700_enforce_scan_evidence_storage_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000710_enforce_cross_aggregate_business_guards\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000720_enforce_all_documented_quantities_bigint\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000730_add_version_to_remaining_mutable_aggregates\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000740_verify_mutable_aggregate_version_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000760_align_erd_1_0_fields_types_and_data\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000766_backfill_structured_erd_payload_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007674_add_missing_defect_catalog_runtime_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007675_prepare_defect_catalog_canonical_key\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000767_complete_import_batch_runtime_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000768_sync_defect_catalog_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007695_prepare_all_canonical_erd_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007697_backfill_iam_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007698_backfill_warranty_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000769_remove_superseded_label_print_event_status_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000772_promote_documented_canonical_primary_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000773_sync_warranty_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000774_sync_iam_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000780_enforce_cross_table_erd_business_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000781_enable_putaway_history_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000782_enforce_item_tracking_and_container_sku_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000783_enforce_documented_nonpartial_unique_indexes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000790_retire_legacy_runtime_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000792_drop_retired_runtime_normalizers\":\"down() is an empty fail-forward no-op\",\"2026_08_12_130500_align_putaway_draft_confirmation_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170000_drop_stale_defect_catalog_runtime_mirror_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170500_allow_noop_erd_mirror_resync_of_posted_documents\":\"down() is an empty fail-forward no-op\",\"2026_08_12_213000_fix_materialize_receipt_putaway_status_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_13_150000_expose_warranty_flow04_runtime_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_15_150000_fix_label_snapshots_normalize_trigger_payload_column\":\"down() is an empty fail-forward no-op\",\"2026_08_15_160000_fix_outbound_request_import_rows_normalize_trigger_json_cast\":\"down() is an empty fail-forward no-op\",\"2026_08_16_120000_relax_physical_code_target_to_at_most_one\":\"down() is an empty fail-forward no-op\",\"2026_08_16_121000_project_publish_state_through_sku_compat_views\":\"down() is an empty fail-forward no-op\",\"2026_08_16_122000_restore_reversal_immutability_and_accessory_fks\":\"down() is an empty fail-forward no-op\",\"2026_08_16_123000_add_containers_id_default_and_products_write_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_16_124000_sync_product_masters_to_canonical_master_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_16_125000_make_outbound_recipient_address_nullable\":\"down() is an empty fail-forward no-op\",\"2026_08_16_126000_drop_rfid_required_post_gate\":\"down() is an empty fail-forward no-op\",\"2026_08_16_127000_mirror_inventory_serials_to_item_instances\":\"down() is an empty fail-forward no-op\",\"2026_08_16_130000_scope_container_primary_sku_guard_to_carton_box\":\"down() is an empty fail-forward no-op\",\"2026_08_16_131000_allow_sku_target_in_physical_code_legacy_check\":\"down() is an empty fail-forward no-op\",\"2026_08_16_132000_materialize_reversal_physical_return_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_16_133000_sync_idempotency_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_16_135000_sync_canonical_masters_back_to_product_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_16_136000_align_label_snapshot_lifecycle_with_state_model\":\"down() is an empty fail-forward no-op\",\"2026_08_16_137000_fix_label_snapshot_immutability_guard_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000100_materialize_erd_columns_on_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000200_backfill_warranty_pii_retention_deadline\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001000_align_reversal_read_views_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001100_align_reconciliation_incident_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_100000_expose_canonical_sku_version_and_master_fks_on_products_view\":\"down() is an empty fail-forward no-op\",\"2026_08_17_141000_relax_outbound_recipient_address_on_all_drivers\":\"down() is an empty fail-forward no-op\",\"2026_08_18_000100_align_defect_catalogs_with_erd_dictionary\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150000_fix_posting_events_posting_action_operation_overflow\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150200_add_posting_action_to_posting_event_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000050_repair_erd_mirror_projection_casts\":\"down() is an empty fail-forward no-op\",\"2026_08_19_130000_sync_inbound_lines_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_19_150000_align_audit_result_vocabulary_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_21_100000_fix_iam_legacy_view_dropped_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_23_212000_repair_packing_label_final_scan_runtime\":\"down() is an empty fail-forward no-op\",\"2026_08_24_090000_relax_legacy_label_snapshot_structured_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_24_110000_scope_outbound_document_mirror_to_changed_issue_document\":\"down() is an empty fail-forward no-op\",\"2026_08_26_000100_fix_app_user_department_id_view_gap\":\"down() is an empty fail-forward no-op\",\"2026_08_26_090000_fix_warranty_case_estimated_completion_date_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_26_100000_fix_warranty_case_updated_by_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_add_module_and_ip_address_to_audit_log\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_align_stock_document_line_quantity_checks_with_gd1\":\"down() is an empty fail-forward no-op\",\"2026_09_15_120000_fix_idempotency_record_mirror_scope_key_upsert\":\"down() is an empty fail-forward no-op\",\"2026_10_08_130000_register_p08_history_read_permissions\":\"down() is an empty fail-forward no-op\",\"2026_10_08_140000_create_p09_warranty_requests_table\":\"down() is an empty fail-forward no-op\",\"2026_10_15_060000_create_warranty_handovers_table\":\"down() is an empty fail-forward no-op\",\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"}}\nsecurity.route_default_deny => {\"contract\":\"database/golive/route_permission_contract.php\",\"pinned_routes\":435,\"runtime_routes\":472,\"unauthenticated_non_public\":[\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\"],\"authenticated_without_permission\":[\"DELETE api/v1/auth/trusted-devices/{id}\",\"GET|HEAD api/v1/auth/trusted-devices\"],\"not_in_contract\":[\"DELETE api/v1/auth/devices/{id}\",\"DELETE api/v1/auth/me/avatar\",\"DELETE api/v1/auth/trusted-devices/{id}\",\"DELETE api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/auth/device-history\",\"GET|HEAD api/v1/auth/devices\",\"GET|HEAD api/v1/auth/me/avatar\",\"GET|HEAD api/v1/auth/preferences\",\"GET|HEAD api/v1/auth/security-requests/{key}\",\"GET|HEAD api/v1/auth/trusted-devices\",\"GET|HEAD api/v1/notification-delivery/capabilities\",\"GET|HEAD api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/notification-delivery/test-self/{requestKey}\",\"GET|HEAD api/v1/outbound-documents/nfc-items\",\"GET|HEAD api/v1/outbound-documents/{id}/items/{itemId}/nfc-history\",\"GET|HEAD api/v1/skus/import-reports/export-excel\",\"GET|HEAD api/v1/skus/import-reports/{id}/result-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/rows\",\"GET|HEAD api/v1/skus/import-reports/{id}/source-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/versions\",\"GET|HEAD api/v1/users/{id}/avatar\",\"PATCH api/v1/auth/preferences\",\"PATCH api/v1/master-data/suppliers/{id}\",\"PATCH api/v1/mini-app/inbound/suppliers/{id}\",\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/me/avatar\",\"POST api/v1/auth/security-requests/{key}/verify\",\"POST api/v1/auth/sessions/revoke-others\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\",\"POST api/v1/master-data/suppliers\",\"POST api/v1/mini-app/inbound/suppliers\",\"POST api/v1/notification-delivery/test-self\",\"POST api/v1/skus/import-reports/{id}/recheck\",\"PUT api/v1/notification-delivery/installations/{installationId}\"],\"missing_from_runtime\":[],\"permission_mismatch\":[],\"regenerate_with\":\"php artisan wms:golive-check --write-route-contract\"}"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_protected_api_surface_is_default_deny",
+      "first_detail": "wms:golive-check ph\u1ea3i tho\u00e1t 0 \u1edf tr\u1ea1ng th\u00e1i s\u1eb5n s\u00e0ng.\nmigrations.reversible => {\"allowlist\":\"database/golive/fail_forward_allowlist.php\",\"dispositioned_count\":92,\"irreversible_count\":97,\"undispositioned\":{\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"},\"stale_allowlist_entries\":[],\"irreversible\":{\"2026_08_02_000002_safe_guard_products_to_sku_rename\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000410_drop_non_erd_unused_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000420_harden_latest_mvp_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000500_align_documented_schema_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000590_seed_canonical_masters_before_fk_hardening\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000600_enforce_current_erd_business_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000610_repoint_sku_to_canonical_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000630_repoint_scan_evidence_to_canonical_physical_codes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000640_materialize_putaway_events\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000650_align_container_subledger_quantity\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000660_finalize_current_baseline_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000665_backfill_legacy_container_physical_code_targets\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000670_align_identity_container_and_scan_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000680_align_putaway_and_container_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000690_complete_component_issue_storage_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000700_enforce_scan_evidence_storage_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000710_enforce_cross_aggregate_business_guards\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000720_enforce_all_documented_quantities_bigint\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000730_add_version_to_remaining_mutable_aggregates\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000740_verify_mutable_aggregate_version_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000760_align_erd_1_0_fields_types_and_data\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000766_backfill_structured_erd_payload_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007674_add_missing_defect_catalog_runtime_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007675_prepare_defect_catalog_canonical_key\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000767_complete_import_batch_runtime_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000768_sync_defect_catalog_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007695_prepare_all_canonical_erd_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007697_backfill_iam_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007698_backfill_warranty_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000769_remove_superseded_label_print_event_status_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000772_promote_documented_canonical_primary_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000773_sync_warranty_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000774_sync_iam_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000780_enforce_cross_table_erd_business_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000781_enable_putaway_history_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000782_enforce_item_tracking_and_container_sku_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000783_enforce_documented_nonpartial_unique_indexes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000790_retire_legacy_runtime_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000792_drop_retired_runtime_normalizers\":\"down() is an empty fail-forward no-op\",\"2026_08_12_130500_align_putaway_draft_confirmation_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170000_drop_stale_defect_catalog_runtime_mirror_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170500_allow_noop_erd_mirror_resync_of_posted_documents\":\"down() is an empty fail-forward no-op\",\"2026_08_12_213000_fix_materialize_receipt_putaway_status_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_13_150000_expose_warranty_flow04_runtime_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_15_150000_fix_label_snapshots_normalize_trigger_payload_column\":\"down() is an empty fail-forward no-op\",\"2026_08_15_160000_fix_outbound_request_import_rows_normalize_trigger_json_cast\":\"down() is an empty fail-forward no-op\",\"2026_08_16_120000_relax_physical_code_target_to_at_most_one\":\"down() is an empty fail-forward no-op\",\"2026_08_16_121000_project_publish_state_through_sku_compat_views\":\"down() is an empty fail-forward no-op\",\"2026_08_16_122000_restore_reversal_immutability_and_accessory_fks\":\"down() is an empty fail-forward no-op\",\"2026_08_16_123000_add_containers_id_default_and_products_write_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_16_124000_sync_product_masters_to_canonical_master_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_16_125000_make_outbound_recipient_address_nullable\":\"down() is an empty fail-forward no-op\",\"2026_08_16_126000_drop_rfid_required_post_gate\":\"down() is an empty fail-forward no-op\",\"2026_08_16_127000_mirror_inventory_serials_to_item_instances\":\"down() is an empty fail-forward no-op\",\"2026_08_16_130000_scope_container_primary_sku_guard_to_carton_box\":\"down() is an empty fail-forward no-op\",\"2026_08_16_131000_allow_sku_target_in_physical_code_legacy_check\":\"down() is an empty fail-forward no-op\",\"2026_08_16_132000_materialize_reversal_physical_return_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_16_133000_sync_idempotency_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_16_135000_sync_canonical_masters_back_to_product_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_16_136000_align_label_snapshot_lifecycle_with_state_model\":\"down() is an empty fail-forward no-op\",\"2026_08_16_137000_fix_label_snapshot_immutability_guard_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000100_materialize_erd_columns_on_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000200_backfill_warranty_pii_retention_deadline\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001000_align_reversal_read_views_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001100_align_reconciliation_incident_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_100000_expose_canonical_sku_version_and_master_fks_on_products_view\":\"down() is an empty fail-forward no-op\",\"2026_08_17_141000_relax_outbound_recipient_address_on_all_drivers\":\"down() is an empty fail-forward no-op\",\"2026_08_18_000100_align_defect_catalogs_with_erd_dictionary\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150000_fix_posting_events_posting_action_operation_overflow\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150200_add_posting_action_to_posting_event_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000050_repair_erd_mirror_projection_casts\":\"down() is an empty fail-forward no-op\",\"2026_08_19_130000_sync_inbound_lines_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_19_150000_align_audit_result_vocabulary_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_21_100000_fix_iam_legacy_view_dropped_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_23_212000_repair_packing_label_final_scan_runtime\":\"down() is an empty fail-forward no-op\",\"2026_08_24_090000_relax_legacy_label_snapshot_structured_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_24_110000_scope_outbound_document_mirror_to_changed_issue_document\":\"down() is an empty fail-forward no-op\",\"2026_08_26_000100_fix_app_user_department_id_view_gap\":\"down() is an empty fail-forward no-op\",\"2026_08_26_090000_fix_warranty_case_estimated_completion_date_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_26_100000_fix_warranty_case_updated_by_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_add_module_and_ip_address_to_audit_log\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_align_stock_document_line_quantity_checks_with_gd1\":\"down() is an empty fail-forward no-op\",\"2026_09_15_120000_fix_idempotency_record_mirror_scope_key_upsert\":\"down() is an empty fail-forward no-op\",\"2026_10_08_130000_register_p08_history_read_permissions\":\"down() is an empty fail-forward no-op\",\"2026_10_08_140000_create_p09_warranty_requests_table\":\"down() is an empty fail-forward no-op\",\"2026_10_15_060000_create_warranty_handovers_table\":\"down() is an empty fail-forward no-op\",\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"}}\nsecurity.route_default_deny => {\"contract\":\"database/golive/route_permission_contract.php\",\"pinned_routes\":435,\"runtime_routes\":472,\"unauthenticated_non_public\":[\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\"],\"authenticated_without_permission\":[\"DELETE api/v1/auth/trusted-devices/{id}\",\"GET|HEAD api/v1/auth/trusted-devices\"],\"not_in_contract\":[\"DELETE api/v1/auth/devices/{id}\",\"DELETE api/v1/auth/me/avatar\",\"DELETE api/v1/auth/trusted-devices/{id}\",\"DELETE api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/auth/device-history\",\"GET|HEAD api/v1/auth/devices\",\"GET|HEAD api/v1/auth/me/avatar\",\"GET|HEAD api/v1/auth/preferences\",\"GET|HEAD api/v1/auth/security-requests/{key}\",\"GET|HEAD api/v1/auth/trusted-devices\",\"GET|HEAD api/v1/notification-delivery/capabilities\",\"GET|HEAD api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/notification-delivery/test-self/{requestKey}\",\"GET|HEAD api/v1/outbound-documents/nfc-items\",\"GET|HEAD api/v1/outbound-documents/{id}/items/{itemId}/nfc-history\",\"GET|HEAD api/v1/skus/import-reports/export-excel\",\"GET|HEAD api/v1/skus/import-reports/{id}/result-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/rows\",\"GET|HEAD api/v1/skus/import-reports/{id}/source-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/versions\",\"GET|HEAD api/v1/users/{id}/avatar\",\"PATCH api/v1/auth/preferences\",\"PATCH api/v1/master-data/suppliers/{id}\",\"PATCH api/v1/mini-app/inbound/suppliers/{id}\",\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/me/avatar\",\"POST api/v1/auth/security-requests/{key}/verify\",\"POST api/v1/auth/sessions/revoke-others\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\",\"POST api/v1/master-data/suppliers\",\"POST api/v1/mini-app/inbound/suppliers\",\"POST api/v1/notification-delivery/test-self\",\"POST api/v1/skus/import-reports/{id}/recheck\",\"PUT api/v1/notification-delivery/installations/{installationId}\"],\"missing_from_runtime\":[],\"permission_mismatch\":[],\"regenerate_with\":\"php artisan wms:golive-check --write-route-contract\"}"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_route_permission_matrix_matches_the_pinned_contract_exactly",
+      "first_detail": "wms:golive-check ph\u1ea3i tho\u00e1t 0 \u1edf tr\u1ea1ng th\u00e1i s\u1eb5n s\u00e0ng.\nmigrations.reversible => {\"allowlist\":\"database/golive/fail_forward_allowlist.php\",\"dispositioned_count\":92,\"irreversible_count\":97,\"undispositioned\":{\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"},\"stale_allowlist_entries\":[],\"irreversible\":{\"2026_08_02_000002_safe_guard_products_to_sku_rename\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000410_drop_non_erd_unused_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000420_harden_latest_mvp_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000500_align_documented_schema_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000590_seed_canonical_masters_before_fk_hardening\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000600_enforce_current_erd_business_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000610_repoint_sku_to_canonical_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000630_repoint_scan_evidence_to_canonical_physical_codes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000640_materialize_putaway_events\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000650_align_container_subledger_quantity\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000660_finalize_current_baseline_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000665_backfill_legacy_container_physical_code_targets\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000670_align_identity_container_and_scan_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000680_align_putaway_and_container_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000690_complete_component_issue_storage_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000700_enforce_scan_evidence_storage_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000710_enforce_cross_aggregate_business_guards\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000720_enforce_all_documented_quantities_bigint\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000730_add_version_to_remaining_mutable_aggregates\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000740_verify_mutable_aggregate_version_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000760_align_erd_1_0_fields_types_and_data\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000766_backfill_structured_erd_payload_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007674_add_missing_defect_catalog_runtime_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007675_prepare_defect_catalog_canonical_key\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000767_complete_import_batch_runtime_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000768_sync_defect_catalog_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007695_prepare_all_canonical_erd_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007697_backfill_iam_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007698_backfill_warranty_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000769_remove_superseded_label_print_event_status_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000772_promote_documented_canonical_primary_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000773_sync_warranty_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000774_sync_iam_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000780_enforce_cross_table_erd_business_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000781_enable_putaway_history_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000782_enforce_item_tracking_and_container_sku_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000783_enforce_documented_nonpartial_unique_indexes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000790_retire_legacy_runtime_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000792_drop_retired_runtime_normalizers\":\"down() is an empty fail-forward no-op\",\"2026_08_12_130500_align_putaway_draft_confirmation_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170000_drop_stale_defect_catalog_runtime_mirror_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170500_allow_noop_erd_mirror_resync_of_posted_documents\":\"down() is an empty fail-forward no-op\",\"2026_08_12_213000_fix_materialize_receipt_putaway_status_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_13_150000_expose_warranty_flow04_runtime_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_15_150000_fix_label_snapshots_normalize_trigger_payload_column\":\"down() is an empty fail-forward no-op\",\"2026_08_15_160000_fix_outbound_request_import_rows_normalize_trigger_json_cast\":\"down() is an empty fail-forward no-op\",\"2026_08_16_120000_relax_physical_code_target_to_at_most_one\":\"down() is an empty fail-forward no-op\",\"2026_08_16_121000_project_publish_state_through_sku_compat_views\":\"down() is an empty fail-forward no-op\",\"2026_08_16_122000_restore_reversal_immutability_and_accessory_fks\":\"down() is an empty fail-forward no-op\",\"2026_08_16_123000_add_containers_id_default_and_products_write_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_16_124000_sync_product_masters_to_canonical_master_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_16_125000_make_outbound_recipient_address_nullable\":\"down() is an empty fail-forward no-op\",\"2026_08_16_126000_drop_rfid_required_post_gate\":\"down() is an empty fail-forward no-op\",\"2026_08_16_127000_mirror_inventory_serials_to_item_instances\":\"down() is an empty fail-forward no-op\",\"2026_08_16_130000_scope_container_primary_sku_guard_to_carton_box\":\"down() is an empty fail-forward no-op\",\"2026_08_16_131000_allow_sku_target_in_physical_code_legacy_check\":\"down() is an empty fail-forward no-op\",\"2026_08_16_132000_materialize_reversal_physical_return_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_16_133000_sync_idempotency_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_16_135000_sync_canonical_masters_back_to_product_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_16_136000_align_label_snapshot_lifecycle_with_state_model\":\"down() is an empty fail-forward no-op\",\"2026_08_16_137000_fix_label_snapshot_immutability_guard_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000100_materialize_erd_columns_on_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000200_backfill_warranty_pii_retention_deadline\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001000_align_reversal_read_views_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001100_align_reconciliation_incident_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_100000_expose_canonical_sku_version_and_master_fks_on_products_view\":\"down() is an empty fail-forward no-op\",\"2026_08_17_141000_relax_outbound_recipient_address_on_all_drivers\":\"down() is an empty fail-forward no-op\",\"2026_08_18_000100_align_defect_catalogs_with_erd_dictionary\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150000_fix_posting_events_posting_action_operation_overflow\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150200_add_posting_action_to_posting_event_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000050_repair_erd_mirror_projection_casts\":\"down() is an empty fail-forward no-op\",\"2026_08_19_130000_sync_inbound_lines_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_19_150000_align_audit_result_vocabulary_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_21_100000_fix_iam_legacy_view_dropped_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_23_212000_repair_packing_label_final_scan_runtime\":\"down() is an empty fail-forward no-op\",\"2026_08_24_090000_relax_legacy_label_snapshot_structured_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_24_110000_scope_outbound_document_mirror_to_changed_issue_document\":\"down() is an empty fail-forward no-op\",\"2026_08_26_000100_fix_app_user_department_id_view_gap\":\"down() is an empty fail-forward no-op\",\"2026_08_26_090000_fix_warranty_case_estimated_completion_date_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_26_100000_fix_warranty_case_updated_by_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_add_module_and_ip_address_to_audit_log\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_align_stock_document_line_quantity_checks_with_gd1\":\"down() is an empty fail-forward no-op\",\"2026_09_15_120000_fix_idempotency_record_mirror_scope_key_upsert\":\"down() is an empty fail-forward no-op\",\"2026_10_08_130000_register_p08_history_read_permissions\":\"down() is an empty fail-forward no-op\",\"2026_10_08_140000_create_p09_warranty_requests_table\":\"down() is an empty fail-forward no-op\",\"2026_10_15_060000_create_warranty_handovers_table\":\"down() is an empty fail-forward no-op\",\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"}}\nsecurity.route_default_deny => {\"contract\":\"database/golive/route_permission_contract.php\",\"pinned_routes\":435,\"runtime_routes\":472,\"unauthenticated_non_public\":[\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\"],\"authenticated_without_permission\":[\"DELETE api/v1/auth/trusted-devices/{id}\",\"GET|HEAD api/v1/auth/trusted-devices\"],\"not_in_contract\":[\"DELETE api/v1/auth/devices/{id}\",\"DELETE api/v1/auth/me/avatar\",\"DELETE api/v1/auth/trusted-devices/{id}\",\"DELETE api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/auth/device-history\",\"GET|HEAD api/v1/auth/devices\",\"GET|HEAD api/v1/auth/me/avatar\",\"GET|HEAD api/v1/auth/preferences\",\"GET|HEAD api/v1/auth/security-requests/{key}\",\"GET|HEAD api/v1/auth/trusted-devices\",\"GET|HEAD api/v1/notification-delivery/capabilities\",\"GET|HEAD api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/notification-delivery/test-self/{requestKey}\",\"GET|HEAD api/v1/outbound-documents/nfc-items\",\"GET|HEAD api/v1/outbound-documents/{id}/items/{itemId}/nfc-history\",\"GET|HEAD api/v1/skus/import-reports/export-excel\",\"GET|HEAD api/v1/skus/import-reports/{id}/result-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/rows\",\"GET|HEAD api/v1/skus/import-reports/{id}/source-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/versions\",\"GET|HEAD api/v1/users/{id}/avatar\",\"PATCH api/v1/auth/preferences\",\"PATCH api/v1/master-data/suppliers/{id}\",\"PATCH api/v1/mini-app/inbound/suppliers/{id}\",\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/me/avatar\",\"POST api/v1/auth/security-requests/{key}/verify\",\"POST api/v1/auth/sessions/revoke-others\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\",\"POST api/v1/master-data/suppliers\",\"POST api/v1/mini-app/inbound/suppliers\",\"POST api/v1/notification-delivery/test-self\",\"POST api/v1/skus/import-reports/{id}/recheck\",\"PUT api/v1/notification-delivery/installations/{installationId}\"],\"missing_from_runtime\":[],\"permission_mismatch\":[],\"regenerate_with\":\"php artisan wms:golive-check --write-route-contract\"}"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_fail_forward_migrations_match_the_dispositioned_allowlist_exactly",
+      "first_detail": "wms:golive-check ph\u1ea3i tho\u00e1t 0 \u1edf tr\u1ea1ng th\u00e1i s\u1eb5n s\u00e0ng.\nmigrations.reversible => {\"allowlist\":\"database/golive/fail_forward_allowlist.php\",\"dispositioned_count\":92,\"irreversible_count\":97,\"undispositioned\":{\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"},\"stale_allowlist_entries\":[],\"irreversible\":{\"2026_08_02_000002_safe_guard_products_to_sku_rename\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000410_drop_non_erd_unused_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000420_harden_latest_mvp_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000500_align_documented_schema_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000590_seed_canonical_masters_before_fk_hardening\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000600_enforce_current_erd_business_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000610_repoint_sku_to_canonical_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000630_repoint_scan_evidence_to_canonical_physical_codes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000640_materialize_putaway_events\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000650_align_container_subledger_quantity\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000660_finalize_current_baseline_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000665_backfill_legacy_container_physical_code_targets\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000670_align_identity_container_and_scan_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000680_align_putaway_and_container_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000690_complete_component_issue_storage_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000700_enforce_scan_evidence_storage_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000710_enforce_cross_aggregate_business_guards\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000720_enforce_all_documented_quantities_bigint\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000730_add_version_to_remaining_mutable_aggregates\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000740_verify_mutable_aggregate_version_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000760_align_erd_1_0_fields_types_and_data\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000766_backfill_structured_erd_payload_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007674_add_missing_defect_catalog_runtime_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007675_prepare_defect_catalog_canonical_key\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000767_complete_import_batch_runtime_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000768_sync_defect_catalog_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007695_prepare_all_canonical_erd_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007697_backfill_iam_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007698_backfill_warranty_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000769_remove_superseded_label_print_event_status_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000772_promote_documented_canonical_primary_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000773_sync_warranty_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000774_sync_iam_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000780_enforce_cross_table_erd_business_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000781_enable_putaway_history_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000782_enforce_item_tracking_and_container_sku_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000783_enforce_documented_nonpartial_unique_indexes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000790_retire_legacy_runtime_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000792_drop_retired_runtime_normalizers\":\"down() is an empty fail-forward no-op\",\"2026_08_12_130500_align_putaway_draft_confirmation_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170000_drop_stale_defect_catalog_runtime_mirror_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170500_allow_noop_erd_mirror_resync_of_posted_documents\":\"down() is an empty fail-forward no-op\",\"2026_08_12_213000_fix_materialize_receipt_putaway_status_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_13_150000_expose_warranty_flow04_runtime_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_15_150000_fix_label_snapshots_normalize_trigger_payload_column\":\"down() is an empty fail-forward no-op\",\"2026_08_15_160000_fix_outbound_request_import_rows_normalize_trigger_json_cast\":\"down() is an empty fail-forward no-op\",\"2026_08_16_120000_relax_physical_code_target_to_at_most_one\":\"down() is an empty fail-forward no-op\",\"2026_08_16_121000_project_publish_state_through_sku_compat_views\":\"down() is an empty fail-forward no-op\",\"2026_08_16_122000_restore_reversal_immutability_and_accessory_fks\":\"down() is an empty fail-forward no-op\",\"2026_08_16_123000_add_containers_id_default_and_products_write_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_16_124000_sync_product_masters_to_canonical_master_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_16_125000_make_outbound_recipient_address_nullable\":\"down() is an empty fail-forward no-op\",\"2026_08_16_126000_drop_rfid_required_post_gate\":\"down() is an empty fail-forward no-op\",\"2026_08_16_127000_mirror_inventory_serials_to_item_instances\":\"down() is an empty fail-forward no-op\",\"2026_08_16_130000_scope_container_primary_sku_guard_to_carton_box\":\"down() is an empty fail-forward no-op\",\"2026_08_16_131000_allow_sku_target_in_physical_code_legacy_check\":\"down() is an empty fail-forward no-op\",\"2026_08_16_132000_materialize_reversal_physical_return_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_16_133000_sync_idempotency_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_16_135000_sync_canonical_masters_back_to_product_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_16_136000_align_label_snapshot_lifecycle_with_state_model\":\"down() is an empty fail-forward no-op\",\"2026_08_16_137000_fix_label_snapshot_immutability_guard_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000100_materialize_erd_columns_on_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000200_backfill_warranty_pii_retention_deadline\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001000_align_reversal_read_views_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001100_align_reconciliation_incident_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_100000_expose_canonical_sku_version_and_master_fks_on_products_view\":\"down() is an empty fail-forward no-op\",\"2026_08_17_141000_relax_outbound_recipient_address_on_all_drivers\":\"down() is an empty fail-forward no-op\",\"2026_08_18_000100_align_defect_catalogs_with_erd_dictionary\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150000_fix_posting_events_posting_action_operation_overflow\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150200_add_posting_action_to_posting_event_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000050_repair_erd_mirror_projection_casts\":\"down() is an empty fail-forward no-op\",\"2026_08_19_130000_sync_inbound_lines_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_19_150000_align_audit_result_vocabulary_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_21_100000_fix_iam_legacy_view_dropped_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_23_212000_repair_packing_label_final_scan_runtime\":\"down() is an empty fail-forward no-op\",\"2026_08_24_090000_relax_legacy_label_snapshot_structured_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_24_110000_scope_outbound_document_mirror_to_changed_issue_document\":\"down() is an empty fail-forward no-op\",\"2026_08_26_000100_fix_app_user_department_id_view_gap\":\"down() is an empty fail-forward no-op\",\"2026_08_26_090000_fix_warranty_case_estimated_completion_date_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_26_100000_fix_warranty_case_updated_by_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_add_module_and_ip_address_to_audit_log\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_align_stock_document_line_quantity_checks_with_gd1\":\"down() is an empty fail-forward no-op\",\"2026_09_15_120000_fix_idempotency_record_mirror_scope_key_upsert\":\"down() is an empty fail-forward no-op\",\"2026_10_08_130000_register_p08_history_read_permissions\":\"down() is an empty fail-forward no-op\",\"2026_10_08_140000_create_p09_warranty_requests_table\":\"down() is an empty fail-forward no-op\",\"2026_10_15_060000_create_warranty_handovers_table\":\"down() is an empty fail-forward no-op\",\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"}}\nsecurity.route_default_deny => {\"contract\":\"database/golive/route_permission_contract.php\",\"pinned_routes\":435,\"runtime_routes\":472,\"unauthenticated_non_public\":[\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\"],\"authenticated_without_permission\":[\"DELETE api/v1/auth/trusted-devices/{id}\",\"GET|HEAD api/v1/auth/trusted-devices\"],\"not_in_contract\":[\"DELETE api/v1/auth/devices/{id}\",\"DELETE api/v1/auth/me/avatar\",\"DELETE api/v1/auth/trusted-devices/{id}\",\"DELETE api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/auth/device-history\",\"GET|HEAD api/v1/auth/devices\",\"GET|HEAD api/v1/auth/me/avatar\",\"GET|HEAD api/v1/auth/preferences\",\"GET|HEAD api/v1/auth/security-requests/{key}\",\"GET|HEAD api/v1/auth/trusted-devices\",\"GET|HEAD api/v1/notification-delivery/capabilities\",\"GET|HEAD api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/notification-delivery/test-self/{requestKey}\",\"GET|HEAD api/v1/outbound-documents/nfc-items\",\"GET|HEAD api/v1/outbound-documents/{id}/items/{itemId}/nfc-history\",\"GET|HEAD api/v1/skus/import-reports/export-excel\",\"GET|HEAD api/v1/skus/import-reports/{id}/result-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/rows\",\"GET|HEAD api/v1/skus/import-reports/{id}/source-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/versions\",\"GET|HEAD api/v1/users/{id}/avatar\",\"PATCH api/v1/auth/preferences\",\"PATCH api/v1/master-data/suppliers/{id}\",\"PATCH api/v1/mini-app/inbound/suppliers/{id}\",\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/me/avatar\",\"POST api/v1/auth/security-requests/{key}/verify\",\"POST api/v1/auth/sessions/revoke-others\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\",\"POST api/v1/master-data/suppliers\",\"POST api/v1/mini-app/inbound/suppliers\",\"POST api/v1/notification-delivery/test-self\",\"POST api/v1/skus/import-reports/{id}/recheck\",\"PUT api/v1/notification-delivery/installations/{installationId}\"],\"missing_from_runtime\":[],\"permission_mismatch\":[],\"regenerate_with\":\"php artisan wms:golive-check --write-route-contract\"}"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_migration_ledger_matches_source_tree_in_both_directions",
+      "first_detail": "wms:golive-check ph\u1ea3i tho\u00e1t 0 \u1edf tr\u1ea1ng th\u00e1i s\u1eb5n s\u00e0ng.\nmigrations.reversible => {\"allowlist\":\"database/golive/fail_forward_allowlist.php\",\"dispositioned_count\":92,\"irreversible_count\":97,\"undispositioned\":{\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"},\"stale_allowlist_entries\":[],\"irreversible\":{\"2026_08_02_000002_safe_guard_products_to_sku_rename\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000410_drop_non_erd_unused_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000420_harden_latest_mvp_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000500_align_documented_schema_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000590_seed_canonical_masters_before_fk_hardening\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000600_enforce_current_erd_business_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000610_repoint_sku_to_canonical_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000630_repoint_scan_evidence_to_canonical_physical_codes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000640_materialize_putaway_events\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000650_align_container_subledger_quantity\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000660_finalize_current_baseline_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000665_backfill_legacy_container_physical_code_targets\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000670_align_identity_container_and_scan_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000680_align_putaway_and_container_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000690_complete_component_issue_storage_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000700_enforce_scan_evidence_storage_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000710_enforce_cross_aggregate_business_guards\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000720_enforce_all_documented_quantities_bigint\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000730_add_version_to_remaining_mutable_aggregates\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000740_verify_mutable_aggregate_version_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000760_align_erd_1_0_fields_types_and_data\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000766_backfill_structured_erd_payload_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007674_add_missing_defect_catalog_runtime_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007675_prepare_defect_catalog_canonical_key\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000767_complete_import_batch_runtime_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000768_sync_defect_catalog_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007695_prepare_all_canonical_erd_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007697_backfill_iam_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007698_backfill_warranty_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000769_remove_superseded_label_print_event_status_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000772_promote_documented_canonical_primary_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000773_sync_warranty_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000774_sync_iam_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000780_enforce_cross_table_erd_business_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000781_enable_putaway_history_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000782_enforce_item_tracking_and_container_sku_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000783_enforce_documented_nonpartial_unique_indexes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000790_retire_legacy_runtime_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000792_drop_retired_runtime_normalizers\":\"down() is an empty fail-forward no-op\",\"2026_08_12_130500_align_putaway_draft_confirmation_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170000_drop_stale_defect_catalog_runtime_mirror_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170500_allow_noop_erd_mirror_resync_of_posted_documents\":\"down() is an empty fail-forward no-op\",\"2026_08_12_213000_fix_materialize_receipt_putaway_status_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_13_150000_expose_warranty_flow04_runtime_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_15_150000_fix_label_snapshots_normalize_trigger_payload_column\":\"down() is an empty fail-forward no-op\",\"2026_08_15_160000_fix_outbound_request_import_rows_normalize_trigger_json_cast\":\"down() is an empty fail-forward no-op\",\"2026_08_16_120000_relax_physical_code_target_to_at_most_one\":\"down() is an empty fail-forward no-op\",\"2026_08_16_121000_project_publish_state_through_sku_compat_views\":\"down() is an empty fail-forward no-op\",\"2026_08_16_122000_restore_reversal_immutability_and_accessory_fks\":\"down() is an empty fail-forward no-op\",\"2026_08_16_123000_add_containers_id_default_and_products_write_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_16_124000_sync_product_masters_to_canonical_master_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_16_125000_make_outbound_recipient_address_nullable\":\"down() is an empty fail-forward no-op\",\"2026_08_16_126000_drop_rfid_required_post_gate\":\"down() is an empty fail-forward no-op\",\"2026_08_16_127000_mirror_inventory_serials_to_item_instances\":\"down() is an empty fail-forward no-op\",\"2026_08_16_130000_scope_container_primary_sku_guard_to_carton_box\":\"down() is an empty fail-forward no-op\",\"2026_08_16_131000_allow_sku_target_in_physical_code_legacy_check\":\"down() is an empty fail-forward no-op\",\"2026_08_16_132000_materialize_reversal_physical_return_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_16_133000_sync_idempotency_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_16_135000_sync_canonical_masters_back_to_product_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_16_136000_align_label_snapshot_lifecycle_with_state_model\":\"down() is an empty fail-forward no-op\",\"2026_08_16_137000_fix_label_snapshot_immutability_guard_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000100_materialize_erd_columns_on_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000200_backfill_warranty_pii_retention_deadline\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001000_align_reversal_read_views_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001100_align_reconciliation_incident_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_100000_expose_canonical_sku_version_and_master_fks_on_products_view\":\"down() is an empty fail-forward no-op\",\"2026_08_17_141000_relax_outbound_recipient_address_on_all_drivers\":\"down() is an empty fail-forward no-op\",\"2026_08_18_000100_align_defect_catalogs_with_erd_dictionary\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150000_fix_posting_events_posting_action_operation_overflow\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150200_add_posting_action_to_posting_event_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000050_repair_erd_mirror_projection_casts\":\"down() is an empty fail-forward no-op\",\"2026_08_19_130000_sync_inbound_lines_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_19_150000_align_audit_result_vocabulary_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_21_100000_fix_iam_legacy_view_dropped_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_23_212000_repair_packing_label_final_scan_runtime\":\"down() is an empty fail-forward no-op\",\"2026_08_24_090000_relax_legacy_label_snapshot_structured_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_24_110000_scope_outbound_document_mirror_to_changed_issue_document\":\"down() is an empty fail-forward no-op\",\"2026_08_26_000100_fix_app_user_department_id_view_gap\":\"down() is an empty fail-forward no-op\",\"2026_08_26_090000_fix_warranty_case_estimated_completion_date_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_26_100000_fix_warranty_case_updated_by_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_add_module_and_ip_address_to_audit_log\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_align_stock_document_line_quantity_checks_with_gd1\":\"down() is an empty fail-forward no-op\",\"2026_09_15_120000_fix_idempotency_record_mirror_scope_key_upsert\":\"down() is an empty fail-forward no-op\",\"2026_10_08_130000_register_p08_history_read_permissions\":\"down() is an empty fail-forward no-op\",\"2026_10_08_140000_create_p09_warranty_requests_table\":\"down() is an empty fail-forward no-op\",\"2026_10_15_060000_create_warranty_handovers_table\":\"down() is an empty fail-forward no-op\",\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"}}\nsecurity.route_default_deny => {\"contract\":\"database/golive/route_permission_contract.php\",\"pinned_routes\":435,\"runtime_routes\":472,\"unauthenticated_non_public\":[\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\"],\"authenticated_without_permission\":[\"DELETE api/v1/auth/trusted-devices/{id}\",\"GET|HEAD api/v1/auth/trusted-devices\"],\"not_in_contract\":[\"DELETE api/v1/auth/devices/{id}\",\"DELETE api/v1/auth/me/avatar\",\"DELETE api/v1/auth/trusted-devices/{id}\",\"DELETE api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/auth/device-history\",\"GET|HEAD api/v1/auth/devices\",\"GET|HEAD api/v1/auth/me/avatar\",\"GET|HEAD api/v1/auth/preferences\",\"GET|HEAD api/v1/auth/security-requests/{key}\",\"GET|HEAD api/v1/auth/trusted-devices\",\"GET|HEAD api/v1/notification-delivery/capabilities\",\"GET|HEAD api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/notification-delivery/test-self/{requestKey}\",\"GET|HEAD api/v1/outbound-documents/nfc-items\",\"GET|HEAD api/v1/outbound-documents/{id}/items/{itemId}/nfc-history\",\"GET|HEAD api/v1/skus/import-reports/export-excel\",\"GET|HEAD api/v1/skus/import-reports/{id}/result-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/rows\",\"GET|HEAD api/v1/skus/import-reports/{id}/source-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/versions\",\"GET|HEAD api/v1/users/{id}/avatar\",\"PATCH api/v1/auth/preferences\",\"PATCH api/v1/master-data/suppliers/{id}\",\"PATCH api/v1/mini-app/inbound/suppliers/{id}\",\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/me/avatar\",\"POST api/v1/auth/security-requests/{key}/verify\",\"POST api/v1/auth/sessions/revoke-others\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\",\"POST api/v1/master-data/suppliers\",\"POST api/v1/mini-app/inbound/suppliers\",\"POST api/v1/notification-delivery/test-self\",\"POST api/v1/skus/import-reports/{id}/recheck\",\"PUT api/v1/notification-delivery/installations/{installationId}\"],\"missing_from_runtime\":[],\"permission_mismatch\":[],\"regenerate_with\":\"php artisan wms:golive-check --write-route-contract\"}"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_missing_audit_outbox_is_downgraded_only_by_an_explicit_disposition",
+      "first_detail": "wms:golive-check ph\u1ea3i tho\u00e1t 0 \u1edf tr\u1ea1ng th\u00e1i s\u1eb5n s\u00e0ng.\nmigrations.reversible => {\"allowlist\":\"database/golive/fail_forward_allowlist.php\",\"dispositioned_count\":92,\"irreversible_count\":97,\"undispositioned\":{\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"},\"stale_allowlist_entries\":[],\"irreversible\":{\"2026_08_02_000002_safe_guard_products_to_sku_rename\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000410_drop_non_erd_unused_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_09_000420_harden_latest_mvp_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000500_align_documented_schema_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000590_seed_canonical_masters_before_fk_hardening\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000600_enforce_current_erd_business_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000610_repoint_sku_to_canonical_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000620_remove_superseded_fields_and_lock_append_only_history\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000630_repoint_scan_evidence_to_canonical_physical_codes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000640_materialize_putaway_events\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000650_align_container_subledger_quantity\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000660_finalize_current_baseline_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000665_backfill_legacy_container_physical_code_targets\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000670_align_identity_container_and_scan_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000680_align_putaway_and_container_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000690_complete_component_issue_storage_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000700_enforce_scan_evidence_storage_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000710_enforce_cross_aggregate_business_guards\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000720_enforce_all_documented_quantities_bigint\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000730_add_version_to_remaining_mutable_aggregates\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000740_verify_mutable_aggregate_version_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000760_align_erd_1_0_fields_types_and_data\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000765_keep_legacy_runtime_and_erd_physical_schema_in_sync\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000766_backfill_structured_erd_payload_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007674_add_missing_defect_catalog_runtime_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007675_prepare_defect_catalog_canonical_key\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000767_complete_import_batch_runtime_compatibility\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000768_sync_defect_catalog_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007695_prepare_all_canonical_erd_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007697_backfill_iam_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_0007698_backfill_warranty_canonical_required_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000769_remove_superseded_label_print_event_status_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000770_enforce_erd_1_0_keys_relationships_and_constraints\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000772_promote_documented_canonical_primary_keys\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000773_sync_warranty_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000774_sync_iam_runtime_to_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000780_enforce_cross_table_erd_business_invariants\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000781_enable_putaway_history_guard\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000782_enforce_item_tracking_and_container_sku_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000783_enforce_documented_nonpartial_unique_indexes\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000784_enforce_remaining_erd_cross_aggregate_rules\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000790_retire_legacy_runtime_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_10_000792_drop_retired_runtime_normalizers\":\"down() is an empty fail-forward no-op\",\"2026_08_12_130500_align_putaway_draft_confirmation_lifecycle\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170000_drop_stale_defect_catalog_runtime_mirror_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_12_170500_allow_noop_erd_mirror_resync_of_posted_documents\":\"down() is an empty fail-forward no-op\",\"2026_08_12_213000_fix_materialize_receipt_putaway_status_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_13_150000_expose_warranty_flow04_runtime_contract\":\"down() is an empty fail-forward no-op\",\"2026_08_15_150000_fix_label_snapshots_normalize_trigger_payload_column\":\"down() is an empty fail-forward no-op\",\"2026_08_15_160000_fix_outbound_request_import_rows_normalize_trigger_json_cast\":\"down() is an empty fail-forward no-op\",\"2026_08_16_120000_relax_physical_code_target_to_at_most_one\":\"down() is an empty fail-forward no-op\",\"2026_08_16_121000_project_publish_state_through_sku_compat_views\":\"down() is an empty fail-forward no-op\",\"2026_08_16_122000_restore_reversal_immutability_and_accessory_fks\":\"down() is an empty fail-forward no-op\",\"2026_08_16_123000_add_containers_id_default_and_products_write_trigger\":\"down() is an empty fail-forward no-op\",\"2026_08_16_124000_sync_product_masters_to_canonical_master_tables\":\"down() is an empty fail-forward no-op\",\"2026_08_16_125000_make_outbound_recipient_address_nullable\":\"down() is an empty fail-forward no-op\",\"2026_08_16_126000_drop_rfid_required_post_gate\":\"down() is an empty fail-forward no-op\",\"2026_08_16_127000_mirror_inventory_serials_to_item_instances\":\"down() is an empty fail-forward no-op\",\"2026_08_16_130000_scope_container_primary_sku_guard_to_carton_box\":\"down() is an empty fail-forward no-op\",\"2026_08_16_131000_allow_sku_target_in_physical_code_legacy_check\":\"down() is an empty fail-forward no-op\",\"2026_08_16_132000_materialize_reversal_physical_return_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_16_133000_sync_idempotency_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_16_135000_sync_canonical_masters_back_to_product_masters\":\"down() is an empty fail-forward no-op\",\"2026_08_16_136000_align_label_snapshot_lifecycle_with_state_model\":\"down() is an empty fail-forward no-op\",\"2026_08_16_137000_fix_label_snapshot_immutability_guard_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000100_materialize_erd_columns_on_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_17_000200_backfill_warranty_pii_retention_deadline\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001000_align_reversal_read_views_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_001100_align_reconciliation_incident_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_17_100000_expose_canonical_sku_version_and_master_fks_on_products_view\":\"down() is an empty fail-forward no-op\",\"2026_08_17_141000_relax_outbound_recipient_address_on_all_drivers\":\"down() is an empty fail-forward no-op\",\"2026_08_18_000100_align_defect_catalogs_with_erd_dictionary\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150000_fix_posting_events_posting_action_operation_overflow\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150100_expose_posting_action_on_posting_event_legacy_view\":\"down() is an empty fail-forward no-op\",\"2026_08_18_150200_add_posting_action_to_posting_event_sqlite\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000002_fix_audit_log_pgsql_view_missing_event_catalog_fields\":\"down() is an empty fail-forward no-op\",\"2026_08_19_000050_repair_erd_mirror_projection_casts\":\"down() is an empty fail-forward no-op\",\"2026_08_19_130000_sync_inbound_lines_mirror_deletes\":\"down() is an empty fail-forward no-op\",\"2026_08_19_150000_align_audit_result_vocabulary_with_erd\":\"down() is an empty fail-forward no-op\",\"2026_08_21_100000_fix_iam_legacy_view_dropped_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_23_212000_repair_packing_label_final_scan_runtime\":\"down() is an empty fail-forward no-op\",\"2026_08_24_090000_relax_legacy_label_snapshot_structured_columns\":\"down() is an empty fail-forward no-op\",\"2026_08_24_110000_scope_outbound_document_mirror_to_changed_issue_document\":\"down() is an empty fail-forward no-op\",\"2026_08_26_000100_fix_app_user_department_id_view_gap\":\"down() is an empty fail-forward no-op\",\"2026_08_26_090000_fix_warranty_case_estimated_completion_date_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_26_100000_fix_warranty_case_updated_by_missing\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_add_module_and_ip_address_to_audit_log\":\"down() is an empty fail-forward no-op\",\"2026_08_27_130000_align_stock_document_line_quantity_checks_with_gd1\":\"down() is an empty fail-forward no-op\",\"2026_09_15_120000_fix_idempotency_record_mirror_scope_key_upsert\":\"down() is an empty fail-forward no-op\",\"2026_10_08_130000_register_p08_history_read_permissions\":\"down() is an empty fail-forward no-op\",\"2026_10_08_140000_create_p09_warranty_requests_table\":\"down() is an empty fail-forward no-op\",\"2026_10_15_060000_create_warranty_handovers_table\":\"down() is an empty fail-forward no-op\",\"2026_11_05_000002_create_notification_delivery_outbox\":\"no down()\",\"2026_11_05_000003_create_notification_delivery_test_receipts\":\"no down()\",\"2026_11_08_000000_localize_warranty_notifications_to_ca\":\"down() is an empty fail-forward no-op\",\"2026_11_08_000100_register_supplier_permissions\":\"down() is an empty fail-forward no-op\",\"2026_11_12_000300_deactivate_def_902\":\"down() is an empty fail-forward no-op\"}}\nsecurity.route_default_deny => {\"contract\":\"database/golive/route_permission_contract.php\",\"pinned_routes\":435,\"runtime_routes\":472,\"unauthenticated_non_public\":[\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\"],\"authenticated_without_permission\":[\"DELETE api/v1/auth/trusted-devices/{id}\",\"GET|HEAD api/v1/auth/trusted-devices\"],\"not_in_contract\":[\"DELETE api/v1/auth/devices/{id}\",\"DELETE api/v1/auth/me/avatar\",\"DELETE api/v1/auth/trusted-devices/{id}\",\"DELETE api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/auth/device-history\",\"GET|HEAD api/v1/auth/devices\",\"GET|HEAD api/v1/auth/me/avatar\",\"GET|HEAD api/v1/auth/preferences\",\"GET|HEAD api/v1/auth/security-requests/{key}\",\"GET|HEAD api/v1/auth/trusted-devices\",\"GET|HEAD api/v1/notification-delivery/capabilities\",\"GET|HEAD api/v1/notification-delivery/installations/{installationId}\",\"GET|HEAD api/v1/notification-delivery/test-self/{requestKey}\",\"GET|HEAD api/v1/outbound-documents/nfc-items\",\"GET|HEAD api/v1/outbound-documents/{id}/items/{itemId}/nfc-history\",\"GET|HEAD api/v1/skus/import-reports/export-excel\",\"GET|HEAD api/v1/skus/import-reports/{id}/result-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/rows\",\"GET|HEAD api/v1/skus/import-reports/{id}/source-file\",\"GET|HEAD api/v1/skus/import-reports/{id}/versions\",\"GET|HEAD api/v1/users/{id}/avatar\",\"PATCH api/v1/auth/preferences\",\"PATCH api/v1/master-data/suppliers/{id}\",\"PATCH api/v1/mini-app/inbound/suppliers/{id}\",\"POST api/v1/auth/device/resend\",\"POST api/v1/auth/device/verify\",\"POST api/v1/auth/login/pow-challenge\",\"POST api/v1/auth/me/avatar\",\"POST api/v1/auth/security-requests/{key}/verify\",\"POST api/v1/auth/sessions/revoke-others\",\"POST api/v1/auth/step-up/resend\",\"POST api/v1/auth/step-up/verify\",\"POST api/v1/master-data/suppliers\",\"POST api/v1/mini-app/inbound/suppliers\",\"POST api/v1/notification-delivery/test-self\",\"POST api/v1/skus/import-reports/{id}/recheck\",\"PUT api/v1/notification-delivery/installations/{installationId}\"],\"missing_from_runtime\":[],\"permission_mismatch\":[],\"regenerate_with\":\"php artisan wms:golive-check --write-route-contract\"}"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_a_new_protected_route_still_requires_an_exact_baseline_entry",
+      "first_detail": "Failed asserting that two arrays are identical.\n--- Expected\n+++ Actual"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest::test_a_new_empty_down_migration_still_fails_closed",
+      "first_detail": "Failed asserting that two arrays are identical.\n--- Expected\n+++ Actual"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn309PermissionCatalogEvidenceTest::test_published_catalog_document_is_not_stale",
+      "first_detail": "Permission catalog \u0111\u00e3 publish b\u1ecb stale so v\u1edbi Modules/Auth/database/seeders/AuthDatabaseSeeder.php \u2014 ch\u1ea1y l\u1ea1i evidence:permission-catalog v\u00e0 c\u1eadp nh\u1eadt docs/permissions.\nFailed asserting that two strings are identical.\n--- Expected"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_dry_run_cost_scales_with_row_count_up_to_the_approved_limit",
+      "first_detail": "* Test code or tested code did not remove its own error handlers\n\n* Test code or tested code did not remove its own exception handlers"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_one_row_over_the_approved_limit_is_rejected_at_exactly_the_boundary",
+      "first_detail": "* Test code or tested code did not remove its own error handlers\n\n* Test code or tested code did not remove its own exception handlers"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_sparse_file_at_the_limit_still_imports_every_data_row",
+      "first_detail": "* Test code or tested code did not remove its own error handlers\n\n* Test code or tested code did not remove its own exception handlers"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_real_commit_at_the_approved_limit_writes_every_row",
+      "first_detail": "* Test code or tested code did not remove its own error handlers\n\n* Test code or tested code did not remove its own exception handlers"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_oversized_file_is_rejected_without_reading_the_whole_workbook",
+      "first_detail": "* Test code or tested code did not remove its own error handlers\n\n* Test code or tested code did not remove its own exception handlers"
+    },
+    {
+      "test": "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest::test_file_size_ceiling_is_enforced_from_the_contract",
+      "first_detail": "* Test code or tested code did not remove its own error handlers\n\n* Test code or tested code did not remove its own exception handlers"
+    }
+  ],
+  "issue_classes": {
+    "Tests\\Feature\\Wwhn165AuthzDenyAuditProofTest": 1,
+    "Tests\\Feature\\Wwhn193PutawayAuditFailClosedTest": 1,
+    "Tests\\Feature\\Wwhn193PutawayDependencyChainTest": 1,
+    "Tests\\Feature\\Wwhn193PutawayRetryRecoveryContractTest": 1,
+    "Tests\\Feature\\Wwhn214QaRetestRawEvidenceTest": 7,
+    "Tests\\Feature\\Wwhn217RuntimeErrorContractTest": 1,
+    "Tests\\Feature\\Wwhn266ComponentIssueCoreTransactionTest": 9,
+    "Tests\\Feature\\Wwhn266ComponentIssueReversalTest": 8,
+    "Tests\\Feature\\Wwhn289SecurityRegressionProofTest": 1,
+    "Tests\\Feature\\Wwhn289StockInvariantProofTest": 1,
+    "Tests\\Feature\\Wwhn290ClosureEvidenceTest": 2,
+    "Tests\\Feature\\Wwhn299CutoverRehearsalEvidenceTest": 1,
+    "Tests\\Feature\\Wwhn300BackendGoLiveCheckTest": 10,
+    "Tests\\Feature\\Wwhn330ImportPerformanceBenchmarkTest": 12,
+    "Tests\\Feature\\Wwhn330ImportR3ClosureTest": 14,
+    "Tests\\Feature\\Wwhn330ImportResidualHardeningTest": 4,
+    "Tests\\Feature\\Wwhn331ImportContractClosureTest": 8,
+    "Tests\\Feature\\Wwhn331ImportDurableClaimTest": 10,
+    "Tests\\Feature\\Wwhn340WarrantyListFilterTest": 6,
+    "Tests\\Feature\\Wwhn343ReportExportStalledJobTest": 8,
+    "Tests\\Feature\\Wwhn344ImportMatchExportFormatTest": 6,
+    "Tests\\Feature\\Wwhn345PackingLabelExportFormatTest": 5,
+    "Tests\\Feature\\Wwhn346WarrantyExportFormatTest": 7,
+    "Tests\\Feature\\Wwhn347ReportExportMemoryTest": 9,
+    "Tests\\Feature\\Wwhn46OutboundPickScanDedupTest": 12,
+    "Tests\\Feature\\WwhnSec05DataTransportTest": 7,
+    "Tests\\Feature\\WwhnSec06PiiEncryptionTest": 9,
+    "Tests\\Feature\\WwhnSec06WarrantyPiiTest": 10,
+    "Tests\\Feature\\WwhnSec08MfaTest": 18,
+    "Tests\\Feature\\WwhnSec09HardeningTest": 10,
+    "Tests\\Feature\\WwhnSecRefreshTokenTransportTest": 21,
+    "Tests\\Feature\\WwhnSecSuperAdminBootstrapTest": 14,
+    "Tests\\Feature\\WwhnSecurityHardeningTest": 15,
+    "Tests\\Feature\\ZzScratchSchemaDumpTest": 1,
+    "Tests\\Feature\\AuthorizationCoverageInvariantTest": 1,
+    "Tests\\Feature\\DockerRuntimePermissionsGuardTest": 2,
+    "Tests\\Feature\\DocumentationBaselineContractTest": 2,
+    "Tests\\Feature\\MiniAppSelfServiceApiTest": 1,
+    "Tests\\Feature\\OutboundDocsAlignmentContractTest": 1,
+    "Tests\\Feature\\OutboundDocumentFlowTest": 1,
+    "Tests\\Feature\\P12MixedDocumentsTest": 1,
+    "Tests\\Feature\\P13NotificationRevision2Test": 2,
+    "Tests\\Feature\\P23ReadContractTest": 1,
+    "Tests\\Feature\\SwaggerRouteSyncTest": 1,
+    "Tests\\Feature\\Wwhn205InvariantClosureContractTest": 3,
+    "Tests\\Feature\\Wwhn224P1ClosureTest": 1,
+    "Tests\\Feature\\Wwhn249PvSurfaceGovernanceTest": 1,
+    "Tests\\Feature\\Wwhn267ContractClosureTest": 1,
+    "Tests\\Feature\\Wwhn273ReleaseSignoffContractTest": 7,
+    "Tests\\Feature\\Wwhn309PermissionCatalogEvidenceTest": 1
+  }
+}
