@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Carbon;
@@ -379,6 +380,7 @@ class P04InboundContractTest extends TestCase
             ->assertJsonPath('data.status', 'SCANNING')->assertJsonPath('data.stock_effect', 'NONE')
             ->assertJsonPath('meta.p03_draft.receipt.command', 'RECORD')->assertJsonPath('data.supplier.id', $supplier);
         $documentId = $result->json('data.document_id');
+        $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'supplier_id' => $supplier]);
         $this->assertNotSame($id, $documentId);
         $this->assertNotEmpty($result->json('data.doc_no'));
         $this->postJson(self::BASE.'/drafts/'.$id.'/record', $input, $this->headers($token, 1, $key))->assertCreated()
@@ -536,7 +538,8 @@ class P04InboundContractTest extends TestCase
     public function test_receipt_storage_failure_rolls_back_canonical_record_and_supplier_metadata(): void
     {
         [, $token, , $warehouse] = $this->actor();
-        [$id, $body] = $this->save($token, $warehouse);
+        $supplier = $this->supplierRow($warehouse, 'Rollback supplier');
+        [$id, $body] = $this->save($token, $warehouse, ['supplier_id' => $supplier]);
         DB::listen(function (QueryExecuted $query): void {
             if (str_starts_with(strtolower($query->sql), 'insert into') && str_contains($query->sql, 'mini_app_draft_receipts')) {
                 throw new \RuntimeException('Isolated P04 receipt storage fault');
@@ -544,6 +547,7 @@ class P04InboundContractTest extends TestCase
         });
         $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body), $this->headers($token, 1, (string) Str::uuid()))->assertStatus(500);
         $this->assertDatabaseCount('mini_app_inbound_record_metadata', 0);
+        $this->assertDatabaseCount('stock_documents', 0);
         $this->assertDatabaseCount('mini_app_draft_receipts', 1);
         $this->assertDatabaseHas('mini_app_drafts', ['document_id' => $id, 'status' => 'DRAFT', 'version' => 1]);
         $this->assertStockNeutral();
@@ -574,6 +578,195 @@ class P04InboundContractTest extends TestCase
         $this->assertSame('Original supplier', $snapshot['supplier_name']);
         $this->assertSame($snapshot, (array) DB::table('mini_app_inbound_record_metadata')->where('document_id', $documentId)->first());
         $this->assertSame($document, (array) DB::table('stock_documents')->where('id', $documentId)->first());
+    }
+
+    public function test_web_reads_legacy_app_supplier_without_mutating_header_or_snapshot(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $supplier = $this->supplierRow($warehouse, 'Original supplier');
+        $documentId = $this->recordSupplierReceipt($token, $warehouse, $supplier);
+        DB::table('stock_documents')->where('id', $documentId)->update(['supplier_id' => null]);
+        DB::table('inbound_suppliers')->where('id', $supplier)->update([
+            'code' => 'NCC-LEGACY', 'name' => 'Renamed supplier', 'status' => 'INACTIVE', 'version' => 2,
+        ]);
+        $before = (array) DB::table('stock_documents')->where('id', $documentId)->first();
+        $metadata = (array) DB::table('mini_app_inbound_record_metadata')->where('document_id', $documentId)->first();
+
+        $this->getJson('/api/v1/inbound-documents/'.$documentId, $this->headers($token))->assertOk()
+            ->assertJsonPath('data.supplier_id', $supplier)
+            ->assertJsonPath('data.supplier.display_name', 'NCC-LEGACY - Renamed supplier')
+            ->assertJsonPath('data.supplier.status', 'INACTIVE');
+        $rows = collect($this->getJson('/api/v1/inbound-documents', $this->headers($token))->assertOk()->json('data'))->keyBy('id');
+        $this->assertSame($supplier, $rows[$documentId]['supplier_id']);
+        $this->assertSame('NCC-LEGACY - Renamed supplier', $rows[$documentId]['supplier']['display_name']);
+        $this->assertSame($before, (array) DB::table('stock_documents')->where('id', $documentId)->first());
+        $this->assertSame($metadata, (array) DB::table('mini_app_inbound_record_metadata')->where('document_id', $documentId)->first());
+        $this->assertSame('Original supplier', $metadata['supplier_name']);
+    }
+
+    public function test_web_prefers_header_supplier_when_app_metadata_disagrees(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $appSupplier = $this->supplierRow($warehouse, 'App snapshot');
+        $headerSupplier = $this->supplierRow($warehouse, 'Header supplier');
+        $documentId = $this->recordSupplierReceipt($token, $warehouse, $appSupplier);
+        DB::table('stock_documents')->where('id', $documentId)->update(['supplier_id' => $headerSupplier]);
+
+        $this->getJson('/api/v1/inbound-documents/'.$documentId, $this->headers($token))->assertOk()
+            ->assertJsonPath('data.supplier_id', $headerSupplier)->assertJsonPath('data.supplier.name', 'Header supplier');
+        $rows = collect($this->getJson('/api/v1/inbound-documents', $this->headers($token))->assertOk()->json('data'))->keyBy('id');
+        $this->assertSame($headerSupplier, $rows[$documentId]['supplier']['id']);
+        $this->assertDatabaseHas('mini_app_inbound_record_metadata', ['document_id' => $documentId, 'supplier_id' => $appSupplier]);
+    }
+
+    public function test_supplier_reconciliation_is_explicit_idempotent_and_preserves_business_data(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $supplier = $this->supplierRow($warehouse, 'Historical supplier');
+        $other = $this->supplierRow($warehouse, 'Header override');
+        $legacy = $this->recordSupplierReceipt($token, $warehouse, $supplier);
+        $conflict = $this->recordSupplierReceipt($token, $warehouse, $supplier);
+        $empty = $this->recordSupplierReceipt($token, $warehouse, null);
+        DB::table('stock_documents')->where('id', $legacy)->update(['supplier_id' => null, 'status' => 'POSTED']);
+        DB::table('stock_documents')->where('id', $conflict)->update(['supplier_id' => $other]);
+        DB::table('inbound_suppliers')->where('id', $supplier)->update(['status' => 'INACTIVE']);
+        $before = DB::table('stock_documents')->orderBy('id')->get()->map(fn ($row) => (array) $row)->all();
+        $metadata = DB::table('mini_app_inbound_record_metadata')->orderBy('document_id')->get()->toJson();
+        $lines = DB::table('stock_document_lines')->orderBy('id')->get()->toJson();
+        $report = sys_get_temp_dir().'/inbound-supplier-'.Str::uuid().'.json';
+        try {
+            $this->artisan('inbound:sync-suppliers')->assertSuccessful();
+            $this->assertSame($before, DB::table('stock_documents')->orderBy('id')->get()->map(fn ($row) => (array) $row)->all());
+            $this->artisan('inbound:sync-suppliers', ['--apply' => true, '--report' => $report])->assertSuccessful();
+            $manifest = json_decode(file_get_contents($report), true, 512, JSON_THROW_ON_ERROR);
+            $this->assertSame(1, $manifest['summary']['eligible']);
+            $this->assertSame(1, $manifest['summary']['conflict']);
+            $this->assertSame(1, $manifest['summary']['no_supplier']);
+            $this->assertSame(1, $manifest['updated']);
+            $this->assertSame('prepared', $manifest['status']);
+            $result = json_decode(file_get_contents($report.'.result.json'), true, 512, JSON_THROW_ON_ERROR);
+            $this->assertSame('committed', $result['status']);
+            $rows = collect($manifest['rows'])->keyBy('document_id');
+            $this->assertNull($rows[$legacy]['before']['supplier_id']);
+            $this->assertSame($supplier, $rows[$legacy]['after']['supplier_id']);
+            $this->assertSame($metadata, DB::table('mini_app_inbound_record_metadata')->orderBy('document_id')->get()->toJson());
+            $this->assertSame($lines, DB::table('stock_document_lines')->orderBy('id')->get()->toJson());
+            foreach ($before as $row) {
+                if ($row['id'] === $legacy) {
+                    $row['supplier_id'] = $supplier;
+                }
+                $this->assertSame($row, (array) DB::table('stock_documents')->where('id', $row['id'])->first());
+            }
+            $this->assertDatabaseHas('stock_documents', ['id' => $empty, 'supplier_id' => null]);
+            $this->assertDatabaseCount('stock_movements', 0);
+            $this->assertDatabaseCount('inventory_balances', 0);
+            $this->artisan('inbound:sync-suppliers')->expectsOutputToContain('"eligible": 0')->assertSuccessful();
+            // An existing report cannot be overwritten, even on a harmless rerun.
+            $originalReport = file_get_contents($report);
+            $this->artisan('inbound:sync-suppliers', ['--apply' => true, '--report' => $report])->assertFailed();
+            $this->assertSame($originalReport, file_get_contents($report));
+        } finally {
+            if (is_file($report)) {
+                unlink($report);
+            }
+            if (is_file($report.'.result.json')) {
+                unlink($report.'.result.json');
+            }
+        }
+    }
+
+    public function test_supplier_reconciliation_retains_prepared_manifest_when_post_commit_reporting_fails(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $supplier = $this->supplierRow($warehouse, 'Durable report supplier');
+        $documentId = $this->recordSupplierReceipt($token, $warehouse, $supplier);
+        DB::table('stock_documents')->where('id', $documentId)->update(['supplier_id' => null]);
+        $report = sys_get_temp_dir().'/inbound-supplier-'.Str::uuid().'.json';
+        $blocked = false;
+        DB::listen(function (QueryExecuted $query) use ($report, &$blocked): void {
+            if (! $blocked && str_starts_with(strtolower($query->sql), 'update') && str_contains($query->sql, 'stock_documents')) {
+                mkdir($report.'.result.json');
+                $blocked = true;
+            }
+        });
+        try {
+            $this->artisan('inbound:sync-suppliers', ['--apply' => true, '--report' => $report])->assertFailed();
+            $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'supplier_id' => $supplier]);
+            $manifest = json_decode(file_get_contents($report), true, 512, JSON_THROW_ON_ERROR);
+            $this->assertSame('prepared', $manifest['status']);
+            $this->assertSame($documentId, collect($manifest['rows'])->firstWhere('outcome', 'eligible')['document_id']);
+            $this->assertNull($manifest['rows'][0]['before']['supplier_id']);
+            $this->assertSame($supplier, $manifest['rows'][0]['after']['supplier_id']);
+        } finally {
+            if (is_file($report)) {
+                unlink($report);
+            }
+            if (is_dir($report.'.result.json')) {
+                rmdir($report.'.result.json');
+            }
+        }
+    }
+
+    public function test_supplier_reconciliation_refuses_apply_without_a_writable_report(): void
+    {
+        [, $token, , $warehouse] = $this->actor();
+        $supplier = $this->supplierRow($warehouse, 'Report safety supplier');
+        $documentId = $this->recordSupplierReceipt($token, $warehouse, $supplier);
+        DB::table('stock_documents')->where('id', $documentId)->update(['supplier_id' => null]);
+        $this->artisan('inbound:sync-suppliers', ['--apply' => true])->assertFailed();
+        $this->artisan('inbound:sync-suppliers', [
+            '--apply' => true, '--report' => sys_get_temp_dir().'/missing-'.Str::uuid().'/report.json',
+        ])->assertFailed();
+        $this->assertDatabaseHas('stock_documents', ['id' => $documentId, 'supplier_id' => null]);
+    }
+
+    public function test_posted_guard_only_allows_scoped_exact_supplier_metadata_repair(): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            $this->markTestSkipped('PostgreSQL posted-document trigger contract.');
+        }
+        [, $token, , $warehouse] = $this->actor();
+        $supplier = $this->supplierRow($warehouse, 'Posted supplier');
+        $other = $this->supplierRow($warehouse, 'Wrong supplier');
+        $id = $this->recordSupplierReceipt($token, $warehouse, $supplier);
+        DB::table('stock_documents')->where('id', $id)->update(['supplier_id' => null, 'status' => 'POSTED']);
+        $this->assertPostedGuardRejects(fn () => DB::table('stock_documents')->where('id', $id)->update(['supplier_id' => $supplier]));
+        DB::statement("SET LOCAL hoanam.inbound_supplier_sync = 'on'");
+        foreach ([
+            ['supplier_id' => $other],
+            ['supplier_id' => $supplier, 'note' => 'Forbidden business change'],
+            ['supplier_id' => $supplier, 'version' => 999],
+            ['supplier_id' => $supplier, 'status' => 'DRAFT'],
+        ] as $change) {
+            $this->assertPostedGuardRejects(fn () => DB::table('stock_documents')->where('id', $id)->update($change));
+        }
+        $this->assertPostedGuardRejects(fn () => DB::table('stock_documents')->where('id', $id)->delete());
+        $this->assertSame(1, DB::table('stock_documents')->where('id', $id)->update(['supplier_id' => $supplier]));
+        $this->assertPostedGuardRejects(fn () => DB::table('stock_documents')->where('id', $id)->update(['supplier_id' => $other]));
+        DB::statement("SET LOCAL hoanam.inbound_supplier_sync = 'off'");
+        $this->assertDatabaseHas('stock_documents', ['id' => $id, 'supplier_id' => $supplier, 'status' => 'POSTED']);
+    }
+
+    private function assertPostedGuardRejects(\Closure $operation): void
+    {
+        try {
+            DB::transaction($operation);
+            $this->fail('Posted document guard permitted an unrelated update.');
+        } catch (QueryException $error) {
+            $this->assertStringContainsString('is immutable; use reversal/correction', $error->getMessage());
+        }
+    }
+
+    private function recordSupplierReceipt(string $token, Warehouse $warehouse, ?string $supplier): string
+    {
+        $sku = $this->productSkuFixture('P04-SUP-'.substr((string) Str::uuid(), 0, 8));
+        [$id, $body] = $this->save($token, $warehouse, [
+            'supplier_id' => $supplier,
+            'items' => [['raw_code' => 'HN1|SKU='.$sku->sku_code.'|ITEM='.Str::uuid(), 'quantity' => 1, 'scan_source' => 'MANUAL']],
+        ]);
+
+        return $this->postJson(self::BASE.'/drafts/'.$id.'/record', $this->identity($body),
+            $this->headers($token, 1, (string) Str::uuid()))->assertCreated()->json('data.document_id');
     }
 
     private function actor(?Warehouse $warehouse = null, bool $confirm = true): array

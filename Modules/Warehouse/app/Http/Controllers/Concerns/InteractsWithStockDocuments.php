@@ -259,6 +259,20 @@ trait InteractsWithStockDocuments
             return;
         }
 
+        // Older P04 receipts stored suppliers only in app metadata. Resolve
+        // missing headers in one query for the page; GET must not backfill DB.
+        $missing = $documents->filter(fn (StockDocument $document): bool => empty($document->supplier_id));
+        $legacy = $missing->isEmpty()
+            ? collect()
+            : DB::table('mini_app_inbound_record_metadata')
+                ->whereIn('document_id', $missing->pluck('id')->all())
+                ->pluck('supplier_id', 'document_id');
+        $documents->each(function (StockDocument $document) use ($legacy): void {
+            if (empty($document->supplier_id) && $legacy->get($document->id) !== null) {
+                $document->setAttribute('supplier_id', $legacy->get($document->id));
+            }
+        });
+
         $ids = $documents
             ->map(fn (StockDocument $document): string => strtolower(trim((string) $document->supplier_id)))
             ->filter(fn (string $id): bool => $id !== '')

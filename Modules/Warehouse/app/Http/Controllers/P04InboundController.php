@@ -306,6 +306,12 @@ final class P04InboundController extends Controller
                 }
                 $body = $response->getData(true);
                 $documentId = $body['data']['document_id'];
+                // Keep the canonical web header aligned with the app snapshot.
+                // This remains inside the draft handoff transaction: a failed
+                // metadata/receipt write rolls back the header and scans together.
+                DB::table('stock_documents')->where('id', $documentId)->update([
+                    'supplier_id' => $supplier?->id,
+                ]);
                 DB::table('mini_app_inbound_record_metadata')->insert([
                     'document_id' => $documentId, 'draft_id' => $id, 'inbound_type' => $metadata['inbound_type'],
                     'inbound_category' => $metadata['inbound_category'] ?? null,

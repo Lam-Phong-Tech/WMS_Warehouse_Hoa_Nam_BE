@@ -74,6 +74,8 @@ jobs:
           sed 's/name="DB_HOST" value="postgres"/name="DB_HOST" value="127.0.0.1"/' \
             phpunit.pgsql.xml > .ci-phpunit.pgsql.xml
           vendor/bin/phpunit --configuration=.ci-phpunit.pgsql.xml \
+            tests/Feature/InboundSupplierFieldTest.php \
+            tests/Feature/P04InboundContractTest.php \
             tests/Feature/AuthSessionPersistenceTest.php \
             tests/Feature/ProfileSelfServiceTest.php \
             tests/Feature/SecurityRbacAuditNegativeTest.php \
