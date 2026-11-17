@@ -1,0 +1,63 @@
+{
+    "build_sha": "589f826224c776c5b14fe18f9dfb561e9dcf5747",
+    "updated": 25,
+    "remaining_eligible": 0,
+    "summary_after": {
+        "eligible": 0,
+        "matched": 25,
+        "conflict": 3,
+        "no_supplier": 2,
+        "missing_supplier": 0,
+        "no_metadata": 3110
+    },
+    "operational_fingerprints_identical": true,
+    "web_read_controllers_before_backfill": {
+        "PN-20261117072446": {
+            "list_supplier": "NCC-007 - Công ty Cơ Khí Hoa Nam Test",
+            "detail_supplier": "NCC-007 - Công ty Cơ Khí Hoa Nam Test"
+        },
+        "PN-20261117001922": {
+            "list_supplier": "NCC-001 - Honda Việt Nam",
+            "detail_supplier": "NCC-001 - Honda Việt Nam"
+        },
+        "PN-20261021-0001": {
+            "list_supplier": "NCC-001 - Honda Việt Nam",
+            "detail_supplier": "NCC-001 - Honda Việt Nam"
+        }
+    },
+    "web_read_controllers_after_backfill": {
+        "PN-20261117072446": {
+            "list_supplier": "NCC-007 - Công ty Cơ Khí Hoa Nam Test",
+            "detail_supplier": "NCC-007 - Công ty Cơ Khí Hoa Nam Test"
+        },
+        "PN-20261117001922": {
+            "list_supplier": "NCC-001 - Honda Việt Nam",
+            "detail_supplier": "NCC-001 - Honda Việt Nam"
+        },
+        "PN-20261021-0001": {
+            "list_supplier": "NCC-001 - Honda Việt Nam",
+            "detail_supplier": "NCC-001 - Honda Việt Nam"
+        }
+    },
+    "evidence_free_cancelled_receipt_unassigned": true,
+    "repair_flag_after_commit": "",
+    "conflicts_preserved": [
+        {
+            "doc_no": "PN-20261112170334",
+            "header_supplier_code": "NCC-007",
+            "app_metadata_supplier_code": "NCC-002"
+        },
+        {
+            "doc_no": "PN-20261112232325",
+            "header_supplier_code": "NCC-007",
+            "app_metadata_supplier_code": "NCC-008"
+        },
+        {
+            "doc_no": "PN-20261112165444",
+            "header_supplier_code": "NCC-007",
+            "app_metadata_supplier_code": "NCC-008"
+        }
+    ],
+    "new_app_receipt_validation": "Isolated PostgreSQL contract tests; no live business test receipt created.",
+    "completed_at": "2026-11-17T22:01:37+07:00"
+}
