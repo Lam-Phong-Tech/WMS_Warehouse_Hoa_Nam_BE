@@ -23,9 +23,16 @@ class StockDocumentCanonicalFlowTest extends TestCase
 
         $this->assertStringNotContainsString('PARTIALLY_POSTED', $routes);
         $this->assertStringNotContainsString('close-remainder', $routes);
-        $this->assertStringNotContainsString('/submit', $routes);
-        $this->assertStringNotContainsString('/approve', $routes);
-        $this->assertStringNotContainsString('/reject', $routes);
+        // Stock-document lifecycle constraints must not reject unrelated actions
+        // such as approving a hidden product in the App PV catalogue.
+        $documentRoutes = collect(app('router')->getRoutes()->getRoutes())
+            ->map(static fn ($route): string => $route->uri())
+            ->filter(static fn (string $uri): bool => preg_match('~(?:^|/)(?:inbound-documents|outbound-documents)(?:/|$)~', $uri) === 1)
+            ->implode("\n");
+        $this->assertNotSame('', $documentRoutes);
+        $this->assertStringNotContainsString('/submit', $documentRoutes);
+        $this->assertStringNotContainsString('/approve', $documentRoutes);
+        $this->assertStringNotContainsString('/reject', $documentRoutes);
     }
 
     public function test_inbound_openapi_source_has_no_legacy_partial_or_approval_flow(): void
