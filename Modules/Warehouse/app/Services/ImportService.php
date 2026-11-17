@@ -15,6 +15,7 @@ use Modules\Warehouse\Models\ImportReport;
 use Modules\Warehouse\Models\ProductMaster;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Support\PvProfileProvisioner;
 use Modules\Warehouse\Support\SkuImportContract;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
@@ -571,6 +572,8 @@ class ImportService
                     $inserted++;
                     $action = 'SKU_IMPORT_CREATE';
                 }
+
+                PvProfileProvisioner::ensure($sku);
 
                 AuditLogger::record(
                     $action,

@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
+use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
 use Modules\Warehouse\Services\PvImageLifecycle;
 use Modules\Warehouse\Support\PvRelations;
 use OpenApi\Attributes as OA;
@@ -74,6 +75,7 @@ class PvAdminResourceController extends Controller
             new OA\Parameter(name: 'resourceType', in: 'path', required: true, schema: new OA\Schema(type: 'string', enum: self::RESOURCE_TYPES)),
             new OA\Parameter(name: 'status', in: 'query', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
             new OA\Parameter(name: 'keyword', in: 'query', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'sku_status', in: 'query', description: 'product-profiles: lọc trạng thái sử dụng SKU trước phân trang.', schema: new OA\Schema(type: 'string', enum: ['ACTIVE', 'INACTIVE'])),
         ],
         responses: [
             new OA\Response(response: 200, description: 'PVAdminResourcePage'),
@@ -636,11 +638,83 @@ class PvAdminResourceController extends Controller
     // product-profiles (kèm mapping ngành nghề / tag)
     // ------------------------------------------------------------------
 
+    #[OA\Post(
+        path: '/api/v1/pv-admin/products/{skuId}/approve',
+        operationId: 'approvePvProduct',
+        summary: 'Lưu hồ sơ SKU đang ẩn và hiển thị ngay trên App PV',
+        description: 'Giao dịch nguyên tử; yêu cầu cả pv.master.manage và pv.publish. If-Match là version hồ sơ hiện tại (0 nếu chưa có).',
+        security: [['bearerAuth' => []]],
+        tags: ['12. App PV'],
+        parameters: [
+            new OA\Parameter(name: 'skuId', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
+            new OA\Parameter(name: 'If-Match', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(required: ['display_name'], properties: [
+            new OA\Property(property: 'display_name', type: 'string', maxLength: 255),
+            new OA\Property(property: 'description', type: 'string', maxLength: 500, nullable: true),
+            new OA\Property(property: 'sort_order', type: 'integer', minimum: 0),
+            new OA\Property(property: 'industry_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid')),
+            new OA\Property(property: 'tag_ids', type: 'array', items: new OA\Items(type: 'string', format: 'uuid')),
+            new OA\Property(property: 'images', type: 'array', items: new OA\Items(type: 'object')),
+        ])),
+        responses: [
+            new OA\Response(response: 200, description: 'Hồ sơ đã lưu và hiển thị.'),
+            new OA\Response(response: 403, description: 'Thiếu quyền sửa hoặc xuất bản.'),
+            new OA\Response(response: 409, description: 'SKU đã hiển thị.'),
+            new OA\Response(response: 412, description: 'Version hồ sơ đã thay đổi.'),
+            new OA\Response(response: 422, description: 'Dữ liệu không hợp lệ hoặc SKU không ACTIVE.'),
+            new OA\Response(response: 428, description: 'Thiếu If-Match.'),
+        ]
+    )]
+    public function approveProduct(Request $request, string $skuId): JsonResponse
+    {
+        $after = DB::transaction(function () use ($request, $skuId): array {
+            $sku = DB::table('sku')->where('sku_id', $skuId)->lockForUpdate()->first();
+            if ($sku === null) {
+                ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy SKU.');
+            }
+            if ($sku->status !== 'ACTIVE') {
+                ApiError::abort(422, 'SKU_PUBLISH_REQUIRES_ACTIVE', 'Chỉ SKU đang sử dụng mới được đưa lên App PV.');
+            }
+
+            $relation = PvRelations::profile();
+            $current = DB::table($relation['table'])->where($relation['sku'], $skuId)->lockForUpdate()->first();
+            // Check the observed profile version before changing either metadata or visibility.
+            $this->assertIfMatch($request, (int) ($current->version ?? 0));
+            if ((bool) $sku->published_to_app) {
+                ApiError::abort(409, 'STATE_CONFLICT', 'SKU đã hiển thị trên App PV; tải lại danh sách.');
+            }
+            $request->merge(['sku_id' => $skuId]);
+            if ($current === null) {
+                $before = null;
+                $saved = $this->createProfile($request);
+            } else {
+                [$before, $saved] = $this->updateProfile($request, (string) $current->{$relation['key']});
+            }
+            DB::table('sku')->where('sku_id', $skuId)->update(['published_to_app' => true, 'updated_at' => now()]);
+            $after = $this->findProfile($saved['id']);
+            $this->audit($request, 'PV_APPROVE', self::RESOURCE_PROFILES, $saved['id'], $before, $after);
+
+            return $after;
+        });
+        DB::afterCommit(fn () => $this->bumpReadCache(self::CACHE_VERSION_NS));
+        $this->invalidateProductReadCache();
+
+        app(ProductRepositoryInterface::class)->forgetCache($skuId);
+
+        return $this->respondSuccess($after, 'Đã lưu và hiển thị sản phẩm trên App PV.');
+    }
+
     private function listProfiles(Request $request)
     {
         $relation = PvRelations::profile();
         $query = DB::table($relation['table'].' as p')
             ->join('sku as s', 's.sku_id', '=', 'p.'.$relation['sku']);
+
+        $request->validate(['sku_status' => ['nullable', 'in:ACTIVE,INACTIVE']]);
+        if ($request->filled('sku_status')) {
+            $query->where('s.status', $request->query('sku_status'));
+        }
 
         if ($request->filled('industry_id')) {
             $query->whereExists(function ($mapping) use ($request, $relation): void {
@@ -735,7 +809,7 @@ class PvAdminResourceController extends Controller
     private function updateProfile(Request $request, string $id): array
     {
         $relation = PvRelations::profile();
-        $current = DB::table($relation['table'])->where($relation['key'], $id)->first();
+        $current = DB::table($relation['table'])->where($relation['key'], $id)->lockForUpdate()->first();
         if ($current === null) {
             ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy hồ sơ App PV.');
         }

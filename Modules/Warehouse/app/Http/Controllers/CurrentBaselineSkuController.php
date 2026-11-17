@@ -30,7 +30,10 @@ class CurrentBaselineSkuController extends Controller
      */
     private function invalidateMasterReadCache(): void
     {
-        DB::afterCommit(fn () => $this->bumpReadCache('stock:version'));
+        DB::afterCommit(function (): void {
+            $this->bumpReadCache('stock:version');
+            $this->bumpReadCache('master:version');
+        });
     }
 
     public function __construct(private readonly SkuAggregateService $service) {}

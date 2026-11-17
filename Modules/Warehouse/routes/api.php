@@ -567,6 +567,8 @@ Route::prefix('v1')->group(function (): void {
         // đúng một quyền.
         Route::patch('pv/products/{id}/publish', [ProductController::class, 'publishPvProduct'])
             ->middleware('permission:pv.publish');
+        Route::post('pv-admin/products/{skuId}/approve', [PvAdminResourceController::class, 'approveProduct'])
+            ->middleware(['permission:pv.master.manage', 'permission:pv.publish']);
 
         // Annex C listPvAdminResources / createPvAdminResource / updatePvAdminResource
         // (REQ-SRS-033) — PV Industry/Tag/Product Mapping/Recommendation Rule.

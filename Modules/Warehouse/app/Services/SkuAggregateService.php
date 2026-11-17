@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Support\PvProfileProvisioner;
 
 /**
  * WWHN-172 SKU aggregate transaction boundary.
@@ -44,6 +45,7 @@ class SkuAggregateService
 
             /** @var Sku $sku */
             $sku = Sku::query()->create($attributes);
+            PvProfileProvisioner::ensure($sku);
             $this->replaceComponents($sku, (array) ($payload['components'] ?? []));
             $this->replacePhysicalCodes($sku, (array) ($payload['physical_codes'] ?? []));
 

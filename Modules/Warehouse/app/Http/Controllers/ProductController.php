@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\Warehouse\Http\Requests\StoreProductRequest;
 use Modules\Warehouse\Http\Requests\UpdateProductRequest;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Repositories\Contracts\ProductRepositoryInterface;
+use Modules\Warehouse\Support\PvProfileProvisioner;
 use Modules\Warehouse\Support\PvPublishGuard;
 use Modules\Warehouse\Support\PvRelations;
 use Modules\Warehouse\Support\SkuImageLookup;
@@ -200,7 +202,12 @@ class ProductController extends Controller
     {
         $validated = $this->withResolvedMasterLinks($request->validated());
         PvPublishGuard::assertPayload($validated, null);
-        $product = $this->products->create($validated + ['status' => 'ACTIVE', 'version' => 1]);
+        $product = DB::transaction(function () use ($validated) {
+            $product = $this->products->create($validated + ['status' => 'ACTIVE', 'version' => 1]);
+            PvProfileProvisioner::ensure($product);
+
+            return $product;
+        });
 
         AuditLogger::record(
             action: 'CREATE',
@@ -360,36 +367,38 @@ class ProductController extends Controller
             'published' => ['required', 'boolean'],
         ]);
 
-        $before = $this->products->find($id);
-        if (! $before) {
-            return $this->respondNotFound('Không tìm thấy SKU.');
-        }
+        return DB::transaction(function () use ($request, $id, $validated) {
+            $before = Sku::query()->where('sku_id', $id)->lockForUpdate()->first();
+            if (! $before) {
+                return $this->respondNotFound('Không tìm thấy SKU.');
+            }
 
-        $payload = $this->assertPublishRequiresActive(['published_to_app' => (bool) $validated['published']], $before);
+            $payload = $this->assertPublishRequiresActive(['published_to_app' => (bool) $validated['published']], $before);
 
-        $currentProfileVersion = $this->pvProfileVersion($id);
-        $this->assertPvProfileVersionMatches($request, $currentProfileVersion);
+            $currentProfileVersion = $this->pvProfileVersion($id, true);
+            $this->assertPvProfileVersionMatches($request, $currentProfileVersion);
 
-        $beforeData = $before->toArray();
-        $product = $this->products->update($id, $payload);
-        $nextProfileVersion = $this->bumpPvProfileVersion($id, $currentProfileVersion);
+            $beforeData = $before->toArray();
+            $product = $this->products->update($id, $payload);
+            $nextProfileVersion = $this->bumpPvProfileVersion($id, $currentProfileVersion);
 
-        AuditLogger::record(
-            action: $validated['published'] ? 'PV_PUBLISH' : 'PV_UNPUBLISH',
-            objectType: 'sku',
-            objectId: $id,
-            actorId: $request->user()?->user_id,
-            requestId: $request->attributes->get('request_id'),
-            beforeData: $beforeData,
-            afterData: $product->toArray(),
-        );
+            AuditLogger::record(
+                action: $validated['published'] ? 'PV_PUBLISH' : 'PV_UNPUBLISH',
+                objectType: 'sku',
+                objectId: $id,
+                actorId: $request->user()?->user_id,
+                requestId: $request->attributes->get('request_id'),
+                beforeData: $beforeData,
+                afterData: $product->toArray(),
+            );
 
-        $this->invalidateMasterReadCache();
+            $this->invalidateMasterReadCache();
 
-        return $this->respondSuccess(
-            $product->toArray() + ['pv_profile_version' => $nextProfileVersion],
-            $validated['published'] ? 'Đã publish SKU lên App PV.' : 'Đã gỡ SKU khỏi App PV.'
-        );
+            return $this->respondSuccess(
+                $product->toArray() + ['pv_profile_version' => $nextProfileVersion],
+                $validated['published'] ? 'Đã publish SKU lên App PV.' : 'Đã gỡ SKU khỏi App PV.'
+            );
+        });
     }
 
     /**
@@ -399,10 +408,14 @@ class ProductController extends Controller
      * khoá ngoại khác nhau giữa hai driver (`product_id` trên sqlite, `sku_id`
      * trên PostgreSQL) — xem docblock của PvRelations.
      */
-    private function pvProfileVersion(string $skuId): int
+    private function pvProfileVersion(string $skuId, bool $lock = false): int
     {
         $relation = PvRelations::profile();
-        $version = DB::table($relation['table'])->where($relation['sku'], $skuId)->value('version');
+        $query = DB::table($relation['table'])->where($relation['sku'], $skuId);
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+        $version = $query->value('version');
 
         return $version === null ? 0 : (int) $version;
     }
