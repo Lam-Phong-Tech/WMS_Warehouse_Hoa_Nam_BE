@@ -554,6 +554,7 @@ class ImportService
 
             $inserted = 0;
             $updated = 0;
+            $writtenSkus = [];
             foreach ($records as $record) {
                 /** @var Sku|null $sku */
                 $sku = $bySku->get($record['sku_code']);
@@ -574,6 +575,12 @@ class ImportService
                 }
 
                 PvProfileProvisioner::ensure($sku);
+
+                $writtenSkus[] = [
+                    'sku_id' => (string) $sku->sku_id,
+                    'sku_code' => (string) $sku->sku_code,
+                    'action' => $action === 'SKU_IMPORT_CREATE' ? 'CREATED' : 'UPDATED',
+                ];
 
                 AuditLogger::record(
                     $action,
@@ -620,7 +627,7 @@ class ImportService
             // ném exception → transaction rollback → SKU/audit biến mất cùng nó, và
             // controller trả 503 thay vì 200 thiếu output.
             return $this->withReport(
-                $this->result(count($rows), count($records), [], $inserted, $updated, true, $checksum, $map, false),
+                $this->result(count($rows), count($records), [], $inserted, $updated, true, $checksum, $map, false) + ['written_skus' => $writtenSkus],
                 $actorId,
                 $requestId,
                 $originalName,
@@ -648,6 +655,7 @@ class ImportService
         bool $updateExisting,
     ): array {
         $report = $this->reportWriter->write($result + $this->reportContext, $actorId, $requestId, $originalName, $updateExisting);
+        unset($result['written_skus']);
         $result['import_report_id'] = (string) $report->import_report_id;
         $result['source_file_id'] = $report->source_file_id;
         $result['result_version'] = $report->result_version;

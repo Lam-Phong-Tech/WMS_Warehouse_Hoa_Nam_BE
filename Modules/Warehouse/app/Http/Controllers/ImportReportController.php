@@ -18,6 +18,7 @@ use Modules\AuditLog\Services\AuditLogger;
 use Modules\Auth\Models\User;
 use Modules\Warehouse\Exceptions\ImportReportPersistenceException;
 use Modules\Warehouse\Models\ImportReport;
+use Modules\Warehouse\Models\Sku;
 use Modules\Warehouse\Services\ImportErrorFileService;
 use Modules\Warehouse\Services\ImportReportLifecycle;
 use Modules\Warehouse\Support\SkuImportContract;
@@ -305,10 +306,47 @@ class ImportReportController extends Controller
         $page = (int) ($validated['page'] ?? 1);
         $perPage = (int) ($validated['per_page'] ?? 20);
         $slice = array_slice($all, ($page - 1) * $perPage, $perPage);
+        // Resolve exact catalog conflicts only, before sanitized display values can
+        // add a spreadsheet escape prefix. In-file duplicates are not catalog links.
+        $errors = array_slice($report->row_errors ?? [], ($page - 1) * $perPage, $perPage);
+        $codes = collect($errors)->filter(fn ($error) => ($error['code'] ?? '') === 'DUPLICATE_CODE'
+            && ($error['field'] ?? '') === 'sku_code')->pluck('value')->filter(fn ($value) => is_string($value))->all();
+        $byCode = Sku::query()->whereIn('sku_code', $codes)->pluck('sku_id', 'sku_code');
+        foreach ($slice as $index => &$row) {
+            $error = $errors[$index];
+            $row['existing_sku_id'] = ($error['code'] ?? '') === 'DUPLICATE_CODE' && ($error['field'] ?? '') === 'sku_code'
+                ? $byCode->get((string) ($error['value'] ?? '')) : null;
+        }
+        unset($row);
         $response = $this->respondPaginated(new LengthAwarePaginator($slice, count($all), $perPage, $page, ['path' => $request->url(), 'pageName' => 'page']));
         $payload = $response->getData(true);
         $payload['meta']['data_scope'] = $this->dataScopeLabel();
         $payload['meta']['row_source'] = 'PERSISTED_ERRORS_ONLY';
+        $response->setData($payload);
+
+        return $response;
+    }
+
+    #[OA\Get(path: '/api/v1/skus/import-reports/{id}/written-skus', operationId: 'sku_import_written_skus', summary: 'SKU thực sự tạo/cập nhật bởi phiên bản nhập này', security: [['bearerAuth' => []]], tags: ['05. Product'], parameters: [new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')), new OA\Parameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\Parameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100))], responses: [new OA\Response(response: 200, description: 'Trang SKU đã ghi; linkage_status=AVAILABLE/NO_WRITES/NOT_RECORDED'), new OA\Response(response: 403, description: 'Thiếu quyền sku.manage'), new OA\Response(response: 404, description: 'Báo cáo không tồn tại hoặc ngoài phạm vi')])]
+    public function writtenSkus(Request $request, string $id): JsonResponse
+    {
+        $this->assertValidId($id);
+        $validated = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'page' => ['nullable', 'integer', 'min:1']]);
+        $report = $this->scopedQuery()->find($id);
+        if (! $report) {
+            return $this->respondNotFound('Không tìm thấy Import báo cáo.');
+        }
+        $committed = $report->mode === 'COMMIT' && $report->status === 'COMMITTED';
+        $all = $committed ? ($report->written_skus ?? []) : [];
+        $page = (int) ($validated['page'] ?? 1);
+        $perPage = (int) ($validated['per_page'] ?? 20);
+        $slice = array_slice($all, ($page - 1) * $perPage, $perPage);
+        $existing = Sku::query()->whereIn('sku_id', array_column($slice, 'sku_id'))->pluck('sku_id')->flip();
+        $slice = array_map(fn ($row) => [...$row, 'available' => $existing->has($row['sku_id'])], $slice);
+        $response = $this->respondPaginated(new LengthAwarePaginator($slice, count($all), $perPage, $page, ['path' => $request->url(), 'pageName' => 'page']));
+        $payload = $response->getData(true);
+        $payload['meta']['data_scope'] = $this->dataScopeLabel();
+        $payload['meta']['linkage_status'] = ! $committed ? 'NO_WRITES' : ($report->written_skus === null ? 'NOT_RECORDED' : ($all === [] ? 'NO_WRITES' : 'AVAILABLE'));
         $response->setData($payload);
 
         return $response;

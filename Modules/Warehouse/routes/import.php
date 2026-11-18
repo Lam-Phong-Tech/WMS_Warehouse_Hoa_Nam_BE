@@ -18,6 +18,8 @@ Route::prefix('v1')->middleware('auth:api')->group(function (): void {
         ->middleware('permission:sku.manage');
     Route::get('skus/import-reports/{id}/rows', [ImportReportController::class, 'rows'])
         ->middleware('permission:sku.manage');
+    Route::get('skus/import-reports/{id}/written-skus', [ImportReportController::class, 'writtenSkus'])
+        ->middleware('permission:sku.manage');
     Route::get('skus/import-reports/{id}/versions', [ImportReportController::class, 'versions'])
         ->middleware('permission:sku.manage');
     Route::post('skus/import-reports/{id}/recheck', [ImportReportController::class, 'recheck'])

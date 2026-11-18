@@ -79,6 +79,7 @@ class ImportReportWriter
                     'inserted_rows' => $dryRun ? ($result['would_insert_rows'] ?? 0) : ($result['inserted_rows'] ?? 0),
                     'updated_rows' => $dryRun ? ($result['would_update_rows'] ?? 0) : ($result['updated_rows'] ?? 0),
                     'row_errors' => $result['row_errors'] ?? [],
+                    'written_skus' => $status === 'COMMITTED' ? ($result['written_skus'] ?? null) : [],
                     'actor_id' => $actorId,
                     'request_id' => $requestId,
                     // WWHN-331 FE331-P1-02R3: lưu vân tay tùy chọn để lần nộp sau so được

@@ -22,7 +22,7 @@ class ImportReport extends Model
     protected $fillable = [
         'import_type', 'mode', 'status', 'file_name', 'file_sha256', 'template_version',
         'total_rows', 'valid_rows', 'error_rows', 'inserted_rows', 'updated_rows',
-        'row_errors', 'actor_id', 'request_id',
+        'row_errors', 'written_skus', 'actor_id', 'request_id',
         'error_file_path', 'error_file_expires_at', 'duplicate_of_replay',
         // WWHN-331 FE331-P1-02R3: vân tay các tùy chọn tham gia ĐỊNH DANH lần import
         // (hiện tại chỉ update_existing). Xem SkuImportContract::optionsFingerprint().
@@ -33,6 +33,7 @@ class ImportReport extends Model
 
     protected $casts = [
         'row_errors' => 'array',
+        'written_skus' => 'array',
         'total_rows' => 'integer',
         'valid_rows' => 'integer',
         'error_rows' => 'integer',
@@ -53,14 +54,20 @@ class ImportReport extends Model
      *
      * @var list<string>
      */
-    protected $hidden = ['error_file_path', 'sourceFile'];
+    protected $hidden = ['error_file_path', 'sourceFile', 'written_skus'];
 
     protected $with = ['sourceFile'];
 
     /** @var list<string> */
     protected $appends = ['error_file_available', 'error_file_status', 'source_file_available', 'source_file_status',
         'uploaded_by_name', 'uploaded_by_account', 'uploaded_at', 'file_size_bytes',
-        'actual_inserted_rows', 'actual_updated_rows', 'not_written_rows', 'planned_inserted_rows', 'planned_updated_rows', 'row_counts'];
+        'actual_inserted_rows', 'actual_updated_rows', 'not_written_rows', 'planned_inserted_rows', 'planned_updated_rows', 'row_counts', 'written_skus_available'];
+
+    protected function writtenSkusAvailable(): Attribute
+    {
+        return Attribute::make(get: fn (): bool => $this->mode === 'COMMIT'
+            && $this->status === 'COMMITTED' && is_array($this->written_skus) && $this->written_skus !== []);
+    }
 
     protected function rowCounts(): Attribute
     {

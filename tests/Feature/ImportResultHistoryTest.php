@@ -52,14 +52,14 @@ class ImportResultHistoryTest extends TestCase
         $book->disconnectWorksheets();
     }
 
-    private function upload(bool $dryRun = true, ?string $bytes = null): string
+    private function upload(bool $dryRun = true, ?string $bytes = null, bool $updateExisting = false, int $expectedStatus = 200): string
     {
         $response = $this->withToken($this->token)->post('/api/v1/skus/import-excel', [
             'file' => UploadedFile::fake()->createWithContent('same-name.xlsx', $bytes ?? $this->bytes),
             'dry_run' => $dryRun,
-            'update_existing' => false,
+            'update_existing' => $updateExisting,
         ], ['Accept' => 'application/json']);
-        $response->assertOk();
+        $response->assertStatus($expectedStatus);
 
         return $response->json('data.import_report_id');
     }
@@ -85,6 +85,71 @@ class ImportResultHistoryTest extends TestCase
         $this->assertGreaterThanOrEqual(0, $data['processing_duration_ms']);
         $this->assertArrayNotHasKey('file_path', $data);
         $this->assertArrayNotHasKey('source_file', $data);
+    }
+
+    public function test_written_skus_are_linked_to_the_exact_commit_and_keep_stable_ids(): void
+    {
+        $created = $this->upload(false);
+        $sku = Sku::where('sku_code', 'HISTORY-001')->firstOrFail();
+        $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$created.'/written-skus')
+            ->assertOk()->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.sku_id', $sku->getKey())
+            ->assertJsonPath('data.0.sku_code', 'HISTORY-001')
+            ->assertJsonPath('data.0.action', 'CREATED')
+            ->assertJsonPath('data.0.available', true);
+        $updated = $this->upload(false, updateExisting: true);
+        $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$updated.'/written-skus')
+            ->assertOk()->assertJsonPath('data.0.sku_id', $sku->getKey())->assertJsonPath('data.0.action', 'UPDATED');
+        $sku->update(['sku_code' => 'RENAMED-001']);
+        $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$created.'/written-skus')
+            ->assertOk()->assertJsonPath('data.0.sku_code', 'HISTORY-001')->assertJsonPath('data.0.sku_id', $sku->getKey());
+        $data = $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$created)
+            ->assertOk()->assertJsonPath('data.written_skus_available', true)->json('data');
+        $this->assertArrayNotHasKey('written_skus', $data);
+    }
+
+    public function test_dry_runs_rejections_and_legacy_reports_do_not_invent_written_skus(): void
+    {
+        $dryRun = $this->upload();
+        $this->upload(false);
+        $rejected = $this->upload(updateExisting: false, expectedStatus: 422);
+        foreach ([$dryRun, $rejected] as $id) {
+            $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$id.'/written-skus')
+                ->assertOk()->assertJsonCount(0, 'data')->assertJsonPath('meta.linkage_status', 'NO_WRITES');
+        }
+        ImportReport::findOrFail($dryRun)->forceFill(['mode' => 'COMMIT', 'status' => 'COMMITTED', 'inserted_rows' => 1, 'written_skus' => null])->save();
+        $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$dryRun.'/written-skus')
+            ->assertOk()->assertJsonCount(0, 'data')->assertJsonPath('meta.linkage_status', 'NOT_RECORDED');
+    }
+
+    public function test_duplicate_links_resolve_only_existing_sku_conflicts_and_not_batch_duplicates(): void
+    {
+        $this->upload(false);
+        $id = $this->upload(expectedStatus: 422);
+        $sku = Sku::where('sku_code', 'HISTORY-001')->firstOrFail();
+        $report = ImportReport::findOrFail($id);
+        $error = ['row' => 2, 'code' => 'DUPLICATE_CODE', 'field' => 'sku_code', 'message' => 'SKU đã tồn tại', 'value' => 'HISTORY-001'];
+        $report->update(['row_errors' => [$error, [...$error, 'code' => 'DUPLICATE_CODE_IN_BATCH'], [...$error, 'value' => 'HISTORY-001-extra'], [...$error, 'field' => 'brand_code']]]);
+        $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$id.'/rows')
+            ->assertOk()->assertJsonPath('data.0.existing_sku_id', $sku->getKey())
+            ->assertJsonPath('data.1.existing_sku_id', null)->assertJsonPath('data.2.existing_sku_id', null)
+            ->assertJsonPath('data.3.existing_sku_id', null);
+    }
+
+    public function test_written_sku_pagination_and_deleted_ids_never_relink_by_code(): void
+    {
+        $id = $this->upload(false);
+        $sku = Sku::where('sku_code', 'HISTORY-001')->firstOrFail();
+        $missingId = (string) Str::uuid();
+        ImportReport::findOrFail($id)->forceFill(['written_skus' => [
+            ['sku_id' => $missingId, 'sku_code' => 'HISTORY-001', 'action' => 'CREATED'],
+            ['sku_id' => $sku->getKey(), 'sku_code' => 'HISTORY-001', 'action' => 'UPDATED'],
+        ]])->save();
+        $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$id.'/written-skus?per_page=1')
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.available', false)->assertJsonPath('meta.total', 2);
+        $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$id.'/written-skus?per_page=1&page=2')
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.sku_id', $sku->getKey())->assertJsonPath('data.0.available', true);
+        $this->withToken($this->token)->getJson('/api/v1/skus/import-reports/'.$id.'/written-skus?per_page=101')->assertUnprocessable();
     }
 
     public function test_identical_bytes_append_versions_but_same_filename_with_different_bytes_is_separate(): void
@@ -217,12 +282,12 @@ class ImportResultHistoryTest extends TestCase
         $role->permissions()->attach($permission->getKey(), ['role_permission_id' => (string) Str::uuid()]);
         $other = User::create(['username' => 'history-scoped', 'display_name' => 'Other', 'password_hash' => Hash::make(TestCredentials::PASSWORD), 'status' => 'ACTIVE', 'version' => 1]);
         $other->roles()->attach($role->getKey(), ['user_role_id' => (string) Str::uuid(), 'scope_ref' => (string) Str::uuid()]);
-        foreach (['versions', 'source-file', 'result-file'] as $suffix) {
+        foreach (['versions', 'source-file', 'result-file', 'written-skus', 'rows'] as $suffix) {
             $this->withToken(JWTAuth::fromUser($other))->getJson('/api/v1/skus/import-reports/'.$id.'/'.$suffix)->assertNotFound();
         }
         $this->withToken(JWTAuth::fromUser($other))->postJson('/api/v1/skus/import-reports/'.$id.'/recheck')->assertNotFound();
         $other = User::create(['username' => 'history-no-permission', 'display_name' => 'No permission', 'password_hash' => Hash::make(TestCredentials::PASSWORD), 'status' => 'ACTIVE', 'version' => 1]);
-        foreach (['versions', 'source-file', 'result-file'] as $suffix) {
+        foreach (['versions', 'source-file', 'result-file', 'written-skus', 'rows'] as $suffix) {
             $this->withToken(JWTAuth::fromUser($other))->getJson('/api/v1/skus/import-reports/'.$id.'/'.$suffix)->assertForbidden();
         }
         $this->withToken(JWTAuth::fromUser($other))->postJson('/api/v1/skus/import-reports/'.$id.'/recheck')->assertForbidden();
