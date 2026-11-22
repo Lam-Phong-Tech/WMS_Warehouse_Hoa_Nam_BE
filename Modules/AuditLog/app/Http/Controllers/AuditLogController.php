@@ -3,12 +3,16 @@
 namespace Modules\AuditLog\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Support\ApiError;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Modules\AuditLog\Repositories\Contracts\AuditLogRepositoryInterface;
 use Modules\AuditLog\Services\AuditLogger;
 use Modules\AuditLog\Services\AuditObjectReferenceResolver;
 use Modules\Auth\Models\User;
+use Modules\Auth\Support\ProfileAvatar;
 use OpenApi\Attributes as OA;
 
 class AuditLogController extends Controller
@@ -77,7 +81,34 @@ class AuditLogController extends Controller
         // hiện UUID `object_id` cho người dùng — xem AuditObjectReferenceResolver.
         $this->objectReferences->attach($page->getCollection());
 
+        $actorIds = $page->getCollection()->pluck('actor.user_id')->filter()->unique();
+        $avatars = DB::table('user_profile_avatars')->whereIn('user_id', $actorIds)
+            ->get(['user_id', 'mime_type', 'size', 'updated_at'])->keyBy('user_id');
+        foreach ($page->getCollection() as $log) {
+            if ($log->actor !== null) {
+                // A page can reuse the same actor model across several log entries.
+                $actor = clone $log->actor;
+                $actor->setAttribute('avatar', ProfileAvatar::describe(
+                    $avatars->get($actor->user_id),
+                    route('api.audit-logs.actor-avatar', ['logId' => $log->id], false),
+                ));
+                $log->setRelation('actor', $actor);
+            }
+        }
+
         return $this->respondPaginated($page);
+    }
+
+    public function actorAvatar(Request $request, string $logId): Response
+    {
+        $allowedModules = $this->allowedModulesFor($request->user());
+        $actorId = $this->auditLogs->actorIdForEntry($logId, $allowedModules);
+
+        if ($actorId === null) {
+            ApiError::abort(404, 'RESOURCE_NOT_FOUND', 'Không tìm thấy ảnh người thực hiện.');
+        }
+
+        return ProfileAvatar::response($actorId);
     }
 
     #[OA\Get(

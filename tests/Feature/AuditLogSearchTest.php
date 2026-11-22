@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Modules\AuditLog\Models\AuditLog;
 use Modules\Auth\Models\Permission;
@@ -63,6 +64,37 @@ class AuditLogSearchTest extends TestCase
         $this->log($viewer, 'UPDATE', 'SYSTEM', ['object_type' => 'role', 'object_id' => $viewer->user_id]);
 
         $this->assertSame([$own->id], $this->search($viewer, ['q' => $viewer->email, 'actions' => ['UPDATE']], '/api/v1/audit-logs/me'));
+    }
+
+    public function test_actor_avatar_is_available_only_for_visible_audit_entries(): void
+    {
+        $viewer = $this->viewer(['audit_log.view', 'inbound.view']);
+        $actor = $this->user('Photo owner', 'photo@example.test');
+        $visible = $this->log($actor, 'APPROVE_RECEIPT', 'INBOUND');
+        $hidden = $this->log($actor, 'UPDATE', 'OUTBOUND');
+        $system = $this->log(null, 'CREATE', 'INBOUND');
+        $withoutPhoto = $this->log($viewer, 'CREATE', 'INBOUND');
+        $png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jX1sAAAAASUVORK5CYII=';
+        DB::table('user_profile_avatars')->insert([
+            'user_id' => $actor->user_id,
+            'image_base64' => $png,
+            'mime_type' => 'image/png',
+            'size' => strlen(base64_decode($png)),
+            'updated_at' => now(),
+        ]);
+        $headers = ['Authorization' => 'Bearer '.JWTAuth::fromUser($viewer)];
+        $path = fn (AuditLog $log) => '/api/v1/audit-logs/'.$log->id.'/actor-avatar';
+
+        $records = collect($this->getJson('/api/v1/audit-logs', $headers)->assertOk()->json('data'))->keyBy('id');
+        $this->assertSame($path($visible), $records[$visible->id]['actor']['avatar']['url']);
+        $this->assertArrayNotHasKey('image_base64', $records[$visible->id]['actor']['avatar']);
+        $this->assertNull($records[$withoutPhoto->id]['actor']['avatar']);
+        $this->assertNull($records[$system->id]['actor']);
+        $this->assertSame(base64_decode($png), $this->get($path($visible), $headers)
+            ->assertOk()->assertHeader('Content-Type', 'image/png')->getContent());
+        $this->getJson($path($hidden), $headers)->assertNotFound();
+        $this->getJson($path($system), $headers)->assertNotFound();
+        $this->getJson($path($withoutPhoto), $headers)->assertNotFound();
     }
 
     private function search(User $viewer, array $filters, string $path = '/api/v1/audit-logs'): array

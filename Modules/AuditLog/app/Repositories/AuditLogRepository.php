@@ -27,6 +27,13 @@ class AuditLogRepository extends BaseRepository implements AuditLogRepositoryInt
         parent::__construct($model);
     }
 
+    public function actorIdForEntry(string $logId, ?array $allowedModules): ?string
+    {
+        return $this->query()->whereKey($logId)->whereHas('actor')
+            ->when($allowedModules !== null, fn (Builder $query) => $query->whereIn('module', $allowedModules))
+            ->value('actor_id');
+    }
+
     protected function applyFilters(Builder $query, array $filters): Builder
     {
         if (! empty($filters['user_id'])) {
